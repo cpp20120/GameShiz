@@ -5,6 +5,7 @@ objg
 *.db
 *.db-shm
 *.db-wal
+db
 .env
 data/
 *.user
@@ -14,6 +15,9 @@ data/
 *.DotSettings.user
 src/
 experiments/
+publish/
+*.dmp
+*.gcdump
 
 **/values.secrets.yaml
 **/values.secrets.yml

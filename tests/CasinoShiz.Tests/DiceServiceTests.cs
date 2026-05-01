@@ -1,4 +1,6 @@
 using BotFramework.Host;
+using BotFramework.Sdk;
+using Games.Basketball;
 using Games.Dice;
 using Xunit;
 
@@ -14,14 +16,16 @@ public class DiceServiceTests
     private static DiceService MakeService(
         FakeEconomicsService? economics = null,
         int cost = 7,
-        ITelegramDiceDailyRollLimiter? limiter = null) =>
+        ITelegramDiceDailyRollLimiter? limiter = null,
+        NullEventBus? bus = null,
+        double redeemDropChance = 0) =>
         new(
             economics ?? new FakeEconomicsService(),
             new NullAnalyticsService(),
             new NullDiceHistoryStore(),
-            new NullEventBus(),
+            bus ?? new NullEventBus(),
             limiter ?? new NullTelegramDiceDailyRollLimiter(),
-            new FakeRuntimeTuning { Dice = new DiceOptions { Cost = cost } });
+            new FakeRuntimeTuning { Dice = new DiceOptions { Cost = cost, RedeemDropChance = redeemDropChance } });
 
     [Fact]
     public async Task PlayAsync_ForwardedMessage_ReturnsForwarded()
@@ -57,6 +61,38 @@ public class DiceServiceTests
         Assert.Equal(DiceOutcome.DailyRollLimitExceeded, result.Outcome);
         Assert.Equal(3, result.DailyDiceUsed);
         Assert.Equal(10, result.DailyDiceLimit);
+    }
+
+    [Fact]
+    public async Task DailyRollLimit_IsTrackedIndependentlyPerGame()
+    {
+        BotMiniGameSession.DangerousResetAllForTests();
+        try
+        {
+            var limiter = new GameScopedTelegramDiceDailyRollLimiter(maxRollsPerGame: 1);
+            var economics = new FakeEconomicsService();
+            var dice = MakeService(economics, limiter: limiter);
+            var basketball = new BasketballService(
+                economics,
+                new NullAnalyticsService(),
+                new InMemoryBasketballBetStore(),
+                new NullEventBus(),
+                new FakeRuntimeTuning(),
+                new NullMiniGameSessionGhostHeal(),
+                limiter);
+
+            var firstDice = await dice.PlayAsync(1, "u", 64, 100, isForwarded: false, default);
+            var secondDice = await dice.PlayAsync(1, "u", 64, 100, isForwarded: false, default);
+            var basketballBet = await basketball.PlaceBetAsync(1, "u", 100, 10, default);
+
+            Assert.Equal(DiceOutcome.Played, firstDice.Outcome);
+            Assert.Equal(DiceOutcome.DailyRollLimitExceeded, secondDice.Outcome);
+            Assert.Equal(BasketballBetError.None, basketballBet.Error);
+        }
+        finally
+        {
+            BotMiniGameSession.DangerousResetAllForTests();
+        }
     }
 
     [Fact]
@@ -129,5 +165,33 @@ public class DiceServiceTests
         await svc.PlayAsync(1, "u", 64, 100, isForwarded: false, default);
         Assert.Single(econ.Credits);
         Assert.Equal(77, econ.Credits[0].Amount);
+    }
+
+    [Fact]
+    public async Task PlayAsync_RedeemDropChanceOne_PublishesDropRequest()
+    {
+        var bus = new NullEventBus();
+        var svc = MakeService(bus: bus, redeemDropChance: 1);
+
+        await svc.PlayAsync(1, "u", 64, 100, isForwarded: false, default);
+
+        Assert.Contains(bus.Published, ev =>
+            ev is TelegramMiniGameRedeemCodeDropRequested
+            {
+                UserId: 1,
+                ChatId: 100,
+                GameId: MiniGameIds.Dice,
+            });
+    }
+
+    [Fact]
+    public async Task PlayAsync_RedeemDropChanceZero_DoesNotPublishDropRequest()
+    {
+        var bus = new NullEventBus();
+        var svc = MakeService(bus: bus, redeemDropChance: 0);
+
+        await svc.PlayAsync(1, "u", 64, 100, isForwarded: false, default);
+
+        Assert.DoesNotContain(bus.Published, ev => ev is TelegramMiniGameRedeemCodeDropRequested);
     }
 }

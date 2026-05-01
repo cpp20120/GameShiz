@@ -12,6 +12,7 @@ using Games.DiceCube;
 using Games.Dice;
 using Games.Horse;
 using Games.Leaderboard;
+using Games.Poker;
 using Games.Redeem;
 using Games.Transfer;
 
@@ -103,34 +104,112 @@ sealed class FakeEconomicsService : IEconomicsService
 sealed class NullTelegramDiceDailyRollLimiter : ITelegramDiceDailyRollLimiter
 {
     public Task<TelegramDiceRollGateResult> TryConsumeRollAsync(
-        long userId, long balanceScopeId, CancellationToken ct) =>
+        long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
         Task.FromResult(new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, 0, 0));
 
-    public Task TryRefundRollAsync(long userId, long balanceScopeId, CancellationToken ct) =>
+    public Task<TelegramDiceRollGateResult> GetRollStatusAsync(
+        long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
+        Task.FromResult(new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, 0, 0));
+
+    public Task GrantExtraRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
+        Task.CompletedTask;
+
+    public Task TryRefundRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
         Task.CompletedTask;
 }
 
 sealed class RejectingTelegramDiceDailyRollLimiter : ITelegramDiceDailyRollLimiter
 {
     public Task<TelegramDiceRollGateResult> TryConsumeRollAsync(
-        long userId, long balanceScopeId, CancellationToken ct) =>
+        long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
         Task.FromResult(new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.LimitExceeded, 3, 10));
 
-    public Task TryRefundRollAsync(long userId, long balanceScopeId, CancellationToken ct) =>
+    public Task<TelegramDiceRollGateResult> GetRollStatusAsync(
+        long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
+        Task.FromResult(new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, 3, 10));
+
+    public Task GrantExtraRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
+        Task.CompletedTask;
+
+    public Task TryRefundRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
         Task.CompletedTask;
 }
 
 sealed class RecordingTelegramDiceDailyRollLimiter : ITelegramDiceDailyRollLimiter
 {
     public int RefundCount { get; private set; }
+    public List<string> ConsumedGameIds { get; } = [];
+    public List<string> GrantedGameIds { get; } = [];
+    public List<string> RefundedGameIds { get; } = [];
 
     public Task<TelegramDiceRollGateResult> TryConsumeRollAsync(
-        long userId, long balanceScopeId, CancellationToken ct) =>
+        long userId, long balanceScopeId, string gameId, CancellationToken ct)
+    {
+        ConsumedGameIds.Add(gameId);
+        return Task.FromResult(new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, 1, 99));
+    }
+
+    public Task<TelegramDiceRollGateResult> GetRollStatusAsync(
+        long userId, long balanceScopeId, string gameId, CancellationToken ct) =>
         Task.FromResult(new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, 1, 99));
 
-    public Task TryRefundRollAsync(long userId, long balanceScopeId, CancellationToken ct)
+    public Task GrantExtraRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct)
+    {
+        GrantedGameIds.Add(gameId);
+        return Task.CompletedTask;
+    }
+
+    public Task TryRefundRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct)
     {
         RefundCount++;
+        RefundedGameIds.Add(gameId);
+        return Task.CompletedTask;
+    }
+}
+
+sealed class GameScopedTelegramDiceDailyRollLimiter(int maxRollsPerGame) : ITelegramDiceDailyRollLimiter
+{
+    private readonly Dictionary<(long UserId, long ScopeId, string GameId), int> _counts = new();
+
+    public Task<TelegramDiceRollGateResult> TryConsumeRollAsync(
+        long userId, long balanceScopeId, string gameId, CancellationToken ct)
+    {
+        var key = (userId, balanceScopeId, gameId);
+        var count = _counts.GetValueOrDefault(key);
+        if (count >= maxRollsPerGame)
+            return Task.FromResult(
+                new TelegramDiceRollGateResult(
+                    TelegramDiceRollGateStatus.LimitExceeded,
+                    count,
+                    maxRollsPerGame));
+
+        count++;
+        _counts[key] = count;
+        return Task.FromResult(
+            new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, count, maxRollsPerGame));
+    }
+
+    public Task<TelegramDiceRollGateResult> GetRollStatusAsync(
+        long userId, long balanceScopeId, string gameId, CancellationToken ct)
+    {
+        var key = (userId, balanceScopeId, gameId);
+        var count = _counts.GetValueOrDefault(key);
+        return Task.FromResult(
+            new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, count, maxRollsPerGame));
+    }
+
+    public Task GrantExtraRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct)
+    {
+        var key = (userId, balanceScopeId, gameId);
+        _counts[key] = _counts.GetValueOrDefault(key) - 1;
+        return Task.CompletedTask;
+    }
+
+    public Task TryRefundRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct)
+    {
+        var key = (userId, balanceScopeId, gameId);
+        if (_counts.TryGetValue(key, out var count) && count > 0)
+            _counts[key] = count - 1;
         return Task.CompletedTask;
     }
 }
@@ -147,6 +226,7 @@ public sealed class FakeRuntimeTuning : IRuntimeTuningAccessor
     public BasketballOptions Basketball { get; set; } = new();
     public BowlingOptions Bowling { get; set; } = new();
     public HorseOptions Horse { get; set; } = new();
+    public PokerOptions Poker { get; set; } = new();
     public TransferOptions Transfer { get; set; } = new();
 
     public T GetSection<T>(string sectionPath) where T : class, new()
@@ -160,6 +240,7 @@ public sealed class FakeRuntimeTuning : IRuntimeTuningAccessor
             BasketballOptions.SectionName => Basketball,
             BowlingOptions.SectionName => Bowling,
             HorseOptions.SectionName => Horse,
+            PokerOptions.SectionName => Poker,
             TransferOptions.SectionName => Transfer,
             _ => null,
         };
@@ -450,6 +531,48 @@ sealed class InMemoryLeaderboardStore : ILeaderboardStore
         var u = _users.LastOrDefault(x => x.UserId == userId && x.ScopeId == balanceScopeId);
         if (u == default) return Task.FromResult<(int, long)?>(null);
         return Task.FromResult<(int, long)?>((u.Coins, u.UpdatedAtMs));
+    }
+
+    public Task<(IReadOnlyList<GlobalLeaderboardUser> Users, int TotalUsers)> ListGlobalAggregateAsync(
+        long sinceUnixMs, int limit, CancellationToken ct)
+    {
+        var aggregate = _users
+            .Where(u => u.UpdatedAtMs >= sinceUnixMs)
+            .GroupBy(u => u.UserId)
+            .Select(g =>
+            {
+                var latest = g.OrderByDescending(x => x.UpdatedAtMs).First();
+                var total = g.Sum(x => x.Coins);
+                return new GlobalLeaderboardUser(g.Key, latest.Name, total, g.Count());
+            })
+            .OrderByDescending(g => g.TotalCoins)
+            .ThenBy(g => g.TelegramUserId)
+            .ToList();
+        var totalUsers = aggregate.Count;
+        var slice = limit > 0 && aggregate.Count > limit ? aggregate.Take(limit).ToList() : aggregate;
+        return Task.FromResult<(IReadOnlyList<GlobalLeaderboardUser>, int)>((slice, totalUsers));
+    }
+
+    public Task<IReadOnlyList<(long ChatId, string? Title, string ChatType, LeaderboardUser User)>>
+        ListGlobalSplitAsync(long sinceUnixMs, int perChatLimit, CancellationToken ct)
+    {
+        var rows = _users
+            .Where(u => u.UpdatedAtMs >= sinceUnixMs)
+            .GroupBy(u => u.ScopeId)
+            .SelectMany(g =>
+            {
+                var ordered = g.OrderByDescending(x => x.Coins).ThenBy(x => x.UserId).ToList();
+                var sliced = perChatLimit > 0 ? ordered.Take(perChatLimit) : ordered;
+                return sliced.Select(u => (
+                    ChatId: g.Key,
+                    Title: (string?)null,
+                    ChatType: "unknown",
+                    User: new LeaderboardUser(u.UserId, u.ScopeId, u.Name, u.Coins, u.UpdatedAtMs)));
+            })
+            .OrderBy(x => x.ChatId)
+            .ThenByDescending(x => x.User.Coins)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<(long, string?, string, LeaderboardUser)>>(rows);
     }
 }
 

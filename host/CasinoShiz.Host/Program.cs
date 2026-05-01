@@ -19,12 +19,15 @@ using Games.Admin;
 using Games.Basketball;
 using Games.Blackjack;
 using Games.Bowling;
+using Games.Challenges;
 using Games.Darts;
 using Games.Dice;
 using Games.Football;
 using Games.DiceCube;
 using Games.Horse;
 using Games.Leaderboard;
+using Games.Pick;
+using Games.PixelBattle;
 using Games.Poker;
 using Games.Redeem;
 using Games.SecretHitler;
@@ -45,6 +48,7 @@ builder.AddBotFramework()
     .AddModule<FootballModule>()
     .AddModule<BasketballModule>()
     .AddModule<BowlingModule>()
+    .AddModule<ChallengeModule>()
     .AddModule<BlackjackModule>()
     .AddModule<HorseModule>()
     .AddModule<PokerModule>()
@@ -52,6 +56,8 @@ builder.AddBotFramework()
     .AddModule<RedeemModule>()
     .AddModule<LeaderboardModule>()
     .AddModule<TransferModule>()
+    .AddModule<PixelBattleModule>()
+    .AddModule<PickModule>()
     .AddModule<AdminModule>();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -72,5 +78,7 @@ var app = builder.Build();
 
 app.UseBotFramework();
 app.UseForwardedHeaders();
+app.UseStaticFiles();
+app.MapPixelBattle();
 
 app.Run();

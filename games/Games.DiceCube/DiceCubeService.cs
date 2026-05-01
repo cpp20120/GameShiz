@@ -99,14 +99,14 @@ public sealed class DiceCubeService(
         var existing = await bets.FindAsync(userId, chatId, ct);
         if (existing != null) return CubeBetResult.Fail(CubeBetError.AlreadyPending, balance, existing.Amount);
 
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, ct);
+        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
             return new CubeBetResult(
                 CubeBetError.DailyRollLimit, 0, balance, 0, 0, null, gate.UsedToday, gate.Limit);
 
         if (!await economics.TryDebitAsync(userId, chatId, amount, "dicecube.bet", ct))
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
             return CubeBetResult.Fail(CubeBetError.NotEnoughCoins, balance);
         }
 
@@ -122,7 +122,7 @@ public sealed class DiceCubeService(
                     cube.Mult6),
                 ct))
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
             await economics.CreditAsync(userId, chatId, amount, "dicecube.bet.refund", ct);
             return CubeBetResult.Fail(CubeBetError.AlreadyPending, balance);
         }
@@ -180,12 +180,23 @@ public sealed class DiceCubeService(
             ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
         });
 
+        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         await events.PublishAsync(
-            new DiceCubeRollCompleted(userId, chatId, face, bet.Amount, multiplier, payout,
-                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
+            new DiceCubeRollCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
             ct);
+        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
+            events, cube.RedeemDropChance, userId, chatId, MiniGameIds.DiceCube, occurredAt, ct);
 
-        return new CubeRollResult(CubeRollOutcome.Rolled, face, bet.Amount, multiplier, payout, balance);
+        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.DiceCube, ct);
+        return new CubeRollResult(
+            CubeRollOutcome.Rolled,
+            face,
+            bet.Amount,
+            multiplier,
+            payout,
+            balance,
+            daily.UsedToday,
+            daily.Limit);
     }
 
     public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct)
@@ -197,6 +208,6 @@ public sealed class DiceCubeService(
         await bets.DeleteAsync(userId, chatId, ct);
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
         await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
     }
 }

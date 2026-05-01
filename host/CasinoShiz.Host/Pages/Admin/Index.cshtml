@@ -13,6 +13,32 @@
 </div>
 
 <div class="card">
+    <h3>Sticker game plays</h3>
+    <p class="muted">Counts resolved Telegram sticker games from domain events. <code>dice</code> is the 🎰 slots game.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Game</th>
+                <th>Total plays</th>
+                <th>Today</th>
+                <th>Last played</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var x in Model.StickerGames)
+            {
+                <tr>
+                    <td><code>@x.GameId</code> @x.Label</td>
+                    <td>@x.Plays</td>
+                    <td>@x.PlaysToday</td>
+                    <td>@(x.LastPlayedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
     <h3>Modules loaded</h3>
     <table>
         <thead><tr><th>Id</th><th>Name</th><th>Version</th></tr></thead>

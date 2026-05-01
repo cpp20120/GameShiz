@@ -76,14 +76,14 @@ public sealed class DartsService(
         if (!session.Ok)
             return new DartsBetResult(DartsBetError.BusyOtherGame, 0, balance, 0, session.Blocker, 0, 0, 0, 0);
 
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, ct);
+        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Darts, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
             return new DartsBetResult(
                 DartsBetError.DailyRollLimit, 0, balance, 0, null, 0, 0, gate.UsedToday, gate.Limit);
 
         if (!await economics.TryDebitAsync(userId, chatId, amount, "darts.bet", ct))
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
             return DartsBetResult.Fail(DartsBetError.NotEnoughCoins, balance);
         }
 
@@ -104,7 +104,7 @@ public sealed class DartsService(
         }
         catch
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
             await economics.CreditAsync(userId, chatId, amount, "darts.bet.refund", ct);
             throw;
         }
@@ -160,12 +160,24 @@ public sealed class DartsService(
             ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout, ["round_id"] = roundId,
         });
 
+        var darts = tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
+        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         await events.PublishAsync(
-            new DartsThrowCompleted(userId, chatId, face, bet.Amount, multiplier, payout,
-                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
+            new DartsThrowCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
             ct);
+        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
+            events, darts.RedeemDropChance, userId, chatId, MiniGameIds.Darts, occurredAt, ct);
 
-        return new DartsThrowResult(DartsThrowOutcome.Thrown, face, bet.Amount, multiplier, payout, balance);
+        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.Darts, ct);
+        return new DartsThrowResult(
+            DartsThrowOutcome.Thrown,
+            face,
+            bet.Amount,
+            multiplier,
+            payout,
+            balance,
+            DailyRollUsed: daily.UsedToday,
+            DailyRollLimit: daily.Limit);
     }
 
     public async Task AbortQueuedRoundIfBetReplyFailedAsync(long roundId, long userId, long chatId, CancellationToken ct)
@@ -174,7 +186,7 @@ public sealed class DartsService(
         if (row is not { Status: DartsRoundStatus.Queued } || row.UserId != userId || row.ChatId != chatId)
             return;
 
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
         await economics.CreditAsync(userId, chatId, row.Amount, "darts.bet_reply_failed.refund", ct);
         await rounds.DeleteAsync(roundId, ct);
 
@@ -217,7 +229,7 @@ public sealed class DartsService(
         if (!session.Ok)
             return new DartsThrowResult(DartsThrowOutcome.BetBusyOtherGame, BlockingGameId: session.Blocker);
 
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, ct);
+        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Darts, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
             return new DartsThrowResult(
                 DartsThrowOutcome.BetDailyLimit,
@@ -226,7 +238,7 @@ public sealed class DartsService(
 
         if (!await economics.TryDebitAsync(userId, chatId, amount, "darts.quickplay.bet", ct))
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
             return new DartsThrowResult(DartsThrowOutcome.BetNotEnoughCoins, Balance: balance);
         }
 
@@ -247,11 +259,22 @@ public sealed class DartsService(
             ["bet"] = amount, ["multiplier"] = multiplier, ["payout"] = payout,
         });
 
+        var darts = tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
+        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         await events.PublishAsync(
-            new DartsThrowCompleted(userId, chatId, face, amount, multiplier, payout,
-                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
+            new DartsThrowCompleted(userId, chatId, face, amount, multiplier, payout, occurredAt),
             ct);
+        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
+            events, darts.RedeemDropChance, userId, chatId, MiniGameIds.Darts, occurredAt, ct);
 
-        return new DartsThrowResult(DartsThrowOutcome.Thrown, face, amount, multiplier, payout, newBalance);
+        return new DartsThrowResult(
+            DartsThrowOutcome.Thrown,
+            face,
+            amount,
+            multiplier,
+            payout,
+            newBalance,
+            DailyRollUsed: gate.UsedToday,
+            DailyRollLimit: gate.Limit);
     }
 }

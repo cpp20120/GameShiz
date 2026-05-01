@@ -67,20 +67,20 @@ public sealed class BasketballService(
         var existing = await bets.FindAsync(userId, chatId, ct);
         if (existing != null) return BasketballBetResult.Fail(BasketballBetError.AlreadyPending, balance, existing.Amount);
 
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, ct);
+        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Basketball, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
             return new BasketballBetResult(
                 BasketballBetError.DailyRollLimit, 0, balance, 0, null, gate.UsedToday, gate.Limit);
 
         if (!await economics.TryDebitAsync(userId, chatId, amount, "basketball.bet", ct))
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Basketball, ct);
             return BasketballBetResult.Fail(BasketballBetError.NotEnoughCoins, balance);
         }
 
         if (!await bets.InsertAsync(new BasketballBet(userId, chatId, amount, DateTimeOffset.UtcNow), ct))
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Basketball, ct);
             await economics.CreditAsync(userId, chatId, amount, "basketball.bet.refund", ct);
             return BasketballBetResult.Fail(BasketballBetError.AlreadyPending, balance);
         }
@@ -119,12 +119,24 @@ public sealed class BasketballService(
             ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
         });
 
+        var basketball = tuning.GetSection<BasketballOptions>(BasketballOptions.SectionName);
+        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         await events.PublishAsync(
-            new BasketballThrowCompleted(userId, chatId, face, bet.Amount, multiplier, payout,
-                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
+            new BasketballThrowCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
             ct);
+        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
+            events, basketball.RedeemDropChance, userId, chatId, MiniGameIds.Basketball, occurredAt, ct);
 
-        return new BasketballThrowResult(BasketballThrowOutcome.Thrown, face, bet.Amount, multiplier, payout, balance);
+        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.Basketball, ct);
+        return new BasketballThrowResult(
+            BasketballThrowOutcome.Thrown,
+            face,
+            bet.Amount,
+            multiplier,
+            payout,
+            balance,
+            daily.UsedToday,
+            daily.Limit);
     }
 
     public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct)
@@ -136,7 +148,7 @@ public sealed class BasketballService(
         await bets.DeleteAsync(userId, chatId, ct);
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Basketball);
         await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct);
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, ct);
+        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Basketball, ct);
 
         analytics.Track("basketball", "bet_aborted", new Dictionary<string, object?>
         {

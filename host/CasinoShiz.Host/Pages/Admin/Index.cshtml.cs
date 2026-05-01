@@ -16,6 +16,7 @@ public sealed class IndexModel(
     public int PendingBets { get; private set; }
     public IReadOnlyList<IModule> Modules { get; private set; } = modules.ToList();
     public IReadOnlyList<ModuleCount> EventsByModule { get; private set; } = [];
+    public IReadOnlyList<MiniGameStickerTracking> StickerGames { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -49,7 +50,39 @@ public sealed class IndexModel(
             ORDER BY 2 DESC
             """, cancellationToken: ct));
         EventsByModule = rows.Select(r => new ModuleCount(r.module, r.cnt)).ToList();
+
+        var stickerRows = await conn.QueryAsync<MiniGameStickerTracking>(new CommandDefinition("""
+            WITH games(game_id, label, play_event) AS (
+                VALUES
+                    ('dice', 'slots', 'dice.roll_completed'),
+                    ('dicecube', 'dicecube', 'dicecube.roll_completed'),
+                    ('darts', 'darts', 'darts.throw_completed'),
+                    ('football', 'football', 'football.throw_completed'),
+                    ('basketball', 'basketball', 'basketball.throw_completed'),
+                    ('bowling', 'bowling', 'bowling.roll_completed')
+            )
+            SELECT
+                g.game_id AS GameId,
+                g.label AS Label,
+                count(e.id)::int AS Plays,
+                count(e.id) FILTER (WHERE e.occurred_at >= current_date)::int AS PlaysToday,
+                max(e.occurred_at) AS LastPlayedAt
+            FROM games g
+            LEFT JOIN event_log e ON e.event_type = g.play_event
+            GROUP BY g.game_id, g.label
+            ORDER BY count(e.id) DESC, g.game_id
+            """, cancellationToken: ct));
+        StickerGames = stickerRows.ToList();
     }
 }
 
 public sealed record ModuleCount(string Module, int Count);
+
+public sealed class MiniGameStickerTracking
+{
+    public string GameId { get; init; } = "";
+    public string Label { get; init; } = "";
+    public int Plays { get; init; }
+    public int PlaysToday { get; init; }
+    public DateTimeOffset? LastPlayedAt { get; init; }
+}

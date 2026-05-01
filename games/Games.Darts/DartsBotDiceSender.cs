@@ -66,7 +66,7 @@ public sealed partial class DartsBotDiceSender(
         if (row is not { Status: DartsRoundStatus.Queued })
             return;
 
-        await diceRolls.TryRefundRollAsync(userId, chatId, ct);
+        await diceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
         await economics.CreditAsync(userId, chatId, row.Amount, "darts.bot_dice.refund", ct);
         await rounds.DeleteAsync(roundId, ct);
 
@@ -99,6 +99,13 @@ public sealed partial class DartsBotDiceSender(
                 result.Face, result.Multiplier, result.Bet, result.Payout, net, result.Balance)
             : string.Format(localizer.Get("darts", "throw.lose"),
                 result.Face, result.Bet, result.Balance);
+        if (result.DailyRollLimit > 0)
+        {
+            text += "\n" + string.Format(
+                localizer.Get("darts", "throw.daily_roll_remaining"),
+                Math.Max(0, result.DailyRollLimit - result.DailyRollUsed),
+                result.DailyRollLimit);
+        }
 
         try
         {
