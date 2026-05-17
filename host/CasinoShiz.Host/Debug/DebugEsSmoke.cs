@@ -1,0 +1,69 @@
+using BotFramework.Sdk;
+
+namespace CasinoShiz.Host.Debug;
+
+public sealed class DebugEsSmokeAggregate : IEventSourcedAggregate
+{
+    private readonly List<IDomainEvent> _pending = [];
+
+    public DebugEsSmokeAggregate()
+    {
+        Id = string.Empty;
+    }
+
+    public DebugEsSmokeAggregate(string id)
+    {
+        Id = id;
+    }
+
+    public string Id { get; private set; }
+    public long Version { get; private set; }
+    public int Count { get; private set; }
+    public IReadOnlyList<IDomainEvent> PendingEvents => _pending;
+
+    public void Increment(long userId, long chatId)
+    {
+        Apply(new DebugEsSmokeIncremented(
+            Id,
+            Count + 1,
+            userId,
+            chatId,
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
+            isNew: true);
+    }
+
+    public void MarkEventsCommitted() => _pending.Clear();
+
+    public void LoadFromHistory(IEnumerable<IDomainEvent> history)
+    {
+        foreach (var ev in history)
+            Apply(ev, isNew: false);
+    }
+
+    private void Apply(IDomainEvent ev, bool isNew)
+    {
+        switch (ev)
+        {
+            case DebugEsSmokeIncremented incremented:
+                Id = incremented.StreamId;
+                Count = incremented.Count;
+                Version++;
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported debug ES event '{ev.EventType}'.");
+        }
+
+        if (isNew)
+            _pending.Add(ev);
+    }
+}
+
+public sealed record DebugEsSmokeIncremented(
+    string StreamId,
+    int Count,
+    long UserId,
+    long ChatId,
+    long OccurredAt) : IDomainEvent
+{
+    public string EventType => "debug.es_smoke_incremented";
+}
