@@ -95,6 +95,7 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             SELECT telegram_user_id, telegram_user_id, display_name, coins, version, created_at, updated_at
             FROM users_legacy;
             DROP TABLE users_legacy;
+            -- Replace any pre-existing wrong-shape economics_ledger (IF NOT EXISTS would skip a bad table).
             DROP TABLE IF EXISTS economics_ledger;
             CREATE TABLE economics_ledger (
                 id                  BIGSERIAL      PRIMARY KEY,
