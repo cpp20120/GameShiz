@@ -239,5 +239,27 @@ internal sealed class FrameworkMigrations : IModuleMigrations
               AND u.telegram_dice_roll_count > 0
             ON CONFLICT (telegram_user_id, balance_scope_id, game_id) DO NOTHING;
             """),
+
+        new Migration("013_event_dispatch_failures", """
+            CREATE TABLE IF NOT EXISTS event_dispatch_failures (
+                id              BIGSERIAL    PRIMARY KEY,
+                stream_id       TEXT         NOT NULL,
+                stream_version  BIGINT       NOT NULL,
+                event_type      TEXT         NOT NULL,
+                stage           TEXT         NOT NULL,
+                handler_name    TEXT         NOT NULL,
+                error           TEXT         NOT NULL,
+                error_type      TEXT,
+                retry_count     INTEGER      NOT NULL DEFAULT 0,
+                created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                last_seen_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                resolved_at     TIMESTAMPTZ,
+                UNIQUE (stream_id, stream_version, stage, handler_name)
+            );
+            CREATE INDEX IF NOT EXISTS ix_event_dispatch_failures_unresolved
+                ON event_dispatch_failures (resolved_at, last_seen_at DESC);
+            CREATE INDEX IF NOT EXISTS ix_event_dispatch_failures_event
+                ON event_dispatch_failures (event_type, last_seen_at DESC);
+            """),
     ];
 }
