@@ -79,10 +79,6 @@ internal sealed class BotFrameworkBuilder : IBotFrameworkBuilder
 
         services.AddSingleton(_registrations);
 
-        // Factory closes over the mutable aggregate lists. LoadedModules is
-        // resolved at first use (by BotHostedService during StartAsync), at
-        // which point every AddModule<T>() call has already completed because
-        // the container has been built.
         services.AddSingleton<LoadedModules>(_ => new LoadedModules(
             _modules,
             _locales,
@@ -118,8 +114,6 @@ internal sealed class BotFrameworkBuilder : IBotFrameworkBuilder
 
 public static class BotFrameworkBuilderExtensions
 {
-    /// Registers framework core services and returns a builder for fluent
-    /// module registration. Call before any AddModule<T>().
     public static IBotFrameworkBuilder AddBotFramework(this IHostApplicationBuilder builder)
     {
         var services = builder.Services;
@@ -159,21 +153,14 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<UpdateRouter>();
         services.AddSingleton<UpdatePipeline>();
 
-        // Default update middleware chain in registration order =
-        // execution order, outermost first: Exception -> Dedup -> Logging -> RateLimit.
         services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
         services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
         services.AddSingleton<IUpdateMiddleware, RateLimitMiddleware>();
         services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();
 
-        // Command bus + cross-module domain event bus. Middleware is picked up
-        // from DI — modules add theirs through IModuleServiceCollection and the
-        // Host can supply additional ICommandMiddleware singletons before
-        // AddBotFramework returns.
         services.AddSingleton<ICommandBus, CommandBus>();
 
-        // Read Redis config early — needed for both CAP transport and update fan-out.
         services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
         var redisEnabled = configuration.GetValue<bool>($"{RedisOptions.SectionName}:Enabled");
         var redisConn = configuration.GetValue<string>($"{RedisOptions.SectionName}:ConnectionString");
@@ -186,8 +173,6 @@ public static class BotFrameworkBuilderExtensions
                 "Production mode requires Redis. Set Redis:Enabled=true and Redis:ConnectionString.");
 
         var pgConnStr = configuration.GetConnectionString("Postgres")!;
-        // CAP (outbox + cross-pod delivery) only when Redis transport is available.
-        // Single-instance / dev falls back to InProcessEventBus — no broker needed.
         if (redisEnabled)
         {
             services.AddCap(opts =>
@@ -210,7 +195,6 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<ILocalizer, Localizer>();
         services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
 
-        // Cross-cutting services every module shares.
         services.AddSingleton<IEconomicsService, EconomicsService>();
         services.AddSingleton<IDistributedGameLock, PostgresDistributedGameLock>();
         services.AddSingleton<IMiniGameSessionStore, PostgresMiniGameSessionStore>();
@@ -231,8 +215,6 @@ public static class BotFrameworkBuilderExtensions
         services.AddHostedService(sp => sp.GetRequiredService<ClickHouseAnalyticsService>());
         services.AddSingleton<IAnalyticsQueryService, ClickHouseAnalyticsQueryService>();
 
-        // Event sourcing stack. Stores/serializers are singleton infrastructure;
-        // EventDispatcher, replay and retry services are scoped because projections may be scoped services.
         services.AddSingleton<IEventSerializer, JsonEventSerializer>();
         services.AddSingleton<IEventStore, PostgresEventStore>();
         services.AddScoped<EventDispatcher>();
@@ -244,12 +226,9 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<EventLogSubscriber>();
         services.AddSingleton<ClickHouseEventMirror>();
 
-        // Must run before BotHostedService so the schema is in place before
-        // polling starts. Generic Host awaits hosted services in registration
-        // order, so registering the migration runner first does the trick.
         services.AddHostedService<ModuleMigrationRunner>();
-        // Reload overlay after framework migration 010 creates runtime_tuning (hosted services start in registration order).
         services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
+        services.AddHostedService<DailyBonusCatchUpHostedService>();
 
         services.AddHostedService<BackgroundJobRunner>();
 
