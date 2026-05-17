@@ -76,8 +76,8 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 var app = builder.Build();
 
-app.UseBotFramework();
 app.UseForwardedHeaders();
+app.UseBotFramework();
 app.UseStaticFiles();
 app.MapPixelBattle();
 
