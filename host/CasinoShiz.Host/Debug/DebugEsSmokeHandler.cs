@@ -1,4 +1,5 @@
 using System.Net;
+using BotFramework.Host.Composition;
 using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
