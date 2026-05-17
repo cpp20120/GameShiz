@@ -12,8 +12,13 @@ public sealed class DebugModule : IModule
         services
             .AddSingleton<BotProcessClock>()
             .RegisterAggregate<DebugEsSmokeAggregate>(PersistenceStrategy.EventSourced)
+            .AddProjection<DebugEsSmokeProjection>()
             .AddHandler<DebugHandler>()
-            .AddHandler<DebugEsSmokeHandler>();
+            .AddHandler<DebugEsSmokeHandler>()
+            .AddHandler<DebugProjectionHandler>()
+            .AddHandler<DebugProjectionRebuildHandler>();
+
+    public IModuleMigrations? GetMigrations() => new DebugMigrations();
 
     public IReadOnlyList<LocaleBundle> GetLocales() => [];
 }
