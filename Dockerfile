@@ -19,6 +19,7 @@ COPY games/Games.SecretHitler/Games.SecretHitler.csproj         games/Games.Secr
 COPY games/Games.Redeem/Games.Redeem.csproj                     games/Games.Redeem/
 COPY games/Games.Leaderboard/Games.Leaderboard.csproj           games/Games.Leaderboard/
 COPY games/Games.PixelBattle/Games.PixelBattle.csproj           games/Games.PixelBattle/
+COPY games/Games.Pick/Games.Pick.csproj                         games/Games.Pick/
 COPY games/Games.Transfer/Games.Transfer.csproj                 games/Games.Transfer/
 COPY games/Games.Admin/Games.Admin.csproj                       games/Games.Admin/
 COPY host/CasinoShiz.Host/CasinoShiz.Host.csproj                host/CasinoShiz.Host/
