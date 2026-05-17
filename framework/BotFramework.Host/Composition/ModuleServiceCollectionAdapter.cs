@@ -56,6 +56,26 @@ public sealed class ModuleServiceCollectionAdapter(
         where TAggregate : IAggregateRoot
     {
         registrations.Aggregates.Add(new AggregateRegistration(typeof(TAggregate), strategy));
+
+        if (strategy == PersistenceStrategy.EventSourced)
+        {
+            if (!typeof(IEventSourcedAggregate).IsAssignableFrom(typeof(TAggregate)))
+            {
+                throw new InvalidOperationException(
+                    $"Aggregate {typeof(TAggregate).FullName} is registered as EventSourced " +
+                    $"but does not implement {nameof(IEventSourcedAggregate)}.");
+            }
+
+            var aggregateType = typeof(TAggregate);
+            var repositoryServiceType = typeof(IRepository<>).MakeGenericType(aggregateType);
+            var repositoryImplementationType = typeof(EventSourcedRepository<>).MakeGenericType(aggregateType);
+            var factoryServiceType = typeof(IAggregateFactory<>).MakeGenericType(aggregateType);
+            var factoryImplementationType = typeof(DefaultAggregateFactory<>).MakeGenericType(aggregateType);
+
+            services.AddScoped(factoryServiceType, factoryImplementationType);
+            services.AddScoped(repositoryServiceType, repositoryImplementationType);
+        }
+
         return this;
     }
 
