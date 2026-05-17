@@ -32,6 +32,16 @@ public interface ITransferService
         string recipientDisplayName,
         int netToRecipient,
         CancellationToken ct);
+
+    Task<TransferAttemptResult> TryTransferAsync(
+        long fromUserId,
+        long toUserId,
+        long chatId,
+        string senderDisplayName,
+        string recipientDisplayName,
+        int netToRecipient,
+        int sourceMessageId,
+        CancellationToken ct);
 }
 
 public sealed class TransferService(
@@ -39,6 +49,16 @@ public sealed class TransferService(
     IAnalyticsService analytics,
     IRuntimeTuningAccessor tuning) : ITransferService
 {
+    public Task<TransferAttemptResult> TryTransferAsync(
+        long fromUserId,
+        long toUserId,
+        long chatId,
+        string senderDisplayName,
+        string recipientDisplayName,
+        int netToRecipient,
+        CancellationToken ct) =>
+        TryTransferAsync(fromUserId, toUserId, chatId, senderDisplayName, recipientDisplayName, netToRecipient, 0, ct);
+
     public async Task<TransferAttemptResult> TryTransferAsync(
         long fromUserId,
         long toUserId,
@@ -46,6 +66,7 @@ public sealed class TransferService(
         string senderDisplayName,
         string recipientDisplayName,
         int netToRecipient,
+        int sourceMessageId,
         CancellationToken ct)
     {
         var opts = tuning.GetSection<TransferOptions>(TransferOptions.SectionName);
@@ -64,7 +85,8 @@ public sealed class TransferService(
         await economics.EnsureUserAsync(fromUserId, chatId, senderDisplayName, ct);
         await economics.EnsureUserAsync(toUserId, chatId, recipientDisplayName, ct);
 
-        var result = await economics.TryPeerTransferAsync(
+        var operationId = $"peer:{chatId}:{sourceMessageId}:{fromUserId}:{toUserId}";
+        var result = await economics.TryPeerTransferOnceAsync(
             fromUserId,
             toUserId,
             chatId,
@@ -72,6 +94,7 @@ public sealed class TransferService(
             netToRecipient,
             "transfer.send",
             "transfer.receive",
+            operationId,
             ct);
 
         if (!result.Ok)

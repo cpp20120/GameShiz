@@ -188,6 +188,57 @@ public sealed partial class EconomicsService(
         string recipientReason,
         CancellationToken ct)
     {
+        return await PeerTransferCoreAsync(
+            fromUserId,
+            toUserId,
+            balanceScopeId,
+            debitFromSender,
+            creditToRecipient,
+            senderReason,
+            recipientReason,
+            operationId: null,
+            ct);
+    }
+
+    public async Task<PeerTransferResult> TryPeerTransferOnceAsync(
+        long fromUserId,
+        long toUserId,
+        long balanceScopeId,
+        int debitFromSender,
+        int creditToRecipient,
+        string senderReason,
+        string recipientReason,
+        string operationId,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(operationId))
+            throw new ArgumentException("Operation id is required for idempotent peer transfers.", nameof(operationId));
+        if (operationId.Length > 240)
+            throw new ArgumentOutOfRangeException(nameof(operationId), "Operation id must be <= 240 characters.");
+
+        return await PeerTransferCoreAsync(
+            fromUserId,
+            toUserId,
+            balanceScopeId,
+            debitFromSender,
+            creditToRecipient,
+            senderReason,
+            recipientReason,
+            operationId,
+            ct);
+    }
+
+    private async Task<PeerTransferResult> PeerTransferCoreAsync(
+        long fromUserId,
+        long toUserId,
+        long balanceScopeId,
+        int debitFromSender,
+        int creditToRecipient,
+        string senderReason,
+        string recipientReason,
+        string? operationId,
+        CancellationToken ct)
+    {
         if (fromUserId == toUserId)
             return new PeerTransferResult(false, PeerTransferFailure.SameUser, 0, 0);
         if (debitFromSender <= 0 || creditToRecipient <= 0)
@@ -209,12 +260,39 @@ public sealed partial class EconomicsService(
             WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
             """;
         const string insertLedger = """
-            INSERT INTO economics_ledger (telegram_user_id, balance_scope_id, delta, balance_after, reason)
-            VALUES (@userId, @balanceScopeId, @delta, @newCoins, @reason)
+            INSERT INTO economics_ledger (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id)
+            VALUES (@userId, @balanceScopeId, @delta, @newCoins, @reason, @operationId)
             """;
+        const string selectExisting = """
+            SELECT balance_after
+            FROM economics_ledger
+            WHERE operation_id = @operationId
+            """;
+
+        var senderOperationId = operationId is null ? null : $"{operationId}:send";
+        var recipientOperationId = operationId is null ? null : $"{operationId}:receive";
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+
+        if (senderOperationId is not null && recipientOperationId is not null)
+        {
+            var existingSender = await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
+                selectExisting,
+                new { operationId = senderOperationId },
+                transaction: tx,
+                cancellationToken: ct));
+            var existingRecipient = await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
+                selectExisting,
+                new { operationId = recipientOperationId },
+                transaction: tx,
+                cancellationToken: ct));
+            if (existingSender.HasValue && existingRecipient.HasValue)
+            {
+                await tx.CommitAsync(ct);
+                return new PeerTransferResult(true, null, existingSender.Value, existingRecipient.Value);
+            }
+        }
 
         var row1 = await conn.QuerySingleOrDefaultAsync<LockedWallet>(
             new CommandDefinition(
@@ -271,6 +349,7 @@ public sealed partial class EconomicsService(
                 delta = -debitFromSender,
                 newCoins = senderNew,
                 reason = senderReason,
+                operationId = senderOperationId,
             },
             transaction: tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
@@ -282,6 +361,7 @@ public sealed partial class EconomicsService(
                 delta = creditToRecipient,
                 newCoins = recipientNew,
                 reason = recipientReason,
+                operationId = recipientOperationId,
             },
             transaction: tx, cancellationToken: ct));
 
@@ -423,8 +503,7 @@ public sealed partial class EconomicsService(
         await conn.ExecuteAsync(new CommandDefinition(
             insertLedger,
             new { userId, balanceScopeId, delta, newCoins, reason, operationId },
-            transaction: tx,
-            cancellationToken: ct));
+            transaction: tx, cancellationToken: ct));
 
         await tx.CommitAsync(ct);
         return new EconomicsMutationResult(Applied: true, Rejected: false, newCoins);
