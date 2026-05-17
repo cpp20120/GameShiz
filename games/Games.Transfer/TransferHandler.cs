@@ -68,7 +68,7 @@ public sealed class TransferHandler(
             : msg.From?.FirstName ?? $"User ID: {fromId}";
 
         var result = await transfers.TryTransferAsync(
-            fromId, toId, chatId, senderName, recipientLabel, net, ctx.Ct);
+            fromId, toId, chatId, senderName, recipientLabel, net, msg.MessageId, ctx.Ct);
 
         switch (result.Error)
         {
