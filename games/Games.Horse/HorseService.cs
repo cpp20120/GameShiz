@@ -12,6 +12,8 @@
 // payout = bet * koef (integer-floored).
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Security.Cryptography;
+using System.Text;
 using BotFramework.Host;
 using BotFramework.Sdk;
 using Games.Horse.Generators;
@@ -24,6 +26,9 @@ public interface IHorseService
 {
     Task<BetResult> PlaceBetAsync(
         long userId, string displayName, long balanceScopeId, int horseId, int amount, CancellationToken ct);
+
+    Task<BetResult> PlaceBetAsync(
+        long userId, string displayName, long balanceScopeId, int horseId, int amount, int sourceMessageId, CancellationToken ct);
 
     /// <param name="balanceScopeIdOnly">If null, aggregate every chat (admin). Else this Telegram chat only.</param>
     Task<RaceInfo> GetTodayInfoAsync(long? balanceScopeIdOnly, CancellationToken ct);
@@ -51,8 +56,12 @@ public sealed partial class HorseService(
     public int HorseCount => _opts.HorseCount;
     public int MinBetsToRun => _opts.MinBetsToRun;
 
+    public Task<BetResult> PlaceBetAsync(
+        long userId, string displayName, long balanceScopeId, int horseId, int amount, CancellationToken ct) =>
+        PlaceBetAsync(userId, displayName, balanceScopeId, horseId, amount, sourceMessageId: 0, ct);
+
     public async Task<BetResult> PlaceBetAsync(
-        long userId, string displayName, long balanceScopeId, int horseId, int amount, CancellationToken ct)
+        long userId, string displayName, long balanceScopeId, int horseId, int amount, int sourceMessageId, CancellationToken ct)
     {
         if (horseId < 1 || horseId > _opts.HorseCount)
         {
@@ -69,11 +78,13 @@ public sealed partial class HorseService(
             return BetFail(HorseError.InvalidAmount, horseId, balance);
         }
 
-        if (!await economics.TryDebitAsync(userId, balanceScopeId, amount, "horse.bet", ct))
+        var operationId = $"horse:bet:{balanceScopeId}:{sourceMessageId}:{userId}";
+        var debit = await economics.TryDebitOnceAsync(userId, balanceScopeId, amount, "horse.bet", operationId, ct);
+        if (debit.Rejected)
             return BetFail(HorseError.InvalidAmount, horseId, balance);
 
         var raceDate = HorseTimeHelper.GetRaceDate(_opts.TimezoneOffsetHours);
-        var bet = new HorseBetRow(Guid.NewGuid(), raceDate, userId, balanceScopeId, horseId - 1, amount);
+        var bet = new HorseBetRow(StableGuid(operationId), raceDate, userId, balanceScopeId, horseId - 1, amount);
         await betStore.InsertAsync(bet, ct);
 
         LogHorseBetPlaced(userId, horseId, amount, raceDate);
@@ -84,7 +95,7 @@ public sealed partial class HorseService(
         await events.PublishAsync(new HorseBetPlaced(userId, horseId, amount, raceDate,
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), ct);
 
-        return new BetResult(HorseError.None, horseId, amount, balance - amount);
+        return new BetResult(HorseError.None, horseId, amount, debit.NewBalance);
     }
 
     public async Task<RaceInfo> GetTodayInfoAsync(long? balanceScopeIdOnly, CancellationToken ct)
@@ -166,7 +177,10 @@ public sealed partial class HorseService(
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
         foreach (var (key, prize) in payoutByKey)
-            await economics.CreditAsync(key.UserId, key.BalanceScopeId, prize, "horse.payout", ct);
+        {
+            var operationId = $"horse:payout:{raceDate}:{kind}:{resultScope}:{key.UserId}:{key.BalanceScopeId}";
+            await economics.CreditOnceAsync(key.UserId, key.BalanceScopeId, prize, "horse.payout", operationId, ct);
+        }
 
         var wonByUser = payoutByKey
             .GroupBy(kv => kv.Key.UserId)
@@ -223,6 +237,12 @@ public sealed partial class HorseService(
             .Where(b => b.HorseId == winner)
             .Select(b => (b.UserId, b.BalanceScopeId, (int)Math.Floor(b.Amount * ks[b.HorseId])))
             .ToList();
+    }
+
+    private static Guid StableGuid(string value)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        return new Guid(bytes[..16]);
     }
 
     [LoggerMessage(LogLevel.Information, "horse.bet.rejected user={UserId} reason=invalid_horse horse={Horse}")]
