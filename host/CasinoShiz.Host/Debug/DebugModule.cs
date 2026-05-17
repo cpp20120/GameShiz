@@ -11,7 +11,9 @@ public sealed class DebugModule : IModule
     public void ConfigureServices(IModuleServiceCollection services) =>
         services
             .AddSingleton<BotProcessClock>()
-            .AddHandler<DebugHandler>();
+            .RegisterAggregate<DebugEsSmokeAggregate>(PersistenceStrategy.EventSourced)
+            .AddHandler<DebugHandler>()
+            .AddHandler<DebugEsSmokeHandler>();
 
     public IReadOnlyList<LocaleBundle> GetLocales() => [];
 }
