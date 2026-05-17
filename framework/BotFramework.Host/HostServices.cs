@@ -94,6 +94,30 @@ public interface IEconomicsService
         string senderReason,
         string recipientReason,
         CancellationToken ct);
+
+    /// <summary>
+    /// Idempotent peer transfer. Implementations may override with durable operation-id semantics.
+    /// The default preserves compatibility for old test fakes.
+    /// </summary>
+    Task<PeerTransferResult> TryPeerTransferOnceAsync(
+        long fromUserId,
+        long toUserId,
+        long balanceScopeId,
+        int debitFromSender,
+        int creditToRecipient,
+        string senderReason,
+        string recipientReason,
+        string operationId,
+        CancellationToken ct) =>
+        TryPeerTransferAsync(
+            fromUserId,
+            toUserId,
+            balanceScopeId,
+            debitFromSender,
+            creditToRecipient,
+            senderReason,
+            recipientReason,
+            ct);
 }
 
 public readonly record struct EconomicsMutationResult(
