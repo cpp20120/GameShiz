@@ -232,10 +232,11 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<IAnalyticsQueryService, ClickHouseAnalyticsQueryService>();
 
         // Event sourcing stack. Stores/serializers are singleton infrastructure;
-        // EventDispatcher is scoped because projections may be scoped services.
+        // EventDispatcher and replay service are scoped because projections may be scoped services.
         services.AddSingleton<IEventSerializer, JsonEventSerializer>();
         services.AddSingleton<IEventStore, PostgresEventStore>();
         services.AddScoped<EventDispatcher>();
+        services.AddScoped<IEventReplayService, EventReplayService>();
         services.AddSingleton(typeof(ISnapshotStore<>), typeof(PostgresSnapshotStore<>));
         services.AddSingleton<IEventLog, PostgresEventLog>();
         services.AddSingleton<EventLogSubscriber>();
