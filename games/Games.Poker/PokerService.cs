@@ -133,7 +133,8 @@ public sealed partial class PokerService(
                 JoinedAt = now,
             };
 
-            var operationId = $"poker:create:{chatId}:{sourceMessageId}:{userId}";
+            var createOperationSource = sourceMessageId > 0 ? sourceMessageId.ToString() : code;
+            var operationId = $"poker:create:{chatId}:{createOperationSource}:{userId}";
             var debit = await economics.TryDebitOnceAsync(userId, chatId, buyIn, "poker.create", operationId, ct);
             if (debit.Rejected)
                 return Fail(PokerError.NotEnoughCoins);
@@ -213,7 +214,8 @@ public sealed partial class PokerService(
                 ChatId = chatId,
                 JoinedAt = now,
             };
-            var operationId = $"poker:join:{chatId}:{sourceMessageId}:{userId}:{code}";
+            var joinOperationSource = sourceMessageId > 0 ? sourceMessageId.ToString() : now.ToString();
+            var operationId = $"poker:join:{chatId}:{joinOperationSource}:{userId}:{code}";
             var debit = await economics.TryDebitOnceAsync(userId, chatId, buyIn, "poker.join", operationId, ct);
             if (debit.Rejected)
                 return JoinFail(PokerError.NotEnoughCoins);
