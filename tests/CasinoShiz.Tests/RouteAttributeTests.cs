@@ -75,6 +75,20 @@ public class RouteAttributeTests
     }
 
     [Fact]
+    public void Command_MatchesPlainTextPrefixWithArgs()
+    {
+        var attr = new CommandAttribute("/basketball");
+        Assert.True(attr.Matches(TextUpdate("basketball bet 10")));
+    }
+
+    [Fact]
+    public void Command_MatchesPlainTextShortAliasWithArgs()
+    {
+        var attr = new CommandAttribute("/cube");
+        Assert.True(attr.Matches(TextUpdate("cube bet 10")));
+    }
+
+    [Fact]
     public void Command_MatchesMentionForm()
     {
         var attr = new CommandAttribute("/poker");
@@ -89,10 +103,24 @@ public class RouteAttributeTests
     }
 
     [Fact]
+    public void Command_DoesNotMatchDifferentPlainTextCommand()
+    {
+        var attr = new CommandAttribute("/basket");
+        Assert.False(attr.Matches(TextUpdate("basketball bet 10")));
+    }
+
+    [Fact]
     public void Command_DoesNotMatchCommandPrefixOnly()
     {
         var attr = new CommandAttribute("/pay");
         Assert.False(attr.Matches(TextUpdate("/payday")));
+    }
+
+    [Fact]
+    public void Command_DoesNotMatchPlainTextPrefixOnly()
+    {
+        var attr = new CommandAttribute("/pay");
+        Assert.False(attr.Matches(TextUpdate("payday")));
     }
 
     [Fact]
