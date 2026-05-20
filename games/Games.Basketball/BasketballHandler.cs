@@ -8,6 +8,9 @@ using Telegram.Bot.Types.Enums;
 namespace Games.Basketball;
 
 [Command("/basket")]
+[Command("/basketball")]
+[TextCommand("basket")]
+[TextCommand("basketball")]
 [MessageDice("🏀")]
 public sealed partial class BasketballHandler(
     IBasketballService service,
@@ -186,7 +189,7 @@ public sealed partial class BasketballHandler(
                 // Bot dice with no bet → already settled or bad state, skip silently.
                 if (msg.From is { IsBot: true }) return;
 
-                // User threw 🏀 without a prior /basket command → quick-play with default bet.
+                // User threw 🏀 without a prior command → quick-play with default bet.
                 var defaultBet = tuning.GetSection<BasketballOptions>(BasketballOptions.SectionName).DefaultBet;
                 var betR = await service.PlaceBetAsync(userId, displayName, chatId, defaultBet, msg.MessageId, ctx.Ct);
                 if (betR.Error != BasketballBetError.None)
