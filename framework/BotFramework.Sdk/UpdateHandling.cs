@@ -11,8 +11,8 @@
 //   [ChannelPost]            300
 //   [MessageDice("🎰")]      250
 //   [CallbackPrefix("xyz")]  200
-//   [Command("/foo")]        100 + prefix.Length   (longer prefix wins ties)
-//   [TextCommand("foo")]      90 + token.Length    (plain text fallback)
+//   [Command("/foo")]        100 + prefix.Length   (longer prefix wins ties; also matches plain "foo")
+//   [TextCommand("foo")]      90 + token.Length    (plain text fallback / aliases)
 //   [CallbackFallback]         1
 //
 // A handler decorated with [Command("/poker")] always beats [Command("/p")]
@@ -82,7 +82,8 @@ public sealed class CommandAttribute(string prefix) : RouteAttribute
     public override string Name => $"cmd:{Prefix}";
     public override bool Matches(Update update) =>
         TryGetCommandToken(update.Message?.Text) is { } commandToken
-        && string.Equals(commandToken, Prefix, StringComparison.OrdinalIgnoreCase);
+        && (string.Equals(commandToken, Prefix, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(commandToken, Prefix.TrimStart('/'), StringComparison.OrdinalIgnoreCase));
 
     private static string? TryGetCommandToken(string? text)
     {
@@ -90,7 +91,7 @@ public sealed class CommandAttribute(string prefix) : RouteAttribute
             return null;
 
         var span = text.AsSpan().TrimStart();
-        if (span.IsEmpty || span[0] != '/')
+        if (span.IsEmpty)
             return null;
 
         var spaceIndex = span.IndexOf(' ');
@@ -101,6 +102,9 @@ public sealed class CommandAttribute(string prefix) : RouteAttribute
         var mentionIndex = token.IndexOf('@');
         if (mentionIndex >= 0)
             token = token[..mentionIndex];
+
+        if (!token.IsEmpty && token[0] == '/')
+            token = token[1..];
 
         return token.IsEmpty ? null : token.ToString();
     }
