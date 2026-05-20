@@ -6,7 +6,7 @@ public sealed class MetaModule : IModule
 {
     public string Id => "meta";
     public string DisplayName => "⭐ Мета";
-    public string Version => "0.5.0";
+    public string Version => "0.6.0";
 
     public void ConfigureServices(IModuleServiceCollection services)
     {
@@ -17,10 +17,13 @@ public sealed class MetaModule : IModule
             .AddScoped<IQuestService, QuestService>()
             .AddScoped<IClanStore, ClanStore>()
             .AddScoped<IClanService, ClanService>()
+            .AddScoped<ITournamentStore, TournamentStore>()
+            .AddScoped<ITournamentService, TournamentService>()
             .AddDomainEventSubscription<MetaXpProjection>("meta.game_completed")
             .AddDomainEventSubscription<QuestProjection>("meta.game_completed")
             .AddDomainEventSubscription<ClanProjection>("meta.game_completed")
-            .AddHandler<MetaHandler>();
+            .AddHandler<MetaHandler>()
+            .AddHandler<TournamentHandler>();
     }
 
     public IModuleMigrations? GetMigrations() => new MetaMigrations();
@@ -35,6 +38,8 @@ public sealed class MetaModule : IModule
         new BotCommand("/quests", "meta.cmd.quests"),
         new BotCommand("/quest", "meta.cmd.quest"),
         new BotCommand("/clan", "meta.cmd.clan"),
+        new BotCommand("/tournament", "meta.cmd.tournament"),
+        new BotCommand("/tour", "meta.cmd.tour"),
     ];
 
     public IReadOnlyList<LocaleBundle> GetLocales() =>
@@ -50,6 +55,8 @@ public sealed class MetaModule : IModule
             ["cmd.quests"] = "Квесты сезона",
             ["cmd.quest"] = "Забрать награду за квест",
             ["cmd.clan"] = "Кланы сезона",
+            ["cmd.tournament"] = "Турниры сезона",
+            ["cmd.tour"] = "Турниры сезона",
         }),
     ];
 }
