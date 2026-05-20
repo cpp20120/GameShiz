@@ -1,0 +1,106 @@
+@page "/admin/meta-seasons"
+@model CasinoShiz.Host.Pages.Admin.MetaSeasonsModel
+@{ ViewData["Title"] = "Meta seasons"; }
+
+<h2>Meta seasons</h2>
+<p class="muted">Manage season lifecycle and JSON config. Only SuperAdmin can mutate seasons.</p>
+
+@if (!string.IsNullOrEmpty(Model.Flash))
+{
+    <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
+}
+
+@if (Model.CanEdit)
+{
+    <div class="card">
+        <h3>Create planned season</h3>
+        <form method="post" asp-page-handler="Create">
+            <div class="grid">
+                <label>
+                    Name
+                    <input type="text" asp-for="Name" />
+                </label>
+                <label>
+                    Duration days
+                    <input type="number" asp-for="DurationDays" min="1" max="365" />
+                </label>
+            </div>
+            <label>
+                Config JSON
+                <textarea asp-for="ConfigJson" rows="12" style="width: 100%; font-family: monospace"></textarea>
+            </label>
+            <button type="submit">Create</button>
+        </form>
+    </div>
+}
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Starts</th>
+                <th>Ends</th>
+                <th>Config</th>
+                @if (Model.CanEdit)
+                {
+                    <th>Actions</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var s in Model.Seasons)
+        {
+            <tr>
+                <td><code>@s.Id</code></td>
+                <td><b>@s.Name</b></td>
+                <td><code>@s.Status</code></td>
+                <td class="muted">@s.StartsAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td class="muted">@s.EndsAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>
+                    <details>
+                        <summary>config</summary>
+                        @if (Model.CanEdit)
+                        {
+                            <form method="post" asp-page-handler="UpdateConfig">
+                                <input type="hidden" name="seasonId" value="@s.Id" />
+                                <textarea name="configJson" rows="14" style="width: 100%; min-width: 520px; font-family: monospace">@s.ConfigJson</textarea>
+                                <button type="submit" class="ghost">Save config</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <pre style="white-space: pre-wrap; max-width: 640px">@s.ConfigJson</pre>
+                        }
+                    </details>
+                </td>
+                @if (Model.CanEdit)
+                {
+                    <td>
+                        @if (s.Status != "active")
+                        {
+                            <form method="post" asp-page-handler="Activate" class="inline" onsubmit="return confirm('Activate season #@s.Id and finish current active season?');">
+                                <input type="hidden" name="seasonId" value="@s.Id" />
+                                <button type="submit" class="ghost">Activate</button>
+                            </form>
+                        }
+                        @if (s.Status != "finished")
+                        {
+                            <form method="post" asp-page-handler="Finish" class="inline" onsubmit="return confirm('Finish season #@s.Id?');">
+                                <input type="hidden" name="seasonId" value="@s.Id" />
+                                <button type="submit" class="ghost danger">Finish</button>
+                            </form>
+                        }
+                    </td>
+                }
+            </tr>
+        }
+        @if (Model.Seasons.Count == 0)
+        {
+            <tr><td colspan="@(Model.CanEdit ? 7 : 6)" class="muted">No seasons.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
