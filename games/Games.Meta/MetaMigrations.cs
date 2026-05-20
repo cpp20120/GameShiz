@@ -58,5 +58,19 @@ public sealed class MetaMigrations : IModuleMigrations
             CREATE INDEX ix_meta_season_players_top_rating
                 ON meta_season_players (season_id, chat_id, rating DESC, xp DESC, user_id ASC);
             """),
+
+        new Migration("002_achievements", """
+            CREATE TABLE meta_player_achievements (
+                achievement_id TEXT        NOT NULL,
+                season_id      BIGINT      NOT NULL REFERENCES meta_seasons(id) ON DELETE CASCADE,
+                chat_id        BIGINT      NOT NULL,
+                user_id        BIGINT      NOT NULL,
+                unlocked_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (achievement_id, season_id, chat_id, user_id)
+            );
+
+            CREATE INDEX ix_meta_player_achievements_user
+                ON meta_player_achievements (season_id, chat_id, user_id, unlocked_at DESC);
+            """),
     ];
 }

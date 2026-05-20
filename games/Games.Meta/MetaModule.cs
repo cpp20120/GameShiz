@@ -6,7 +6,7 @@ public sealed class MetaModule : IModule
 {
     public string Id => "meta";
     public string DisplayName => "⭐ Мета";
-    public string Version => "0.2.0";
+    public string Version => "0.3.0";
 
     public void ConfigureServices(IModuleServiceCollection services)
     {
@@ -25,6 +25,7 @@ public sealed class MetaModule : IModule
         new BotCommand("/profile", "meta.cmd.profile"),
         new BotCommand("/rank", "meta.cmd.rank"),
         new BotCommand("/topseason", "meta.cmd.topseason"),
+        new BotCommand("/achievements", "meta.cmd.achievements"),
     ];
 
     public IReadOnlyList<LocaleBundle> GetLocales() =>
@@ -36,6 +37,7 @@ public sealed class MetaModule : IModule
             ["cmd.profile"] = "Профиль сезона",
             ["cmd.rank"] = "Ранг сезона",
             ["cmd.topseason"] = "Сезонный топ",
+            ["cmd.achievements"] = "Ачивки сезона",
         }),
     ];
 }
