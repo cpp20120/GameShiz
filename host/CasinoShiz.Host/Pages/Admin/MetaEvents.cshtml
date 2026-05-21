@@ -1,0 +1,123 @@
+@page "/admin/meta-events"
+@model CasinoShiz.Host.Pages.Admin.MetaEventsModel
+@{ ViewData["Title"] = "Meta history"; }
+
+<h2>Meta history</h2>
+<p class="muted">Append-only meta domain history and read-model maintenance center.</p>
+
+@if (!string.IsNullOrEmpty(Model.Flash))
+{
+    <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
+}
+
+<div class="cards">
+    <div class="stat"><div class="label">Total events</div><div class="value">@Model.Stats.TotalEvents</div></div>
+    <div class="stat"><div class="label">Game completed</div><div class="value">@Model.Stats.GameCompletedEvents</div></div>
+    <div class="stat"><div class="label">Tournament events</div><div class="value">@Model.Stats.TournamentEvents</div></div>
+    <div class="stat"><div class="label">First event</div><div class="value" style="font-size:16px">@(Model.Stats.FirstEventAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</div></div>
+    <div class="stat"><div class="label">Last event</div><div class="value" style="font-size:16px">@(Model.Stats.LastEventAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</div></div>
+</div>
+
+<div class="card">
+    <form method="get" class="inline" style="flex-wrap: wrap">
+        <input type="text" name="eventType" value="@Model.EventType" placeholder="event type" />
+        <input type="text" name="aggregateType" value="@Model.AggregateType" placeholder="aggregate type" />
+        <input type="text" name="aggregateId" value="@Model.AggregateId" placeholder="aggregate id" />
+        <input type="text" name="chatId" value="@Model.ChatId" placeholder="chat id" />
+        <input type="text" name="userId" value="@Model.UserId" placeholder="user id" />
+        <input type="number" name="limit" value="@Model.Limit" min="1" max="1000" style="width: 100px" />
+        <button type="submit">Filter</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Core read-model refresh</h3>
+    <p class="muted">
+        First safe target: <code>meta_season_players</code> and <code>meta_player_achievements</code> from append-only history.
+        Economy, quests, clans, risk flags and tournament tables are not touched here.
+    </p>
+    <div class="cards">
+        <div class="stat"><div class="label">Current players</div><div class="value">@Model.Reconstruction.CurrentPlayers</div></div>
+        <div class="stat"><div class="label">History players</div><div class="value">@Model.Reconstruction.ReconstructablePlayers</div></div>
+        <div class="stat"><div class="label">Current achievements</div><div class="value">@Model.Reconstruction.CurrentAchievements</div></div>
+        <div class="stat"><div class="label">History achievements</div><div class="value">@Model.Reconstruction.ReconstructableAchievements</div></div>
+    </div>
+    @if (Model.CanRefreshCore)
+    {
+        <form method="post" asp-page-handler="RefreshCore" onsubmit="return confirm('Refresh core meta read models from history?');">
+            <p class="muted">Type <code>@CasinoShiz.Host.Pages.Admin.MetaEventsModel.ConfirmToken</code> to continue.</p>
+            <input type="text" name="confirm" placeholder="@CasinoShiz.Host.Pages.Admin.MetaEventsModel.ConfirmToken" style="width: 260px" />
+            <button type="submit" class="danger">Refresh core read models</button>
+        </form>
+    }
+    else
+    {
+        <p class="muted">Only SuperAdmin can run this operation.</p>
+    }
+</div>
+
+<div class="card">
+    <h3>Tracked event types</h3>
+    <p>
+        <code>game.completed</code>
+        <code>achievement.unlocked</code>
+        <code>quest.progressed</code>
+        <code>quest.claimed</code>
+        <code>clan.created</code>
+        <code>clan.joined</code>
+        <code>clan.progressed</code>
+        <code>risk.flagged</code>
+        <code>risk.status_updated</code>
+        <code>season.created</code>
+        <code>season.activated</code>
+        <code>season.finished</code>
+        <code>season.config_updated</code>
+        <code>season.reward_paid</code>
+        <code>season.clan_reward_paid</code>
+        <code>tournament.created</code>
+        <code>tournament.joined</code>
+        <code>tournament.started</code>
+        <code>tournament.match_reported</code>
+        <code>tournament.finished</code>
+        <code>tournament.cancelled</code>
+    </p>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Type</th>
+                <th>Aggregate</th>
+                <th>Season</th>
+                <th>Chat/User</th>
+                <th>Time</th>
+                <th>Payload</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var e in Model.Events)
+        {
+            <tr>
+                <td><code>@e.Id</code></td>
+                <td><code>@e.EventType</code></td>
+                <td><code>@e.AggregateType</code><br /><span class="muted">@e.AggregateId</span></td>
+                <td>@(e.SeasonId is null ? "—" : $"#{e.SeasonId}")</td>
+                <td><code>@(e.ChatId?.ToString() ?? "—")</code><br /><code>@(e.UserId?.ToString() ?? "—")</code></td>
+                <td class="muted">@e.OccurredAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>
+                    <details>
+                        <summary>json</summary>
+                        <pre style="max-width: 520px; white-space: pre-wrap">@e.PayloadJson</pre>
+                    </details>
+                </td>
+            </tr>
+        }
+        @if (Model.Events.Count == 0)
+        {
+            <tr><td colspan="7" class="muted">No events yet.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
