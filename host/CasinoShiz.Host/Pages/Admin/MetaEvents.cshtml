@@ -1,0 +1,83 @@
+@page "/admin/meta-events"
+@model CasinoShiz.Host.Pages.Admin.MetaEventsModel
+@{ ViewData["Title"] = "Meta history"; }
+
+<h2>Meta history</h2>
+<p class="muted">Append-only meta domain history. This is the first ES-compatible layer for replay/reconstruct workflows.</p>
+
+<div class="cards">
+    <div class="stat"><div class="label">Total events</div><div class="value">@Model.Stats.TotalEvents</div></div>
+    <div class="stat"><div class="label">Game completed</div><div class="value">@Model.Stats.GameCompletedEvents</div></div>
+    <div class="stat"><div class="label">Tournament events</div><div class="value">@Model.Stats.TournamentEvents</div></div>
+    <div class="stat"><div class="label">First event</div><div class="value" style="font-size:16px">@(Model.Stats.FirstEventAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</div></div>
+    <div class="stat"><div class="label">Last event</div><div class="value" style="font-size:16px">@(Model.Stats.LastEventAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</div></div>
+</div>
+
+<div class="card">
+    <form method="get" class="inline" style="flex-wrap: wrap">
+        <input type="text" name="eventType" value="@Model.EventType" placeholder="event type" />
+        <input type="text" name="aggregateType" value="@Model.AggregateType" placeholder="aggregate type" />
+        <input type="text" name="aggregateId" value="@Model.AggregateId" placeholder="aggregate id" />
+        <input type="text" name="chatId" value="@Model.ChatId" placeholder="chat id" />
+        <input type="text" name="userId" value="@Model.UserId" placeholder="user id" />
+        <input type="number" name="limit" value="@Model.Limit" min="1" max="1000" style="width: 100px" />
+        <button type="submit">Filter</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Reconstruct / replay status</h3>
+    <p class="muted">
+        This page currently provides safe dry-run data for reconstruction: event counts, event stream filters and payload inspection.
+        Destructive projection rebuild will be added separately behind SuperAdmin-only confirmation.
+    </p>
+    <p>
+        <code>game.completed</code>
+        <code>achievement.unlocked</code>
+        <code>tournament.created</code>
+        <code>tournament.joined</code>
+        <code>tournament.started</code>
+        <code>tournament.match_reported</code>
+        <code>tournament.finished</code>
+        <code>tournament.cancelled</code>
+    </p>
+</div>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Type</th>
+                <th>Aggregate</th>
+                <th>Season</th>
+                <th>Chat/User</th>
+                <th>Time</th>
+                <th>Payload</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var e in Model.Events)
+        {
+            <tr>
+                <td><code>@e.Id</code></td>
+                <td><code>@e.EventType</code></td>
+                <td><code>@e.AggregateType</code><br /><span class="muted">@e.AggregateId</span></td>
+                <td>@(e.SeasonId is null ? "—" : $"#{e.SeasonId}")</td>
+                <td><code>@(e.ChatId?.ToString() ?? "—")</code><br /><code>@(e.UserId?.ToString() ?? "—")</code></td>
+                <td class="muted">@e.OccurredAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                <td>
+                    <details>
+                        <summary>json</summary>
+                        <pre style="max-width: 520px; white-space: pre-wrap">@e.PayloadJson</pre>
+                    </details>
+                </td>
+            </tr>
+        }
+        @if (Model.Events.Count == 0)
+        {
+            <tr><td colspan="7" class="muted">No events yet.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
