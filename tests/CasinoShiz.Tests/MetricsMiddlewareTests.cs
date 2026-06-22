@@ -1,5 +1,5 @@
 using BotFramework.Host;
-using BotFramework.Host.Middleware;
+using BotFramework.Host.Commands;
 using BotFramework.Sdk;
 using Xunit;
 

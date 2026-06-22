@@ -24,8 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="quest-pool.json" CopyToOutputDirectory="PreserveNewest" />
-    <EmbeddedResource Include="quest-pool.json" />
+    <None Include="Infrastructure\Catalog\quest-pool.json" Link="quest-pool.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Infrastructure\Catalog\quest-pool.json" />
   </ItemGroup>
 
 </Project>

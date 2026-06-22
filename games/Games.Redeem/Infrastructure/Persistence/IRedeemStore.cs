@@ -1,0 +1,11 @@
+using BotFramework.Host;
+using Dapper;
+
+namespace Games.Redeem;
+
+public interface IRedeemStore
+{
+    Task<RedeemCode?> FindAsync(Guid code, CancellationToken ct);
+    Task InsertAsync(RedeemCode code, CancellationToken ct);
+    Task<bool> MarkRedeemedAsync(Guid code, long redeemedBy, long redeemedAt, CancellationToken ct);
+}

@@ -1,4 +1,5 @@
 using BotFramework.Host;
+using BotFramework.Host.Pipeline;
 using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -1,0 +1,8 @@
+using BotFramework.Sdk;
+
+namespace BotFramework.Host;
+
+public interface IRenderer<in TAggregate> where TAggregate : IAggregateRoot
+{
+    RenderedMessage Render(TAggregate aggregate, long viewerUserId, string cultureCode);
+}

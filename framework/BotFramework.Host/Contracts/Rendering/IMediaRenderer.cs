@@ -1,0 +1,8 @@
+using BotFramework.Sdk;
+
+namespace BotFramework.Host;
+
+public interface IMediaRenderer<in TAggregate> where TAggregate : IAggregateRoot
+{
+    RenderedMedia Render(TAggregate aggregate, long viewerUserId, string cultureCode);
+}

@@ -1,0 +1,17 @@
+using BotFramework.Sdk;
+
+namespace Games.Blackjack;
+
+public sealed record BlackjackHandStarted(
+    long UserId,
+    long ChatId,
+    int Bet,
+    string PlayerCards,
+    string DealerCards,
+    string DeckState,
+    int? StateMessageId,
+    long CreatedAtMs,
+    long OccurredAt) : IDomainEvent
+{
+    public string EventType => "blackjack.hand_started";
+}

@@ -1,4 +1,5 @@
 using BotFramework.Host;
+using BotFramework.Host.Commands;
 using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
