@@ -1,0 +1,304 @@
+@page "/admin/meta-quests"
+@model CasinoShiz.Host.Pages.Admin.MetaQuestsModel
+@{ ViewData["Title"] = "Meta quests"; }
+
+<h2>Meta quests</h2>
+<p class="muted">JSON quest pool, generated variants and deterministic daily/weekly rotation.</p>
+
+<style>
+    .quest-toolbar input { width: 120px; }
+    .quest-toolbar input[name="PreviewAt"] { width: 260px; }
+    .quest-toolbar select { min-width: 300px; }
+    .quest-table td { vertical-align: top; }
+    .quest-title { min-width: 260px; }
+    .quest-badges { display:flex; gap:4px; flex-wrap:wrap; }
+    .quest-badges code { white-space: nowrap; }
+    .quest-id { max-width: 320px; overflow-wrap: anywhere; }
+    .quest-editor-table input, .quest-editor-table select, .quest-editor-table textarea { width: 100%; min-width: 0; }
+    .quest-editor-table textarea { min-height: 64px; font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .quest-editor-table .wide { min-width: 220px; }
+    .quest-editor-table .narrow { width: 86px; }
+    .quest-editor-scroll { overflow-x: auto; }
+    .definition-list { display: grid; gap: 12px; }
+    .definition-card { background:#0f172a; border:1px solid #334155; border-radius:6px; padding:12px; }
+    .definition-grid {
+        display:grid;
+        grid-template-columns: minmax(300px, 1fr) minmax(220px, .5fr);
+        gap:10px;
+        align-items:end;
+    }
+    .definition-field.metadata { grid-column: 1 / -1; overflow-x:auto; }
+    .definition-meta-grid {
+        display:grid;
+        grid-template-columns: 180px 240px 280px 190px;
+        gap:10px;
+        align-items:end;
+        min-width: 920px;
+    }
+    .definition-grid.secondary {
+        grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) minmax(140px, .8fr) minmax(180px, 1fr) minmax(260px, 1.4fr);
+        margin-top:10px;
+    }
+    .definition-field label { display:block; font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:#94a3b8; margin-bottom:4px; }
+    .definition-field input, .definition-field select, .definition-field textarea { width:100%; min-width:0; }
+    .definition-field textarea { min-height:70px; font:12px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .definition-inline { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:6px; }
+    .definition-inline.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .preview-meta { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 12px; }
+    .preview-meta span { background:#111827; border:1px solid #374151; border-radius:999px; padding:4px 9px; }
+    details.definition-extra { margin-top: 8px; }
+    details.definition-extra summary { cursor: pointer; color: #93c5fd; }
+    @@media (max-width: 1100px) {
+        .definition-grid,
+        .definition-grid.secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+</style>
+
+@if (!string.IsNullOrEmpty(Model.Flash))
+{
+    <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
+}
+
+<div class="cards">
+    <div class="stat"><div class="label">Generated quests</div><div class="value">@Model.Validation.QuestCount</div></div>
+    <div class="stat"><div class="label">Daily variants</div><div class="value">@Model.Validation.DailyQuestCount</div></div>
+    <div class="stat"><div class="label">Weekly variants</div><div class="value">@Model.Validation.WeeklyQuestCount</div></div>
+    <div class="stat"><div class="label">Slots</div><div class="value">@Model.Validation.SlotCount</div></div>
+    <div class="stat"><div class="label">Definitions</div><div class="value">@Model.Validation.DefinitionCount</div></div>
+</div>
+
+<div class="card">
+    <h3>Active rotation preview</h3>
+    <div class="preview-meta">
+        <span>Season: <b>@Model.PreviewSeasonName</b></span>
+        <span>Focus: <code>@Model.PreviewRotation.Focus</code></span>
+        <span>Rarity bias: <code>@Model.PreviewRotation.RarityBias</code></span>
+    </div>
+    <form method="get" class="inline quest-toolbar" style="margin-bottom:12px; flex-wrap:wrap">
+        @if (Model.PreviewSeasons.Count > 0)
+        {
+            <select name="PreviewSeasonId" aria-label="Season">
+                @foreach (var season in Model.PreviewSeasons)
+                {
+                    <option value="@season.Id" selected="@(season.Id == Model.PreviewSeasonId)">
+                        #@season.Id @season.Name (@season.Status)
+                    </option>
+                }
+            </select>
+        }
+        else
+        {
+            <input type="number" name="PreviewSeasonId" value="@Model.PreviewSeasonId" placeholder="Season" />
+        }
+        <input type="number" name="PreviewChatId" value="@Model.PreviewChatId" placeholder="Chat" />
+        <input type="number" name="PreviewUserId" value="@Model.PreviewUserId" placeholder="User" />
+        <input type="number" name="PreviewLevel" value="@Model.PreviewLevel" placeholder="Level" />
+        <input type="number" name="PreviewGamesPlayed" value="@Model.PreviewGamesPlayed" placeholder="Games" />
+        <input type="number" name="PreviewTotalStaked" value="@Model.PreviewTotalStaked" placeholder="Staked" />
+        <input type="text" name="PreviewAt" value="@Model.PreviewAt" style="min-width:240px" />
+        <button type="submit">Preview</button>
+    </form>
+    @foreach (var group in Model.ActivePreviewGroups)
+    {
+        <h4 style="margin:16px 0 8px">@group.Key</h4>
+        <table class="quest-table">
+            <thead>
+            <tr>
+                <th>Quest</th>
+                <th>Type</th>
+                <th>Game</th>
+                <th>Goal</th>
+                <th>Reward</th>
+                <th>Rules</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var quest in group)
+            {
+                <tr>
+                    <td class="quest-title">
+                        <b>@quest.Title</b>
+                        <div class="muted">@quest.Description</div>
+                        <details style="margin-top:6px">
+                            <summary class="muted">id</summary>
+                            <code class="quest-id">@quest.Id</code>
+                        </details>
+                    </td>
+                    <td>
+                        <div class="quest-badges">
+                            <code>@quest.Kind</code>
+                            <span class="pill">@quest.Rarity</span>
+                            <code>@quest.Cluster</code>
+                        </div>
+                    </td>
+                    <td>@(quest.GameKey ?? "any")</td>
+                    <td><b>@quest.Target</b></td>
+                    <td>@quest.RewardXp XP<br /><span class="muted">@quest.RewardCoins coins</span></td>
+                    <td>
+                        <div class="quest-badges">
+                            @if (quest.MinStake is not null) { <code>stake ≥ @quest.MinStake</code> }
+                            @if (quest.MaxStake is not null) { <code>stake ≤ @quest.MaxStake</code> }
+                            @if (quest.MinPayout is not null) { <code>payout ≥ @quest.MinPayout</code> }
+                            @if (quest.MinProfit is not null) { <code>profit ≥ @quest.MinProfit</code> }
+                            @if (quest.MinMultiplier is not null) { <code>x ≥ @quest.MinMultiplier</code> }
+                            @if (quest.MinLevel > 0) { <code>lvl ≥ @quest.MinLevel</code> }
+                            @if (quest.MinGamesPlayed > 0) { <code>games ≥ @quest.MinGamesPlayed</code> }
+                            @if (quest.MinTotalStaked > 0) { <code>staked ≥ @quest.MinTotalStaked</code> }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>
+
+@if (Model.CanEdit)
+{
+    <form method="post" asp-page-handler="SaveStructured" class="card">
+        <h3>Quest slots</h3>
+        <p class="muted">Slots choose which pool tags become visible for each player and how long near-repeats are blocked.</p>
+        <div class="quest-editor-scroll">
+            <table class="quest-editor-table">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Period</th>
+                    <th>Pool tags</th>
+                    <th>Count</th>
+                    <th>Cooldown</th>
+                </tr>
+                </thead>
+                <tbody>
+                @for (var i = 0; i < Model.Slots.Count; i++)
+                {
+                    <tr>
+                        <td><input asp-for="Slots[i].Id" /></td>
+                        <td>
+                            <select asp-for="Slots[i].Period">
+                                <option value="daily">daily</option>
+                                <option value="weekly">weekly</option>
+                            </select>
+                        </td>
+                        <td><input asp-for="Slots[i].PoolTags" /></td>
+                        <td><input asp-for="Slots[i].Count" type="number" min="1" step="1" class="narrow" /></td>
+                        <td><input asp-for="Slots[i].RepeatCooldownPeriods" type="number" min="0" step="1" class="narrow" /></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <h3 style="margin-top:20px">Quest definitions</h3>
+        <p class="muted">Comma-separated fields expand into generated variants. Titles/descriptions use one line per text variant.</p>
+        <div class="definition-list">
+            @for (var i = 0; i < Model.Definitions.Count; i++)
+            {
+                <div class="definition-card">
+                    <div class="definition-grid">
+                        <div class="definition-field">
+                            <label asp-for="Definitions[i].Id">ID</label>
+                            <input asp-for="Definitions[i].Id" />
+                        </div>
+                        <div class="definition-field">
+                            <label>Reward</label>
+                            <div class="definition-inline two">
+                                <input asp-for="Definitions[i].RewardXp" type="number" min="0" step="1" placeholder="XP" />
+                                <input asp-for="Definitions[i].RewardCoins" type="number" min="0" step="1" placeholder="coins" />
+                            </div>
+                        </div>
+                        <div class="definition-field metadata">
+                            <label>Metadata</label>
+                            <div class="definition-meta-grid">
+                                <select asp-for="Definitions[i].Period" aria-label="Period">
+                                    <option value="daily">daily</option>
+                                    <option value="weekly">weekly</option>
+                                </select>
+                                <input asp-for="Definitions[i].Kind" aria-label="Kind" placeholder="kind" />
+                                <input asp-for="Definitions[i].Cluster" aria-label="Cluster" placeholder="cluster" />
+                                <select asp-for="Definitions[i].Rarity" aria-label="Rarity">
+                                    <option value="common">common</option>
+                                    <option value="uncommon">uncommon</option>
+                                    <option value="rare">rare</option>
+                                    <option value="epic">epic</option>
+                                    <option value="legendary">legendary</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="definition-grid secondary">
+                        <div class="definition-field">
+                            <label asp-for="Definitions[i].Targets">Targets</label>
+                            <input asp-for="Definitions[i].Targets" />
+                        </div>
+                        <div class="definition-field">
+                            <label asp-for="Definitions[i].Tags">Tags</label>
+                            <input asp-for="Definitions[i].Tags" />
+                        </div>
+                        <div class="definition-field">
+                            <label asp-for="Definitions[i].GameKeys">Games</label>
+                            <input asp-for="Definitions[i].GameKeys" />
+                        </div>
+                        <div class="definition-field">
+                            <label>Unlock</label>
+                            <div class="definition-inline">
+                                <input asp-for="Definitions[i].MinLevel" type="number" min="0" step="1" placeholder="level" />
+                                <input asp-for="Definitions[i].MinGamesPlayed" type="number" min="0" step="1" placeholder="games" />
+                                <input asp-for="Definitions[i].MinTotalStaked" type="number" min="0" step="1" placeholder="staked" />
+                            </div>
+                        </div>
+                        <div class="definition-field">
+                            <label>Text variants</label>
+                            <textarea asp-for="Definitions[i].Titles" placeholder="titles"></textarea>
+                            <textarea asp-for="Definitions[i].Descriptions" placeholder="descriptions"></textarea>
+                        </div>
+                    </div>
+                    <details class="definition-extra">
+                        <summary>conditions</summary>
+                        <div class="definition-grid secondary">
+                            <div class="definition-field">
+                                <label asp-for="Definitions[i].MinStakes">Min stakes</label>
+                                <input asp-for="Definitions[i].MinStakes" placeholder="CSV" />
+                            </div>
+                            <div class="definition-field">
+                                <label asp-for="Definitions[i].MaxStakes">Max stakes</label>
+                                <input asp-for="Definitions[i].MaxStakes" placeholder="CSV" />
+                            </div>
+                            <div class="definition-field">
+                                <label asp-for="Definitions[i].MinPayouts">Min payouts</label>
+                                <input asp-for="Definitions[i].MinPayouts" placeholder="CSV" />
+                            </div>
+                            <div class="definition-field">
+                                <label asp-for="Definitions[i].MinProfits">Min profits</label>
+                                <input asp-for="Definitions[i].MinProfits" placeholder="CSV" />
+                            </div>
+                            <div class="definition-field">
+                                <label asp-for="Definitions[i].MinMultipliers">Min multipliers</label>
+                                <input asp-for="Definitions[i].MinMultipliers" placeholder="CSV" />
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            }
+        </div>
+        <p style="margin-top:12px"><button type="submit">Save quest settings</button></p>
+    </form>
+}
+
+<div class="card">
+    <h3>Quest pool JSON</h3>
+    <p class="muted">Effective editable file: <code>@Model.EffectivePath</code></p>
+    <form method="post" asp-page-handler="Save">
+        <textarea name="CatalogJson" style="width:100%; min-height:560px; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border:1px solid #475569; border-radius:4px; background:#0f172a; color:#e2e8f0; padding:12px">@Model.CatalogJson</textarea>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap">
+            <button type="submit" disabled="@(!Model.CanEdit)">Save and reload</button>
+            @if (!Model.CanEdit)
+            {
+                <span class="muted">SuperAdmin required.</span>
+            }
+        </div>
+    </form>
+    <form method="post" asp-page-handler="Reload" class="inline" style="margin-top:10px">
+        <button type="submit" class="ghost" disabled="@(!Model.CanEdit)">Reload from disk</button>
+    </form>
+</div>

@@ -46,48 +46,21 @@ public sealed class MetaStore(
     INpgsqlConnectionFactory connections,
     IRuntimeTuningAccessor tuning) : IMetaStore
 {
-    private const string DefaultSeasonConfigJson = """
-        {
-          "xp": {
-            "play": 5,
-            "win": 25,
-            "loss": 2,
-            "stakeMultiplier": 0.01,
-            "maxXpPerGame": 500
-          },
-          "rating": {
-            "enabled": true,
-            "start": 1000,
-            "winDelta": 16,
-            "lossDelta": -12
-          },
-          "quests": {
-            "dailyEnabled": true,
-            "weeklyEnabled": true
-          },
-          "achievements": {
-            "enabled": true
-          },
-          "clans": {
-            "enabled": true,
-            "maxMembers": 20
-          },
-          "tournaments": {
-            "enabled": true,
-            "maxActivePerChat": 3
-          },
-          "risk": {
-            "enabled": true,
-            "largeWinMultiplierAlert": 20,
-            "suspiciousStreakThreshold": 12
-          }
-        }
-        """;
-
     public async Task<MetaSeason> GetOrCreateActiveSeasonAsync(CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+
+        await conn.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE meta_seasons
+            SET status = 'finished',
+                updated_at = now()
+            WHERE status = 'active'
+              AND ends_at <= now()
+            """,
+            transaction: tx,
+            cancellationToken: ct));
 
         const string findSql = """
             SELECT id,
@@ -98,6 +71,8 @@ public sealed class MetaStore(
                    config::text AS ConfigJson
             FROM meta_seasons
             WHERE status = 'active'
+              AND starts_at <= now()
+              AND ends_at > now()
             ORDER BY starts_at DESC
             LIMIT 1
             """;
@@ -107,16 +82,58 @@ public sealed class MetaStore(
 
         if (existing is not null)
         {
+            await EnsurePreparedSeasonsAsync(conn, tx, ct);
             await tx.CommitAsync(ct);
             return existing;
         }
+
+        const string activateSql = """
+            UPDATE meta_seasons
+            SET status = 'active',
+                updated_at = now()
+            WHERE id = (
+                SELECT id
+                FROM meta_seasons
+                WHERE status = 'planned'
+                  AND starts_at <= now()
+                  AND ends_at > now()
+                ORDER BY starts_at ASC, id ASC
+                LIMIT 1
+                FOR UPDATE
+            )
+            RETURNING id,
+                      name,
+                      starts_at AS StartsAt,
+                      ends_at AS EndsAt,
+                      status,
+                      config::text AS ConfigJson
+            """;
+
+        var activated = await conn.QuerySingleOrDefaultAsync<MetaSeason>(new CommandDefinition(
+            activateSql,
+            transaction: tx,
+            cancellationToken: ct));
+
+        if (activated is not null)
+        {
+            await EnsurePreparedSeasonsAsync(conn, tx, ct);
+            await tx.CommitAsync(ct);
+            return activated;
+        }
+
+        var seasonNumber = await NextSeasonNumberAsync(conn, tx, ct);
+        var startsAt = await conn.ExecuteScalarAsync<DateTimeOffset>(new CommandDefinition(
+            "SELECT date_trunc('day', now())",
+            transaction: tx,
+            cancellationToken: ct));
+        var endsAt = startsAt.AddDays(SeasonPlanFactory.DefaultDurationDays);
 
         const string insertSql = """
             INSERT INTO meta_seasons (name, starts_at, ends_at, status, config)
             VALUES (
                 @name,
-                date_trunc('day', now()),
-                date_trunc('day', now()) + interval '30 days',
+                @startsAt,
+                @endsAt,
                 'active',
                 CAST(@configJson AS jsonb)
             )
@@ -130,10 +147,17 @@ public sealed class MetaStore(
 
         var created = await conn.QuerySingleAsync<MetaSeason>(new CommandDefinition(
             insertSql,
-            new { name = "Season 1: Shizoid League", configJson = DefaultSeasonConfigJson },
+            new
+            {
+                name = SeasonPlanFactory.NameFor(seasonNumber),
+                startsAt,
+                endsAt,
+                configJson = SeasonPlanFactory.BuildConfigJson(seasonNumber),
+            },
             transaction: tx,
             cancellationToken: ct));
 
+        await EnsurePreparedSeasonsAsync(conn, tx, ct);
         await tx.CommitAsync(ct);
         return created;
     }
@@ -145,9 +169,10 @@ public sealed class MetaStore(
         string displayName,
         CancellationToken ct)
     {
+        var progression = SeasonProgressionConfig.FromSeason(season);
         const string sql = """
-            INSERT INTO meta_season_players (season_id, chat_id, user_id, display_name)
-            VALUES (@seasonId, @chatId, @userId, @displayName)
+            INSERT INTO meta_season_players (season_id, chat_id, user_id, display_name, rating)
+            VALUES (@seasonId, @chatId, @userId, @displayName, @ratingStart)
             ON CONFLICT (season_id, chat_id, user_id)
             DO UPDATE SET display_name = EXCLUDED.display_name,
                           updated_at = now()
@@ -169,7 +194,7 @@ public sealed class MetaStore(
         await using var conn = await connections.OpenAsync(ct);
         return await conn.QuerySingleAsync<SeasonPlayer>(new CommandDefinition(
             sql,
-            new { seasonId = season.Id, chatId, userId, displayName },
+            new { seasonId = season.Id, chatId, userId, displayName, ratingStart = progression.RatingStart },
             cancellationToken: ct));
     }
 
@@ -183,8 +208,9 @@ public sealed class MetaStore(
         CancellationToken ct)
     {
         var season = await GetOrCreateActiveSeasonAsync(ct);
-        var xpDelta = CalculateXpDelta(stake, isWin);
-        var ratingDelta = isWin ? 16 : -12;
+        var progression = SeasonProgressionConfig.FromSeason(season);
+        var xpDelta = progression.CalculateXpDelta(stake, isWin);
+        var ratingDelta = progression.CalculateRatingDelta(isWin);
 
         const string sql = """
             INSERT INTO meta_season_players (
@@ -208,7 +234,7 @@ public sealed class MetaStore(
                 @displayName,
                 @xpDelta,
                 @level,
-                GREATEST(0, 1000 + @ratingDelta),
+                GREATEST(0, @ratingStart + @ratingDelta),
                 1,
                 CASE WHEN @isWin THEN 1 ELSE 0 END,
                 CASE WHEN @isWin THEN 0 ELSE 1 END,
@@ -251,7 +277,8 @@ public sealed class MetaStore(
                 userId,
                 displayName,
                 xpDelta,
-                level = LevelForXp(xpDelta),
+                level = progression.LevelForXp(xpDelta),
+                ratingStart = progression.RatingStart,
                 ratingDelta,
                 isWin,
                 stake = Math.Max(0, stake),
@@ -259,7 +286,7 @@ public sealed class MetaStore(
             },
             cancellationToken: ct));
 
-        return await CorrectLevelAsync(conn, season.Id, chatId, userId, player, ct);
+        return await CorrectLevelAsync(conn, season.Id, chatId, userId, player, progression, ct);
     }
 
     public async Task<SeasonPlayer> AddSeasonXpAsync(
@@ -271,6 +298,8 @@ public sealed class MetaStore(
         CancellationToken ct)
     {
         xpDelta = Math.Max(0, xpDelta);
+        await using var conn = await connections.OpenAsync(ct);
+        var progression = await GetSeasonProgressionAsync(conn, seasonId, ct);
         const string sql = """
             INSERT INTO meta_season_players (season_id, chat_id, user_id, display_name, xp, level)
             VALUES (@seasonId, @chatId, @userId, @displayName, @xpDelta, @level)
@@ -293,7 +322,6 @@ public sealed class MetaStore(
                       updated_at AS UpdatedAt
             """;
 
-        await using var conn = await connections.OpenAsync(ct);
         var player = await conn.QuerySingleAsync<SeasonPlayer>(new CommandDefinition(
             sql,
             new
@@ -303,11 +331,11 @@ public sealed class MetaStore(
                 userId,
                 displayName,
                 xpDelta,
-                level = LevelForXp(xpDelta),
+                level = progression.LevelForXp(xpDelta),
             },
             cancellationToken: ct));
 
-        return await CorrectLevelAsync(conn, seasonId, chatId, userId, player, ct);
+        return await CorrectLevelAsync(conn, seasonId, chatId, userId, player, progression, ct);
     }
 
     public async Task<IReadOnlyList<AchievementUnlock>> UnlockAchievementsAsync(
@@ -466,6 +494,19 @@ public sealed class MetaStore(
             row.Advanced);
     }
 
+    private static async Task<SeasonProgressionConfig> GetSeasonProgressionAsync(
+        System.Data.Common.DbConnection conn,
+        long seasonId,
+        CancellationToken ct)
+    {
+        const string sql = "SELECT config::text FROM meta_seasons WHERE id = @seasonId";
+        var configJson = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
+            sql,
+            new { seasonId },
+            cancellationToken: ct));
+        return SeasonProgressionConfig.FromJson(configJson);
+    }
+
     public async Task<IReadOnlyList<PlayerGameStreakView>> GetGameStreaksAsync(
         long chatId,
         long userId,
@@ -515,8 +556,9 @@ public sealed class MetaStore(
     {
         var season = await GetOrCreateActiveSeasonAsync(ct);
         var player = await EnsurePlayerAsync(season, chatId, userId, displayName, ct);
-        var floor = XpForLevel(player.Level);
-        var next = XpForLevel(player.Level + 1);
+        var progression = SeasonProgressionConfig.FromSeason(season);
+        var floor = progression.XpForLevel(player.Level);
+        var next = progression.XpForLevel(player.Level + 1);
         return new SeasonProfile(season, player, DivisionForRating(player.Rating), next, floor);
     }
 
@@ -553,9 +595,10 @@ public sealed class MetaStore(
         long chatId,
         long userId,
         SeasonPlayer player,
+        SeasonProgressionConfig progression,
         CancellationToken ct)
     {
-        var correctedLevel = LevelForXp(player.Xp);
+        var correctedLevel = progression.LevelForXp(player.Xp);
         if (correctedLevel == player.Level)
             return player;
 
@@ -604,24 +647,81 @@ public sealed class MetaStore(
         DateTimeOffset UpdatedAt,
         bool Advanced);
 
-    private static long CalculateXpDelta(long stake, bool isWin)
+    private static async Task EnsurePreparedSeasonsAsync(
+        System.Data.Common.DbConnection conn,
+        System.Data.Common.DbTransaction tx,
+        CancellationToken ct)
     {
-        var baseXp = isWin ? 25 : 2;
-        var playXp = 5;
-        var stakeXp = (long)Math.Floor(Math.Max(0, stake) * 0.01m);
-        return Math.Clamp(playXp + baseXp + stakeXp, 1, 500);
+        const string countSql = """
+            SELECT count(*)::int
+            FROM meta_seasons
+            WHERE status = 'planned'
+              AND ends_at > now()
+            """;
+
+        var existingPlanned = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+            countSql,
+            transaction: tx,
+            cancellationToken: ct));
+        var missing = SeasonPlanFactory.DefaultPreparedSeasonCount - existingPlanned;
+        if (missing <= 0) return;
+
+        var startsAt = await NextPlannedStartsAtAsync(conn, tx, ct);
+        var startNumber = await NextSeasonNumberAsync(conn, tx, ct);
+        var plans = SeasonPlanFactory.CreatePlans(
+            startsAt,
+            missing,
+            SeasonPlanFactory.DefaultDurationDays,
+            startNumber);
+
+        const string insertSql = """
+            INSERT INTO meta_seasons (name, starts_at, ends_at, status, config)
+            VALUES (@name, @startsAt, @endsAt, 'planned', CAST(@configJson AS jsonb))
+            """;
+
+        foreach (var plan in plans)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(
+                insertSql,
+                new
+                {
+                    name = plan.Name,
+                    startsAt = plan.StartsAt,
+                    endsAt = plan.EndsAt,
+                    configJson = plan.ConfigJson,
+                },
+                transaction: tx,
+                cancellationToken: ct));
+        }
     }
 
-    private static int LevelForXp(long xp)
+    private static async Task<DateTimeOffset> NextPlannedStartsAtAsync(
+        System.Data.Common.DbConnection conn,
+        System.Data.Common.DbTransaction tx,
+        CancellationToken ct)
     {
-        if (xp <= 0) return 1;
-        return Math.Max(1, (int)Math.Floor(Math.Sqrt(xp / 100.0)) + 1);
+        const string sql = """
+            SELECT COALESCE(max(ends_at), date_trunc('day', now()))
+            FROM meta_seasons
+            WHERE status IN ('active', 'planned')
+            """;
+
+        return await conn.ExecuteScalarAsync<DateTimeOffset>(new CommandDefinition(
+            sql,
+            transaction: tx,
+            cancellationToken: ct));
     }
 
-    private static long XpForLevel(int level)
+    private static async Task<int> NextSeasonNumberAsync(
+        System.Data.Common.DbConnection conn,
+        System.Data.Common.DbTransaction tx,
+        CancellationToken ct)
     {
-        var normalized = Math.Max(1, level) - 1;
-        return 100L * normalized * normalized;
+        const string sql = "SELECT count(*)::int + 1 FROM meta_seasons";
+        return await conn.ExecuteScalarAsync<int>(new CommandDefinition(
+            sql,
+            transaction: tx,
+            cancellationToken: ct));
     }
 
     private static string DivisionForRating(int rating) => rating switch

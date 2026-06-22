@@ -28,7 +28,7 @@ public interface IQuestStore
         CancellationToken ct);
 }
 
-public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestStore
+public sealed class QuestStore(INpgsqlConnectionFactory connections, IQuestCatalog questCatalog) : IQuestStore
 {
     public async Task<IReadOnlyList<QuestProgressUpdate>> ApplyGameCompletedAsync(
         MetaSeason season,
@@ -41,10 +41,11 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestSto
         var updates = new List<QuestProgressUpdate>();
 
         await using var conn = await connections.OpenAsync(ct);
-        foreach (var quest in QuestRegistry.Matching(ev))
+        var playerProgress = await LoadPlayerProgressAsync(conn, season, chatId, userId, ct);
+        foreach (var quest in questCatalog.Matching(season, chatId, userId, ev, playerProgress))
         {
-            var delta = QuestRegistry.DeltaFor(quest, ev);
-            var periodKey = QuestRegistry.PeriodKey(quest, now);
+            var delta = JsonQuestCatalog.DeltaFor(quest, ev);
+            var periodKey = JsonQuestCatalog.PeriodKey(quest, now);
 
             const string sql = """
                 INSERT INTO meta_player_quests (
@@ -106,10 +107,17 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestSto
         DateTimeOffset now,
         CancellationToken ct)
     {
-        var periodKeys = QuestRegistry.All
-            .Select(q => QuestRegistry.PeriodKey(q, now))
+        await using var conn = await connections.OpenAsync(ct);
+        var playerProgress = await LoadPlayerProgressAsync(conn, season, chatId, userId, ct);
+        var activeQuests = questCatalog.ActiveFor(season, chatId, userId, now, playerProgress);
+        if (activeQuests.Count == 0)
+            return [];
+
+        var periodKeys = activeQuests
+            .Select(q => JsonQuestCatalog.PeriodKey(q, now))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        var questIds = activeQuests.Select(q => q.Id).ToArray();
 
         const string sql = """
             SELECT quest_id AS QuestId,
@@ -123,18 +131,18 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestSto
               AND chat_id = @chatId
               AND user_id = @userId
               AND period_key = ANY(@periodKeys)
+              AND quest_id = ANY(@questIds)
             """;
 
-        await using var conn = await connections.OpenAsync(ct);
         var rows = await conn.QueryAsync<QuestProgressRow>(new CommandDefinition(
             sql,
-            new { seasonId = season.Id, chatId, userId, periodKeys },
+            new { seasonId = season.Id, chatId, userId, periodKeys, questIds },
             cancellationToken: ct));
 
         var map = rows.ToDictionary(x => (x.QuestId, x.PeriodKey), x => x);
-        return QuestRegistry.All.Select(q =>
+        return activeQuests.Select(q =>
         {
-            var periodKey = QuestRegistry.PeriodKey(q, now);
+            var periodKey = JsonQuestCatalog.PeriodKey(q, now);
             map.TryGetValue((q.Id, periodKey), out var row);
             return new PlayerQuestView(
                 q.Id,
@@ -158,10 +166,12 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestSto
         DateTimeOffset now,
         CancellationToken ct)
     {
-        var quest = QuestRegistry.All.FirstOrDefault(x => string.Equals(x.Id, questId, StringComparison.OrdinalIgnoreCase));
+        await using var conn = await connections.OpenAsync(ct);
+        var playerProgress = await LoadPlayerProgressAsync(conn, season, chatId, userId, ct);
+        var quest = questCatalog.FindActive(season, chatId, userId, questId, now, playerProgress);
         if (quest is null) return null;
 
-        var periodKey = QuestRegistry.PeriodKey(quest, now);
+        var periodKey = JsonQuestCatalog.PeriodKey(quest, now);
         const string sql = """
             UPDATE meta_player_quests
             SET claimed = true,
@@ -177,7 +187,6 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestSto
             RETURNING quest_id
             """;
 
-        await using var conn = await connections.OpenAsync(ct);
         var claimedQuestId = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
             sql,
             new { questId = quest.Id, seasonId = season.Id, chatId, userId, periodKey },
@@ -186,6 +195,29 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections) : IQuestSto
         return claimedQuestId is null
             ? new QuestClaimResult(quest.Id, quest.Title, quest.RewardXp, quest.RewardCoins, false)
             : new QuestClaimResult(quest.Id, quest.Title, quest.RewardXp, quest.RewardCoins, true);
+    }
+
+    private static async Task<QuestPlayerProgress> LoadPlayerProgressAsync(
+        System.Data.IDbConnection conn,
+        MetaSeason season,
+        long chatId,
+        long userId,
+        CancellationToken ct)
+    {
+        const string sql = """
+            SELECT level AS Level,
+                   games_played AS GamesPlayed,
+                   total_staked AS TotalStaked
+            FROM meta_season_players
+            WHERE season_id = @seasonId
+              AND chat_id = @chatId
+              AND user_id = @userId
+            """;
+
+        return await conn.QuerySingleOrDefaultAsync<QuestPlayerProgress>(new CommandDefinition(
+            sql,
+            new { seasonId = season.Id, chatId, userId },
+            cancellationToken: ct)) ?? new QuestPlayerProgress(0, 0, 0);
     }
 
     private sealed record QuestProgressRow(

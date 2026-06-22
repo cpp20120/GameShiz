@@ -155,6 +155,7 @@ public static class BotFrameworkBuilderExtensions
 
         services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
         services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
+        services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
         services.AddSingleton<IUpdateMiddleware, RateLimitMiddleware>();
         services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();

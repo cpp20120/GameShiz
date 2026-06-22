@@ -1,0 +1,495 @@
+{
+  "games": [
+    { "key": "dice", "title": "слоты", "command": "/dice" },
+    { "key": "dicecube", "title": "кубик", "command": "/dicecube" },
+    { "key": "darts", "title": "дартс", "command": "/darts" },
+    { "key": "football", "title": "футбол", "command": "/football" },
+    { "key": "basketball", "title": "баскетбол", "command": "/basketball" },
+    { "key": "bowling", "title": "боулинг", "command": "/bowling" }
+  ],
+  "slots": [
+    {
+      "id": "daily_easy",
+      "period": "daily",
+      "poolTags": [ "starter" ],
+      "count": 1,
+      "repeatCooldownPeriods": 3
+    },
+    {
+      "id": "daily_game",
+      "period": "daily",
+      "poolTags": [ "game" ],
+      "count": 1,
+      "repeatCooldownPeriods": 3
+    },
+    {
+      "id": "daily_win",
+      "period": "daily",
+      "poolTags": [ "win" ],
+      "count": 1,
+      "repeatCooldownPeriods": 3
+    },
+    {
+      "id": "daily_risk",
+      "period": "daily",
+      "poolTags": [ "risk" ],
+      "count": 1,
+      "repeatCooldownPeriods": 3
+    },
+    {
+      "id": "weekly_grind",
+      "period": "weekly",
+      "poolTags": [ "grind" ],
+      "count": 1,
+      "repeatCooldownPeriods": 2
+    },
+    {
+      "id": "weekly_game",
+      "period": "weekly",
+      "poolTags": [ "game" ],
+      "count": 1,
+      "repeatCooldownPeriods": 2
+    },
+    {
+      "id": "weekly_risk",
+      "period": "weekly",
+      "poolTags": [ "risk" ],
+      "count": 1,
+      "repeatCooldownPeriods": 2
+    }
+  ],
+  "definitions": [
+    {
+      "id": "warmup",
+      "period": "daily",
+      "kind": "play",
+      "cluster": "starter",
+      "rarity": "common",
+      "tags": [ "starter", "easy" ],
+      "targets": [ 2, 3, 4 ],
+      "rewardXp": 75,
+      "rewardCoins": 100,
+      "titles": [ "Разогрев", "Короткая сессия", "Вход в ритм" ],
+      "descriptions": [
+        "Сыграй {target} любые игры сегодня.",
+        "Закрой {target} быстрых захода в любые игры.",
+        "Сделай {target} игровых попытки за день."
+      ]
+    },
+    {
+      "id": "daily_volume",
+      "period": "daily",
+      "kind": "volume",
+      "cluster": "bankroll",
+      "rarity": "uncommon",
+      "minLevel": 2,
+      "minGamesPlayed": 5,
+      "tags": [ "risk" ],
+      "targets": [ 500, 1000, 1500, 2500 ],
+      "rewardXp": 120,
+      "rewardCoins": 175,
+      "titles": [ "Оборот дня", "Монеты в деле", "Дневной разгон" ],
+      "descriptions": [
+        "Поставь суммарно {target} монет сегодня.",
+        "Прокрути {target} монет через ставки за день.",
+        "Собери дневной оборот в {target} монет."
+      ]
+    },
+    {
+      "id": "daily_payout",
+      "period": "daily",
+      "kind": "payout",
+      "cluster": "payout",
+      "rarity": "uncommon",
+      "minLevel": 2,
+      "minGamesPlayed": 5,
+      "tags": [ "risk" ],
+      "targets": [ 500, 1000, 2000 ],
+      "rewardXp": 130,
+      "rewardCoins": 200,
+      "titles": [ "Звонкий возврат", "Касса отвечает", "Выплата дня" ],
+      "descriptions": [
+        "Получи суммарно {target} монет выплат сегодня.",
+        "Набери {target} монет в выплатах за день.",
+        "Верни из игр {target} монет выплатами."
+      ]
+    },
+    {
+      "id": "daily_profit",
+      "period": "daily",
+      "kind": "profit",
+      "cluster": "profit",
+      "rarity": "rare",
+      "minLevel": 3,
+      "minGamesPlayed": 12,
+      "minTotalStaked": 1000,
+      "tags": [ "risk", "win" ],
+      "targets": [ 100, 250, 500 ],
+      "rewardXp": 150,
+      "rewardCoins": 225,
+      "titles": [ "День в плюс", "Чистая прибыль", "Плюсовая смена" ],
+      "descriptions": [
+        "Заработай {target} монет чистого плюса сегодня.",
+        "Собери {target} монет прибыли за день.",
+        "Выйди в плюс на {target} монет."
+      ]
+    },
+    {
+      "id": "daily_win_any",
+      "period": "daily",
+      "kind": "win",
+      "cluster": "wins",
+      "rarity": "common",
+      "tags": [ "win" ],
+      "targets": [ 1, 2, 3 ],
+      "rewardXp": 110,
+      "rewardCoins": 150,
+      "titles": [ "Первая кровь", "Победный след", "Забрать свое" ],
+      "descriptions": [
+        "Выиграй {target} любые игры сегодня.",
+        "Оформи {target} победы за день.",
+        "Забери {target} победных результата."
+      ]
+    },
+    {
+      "id": "game_touch",
+      "period": "daily",
+      "kind": "play",
+      "cluster": "game_focus",
+      "rarity": "common",
+      "tags": [ "game", "easy" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 1, 2, 3 ],
+      "rewardXp": 65,
+      "rewardCoins": 90,
+      "titles": [ "{game}: заход", "{game}: импульс", "{game}: отметка" ],
+      "descriptions": [
+        "Сыграй в {gameCommand} {target} раз сегодня.",
+        "Сделай {target} попытки в {gameCommand}.",
+        "Отметься в {gameCommand}: {target} игры за день."
+      ]
+    },
+    {
+      "id": "game_win",
+      "period": "daily",
+      "kind": "win",
+      "cluster": "game_wins",
+      "rarity": "uncommon",
+      "minLevel": 2,
+      "minGamesPlayed": 5,
+      "tags": [ "game", "win" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 1, 2 ],
+      "rewardXp": 125,
+      "rewardCoins": 175,
+      "titles": [ "{game}: победа", "{game}: точный день", "{game}: забери банк" ],
+      "descriptions": [
+        "Выиграй в {gameCommand} {target} раз сегодня.",
+        "Оформи {target} победы в {gameCommand}.",
+        "Докажи форму в {gameCommand}: {target} победы."
+      ]
+    },
+    {
+      "id": "game_volume",
+      "period": "daily",
+      "kind": "volume",
+      "cluster": "game_bankroll",
+      "rarity": "uncommon",
+      "minLevel": 2,
+      "minGamesPlayed": 8,
+      "tags": [ "game", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 500, 1000, 1500 ],
+      "rewardXp": 125,
+      "rewardCoins": 180,
+      "titles": [ "{game}: оборот", "{game}: ставка за ставкой", "{game}: рабочий стол" ],
+      "descriptions": [
+        "Поставь {target} монет в {gameCommand} за день.",
+        "Собери {target} монет оборота через {gameCommand}.",
+        "Прокрути {target} монет в {gameCommand}."
+      ]
+    },
+    {
+      "id": "weekly_play",
+      "period": "weekly",
+      "kind": "play",
+      "cluster": "weekly_grind",
+      "rarity": "common",
+      "tags": [ "grind" ],
+      "targets": [ 12, 20, 30, 40 ],
+      "rewardXp": 500,
+      "rewardCoins": 900,
+      "titles": [ "Недельный гринд", "Длинная дистанция", "Режим сезона" ],
+      "descriptions": [
+        "Сыграй {target} любые игры за неделю.",
+        "Закрой {target} игровых попыток на этой неделе.",
+        "Собери недельный объем в {target} игр."
+      ]
+    },
+    {
+      "id": "weekly_win",
+      "period": "weekly",
+      "kind": "win",
+      "cluster": "weekly_wins",
+      "rarity": "uncommon",
+      "minLevel": 2,
+      "minGamesPlayed": 10,
+      "tags": [ "grind", "win" ],
+      "targets": [ 5, 7, 10, 14 ],
+      "rewardXp": 650,
+      "rewardCoins": 1100,
+      "titles": [ "Победитель недели", "Серия выплат", "Неделя в твою сторону" ],
+      "descriptions": [
+        "Выиграй {target} любые игры за неделю.",
+        "Оформи {target} победных игр на этой неделе.",
+        "Забери {target} побед до конца недели."
+      ]
+    },
+    {
+      "id": "weekly_volume",
+      "period": "weekly",
+      "kind": "volume",
+      "cluster": "weekly_bankroll",
+      "rarity": "rare",
+      "minLevel": 4,
+      "minGamesPlayed": 20,
+      "minTotalStaked": 5000,
+      "tags": [ "risk" ],
+      "targets": [ 5000, 7500, 10000, 15000 ],
+      "rewardXp": 700,
+      "rewardCoins": 1250,
+      "titles": [ "Оборотистый", "Большая прокрутка", "Кассовая неделя" ],
+      "descriptions": [
+        "Поставь суммарно {target} монет за неделю.",
+        "Прокрути {target} монет через ставки за неделю.",
+        "Собери недельный оборот в {target} монет."
+      ]
+    },
+    {
+      "id": "weekly_payout",
+      "period": "weekly",
+      "kind": "payout",
+      "cluster": "weekly_payout",
+      "rarity": "rare",
+      "minLevel": 4,
+      "minGamesPlayed": 20,
+      "minTotalStaked": 5000,
+      "tags": [ "risk" ],
+      "targets": [ 3000, 5000, 8000, 12000 ],
+      "rewardXp": 725,
+      "rewardCoins": 1300,
+      "titles": [ "Крупная касса", "Поток выплат", "Недельный возврат" ],
+      "descriptions": [
+        "Получи {target} монет выплат за неделю.",
+        "Набери {target} монет суммарных выплат.",
+        "Верни из игр {target} монет за неделю."
+      ]
+    },
+    {
+      "id": "weekly_game_play",
+      "period": "weekly",
+      "kind": "play",
+      "cluster": "weekly_game_focus",
+      "rarity": "common",
+      "minGamesPlayed": 5,
+      "tags": [ "game", "grind" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 5, 8, 12 ],
+      "rewardXp": 550,
+      "rewardCoins": 950,
+      "titles": [ "{game}: недельный маршрут", "{game}: длинный подход", "{game}: регулярка" ],
+      "descriptions": [
+        "Сыграй в {gameCommand} {target} раз за неделю.",
+        "Закрой {target} попыток в {gameCommand}.",
+        "Сделай {target} игр в {gameCommand} до конца недели."
+      ]
+    },
+    {
+      "id": "weekly_game_volume",
+      "period": "weekly",
+      "kind": "volume",
+      "cluster": "weekly_game_bankroll",
+      "rarity": "rare",
+      "minLevel": 4,
+      "minGamesPlayed": 20,
+      "minTotalStaked": 5000,
+      "tags": [ "game", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 2500, 5000, 7500 ],
+      "rewardXp": 700,
+      "rewardCoins": 1200,
+      "titles": [ "{game}: крупный оборот", "{game}: неделя ставок", "{game}: банк в движении" ],
+      "descriptions": [
+        "Поставь {target} монет в {gameCommand} за неделю.",
+        "Прокрути {target} монет через {gameCommand}.",
+        "Собери {target} монет оборота в {gameCommand}."
+      ]
+    },
+    {
+      "id": "daily_low_stake_game",
+      "period": "daily",
+      "kind": "low_stake",
+      "cluster": "controlled_risk",
+      "rarity": "common",
+      "tags": [ "easy", "game", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 2, 3, 4 ],
+      "maxStakes": [ 50, 100, 250 ],
+      "rewardXp": 95,
+      "rewardCoins": 130,
+      "titles": [ "{game}: малый банк", "{game}: аккуратный заход", "{game}: тихий режим", "{game}: без разгона" ],
+      "descriptions": [
+        "Сыграй в {gameCommand} {target} раз со ставкой до {maxStake} монет.",
+        "Закрой {target} игры в {gameCommand}, не поднимая ставку выше {maxStake}.",
+        "Сделай {target} аккуратных попытки в {gameCommand} до {maxStake} монет.",
+        "Проведи спокойную сессию в {gameCommand}: {target} игр, ставка до {maxStake}."
+      ]
+    },
+    {
+      "id": "daily_high_stake_game",
+      "period": "daily",
+      "kind": "high_stake",
+      "cluster": "high_stakes",
+      "rarity": "rare",
+      "minLevel": 4,
+      "minGamesPlayed": 20,
+      "minTotalStaked": 5000,
+      "tags": [ "game", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 1, 2 ],
+      "minStakes": [ 500, 1000, 2000 ],
+      "rewardXp": 160,
+      "rewardCoins": 250,
+      "titles": [ "{game}: крупный вход", "{game}: ставка выше", "{game}: тяжелая попытка" ],
+      "descriptions": [
+        "Сыграй в {gameCommand} {target} раз со ставкой от {minStake} монет.",
+        "Сделай {target} рискованных захода в {gameCommand} от {minStake} монет.",
+        "Поставь серьезно в {gameCommand}: {target} игры от {minStake} монет."
+      ]
+    },
+    {
+      "id": "daily_multiplier_game",
+      "period": "daily",
+      "kind": "multiplier",
+      "cluster": "multiplier",
+      "rarity": "rare",
+      "minLevel": 3,
+      "minGamesPlayed": 15,
+      "minTotalStaked": 2000,
+      "tags": [ "game", "win", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 1, 2 ],
+      "minMultipliers": [ 1.5, 2, 3, 5 ],
+      "rewardXp": 175,
+      "rewardCoins": 275,
+      "titles": [ "{game}: множитель", "{game}: жирный кэф", "{game}: ставка сыграла", "{game}: резкий возврат" ],
+      "descriptions": [
+        "Выиграй в {gameCommand} {target} раз с множителем от x{minMultiplier}.",
+        "Поймай {target} выплату в {gameCommand} с кэфом x{minMultiplier}+.",
+        "Оформи {target} победы в {gameCommand} на x{minMultiplier} или выше.",
+        "Забери {target} результат в {gameCommand} с множителем минимум x{minMultiplier}."
+      ]
+    },
+    {
+      "id": "daily_loss_game",
+      "period": "daily",
+      "kind": "loss",
+      "cluster": "resilience",
+      "rarity": "common",
+      "tags": [ "easy", "game" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 1, 2, 3 ],
+      "rewardXp": 60,
+      "rewardCoins": 80,
+      "titles": [ "{game}: не твой день", "{game}: холодная серия", "{game}: опыт за попытку", "{game}: пережить минус" ],
+      "descriptions": [
+        "Проиграй в {gameCommand} {target} раз сегодня.",
+        "Поймай {target} минусовых результата в {gameCommand}.",
+        "Закрой {target} неудачных попытки в {gameCommand}.",
+        "Даже минус считается: {target} проигрыша в {gameCommand}."
+      ]
+    },
+    {
+      "id": "weekly_multiplier_game",
+      "period": "weekly",
+      "kind": "multiplier",
+      "cluster": "weekly_multiplier",
+      "rarity": "epic",
+      "minLevel": 6,
+      "minGamesPlayed": 40,
+      "minTotalStaked": 15000,
+      "tags": [ "game", "risk", "win" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 2, 4, 6 ],
+      "minMultipliers": [ 1.5, 2, 3, 5 ],
+      "rewardXp": 800,
+      "rewardCoins": 1500,
+      "titles": [ "{game}: недельный кэф", "{game}: серия множителей", "{game}: выплаты выше" ],
+      "descriptions": [
+        "Выиграй в {gameCommand} {target} раз за неделю с множителем от x{minMultiplier}.",
+        "Собери {target} победы в {gameCommand} на x{minMultiplier} или выше.",
+        "Поймай {target} выплат с кэфом x{minMultiplier}+ в {gameCommand}."
+      ]
+    },
+    {
+      "id": "weekly_loss_game",
+      "period": "weekly",
+      "kind": "loss",
+      "cluster": "weekly_resilience",
+      "rarity": "uncommon",
+      "minGamesPlayed": 10,
+      "tags": [ "game", "grind" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 5, 8, 12 ],
+      "rewardXp": 420,
+      "rewardCoins": 750,
+      "titles": [ "{game}: терпение", "{game}: неделя попыток", "{game}: опыт дистанции" ],
+      "descriptions": [
+        "Проиграй в {gameCommand} {target} раз за неделю.",
+        "Собери {target} минусовых результата в {gameCommand}.",
+        "Переживи {target} неудачных попыток в {gameCommand}."
+      ]
+    },
+    {
+      "id": "weekly_low_stake_game",
+      "period": "weekly",
+      "kind": "low_stake",
+      "cluster": "weekly_controlled_risk",
+      "rarity": "common",
+      "tags": [ "game", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 5, 8, 12 ],
+      "maxStakes": [ 50, 100, 250 ],
+      "rewardXp": 480,
+      "rewardCoins": 850,
+      "titles": [ "{game}: мягкая неделя", "{game}: малый лимит", "{game}: спокойная дистанция" ],
+      "descriptions": [
+        "Сыграй в {gameCommand} {target} раз за неделю со ставкой до {maxStake} монет.",
+        "Закрой {target} аккуратных игр в {gameCommand}, не выше {maxStake} монет.",
+        "Проведи спокойную неделю в {gameCommand}: {target} игр до {maxStake}."
+      ]
+    },
+    {
+      "id": "weekly_high_stake_game",
+      "period": "weekly",
+      "kind": "high_stake",
+      "cluster": "weekly_high_stakes",
+      "rarity": "epic",
+      "minLevel": 7,
+      "minGamesPlayed": 50,
+      "minTotalStaked": 25000,
+      "tags": [ "game", "risk" ],
+      "gameKeys": [ "dice", "dicecube", "darts", "football", "basketball", "bowling" ],
+      "targets": [ 3, 5, 8 ],
+      "minStakes": [ 1000, 2000, 5000 ],
+      "rewardXp": 900,
+      "rewardCoins": 1650,
+      "titles": [ "{game}: тяжелая неделя", "{game}: высокий лимит", "{game}: большой вход" ],
+      "descriptions": [
+        "Сыграй в {gameCommand} {target} раз за неделю со ставкой от {minStake} монет.",
+        "Сделай {target} крупных заходов в {gameCommand} от {minStake} монет.",
+        "Проведи рискованную неделю в {gameCommand}: {target} игр от {minStake}."
+      ]
+    }
+  ]
+}

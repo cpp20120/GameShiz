@@ -5,6 +5,14 @@
 <h2>Meta seasons</h2>
 <p class="muted">Manage season lifecycle, JSON config, and end-of-season rewards. Only SuperAdmin can mutate seasons.</p>
 
+<style>
+    .season-config-grid { display:grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap:8px; min-width:720px; }
+    .season-config-grid label { font-size:12px; }
+    .season-config-grid input, .season-config-grid select { width:100%; }
+    .season-config-scroll { overflow-x:auto; margin:8px 0 12px; }
+    .season-config-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+</style>
+
 @if (!string.IsNullOrEmpty(Model.Flash))
 {
     <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
@@ -12,6 +20,24 @@
 
 @if (Model.CanEdit)
 {
+    <div class="card">
+        <h3>Prepare season queue</h3>
+        <p class="muted">Top up future planned seasons with rotating meta configs. Existing future planned seasons are counted first.</p>
+        <form method="post" asp-page-handler="Prepare">
+            <div class="grid">
+                <label>
+                    Planned seasons
+                    <input type="number" asp-for="PrepareCount" min="1" max="100" />
+                </label>
+                <label>
+                    Duration days
+                    <input type="number" asp-for="PrepareDurationDays" min="1" max="365" />
+                </label>
+            </div>
+            <button type="submit">Prepare queue</button>
+        </form>
+    </div>
+
     <div class="card">
         <h3>Create planned season</h3>
         <form method="post" asp-page-handler="Create">
@@ -53,6 +79,9 @@
         <tbody>
         @foreach (var s in Model.Seasons)
         {
+            var progression = Model.ProgressionFor(s.ConfigJson);
+            var rewards = Model.RewardsFor(s.ConfigJson);
+            var rotation = Model.QuestRotationFor(s.ConfigJson);
             <tr>
                 <td><code>@s.Id</code></td>
                 <td><b>@s.Name</b></td>
@@ -64,6 +93,36 @@
                         <summary>config</summary>
                         @if (Model.CanEdit)
                         {
+                            <form method="post" asp-page-handler="UpdateStructuredConfig">
+                                <input type="hidden" name="seasonId" value="@s.Id" />
+                                <div class="season-config-scroll">
+                                    <div class="season-config-grid">
+                                        <label>XP play<input type="number" name="xpPlay" value="@progression.PlayXp" min="0" /></label>
+                                        <label>XP win<input type="number" name="xpWin" value="@progression.WinXp" min="0" /></label>
+                                        <label>XP loss<input type="number" name="xpLoss" value="@progression.LossXp" min="0" /></label>
+                                        <label>Stake XP multiplier<input type="number" name="xpStakeMultiplier" value="@progression.StakeMultiplier" min="0" step="0.001" /></label>
+                                        <label>Min XP/game<input type="number" name="xpMinPerGame" value="@progression.MinXpPerGame" min="0" /></label>
+                                        <label>Max XP/game<input type="number" name="xpMaxPerGame" value="@progression.MaxXpPerGame" min="1" /></label>
+                                        <label>Rating start<input type="number" name="ratingStart" value="@progression.RatingStart" min="0" /></label>
+                                        <label>Rating win delta<input type="number" name="ratingWinDelta" value="@progression.RatingWinDelta" /></label>
+                                        <label>Rating loss delta<input type="number" name="ratingLossDelta" value="@progression.RatingLossDelta" /></label>
+                                        <label>Level base<input type="number" name="xpPerLevelSquaredBase" value="@progression.XpPerLevelSquaredBase" min="1" /></label>
+                                        <label>Quest focus<input type="text" name="questFocus" value="@rotation.Focus" /></label>
+                                        <label>Rarity bias<input type="text" name="questRarityBias" value="@rotation.RarityBias" /></label>
+                                        <label>Player top rewards<input type="text" name="playerTopRewards" value="@MetaSeasonsModel.RewardCsv(rewards.PlayerTop)" /></label>
+                                        <label>Clan top rewards<input type="text" name="clanTopRewards" value="@MetaSeasonsModel.RewardCsv(rewards.ClanTop)" /></label>
+                                    </div>
+                                </div>
+                                <input type="hidden" name="ratingEnabled" value="false" />
+                                <label style="display:block; margin:6px 0">
+                                    <input type="checkbox" name="ratingEnabled" value="true" @(progression.RatingEnabled ? "checked" : "") />
+                                    Rating enabled
+                                </label>
+                                <div class="season-config-actions">
+                                    <button type="submit" class="ghost">Save structured config</button>
+                                    <span class="muted">Raw JSON below still preserves advanced fields.</span>
+                                </div>
+                            </form>
                             <form method="post" asp-page-handler="UpdateConfig">
                                 <input type="hidden" name="seasonId" value="@s.Id" />
                                 <textarea name="configJson" rows="14" style="width: 100%; min-width: 520px; font-family: monospace">@s.ConfigJson</textarea>
@@ -101,8 +160,8 @@
                             <input type="hidden" name="seasonId" value="@s.Id" />
                             <button type="submit" class="ghost">Pay clan rewards</button>
                         </form>
-                        <div class="muted" style="font-size: 11px; margin-top: 4px">Player rewards: #1 5000, #2 2500, #3 1000</div>
-                        <div class="muted" style="font-size: 11px">Clan owner rewards: #1 10000, #2 5000, #3 2500</div>
+                        <div class="muted" style="font-size: 11px; margin-top: 4px">Player rewards: @MetaSeasonsModel.RewardCsv(rewards.PlayerTop)</div>
+                        <div class="muted" style="font-size: 11px">Clan owner rewards: @MetaSeasonsModel.RewardCsv(rewards.ClanTop)</div>
                     </td>
                 }
             </tr>

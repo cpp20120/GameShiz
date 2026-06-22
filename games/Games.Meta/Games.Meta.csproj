@@ -23,4 +23,9 @@
     <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="quest-pool.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="quest-pool.json" />
+  </ItemGroup>
+
 </Project>

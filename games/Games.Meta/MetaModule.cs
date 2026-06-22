@@ -15,6 +15,8 @@ public sealed class MetaModule : IModule
             .AddScoped<IMetaReconstructionStore, MetaReconstructionStore>()
             .AddScoped<IMetaStore, MetaStore>()
             .AddScoped<IMetaService, MetaService>()
+            .AddScoped<ISeasonRewardService, SeasonRewardService>()
+            .AddSingleton<IQuestCatalog, JsonQuestCatalog>()
             .AddScoped<IQuestStore, QuestStore>()
             .AddScoped<IQuestService, QuestService>()
             .AddScoped<IClanStore, ClanStore>()
@@ -29,7 +31,9 @@ public sealed class MetaModule : IModule
             .AddHandler<MetaMenuHandler>()
             .AddHandler<MetaHandler>()
             .AddHandler<TournamentHandler>()
-            .AddHandler<RiskHandler>();
+            .AddHandler<RiskHandler>()
+            .AddBackgroundJob<MetaSeasonRolloverJob>()
+            .AddBackgroundJob<MetaAnalyticsSnapshotJob>();
     }
 
     public IModuleMigrations? GetMigrations() => new MetaMigrations();

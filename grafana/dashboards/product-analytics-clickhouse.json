@@ -1,0 +1,167 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Product, economy, season, quest, cohort, risk and ops analytics from ClickHouse events_v2 only. Postgres state is ingested by meta_analytics snapshots.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "11.2.0",
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT argMax(toInt64OrZero(params['coinSupply']), created_at) AS coin_supply FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_totals' AND $__timeFilter(created_at)", "refId": "A" } ],
+      "title": "Coin supply", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "11.2.0",
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT argMax(toInt64OrZero(params['players']), created_at) AS players FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at)", "refId": "A" } ],
+      "title": "Active season players", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "11.2.0",
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT uniqExact(user_id) AS dau FROM cazinoshiz.events_v2 WHERE user_id > 0 AND created_at >= now() - INTERVAL 24 HOUR", "refId": "A" } ],
+      "title": "DAU (24h)", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": [ "lastNotNull" ], "fields": "", "values": false }, "showPercentChange": false, "textMode": "auto", "wideLayout": true },
+      "pluginVersion": "11.2.0",
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT argMax(toInt64OrZero(params['unresolvedDispatchFailures']), created_at) AS unresolved FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.ops_snapshot' AND $__timeFilter(created_at)", "refId": "A" } ],
+      "title": "Unresolved dispatch failures", "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "barWidthFactor": 0.6, "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, params['module'] AS module, toInt64OrZero(params['stake']) AS stake FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_economy_window' AND $__timeFilter(created_at) ORDER BY time", "refId": "A" } ],
+      "title": "Game stake by module", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "barWidthFactor": 0.6, "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, params['module'] AS module, if(toFloat64OrZero(params['stake']) = 0, 0, round(100 * toFloat64OrZero(params['payout']) / toFloat64OrZero(params['stake']), 2)) AS rtp_percent FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_economy_window' AND $__timeFilter(created_at) ORDER BY time", "refId": "A" } ],
+      "title": "Observed RTP by module", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "barWidthFactor": 0.6, "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 7,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, 'players' AS metric, toInt64OrZero(params['players']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) UNION ALL SELECT created_at AS time, 'games' AS metric, toInt64OrZero(params['games']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) UNION ALL SELECT created_at AS time, 'clans' AS metric, toInt64OrZero(params['clans']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) ORDER BY time", "refId": "A" } ],
+      "title": "Season health", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "barWidthFactor": 0.6, "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 8,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, 'completed' AS metric, sum(toInt64OrZero(params['completed'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT created_at AS time, 'claimed' AS metric, sum(toInt64OrZero(params['claimed'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT created_at AS time, 'started' AS metric, sum(toInt64OrZero(params['started'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time ORDER BY time", "refId": "A" } ],
+      "title": "Quest progress", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "axisBorderShow": false, "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "barAlignment": 0, "barWidthFactor": 0.6, "drawStyle": "line", "fillOpacity": 8, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 4, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "id": 9,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT toStartOfDay(created_at) AS time, 'DAU' AS metric, uniqExact(user_id) AS value FROM cazinoshiz.events_v2 WHERE user_id > 0 AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT toStartOfDay(created_at) AS time, 'events' AS metric, count() AS value FROM cazinoshiz.events_v2 WHERE $__timeFilter(created_at) GROUP BY time ORDER BY time", "refId": "A" } ],
+      "title": "Daily activity", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "id": 10,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT params['questId'] AS quest_id, argMax(toInt64OrZero(params['rows']), created_at) AS rows, argMax(toInt64OrZero(params['started']), created_at) AS started, argMax(toInt64OrZero(params['completed']), created_at) AS completed, argMax(toInt64OrZero(params['claimed']), created_at) AS claimed, round(100 * completed / greatest(rows, 1), 2) AS completion_percent, round(100 * claimed / greatest(completed, 1), 2) AS claim_percent FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_snapshot' AND $__timeFilter(created_at) GROUP BY quest_id ORDER BY completed DESC, rows DESC LIMIT 100", "refId": "A" } ],
+      "title": "Quest completion leaderboard", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "id": 11,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT params['module'] AS module, sum(toInt64OrZero(params['stake'])) AS stake, sum(toInt64OrZero(params['payout'])) AS payout, sum(toInt64OrZero(params['net'])) AS net, if(stake = 0, 0, round(100 * payout / stake, 2)) AS rtp_percent, uniqExact(params['users']) AS user_buckets FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_economy_window' AND $__timeFilter(created_at) GROUP BY module ORDER BY stake DESC LIMIT 50", "refId": "A" } ],
+      "title": "Game economy summary", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "id": 12,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT toInt64OrZero(params['userId']) AS user_id, argMax(toInt64OrZero(params['coins']), created_at) AS coins, argMax(toInt64OrZero(params['rank']), created_at) AS rank, argMax(toInt64OrZero(params['balanceScopeId']), created_at) AS scope_id FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.whale_balance' AND $__timeFilter(created_at) GROUP BY user_id ORDER BY rank ASC LIMIT 25", "refId": "A" } ],
+      "title": "Top balances", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "id": 13,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT toInt64OrZero(params['userId']) AS user_id, argMax(params['displayName'], created_at) AS display_name, argMax(toInt64OrZero(params['stake']), created_at) AS stake, argMax(toInt64OrZero(params['payout']), created_at) AS payout, round(100 * argMax(toFloat64OrZero(params['rtp']), created_at), 2) AS rtp_percent FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.player_rtp' AND $__timeFilter(created_at) GROUP BY user_id ORDER BY rtp_percent DESC, stake DESC LIMIT 25", "refId": "A" } ],
+      "title": "High RTP players", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "id": 14,
+      "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT params['severity'] AS severity, params['status'] AS status, argMax(toInt64OrZero(params['rows']), created_at) AS rows FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.risk_flags' AND $__timeFilter(created_at) GROUP BY severity, status ORDER BY rows DESC", "refId": "A" } ],
+      "title": "Risk flags", "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [ "casino", "clickhouse", "product", "economy", "meta" ],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "CasinoShiz Product Analytics",
+  "uid": "casino-product-analytics-clickhouse",
+  "version": 1,
+  "weekStart": ""
+}

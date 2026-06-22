@@ -1,0 +1,69 @@
+@page "/admin/meta-economy"
+@model CasinoShiz.Host.Pages.Admin.MetaEconomyModel
+@{ ViewData["Title"] = "Meta economy"; }
+
+<h2>Meta economy</h2>
+<p class="muted">Actual ledger health and a rough season balance simulator.</p>
+
+<div class="card">
+    <h3>Simulator</h3>
+    <form method="get" class="grid">
+        <label>Days<input type="number" asp-for="Days" min="1" max="365" /></label>
+        <label>Players<input type="number" asp-for="Players" min="1" /></label>
+        <label>Games/player/day<input type="number" asp-for="GamesPerPlayerPerDay" min="0" step="0.1" /></label>
+        <label>Average stake<input type="number" asp-for="AverageStake" min="0" /></label>
+        <label>Average RTP %<input type="number" asp-for="AverageRtpPercent" min="0" step="0.1" /></label>
+        <label>Daily bonus/player<input type="number" asp-for="DailyBonusPerPlayer" min="0" step="0.1" /></label>
+        <label>Quest coins/player/day<input type="number" asp-for="QuestCoinsPerPlayerPerDay" min="0" step="0.1" /></label>
+        <label>Season reward pool<input type="number" asp-for="SeasonRewardPool" min="0" /></label>
+        <label>Clan reward pool<input type="number" asp-for="ClanRewardPool" min="0" /></label>
+        <label>Transfer fees/day<input type="number" asp-for="TransferFeesPerDay" min="0" step="0.1" /></label>
+        <button type="submit">Recalculate</button>
+    </form>
+    <div class="cards" style="margin-top:12px">
+        <div class="stat"><div class="label">Total games</div><div class="value">@Model.Simulation.TotalGames.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Total stake</div><div class="value">@Model.Simulation.TotalStake.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Game sink</div><div class="value">@Model.Simulation.GameSink.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Faucets</div><div class="value">@Model.Simulation.Faucets.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Sinks</div><div class="value">@Model.Simulation.Sinks.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Net supply</div><div class="value">@Model.Simulation.Net.ToString("N0")</div></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Actual ledger, last @Model.Days days</h3>
+    <div class="cards">
+        <div class="stat"><div class="label">Rows</div><div class="value">@Model.Totals.Rows</div></div>
+        <div class="stat"><div class="label">Credits</div><div class="value">@Model.Totals.Credits</div></div>
+        <div class="stat"><div class="label">Debits</div><div class="value">@Model.Totals.Debits</div></div>
+        <div class="stat"><div class="label">Net</div><div class="value">@Model.Totals.Net</div></div>
+        <div class="stat"><div class="label">Current supply</div><div class="value">@Model.Totals.CurrentSupply</div></div>
+    </div>
+    <table>
+        <thead>
+        <tr>
+            <th>Reason</th>
+            <th>Count</th>
+            <th>Credits</th>
+            <th>Debits</th>
+            <th>Net</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var row in Model.ReasonRows)
+        {
+            <tr>
+                <td><code>@row.Reason</code></td>
+                <td>@row.Count</td>
+                <td>@row.Credits</td>
+                <td>@row.Debits</td>
+                <td><b>@row.Net</b></td>
+            </tr>
+        }
+        @if (Model.ReasonRows.Count == 0)
+        {
+            <tr><td colspan="5" class="muted">No ledger rows in selected window.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
