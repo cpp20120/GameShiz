@@ -8,7 +8,7 @@
 
 using BotFramework.Sdk;
 
-namespace Games.Dice;
+namespace Games.Dice.Infrastructure.Migrations;
 
 public sealed class DiceMigrations : IModuleMigrations
 {

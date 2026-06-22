@@ -1,5 +1,5 @@
-using Games.Poker.Domain;
 using Xunit;
+using Deck = Games.Poker.Domain.Rules.Deck;
 
 namespace CasinoShiz.Tests;
 

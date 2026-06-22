@@ -33,7 +33,7 @@
 // just like pages that live in the Host project itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Admin;
 /// Optional menu entry surfaced in the Host's top-level admin nav. A module
 /// with multiple pages registers one AdminMenu per section (e.g. "Secret
 /// Hitler › Active rooms", "Secret Hitler › Event log").

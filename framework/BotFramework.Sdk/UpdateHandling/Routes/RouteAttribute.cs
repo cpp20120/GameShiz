@@ -23,7 +23,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.UpdateHandling.Routes;
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public abstract class RouteAttribute : Attribute
 {

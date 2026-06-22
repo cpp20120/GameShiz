@@ -3,7 +3,7 @@ using BotFramework.Host;
 using Games.SecretHitler.Domain;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Infrastructure.Rendering;
 
 public static class SecretHitlerStateRenderer
 {

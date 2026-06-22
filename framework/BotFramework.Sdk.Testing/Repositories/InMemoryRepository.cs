@@ -14,7 +14,7 @@
 // spin up Postgres via Testcontainers; no framework feature for that here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk.Testing;
+namespace BotFramework.Sdk.Testing.Repositories;
 /// Classical-aggregate repository backed by a dictionary. Stable semantics:
 /// FindAsync returns the live reference (mutations in test code are visible
 /// on subsequent Find calls), SaveAsync is a no-op replace. That matches EF

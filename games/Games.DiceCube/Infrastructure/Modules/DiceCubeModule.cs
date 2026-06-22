@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.DiceCube;
+namespace Games.DiceCube.Infrastructure.Modules;
 
 public sealed class DiceCubeModule : IModule
 {

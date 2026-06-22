@@ -1,6 +1,6 @@
 using Npgsql;
 
-namespace BotFramework.Host.Persistence;
+namespace BotFramework.Host.Persistence.Connections;
 
 public interface INpgsqlConnectionFactory
 {

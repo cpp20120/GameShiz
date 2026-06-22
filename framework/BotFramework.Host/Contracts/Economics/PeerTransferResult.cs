@@ -1,4 +1,4 @@
-namespace BotFramework.Host;
+namespace BotFramework.Host.Contracts.Economics;
 
 public readonly record struct PeerTransferResult(
     bool Ok,

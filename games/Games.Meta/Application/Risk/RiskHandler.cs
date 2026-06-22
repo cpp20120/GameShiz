@@ -4,7 +4,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Risk;
 
 [Command("/risk")]
 public sealed class RiskHandler(IRiskService risks) : IUpdateHandler

@@ -26,7 +26,7 @@
 // snapshots; the event stream is the history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Snapshots;
 /// Aggregates that opt into snapshotting. The framework loads the snapshot,
 /// calls RestoreFromSnapshot, then replays newer events. Aggregates without
 /// this interface fall back to full replay.

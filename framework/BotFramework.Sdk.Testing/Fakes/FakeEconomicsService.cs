@@ -14,7 +14,7 @@
 // spin up Postgres via Testcontainers; no framework feature for that here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk.Testing;
+namespace BotFramework.Sdk.Testing.Fakes;
 /// Tracks debits/credits so tests can assert the balance ledger is right
 /// without a real economics service. Starts every user at 1_000 by default.
 public sealed class FakeEconomicsService

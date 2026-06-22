@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Poker;
+namespace Games.Poker.Domain.Events;
 
 public sealed record PokerHandStarted(string InviteCode, int Players, long OccurredAt) : IDomainEvent
 {

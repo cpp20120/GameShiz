@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.Catalog;
 
 public sealed partial class JsonQuestCatalog
 {

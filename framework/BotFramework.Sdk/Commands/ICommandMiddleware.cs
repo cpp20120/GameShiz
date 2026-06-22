@@ -12,7 +12,7 @@
 // are Host-owned so a new game doesn't accidentally reorder the chain.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 public interface ICommandMiddleware
 {
     /// Called for every command flowing through the bus. Call next() to

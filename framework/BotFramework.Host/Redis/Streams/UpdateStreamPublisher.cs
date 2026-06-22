@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Host.Redis;
+namespace BotFramework.Host.Redis.Streams;
 
 public sealed class UpdateStreamPublisher(IConnectionMultiplexer redis, IOptions<RedisOptions> opts)
 {

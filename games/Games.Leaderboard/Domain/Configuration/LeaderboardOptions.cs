@@ -1,4 +1,4 @@
-namespace Games.Leaderboard;
+namespace Games.Leaderboard.Domain.Configuration;
 
 public sealed class LeaderboardOptions
 {

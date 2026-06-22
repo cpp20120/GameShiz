@@ -14,7 +14,7 @@ using BotFramework.Sdk;
 
 using BotFramework.Host.Composition;
 
-namespace BotFramework.Host.Runtime;
+namespace BotFramework.Host.Runtime.Jobs;
 
 public sealed partial class BackgroundJobRunner(
     ModuleRegistrations registrations,

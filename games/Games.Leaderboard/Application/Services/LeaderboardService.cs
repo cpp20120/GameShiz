@@ -1,7 +1,9 @@
 using BotFramework.Host;
+using Games.Leaderboard.Domain.Models;
 using Microsoft.Extensions.Options;
+using LeaderboardModel = Games.Leaderboard.Domain.Models.Leaderboard;
 
-namespace Games.Leaderboard;
+namespace Games.Leaderboard.Application.Services;
 
 public sealed class LeaderboardService(
     ILeaderboardStore store,
@@ -10,12 +12,12 @@ public sealed class LeaderboardService(
 {
     private readonly LeaderboardOptions _opts = options.Value;
 
-    public async Task<Leaderboard> GetTopAsync(int limit, long balanceScopeId, CancellationToken ct)
+    public async Task<LeaderboardModel> GetTopAsync(int limit, long balanceScopeId, CancellationToken ct)
     {
         var since = ActiveSinceUnixMs();
 
         var active = await store.ListActiveAsync(since, balanceScopeId, ct);
-        if (active.Count == 0) return new Leaderboard([], Truncated: false);
+        if (active.Count == 0) return new LeaderboardModel([], Truncated: false);
 
         var places = new List<LeaderboardPlace>();
         var lastBalance = active[0].Coins + 1;
@@ -33,7 +35,7 @@ public sealed class LeaderboardService(
 
         var shown = places.Sum(p => p.Users.Count);
         var truncated = limit > 0 && places.Count >= limit && active.Count > shown;
-        return new Leaderboard(places, truncated);
+        return new LeaderboardModel(places, truncated);
     }
 
     public async Task<BalanceInfo> GetBalanceAsync(

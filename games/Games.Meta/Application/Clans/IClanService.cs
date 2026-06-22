@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Clans;
 
 public interface IClanService
 {

@@ -28,7 +28,7 @@
 //   columns the admin UI actually wants.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Projections;
 /// Marker for a projection that can rebuild itself from scratch. Host exposes
 /// an admin command ("rebuild sh_active_rooms") that truncates the target
 /// table and replays the whole event store. Useful when the projection shape

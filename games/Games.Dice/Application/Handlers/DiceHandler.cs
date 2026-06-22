@@ -11,7 +11,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Dice;
+namespace Games.Dice.Application.Handlers;
 
 [Command("/slot")]
 [Command("/slots")]

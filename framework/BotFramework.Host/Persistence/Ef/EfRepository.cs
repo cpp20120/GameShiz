@@ -27,7 +27,7 @@
 using BotFramework.Sdk;
 using Microsoft.EntityFrameworkCore;
 
-namespace BotFramework.Host.Persistence;
+namespace BotFramework.Host.Persistence.Ef;
 
 public sealed class EfRepository<TAggregate, TContext>(TContext db) : IRepository<TAggregate>
     where TAggregate : class, IAggregateRoot

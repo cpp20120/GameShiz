@@ -19,7 +19,7 @@
 
 using System.Collections.Concurrent;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Application.Jobs;
 
 public sealed class RedeemCaptchaTimeouts
 {

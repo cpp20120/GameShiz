@@ -7,7 +7,7 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Domain;
 /// Creates aggregate instances during repository load. Modules may register a
 /// custom factory when an aggregate needs construction policy beyond a public
 /// parameterless or string-id constructor.

@@ -7,6 +7,6 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Domain;
 public sealed class ConcurrencyException(string streamId, long expected, long actual)
     : Exception($"Stream {streamId} expected version {expected}, was {actual}");

@@ -1,4 +1,4 @@
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Integrations;
 
 public interface ITelegramWebAppInitDataValidator
 {

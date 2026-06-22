@@ -1,6 +1,6 @@
 using Games.Poker.Domain;
 
-namespace Games.Poker;
+namespace Games.Poker.Domain.Rules;
 
 public static class PokerResultHelpers
 {

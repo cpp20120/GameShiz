@@ -20,7 +20,7 @@
 using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
-namespace Games.Pick;
+namespace Games.Pick.Application.Services;
 
 public sealed partial class PickService(
     IEconomicsService economics,

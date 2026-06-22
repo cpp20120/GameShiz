@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Streaks;
 
 public sealed record GameStreak(
     long SeasonId,

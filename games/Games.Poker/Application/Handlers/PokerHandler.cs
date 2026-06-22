@@ -15,7 +15,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Games.Poker;
+namespace Games.Poker.Application.Handlers;
 
 [Command("/poker")]
 [CallbackPrefix("poker:")]

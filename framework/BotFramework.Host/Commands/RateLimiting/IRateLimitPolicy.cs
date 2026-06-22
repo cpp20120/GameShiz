@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Commands;
+namespace BotFramework.Host.Commands.RateLimiting;
 
 public interface IRateLimitPolicy
 {

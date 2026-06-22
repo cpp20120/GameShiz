@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>
 /// One pending dice mini-game per (user, chat): prevents overlapping bot dice (e.g. /basket then /football)

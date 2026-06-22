@@ -1,4 +1,4 @@
-namespace Games.Darts;
+namespace Games.Darts.Domain.Configuration;
 
 public sealed class DartsOptions
 {

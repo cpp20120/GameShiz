@@ -19,7 +19,7 @@ using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Pick;
+namespace Games.Pick.Application.Jobs;
 
 public sealed partial class PickLotterySweeperJob(
     IPickLotteryStore store,

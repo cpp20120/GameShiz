@@ -6,7 +6,7 @@ using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Application.Handlers;
 
 [Command("/blackjack")]
 [CallbackPrefix("bj:")]

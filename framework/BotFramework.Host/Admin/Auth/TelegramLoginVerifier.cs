@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace BotFramework.Host.Admin;
+namespace BotFramework.Host.Admin.Auth;
 
 /// Verifies Telegram Login Widget data per https://core.telegram.org/widgets/login
 public sealed class TelegramLoginVerifier(string botToken)

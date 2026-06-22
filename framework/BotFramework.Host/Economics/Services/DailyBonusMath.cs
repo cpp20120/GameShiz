@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Services;
 
 public static class DailyBonusMath
 {

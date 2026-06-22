@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.DiceCube;
+namespace Games.DiceCube.Domain.Events;
 
 public sealed record DiceCubeRollCompleted(
     long UserId,

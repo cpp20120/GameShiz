@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Infrastructure.Modules;
 
 public sealed class SecretHitlerModule : IModule
 {

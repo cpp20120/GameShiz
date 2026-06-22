@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Infrastructure.Rendering;
 
 public static class BlackjackRenderer
 {

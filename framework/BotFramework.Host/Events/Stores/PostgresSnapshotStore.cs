@@ -21,7 +21,7 @@ using System.Text.Json;
 using BotFramework.Sdk;
 using Dapper;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Stores;
 
 public sealed class PostgresSnapshotStore<TAggregate>(
     INpgsqlConnectionFactory connections) : ISnapshotStore<TAggregate>

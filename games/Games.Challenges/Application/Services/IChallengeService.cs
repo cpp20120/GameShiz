@@ -1,4 +1,4 @@
-namespace Games.Challenges;
+namespace Games.Challenges.Application.Services;
 
 public interface IChallengeService
 {

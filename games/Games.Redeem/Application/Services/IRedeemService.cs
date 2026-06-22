@@ -2,7 +2,7 @@ using BotFramework.Host;
 using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Application.Services;
 
 public interface IRedeemService
 {

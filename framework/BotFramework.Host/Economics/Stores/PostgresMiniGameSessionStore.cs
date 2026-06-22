@@ -1,7 +1,7 @@
 using BotFramework.Sdk;
 using Dapper;
 
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Stores;
 
 internal sealed class PostgresMiniGameSessionStore(INpgsqlConnectionFactory connections) : IMiniGameSessionStore
 {

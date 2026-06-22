@@ -23,7 +23,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Admin;
+namespace Games.Admin.Application.Handlers;
 
 [Command("/analytics")]
 public sealed class AnalyticsHandler(

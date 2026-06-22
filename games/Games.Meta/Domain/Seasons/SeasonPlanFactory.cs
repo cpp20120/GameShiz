@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace Games.Meta;
+namespace Games.Meta.Domain.Seasons;
 
 public static class SeasonPlanFactory
 {

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Migrations;
 
 public sealed class PixelBattleMigrations : IModuleMigrations
 {

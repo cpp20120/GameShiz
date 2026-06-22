@@ -1,4 +1,4 @@
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Domain.Entities;
 
 public sealed class SecretHitlerPlayer
 {

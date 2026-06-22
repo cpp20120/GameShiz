@@ -1,4 +1,4 @@
-namespace BotFramework.Host;
+namespace BotFramework.Host.Contracts.Rendering;
 
 public enum RenderedMediaKind
 {

@@ -25,7 +25,7 @@
 //   appropriate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Bus;
 public interface IDomainEventSubscriber
 {
     /// Handles a published domain event. Subscribers should be fast and

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Games.Poker.Domain;
+namespace Games.Poker.Domain.Rules;
 
 public static class Deck
 {

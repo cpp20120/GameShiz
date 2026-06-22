@@ -1,4 +1,4 @@
-namespace Games.Poker;
+namespace Games.Poker.Domain.Configuration;
 
 public sealed class PokerOptions
 {

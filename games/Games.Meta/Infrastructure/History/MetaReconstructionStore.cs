@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.History;
 
 public sealed class MetaReconstructionStore(INpgsqlConnectionFactory connections) : IMetaReconstructionStore
 {

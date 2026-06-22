@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Meta;
 /// <summary>
 /// Normalized transfer event for later quest, clan, season, and risk-control projections.
 /// </summary>

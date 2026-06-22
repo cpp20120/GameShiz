@@ -12,7 +12,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Results;
 
 public enum LotteryJoinError
 {

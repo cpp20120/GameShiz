@@ -1,4 +1,4 @@
-namespace Games.Football;
+namespace Games.Football.Domain.Configuration;
 
 public sealed class FootballOptions
 {

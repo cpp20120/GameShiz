@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Seasons;
 
 public sealed record SeasonLeaderboardEntry(
     int Place,

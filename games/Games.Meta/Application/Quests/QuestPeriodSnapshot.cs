@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Quests;
 
 internal sealed record QuestPeriodSnapshot(
     long SeasonId,

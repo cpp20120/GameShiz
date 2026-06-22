@@ -17,9 +17,9 @@ using System.Collections.Concurrent;
 using BotFramework.Host;
 using BotFramework.Sdk;
 using Games.Poker.Domain;
-using static Games.Poker.PokerResultHelpers;
+using static Games.Poker.Domain.Rules.PokerResultHelpers;
 
-namespace Games.Poker;
+namespace Games.Poker.Application.Services;
 
 public sealed partial class PokerService(
     IPokerTableStore tables,

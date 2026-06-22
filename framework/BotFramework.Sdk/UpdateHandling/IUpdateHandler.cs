@@ -23,7 +23,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.UpdateHandling;
 /// A handler processes one Telegram update. Handlers are resolved from DI on
 /// every dispatch — make them Scoped unless they're stateless.
 public interface IUpdateHandler

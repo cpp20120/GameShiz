@@ -1,4 +1,4 @@
-namespace Games.Darts;
+namespace Games.Darts.Application.Jobs;
 
 public readonly record struct DartsRollJob(
     long RoundId,

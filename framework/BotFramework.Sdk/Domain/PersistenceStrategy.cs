@@ -6,7 +6,7 @@
 // Adding a game to a Host = reference the module's assembly + register it once.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Domain;
 public enum PersistenceStrategy
 {
     /// Aggregate is mutated in place and persisted as a row. Default.

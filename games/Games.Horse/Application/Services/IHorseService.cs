@@ -16,11 +16,11 @@ using System.Security.Cryptography;
 using System.Text;
 using BotFramework.Host;
 using BotFramework.Sdk;
-using Games.Horse.Generators;
+using Games.Horse.Infrastructure.Rendering;
 using Microsoft.Extensions.Options;
-using static Games.Horse.HorseResultHelpers;
+using static Games.Horse.Domain.Rules.HorseResultHelpers;
 
-namespace Games.Horse;
+namespace Games.Horse.Application.Services;
 
 public interface IHorseService
 {

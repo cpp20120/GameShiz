@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.Persistence;
 
 public sealed class RiskStore(INpgsqlConnectionFactory connections) : IRiskStore
 {

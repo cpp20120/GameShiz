@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.Modules;
 
 public sealed class MetaModule : IModule
 {

@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Infrastructure.Persistence;
 
 public interface IRedeemStore
 {

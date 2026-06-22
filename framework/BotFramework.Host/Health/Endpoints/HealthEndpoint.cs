@@ -17,7 +17,7 @@
 
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Health;
+namespace BotFramework.Host.Health.Endpoints;
 
 public sealed class HealthEndpoint(IEnumerable<IHealthCheck> checks)
 {

@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>Stable ids for dice mini-games (cross-game session lock).</summary>
 public static class MiniGameIds

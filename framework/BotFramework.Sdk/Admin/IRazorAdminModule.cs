@@ -33,7 +33,7 @@
 // just like pages that live in the Host project itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Admin;
 /// Tier 2 marker — module ships a Razor Class Library with .cshtml pages.
 /// The Host calls AdminAssembly on each IRazorAdminModule it sees and adds
 /// the returned assembly to its Razor application parts so the RCL's pages

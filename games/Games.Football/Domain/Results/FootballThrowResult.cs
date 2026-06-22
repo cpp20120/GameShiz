@@ -1,4 +1,4 @@
-namespace Games.Football;
+namespace Games.Football.Domain.Results;
 
 public sealed record FootballThrowResult(
     FootballThrowOutcome Outcome,

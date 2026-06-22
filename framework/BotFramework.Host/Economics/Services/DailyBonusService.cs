@@ -1,7 +1,7 @@
 using BotFramework.Host.Composition;
 using Dapper;
 
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Services;
 
 public sealed partial class DailyBonusService(
     INpgsqlConnectionFactory connections,

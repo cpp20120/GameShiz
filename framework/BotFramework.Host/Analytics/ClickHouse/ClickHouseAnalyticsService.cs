@@ -31,7 +31,7 @@ using ClickHouse.Client.ADO;
 using ClickHouse.Client.Copy;
 using Microsoft.Extensions.Options;
 
-namespace BotFramework.Host.Analytics;
+namespace BotFramework.Host.Analytics.ClickHouse;
 
 public sealed partial class ClickHouseAnalyticsService(
     IOptions<ClickHouseOptions> options,

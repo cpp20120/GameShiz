@@ -1,4 +1,4 @@
-namespace BotFramework.Host;
+namespace BotFramework.Host.Contracts.Analytics;
 
 public interface IAnalyticsService
 {

@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.Persistence;
 
 internal sealed record QuestProgressRow(
     string QuestId,

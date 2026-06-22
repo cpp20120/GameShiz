@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Analytics;
+namespace BotFramework.Host.Analytics.ClickHouse;
 
 public sealed class ClickHouseOptions
 {

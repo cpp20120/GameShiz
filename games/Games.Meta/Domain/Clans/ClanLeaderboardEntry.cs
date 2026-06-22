@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Clans;
 
 public sealed record ClanLeaderboardEntry(
     int Place,

@@ -21,7 +21,7 @@ using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Modules;
 
 public sealed class ModuleServiceCollectionAdapter(
     IServiceCollection services,

@@ -6,7 +6,7 @@
 // Adding a game to a Host = reference the module's assembly + register it once.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Modules;
 /// Long-running worker registered by a module. Host starts it on app start
 /// and cancels the token on shutdown. Exceptions do NOT bring the Host down —
 /// the runner logs and restarts with backoff.

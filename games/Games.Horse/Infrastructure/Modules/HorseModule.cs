@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Horse;
+namespace Games.Horse.Infrastructure.Modules;
 
 public sealed class HorseModule : IModule
 {

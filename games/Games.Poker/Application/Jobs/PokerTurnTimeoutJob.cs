@@ -12,7 +12,7 @@ using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 
-namespace Games.Poker;
+namespace Games.Poker.Application.Jobs;
 
 public sealed partial class PokerTurnTimeoutJob(
     IServiceProvider services,

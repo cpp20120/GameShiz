@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Integrations;
 
 public sealed class PixelBattleBroadcaster
 {

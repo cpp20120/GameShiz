@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Dispatch;
 
 public sealed record EventDispatchFailure(
     string StreamId,

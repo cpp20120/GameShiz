@@ -1,7 +1,7 @@
 using BotFramework.Sdk;
 using Dapper;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Stores;
 
 public sealed partial class PostgresEventLog(
     INpgsqlConnectionFactory connections,

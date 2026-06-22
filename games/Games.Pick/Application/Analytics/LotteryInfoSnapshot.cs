@@ -21,7 +21,7 @@
 using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
-namespace Games.Pick;
+namespace Games.Pick.Application.Analytics;
 
 public sealed record LotteryInfoSnapshot(
     PickLotteryRow Row,

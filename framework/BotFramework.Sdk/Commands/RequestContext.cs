@@ -12,7 +12,7 @@
 // are Host-owned so a new game doesn't accidentally reorder the chain.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 /// Request-scoped identity + tracing metadata. Propagated through the bus so
 /// every middleware sees the same view. Built once per incoming Telegram
 /// update (or admin HTTP request) by the Host before any command dispatches.

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Challenges;
+namespace Games.Challenges.Infrastructure.Modules;
 
 public sealed class ChallengeModule : IModule
 {

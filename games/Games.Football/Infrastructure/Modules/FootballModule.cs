@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Football;
+namespace Games.Football.Infrastructure.Modules;
 
 public sealed class FootballModule : IModule
 {

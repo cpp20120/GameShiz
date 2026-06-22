@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Application.Jobs;
 
 public sealed partial class RedeemDropSubscriber(
     IServiceProvider services,

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Infrastructure.Migrations;
 
 public sealed class SecretHitlerMigrations : IModuleMigrations
 {

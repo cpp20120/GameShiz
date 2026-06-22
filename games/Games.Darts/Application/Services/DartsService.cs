@@ -7,7 +7,7 @@
 using BotFramework.Host;
 using BotFramework.Sdk;
 
-namespace Games.Darts;
+namespace Games.Darts.Application.Services;
 
 public sealed class DartsService(
     IEconomicsService economics,

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Poker;
+namespace Games.Poker.Infrastructure.Modules;
 
 public sealed class PokerModule : IModule
 {

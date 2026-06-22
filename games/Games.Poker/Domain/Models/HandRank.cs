@@ -1,4 +1,4 @@
-namespace Games.Poker.Domain;
+namespace Games.Poker.Domain.Models;
 
 public readonly struct HandRank(HandCategory category, int[] tiebreakers) : IComparable<HandRank>
 {

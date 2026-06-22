@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Achievements;
 
 public sealed record AchievementUnlock(
     string AchievementId,

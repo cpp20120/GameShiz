@@ -1,6 +1,6 @@
 using BotFramework.Host;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Quests;
 
 public sealed class QuestService(
     IMetaService meta,

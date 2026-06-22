@@ -14,7 +14,7 @@
 
 using BotFramework.Host.Random;
 
-namespace BotFramework.Host.Security;
+namespace BotFramework.Host.Security.Captcha;
 
 public static class CaptchaService
 {

@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
-namespace Games.Challenges;
+namespace Games.Challenges.Application.Services;
 
 public sealed class ChallengeService(
     IChallengeStore store,

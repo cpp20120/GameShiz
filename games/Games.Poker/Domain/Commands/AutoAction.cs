@@ -1,4 +1,4 @@
-namespace Games.Poker.Domain;
+namespace Games.Poker.Domain.Commands;
 
 public enum AutoAction
 {

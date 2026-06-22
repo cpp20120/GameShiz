@@ -1,5 +1,5 @@
 
-namespace Games.Redeem;
+namespace Games.Redeem.Domain.Results;
 
 public sealed record BeginRedeemResult(
     RedeemError Error,

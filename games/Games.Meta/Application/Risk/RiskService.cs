@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Risk;
 
 public sealed class RiskService(
     IMetaService meta,

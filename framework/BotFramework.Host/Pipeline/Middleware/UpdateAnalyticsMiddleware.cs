@@ -2,7 +2,7 @@ using BotFramework.Sdk;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Middleware;
 
 public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUpdateMiddleware
 {

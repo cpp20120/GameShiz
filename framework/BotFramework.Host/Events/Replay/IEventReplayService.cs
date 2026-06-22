@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Replay;
 
 public interface IEventReplayService
 {

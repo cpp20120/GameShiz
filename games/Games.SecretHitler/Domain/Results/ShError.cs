@@ -1,6 +1,6 @@
 using Games.SecretHitler.Domain;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Domain.Results;
 
 public enum ShError
 {

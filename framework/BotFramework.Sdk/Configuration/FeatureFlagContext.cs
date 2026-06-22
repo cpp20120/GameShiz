@@ -14,7 +14,7 @@
 // IFeatureFlags interface hides all of that.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Configuration;
 /// Context used for per-user / per-culture rollouts. All fields optional —
 /// the provider picks what it needs. Keeping this narrow keeps the flag
 /// backend pluggable.

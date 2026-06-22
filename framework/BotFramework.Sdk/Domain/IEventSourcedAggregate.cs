@@ -7,7 +7,7 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Domain;
 /// Opt-in extension for aggregates that want event sourcing. Classical
 /// aggregates simply implement IAggregateRoot and are persisted as rows.
 public interface IEventSourcedAggregate : IAggregateRoot

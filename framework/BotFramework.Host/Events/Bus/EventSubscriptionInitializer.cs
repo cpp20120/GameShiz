@@ -15,7 +15,7 @@
 using BotFramework.Host.Composition;
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Bus;
 
 public sealed partial class EventSubscriptionInitializer(
     IDomainEventBus bus,

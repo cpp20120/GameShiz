@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Commands;
+namespace BotFramework.Host.Commands.Dispatch;
 
 /// <summary>AsyncLocal shim that exposes the current request context to command middleware.</summary>
 public static class RequestContextAccessor

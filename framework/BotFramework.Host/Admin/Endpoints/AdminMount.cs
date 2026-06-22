@@ -18,7 +18,7 @@
 
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Admin;
+namespace BotFramework.Host.Admin.Endpoints;
 
 public sealed class AdminMount(
     IReadOnlyDictionary<string, IReadOnlyList<IAdminPage>> pagesByModule)

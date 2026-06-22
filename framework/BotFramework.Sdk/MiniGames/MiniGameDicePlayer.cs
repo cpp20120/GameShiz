@@ -1,6 +1,6 @@
 using Telegram.Bot.Types;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>
 /// Resolves the human player for Telegram mini-game dice: user-sent dice use <see cref="Message.From"/>;

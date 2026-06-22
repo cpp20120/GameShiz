@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-namespace Games.Darts;
+namespace Games.Darts.Infrastructure.Integrations;
 
 public sealed partial class DartsBotDiceSender(
     ITelegramBotClient bot,

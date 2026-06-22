@@ -23,7 +23,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.UpdateHandling.Routes;
 public sealed class MessageDiceAttribute(string emoji) : RouteAttribute
 {
     public string Emoji { get; } = emoji;

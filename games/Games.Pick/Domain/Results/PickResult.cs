@@ -1,4 +1,4 @@
-namespace Games.Pick;
+namespace Games.Pick.Domain.Results;
 
 public sealed record PickResult(
     PickError Error,

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Football;
+namespace Games.Football.Infrastructure.Migrations;
 
 public sealed class FootballMigrations : IModuleMigrations
 {

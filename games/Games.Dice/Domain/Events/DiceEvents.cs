@@ -9,7 +9,7 @@
 
 using BotFramework.Sdk;
 
-namespace Games.Dice;
+namespace Games.Dice.Domain.Events;
 
 public sealed record DiceRollCompleted(
     long UserId,

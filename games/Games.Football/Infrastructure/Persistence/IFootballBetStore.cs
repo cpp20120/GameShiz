@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Football;
+namespace Games.Football.Infrastructure.Persistence;
 
 public interface IFootballBetStore
 {

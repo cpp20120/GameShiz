@@ -17,7 +17,7 @@
 using System.Diagnostics;
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Commands;
+namespace BotFramework.Host.Commands.Middleware;
 
 public sealed class MetricsMiddleware(IMetrics metrics) : ICommandMiddleware
 {

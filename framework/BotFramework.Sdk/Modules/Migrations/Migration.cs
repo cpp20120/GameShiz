@@ -33,7 +33,7 @@
 //   behaves today — EF's "down" methods were never invoked in prod.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Modules.Migrations;
 /// A single forward migration. Id is the stable ordering key ("001_initial",
 /// "002_add_stack_column"). Sql is executed verbatim — the runner does not
 /// try to parse it. For cases where SQL won't do (data migrations, etc.),

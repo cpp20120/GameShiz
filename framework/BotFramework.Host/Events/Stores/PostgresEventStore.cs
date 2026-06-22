@@ -23,7 +23,7 @@ using BotFramework.Sdk;
 using Dapper;
 using Npgsql;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Stores;
 
 public sealed class PostgresEventStore(
     INpgsqlConnectionFactory connections,

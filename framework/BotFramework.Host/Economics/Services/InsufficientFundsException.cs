@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Services;
 
 public sealed class InsufficientFundsException(long userId, long balanceScopeId, int requested, int available)
     : InvalidOperationException(

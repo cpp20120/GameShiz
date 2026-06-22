@@ -15,7 +15,7 @@ using BotFramework.Host;
 using BotFramework.Sdk;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace Games.DiceCube;
+namespace Games.DiceCube.Application.Services;
 
 public sealed class DiceCubeService(
     IEconomicsService economics,

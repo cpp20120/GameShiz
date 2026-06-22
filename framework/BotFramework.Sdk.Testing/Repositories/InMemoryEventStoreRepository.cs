@@ -14,7 +14,7 @@
 // spin up Postgres via Testcontainers; no framework feature for that here.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk.Testing;
+namespace BotFramework.Sdk.Testing.Repositories;
 /// Event-store-aggregate repository backed by in-memory streams. Preserves
 /// optimistic-concurrency semantics — if SaveAsync is called twice with the
 /// same expectedVersion, the second throws, same as production.

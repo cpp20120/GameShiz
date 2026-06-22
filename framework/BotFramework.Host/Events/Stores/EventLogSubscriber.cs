@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Stores;
 
 internal sealed class EventLogSubscriber(IEventLog log) : IDomainEventSubscriber
 {

@@ -2,7 +2,7 @@ using Dapper;
 using BotFramework.Host.Composition;
 using Microsoft.Extensions.Options;
 
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Services;
 
 internal sealed class TelegramDiceDailyRollLimiter(
     INpgsqlConnectionFactory connections,

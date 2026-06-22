@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Meta;
 
 public sealed class MetaService(IMetaStore store) : IMetaService
 {

@@ -23,7 +23,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.UpdateHandling;
 /// Request-scoped context carrying the Telegram update, the bot client, and
 /// the scoped service provider. Handlers read whatever they need from here.
 public sealed class UpdateContext(

@@ -24,7 +24,7 @@
 // and Host authors (for middleware registration) share the same vocabulary.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 /// Commands that return a value. Split by convention so middleware can
 /// handle "fire and forget" separately from "request/response" shapes.
 public interface ICommand<TResult> : ICommand { }

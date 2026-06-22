@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 public interface IMiniGameRollGateStore
 {
     Task ExpectBotRollAsync(string gameId, long userId, long chatId, CancellationToken ct);

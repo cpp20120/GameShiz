@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Analytics;
+namespace BotFramework.Host.Analytics.ClickHouse;
 
 internal sealed class ClickHouseEventMirror(ClickHouseAnalyticsService analytics) : IDomainEventSubscriber
 {

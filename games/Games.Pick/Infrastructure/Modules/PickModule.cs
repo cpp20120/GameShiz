@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Modules;
 
 public sealed class PickModule : IModule
 {

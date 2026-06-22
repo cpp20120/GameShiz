@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Meta;
 /// <summary>
 /// Emitted only when an achievement is newly inserted for the player.
 /// </summary>

@@ -1,4 +1,4 @@
-namespace Games.Redeem;
+namespace Games.Redeem.Domain.Entities;
 
 public sealed class RedeemCode
 {
@@ -6,7 +6,7 @@ public sealed class RedeemCode
     public bool Active { get; set; } = true;
     public long IssuedBy { get; set; }
     public long IssuedAt { get; set; }
-    public string FreeSpinGameId { get; set; } = BotFramework.Sdk.MiniGameIds.Dice;
+    public string FreeSpinGameId { get; set; } = BotFramework.Sdk.MiniGames.MiniGameIds.Dice;
     public long? RedeemedBy { get; set; }
     public long? RedeemedAt { get; set; }
 }

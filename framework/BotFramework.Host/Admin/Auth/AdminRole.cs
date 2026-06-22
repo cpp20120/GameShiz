@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Admin;
+namespace BotFramework.Host.Admin.Auth;
 
 public enum AdminRole
 {

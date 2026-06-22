@@ -33,5 +33,5 @@
 // just like pages that live in the Host project itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Admin;
 public sealed record AdminResponse(string Html, int StatusCode = 200);

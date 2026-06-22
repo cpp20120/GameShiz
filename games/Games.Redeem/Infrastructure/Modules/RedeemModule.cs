@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Infrastructure.Modules;
 
 public sealed class RedeemModule : IModule
 {

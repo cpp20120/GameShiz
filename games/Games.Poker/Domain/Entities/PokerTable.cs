@@ -4,7 +4,7 @@
 // so fields are intentionally plain property setters rather than records.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace Games.Poker;
+namespace Games.Poker.Domain.Entities;
 
 public sealed class PokerTable
 {

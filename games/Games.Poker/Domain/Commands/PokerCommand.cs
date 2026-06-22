@@ -1,4 +1,4 @@
-namespace Games.Poker;
+namespace Games.Poker.Domain.Commands;
 
 public abstract record PokerCommand
 {

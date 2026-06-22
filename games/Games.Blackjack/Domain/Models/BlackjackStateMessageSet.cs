@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Domain.Models;
 
 public sealed record BlackjackStateMessageSet(
     long UserId,

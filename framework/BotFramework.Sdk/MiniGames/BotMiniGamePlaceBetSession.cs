@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>Shared <see cref="BotMiniGameSession.TryBeginPlaceBet"/> plus cross-game ghost heal loop.</summary>
 public static class BotMiniGamePlaceBetSession

@@ -1,7 +1,7 @@
 using System.Data;
 using Dapper;
 
-namespace BotFramework.Host.Persistence;
+namespace BotFramework.Host.Persistence.Dapper;
 
 internal static class DapperTypeHandlers
 {

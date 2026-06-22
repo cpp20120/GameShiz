@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace BotFramework.Host.Runtime;
+namespace BotFramework.Host.Runtime.Jobs;
 
 public sealed class BackgroundJobStatusService : IBackgroundJobStatusService
 {

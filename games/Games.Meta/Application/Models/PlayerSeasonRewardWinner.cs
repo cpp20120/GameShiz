@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Models;
 
 internal sealed record PlayerSeasonRewardWinner(
     int Place,

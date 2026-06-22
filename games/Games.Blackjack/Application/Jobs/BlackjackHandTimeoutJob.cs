@@ -12,7 +12,7 @@ using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Application.Jobs;
 
 public sealed partial class BlackjackHandTimeoutJob(
     IServiceProvider services,

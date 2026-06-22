@@ -1,4 +1,4 @@
-namespace Games.Basketball;
+namespace Games.Basketball.Domain.Results;
 
 public sealed record BasketballThrowResult(
     BasketballThrowOutcome Outcome,

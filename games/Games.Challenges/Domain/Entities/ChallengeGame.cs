@@ -1,4 +1,4 @@
-namespace Games.Challenges;
+namespace Games.Challenges.Domain.Entities;
 
 public enum ChallengeGame
 {

@@ -26,7 +26,7 @@
 // snapshots; the event stream is the history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Snapshots;
 /// Per-module cadence policy. A cash-poker table with thousands of events per
 /// hour wants Every = 200; a Secret Hitler room with dozens of events per
 /// game wants snapshotting disabled (SnapshotEvery = 0 → always full replay).

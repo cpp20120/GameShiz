@@ -1,4 +1,4 @@
-namespace Games.Leaderboard;
+namespace Games.Leaderboard.Domain.Models;
 
 public sealed record ChatLeaderboard(
     long ChatId,

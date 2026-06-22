@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Quests;
 
 public sealed class QuestProjection(
     IQuestService quests,

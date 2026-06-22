@@ -1,4 +1,4 @@
-namespace Games.Darts;
+namespace Games.Darts.Domain.Models;
 
 public sealed record DartsRound(
     long Id,

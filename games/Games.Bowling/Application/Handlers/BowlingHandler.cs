@@ -4,7 +4,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Bowling;
+namespace Games.Bowling.Application.Handlers;
 
 [Command("/bowling")]
 [MessageDice("🎳")]

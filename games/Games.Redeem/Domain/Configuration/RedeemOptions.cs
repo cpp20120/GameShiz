@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Domain.Configuration;
 
 public sealed class RedeemOptions
 {

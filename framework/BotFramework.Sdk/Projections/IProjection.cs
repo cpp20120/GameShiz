@@ -28,7 +28,7 @@
 //   columns the admin UI actually wants.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Projections;
 /// A projection reacts to one or more event types by mutating its own state
 /// store. The framework invokes Apply once per event, in stream order.
 public interface IProjection

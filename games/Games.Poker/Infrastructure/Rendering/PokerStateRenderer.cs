@@ -14,7 +14,7 @@ using System.Net;
 using BotFramework.Host;
 using Games.Poker.Domain;
 
-namespace Games.Poker;
+namespace Games.Poker.Infrastructure.Rendering;
 
 public static class PokerStateRenderer
 {

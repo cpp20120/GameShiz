@@ -1,4 +1,4 @@
-namespace Games.Darts;
+namespace Games.Darts.Infrastructure.Queues;
 
 public interface IDartsRollQueue
 {

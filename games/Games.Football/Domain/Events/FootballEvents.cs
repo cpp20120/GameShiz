@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Football;
+namespace Games.Football.Domain.Events;
 
 public sealed record FootballThrowCompleted(
     long UserId,

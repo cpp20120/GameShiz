@@ -14,7 +14,7 @@
 // IFeatureFlags interface hides all of that.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Configuration;
 public interface IFeatureFlags
 {
     /// Boolean gate. "poker.enabled", "sh.experimental-veto-rule".

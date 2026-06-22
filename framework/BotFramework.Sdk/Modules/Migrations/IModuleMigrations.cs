@@ -33,7 +33,7 @@
 //   behaves today — EF's "down" methods were never invoked in prod.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Modules.Migrations;
 public interface IModuleMigrations
 {
     /// Stable migration id prefix for this module. The Host prefixes each

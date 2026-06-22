@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Modules;
 
 public sealed record LoadedModules(
     IReadOnlyList<IModule> Modules,

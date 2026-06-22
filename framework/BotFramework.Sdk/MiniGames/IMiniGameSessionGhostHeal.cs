@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>
 /// Clears <see cref="BotMiniGameSession"/> when it still points at <paramref name="blockingGameId"/>

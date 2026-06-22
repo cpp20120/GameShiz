@@ -20,5 +20,5 @@
 // report their status. Host adapter wraps between the two at the edge.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Health;
 public enum HealthCheckKind { Liveness, Readiness }

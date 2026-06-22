@@ -9,7 +9,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Dice;
+namespace Games.Dice.Infrastructure.Persistence;
 
 public interface IDiceHistoryStore
 {

@@ -12,7 +12,7 @@
 // are Host-owned so a new game doesn't accidentally reorder the chain.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 /// Carries the command plus out-of-band data middleware wants to stash.
 /// Items is a loose dictionary — typed accessors live in middleware-specific
 /// extensions so the surface here stays minimal.

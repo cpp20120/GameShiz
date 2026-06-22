@@ -25,7 +25,7 @@
 //   appropriate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Bus;
 /// Convenience base for type-safe subscribers that only care about one event
 /// shape. Module authors typically inherit from this rather than implementing
 /// the raw interface.

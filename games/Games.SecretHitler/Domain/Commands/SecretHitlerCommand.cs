@@ -1,4 +1,4 @@
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Domain.Commands;
 
 public abstract record SecretHitlerCommand
 {

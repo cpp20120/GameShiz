@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Domain.Events;
 
 public sealed record SecretHitlerGameCreated(string InviteCode, long HostUserId, int BuyIn, long OccurredAt) : IDomainEvent
 {

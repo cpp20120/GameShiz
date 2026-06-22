@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 /// <summary>Test / games that do not register a host implementation.</summary>
 public sealed class NullMiniGameSessionGhostHeal : IMiniGameSessionGhostHeal
 {

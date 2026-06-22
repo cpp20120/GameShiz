@@ -1,4 +1,4 @@
-namespace Games.Challenges;
+namespace Games.Challenges.Domain.Results;
 
 public sealed record ChallengeAcceptResult(
     ChallengeAcceptError Error,

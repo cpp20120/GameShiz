@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Random;
+namespace BotFramework.Host.Random.Generators;
 
 public static class ArrayExtensions
 {

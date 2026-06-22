@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Games.Meta;
+namespace Games.Meta.Domain.Seasons;
 
 public sealed class SeasonQuestRotationConfig
 {

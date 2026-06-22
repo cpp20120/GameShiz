@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.Catalog;
 
 internal sealed class QuestGame
 {

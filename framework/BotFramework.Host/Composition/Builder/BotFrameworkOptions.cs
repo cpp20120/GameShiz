@@ -3,7 +3,7 @@
 // Per-module options are bound separately by each IModule via BindOptions.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Builder;
 
 public sealed class BotFrameworkOptions
 {

@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Stores;
 
 internal sealed class PostgresDistributedGameLock(INpgsqlConnectionFactory connections) : IDistributedGameLock
 {

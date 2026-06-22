@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Risk;
 
 public sealed record RiskFlag(
     long Id,

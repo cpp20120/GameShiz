@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Options;
 
 public sealed class DailyBonusOptions
 {

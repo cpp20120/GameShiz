@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Horse;
+namespace Games.Horse.Infrastructure.Migrations;
 
 public sealed class HorseMigrations : IModuleMigrations
 {

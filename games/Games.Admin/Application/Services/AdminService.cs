@@ -2,7 +2,7 @@ using BotFramework.Host;
 using BotFramework.Sdk;
 using Games.Darts;
 
-namespace Games.Admin;
+namespace Games.Admin.Application.Services;
 
 public sealed partial class AdminService(
     IAdminStore store,

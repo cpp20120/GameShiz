@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Admin;
+namespace Games.Admin.Infrastructure.Persistence;
 
 public sealed class AdminStore(INpgsqlConnectionFactory connections) : IAdminStore
 {
@@ -75,8 +75,8 @@ public sealed class AdminStore(INpgsqlConnectionFactory connections) : IAdminSto
             new
             {
                 chatId,
-                queued = (short)Games.Darts.DartsRoundStatus.Queued,
-                awaiting = (short)Games.Darts.DartsRoundStatus.AwaitingOutcome,
+                queued = (short)Games.Darts.Domain.Results.DartsRoundStatus.Queued,
+                awaiting = (short)Games.Darts.Domain.Results.DartsRoundStatus.AwaitingOutcome,
             },
             transaction: tx, cancellationToken: ct)));
 

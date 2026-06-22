@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Seasons;
 
 public sealed class SeasonRewardService(
     INpgsqlConnectionFactory connections,

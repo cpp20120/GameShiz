@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Tournaments;
 
 public sealed record TournamentMatchInfo(
     long Id,

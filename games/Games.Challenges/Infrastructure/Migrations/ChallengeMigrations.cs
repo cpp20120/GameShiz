@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Challenges;
+namespace Games.Challenges.Infrastructure.Migrations;
 
 public sealed class ChallengeMigrations : IModuleMigrations
 {

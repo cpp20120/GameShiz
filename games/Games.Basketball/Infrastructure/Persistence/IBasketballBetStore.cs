@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Basketball;
+namespace Games.Basketball.Infrastructure.Persistence;
 
 public interface IBasketballBetStore
 {

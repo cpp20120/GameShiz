@@ -2,13 +2,13 @@ using System.Net;
 using BotFramework.Host;
 using BotFramework.Sdk;
 using Games.Blackjack.Domain;
-using Games.Horse.Generators;
+using Games.Horse.Infrastructure.Rendering;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Games.Challenges;
+namespace Games.Challenges.Application.Handlers;
 
 [Command("/challenge")]
 [CallbackPrefix("ch:")]

@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Modules;
 
 /// <summary>Mutable registration bag populated during module loading and consumed at app start.</summary>
 public sealed class ModuleRegistrations

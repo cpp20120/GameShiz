@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Integrations;
 
 public static class PixelBattleEndpointExtensions
 {

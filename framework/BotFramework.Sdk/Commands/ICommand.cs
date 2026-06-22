@@ -24,7 +24,7 @@
 // and Host authors (for middleware registration) share the same vocabulary.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 /// Marker for anything dispatched through the bus. Carries no behavior —
 /// execution is in the handler. Commands are plain records: immutable,
 /// serializable, easy to log.

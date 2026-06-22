@@ -24,7 +24,7 @@
 // and Host authors (for middleware registration) share the same vocabulary.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 /// Entry point for modules. A handler that wants to dispatch a command
 /// resolves ICommandBus from DI and calls Send. Every middleware in the
 /// configured pipeline runs around the handler — logs, metrics, auth,

@@ -2,7 +2,7 @@ using System.Globalization;
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Persistence;
 
 public sealed class PixelBattleStore(INpgsqlConnectionFactory connections) : IPixelBattleStore
 {

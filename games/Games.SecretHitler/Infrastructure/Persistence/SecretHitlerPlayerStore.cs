@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Infrastructure.Persistence;
 
 public sealed class SecretHitlerPlayerStore(INpgsqlConnectionFactory connections) : ISecretHitlerPlayerStore
 {

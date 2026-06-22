@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Challenges;
+namespace Games.Challenges.Infrastructure.Persistence;
 
 public sealed class ChallengeStore(INpgsqlConnectionFactory connections) : IChallengeStore
 {

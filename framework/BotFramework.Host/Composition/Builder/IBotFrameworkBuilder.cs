@@ -1,7 +1,7 @@
 using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Builder;
 
 public interface IBotFrameworkBuilder
 {

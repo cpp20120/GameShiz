@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Bowling;
+namespace Games.Bowling.Infrastructure.Persistence;
 
 public interface IBowlingBetStore
 {

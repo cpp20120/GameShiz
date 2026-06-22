@@ -2,7 +2,7 @@ using System.Text.Json;
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.History;
 
 public sealed class MetaHistoryStore(INpgsqlConnectionFactory connections) : IMetaHistoryStore
 {

@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Darts;
+namespace Games.Darts.Infrastructure.Persistence;
 
 public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDartsRoundStore
 {

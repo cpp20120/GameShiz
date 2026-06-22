@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace BotFramework.Host;
+namespace BotFramework.Host.Contracts.Rendering;
 
 public interface IRenderer<in TAggregate> where TAggregate : IAggregateRoot
 {

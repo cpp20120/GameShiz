@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Darts;
+namespace Games.Darts.Domain.Events;
 
 public sealed record DartsThrowCompleted(
     long UserId,

@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Horse;
+namespace Games.Horse.Infrastructure.Persistence;
 
 public interface IHorseBetStore
 {

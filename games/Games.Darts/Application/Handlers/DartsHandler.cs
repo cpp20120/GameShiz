@@ -4,7 +4,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Darts;
+namespace Games.Darts.Application.Handlers;
 
 [Command("/darts")]
 [MessageDice("🎯")]

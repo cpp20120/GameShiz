@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Admin;
+namespace Games.Admin.Infrastructure.Modules;
 
 public sealed class AdminModule : IModule
 {

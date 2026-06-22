@@ -1,4 +1,4 @@
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Domain.Configuration;
 
 public sealed class PixelBattleOptions
 {

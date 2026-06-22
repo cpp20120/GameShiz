@@ -16,7 +16,7 @@ using System.Diagnostics;
 using BotFramework.Sdk;
 using Microsoft.Extensions.Logging;
 
-namespace BotFramework.Host.Commands;
+namespace BotFramework.Host.Commands.Middleware;
 
 public sealed class LoggingMiddleware(ILogger<LoggingMiddleware> log) : ICommandMiddleware
 {

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Transfer;
+namespace Games.Transfer.Infrastructure.Modules;
 
 public sealed class TransferModule : IModule
 {

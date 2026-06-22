@@ -6,7 +6,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Horse;
+namespace Games.Horse.Application.Services;
 
 public sealed partial class HorseRaceNotifier(
     ITelegramBotClient bot,

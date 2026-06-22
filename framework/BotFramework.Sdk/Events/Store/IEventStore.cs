@@ -7,7 +7,7 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Store;
 /// Event-store contract. Typical implementation: a Postgres table
 ///   (stream_id TEXT, version BIGINT, event_type TEXT, payload JSONB,
 ///    occurred_at BIGINT, PRIMARY KEY (stream_id, version))

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Meta;
+namespace Games.Meta.Domain.Streaks;
 
 public static class GameStreakRegistry
 {

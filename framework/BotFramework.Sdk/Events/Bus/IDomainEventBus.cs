@@ -25,7 +25,7 @@
 //   appropriate.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Bus;
 public interface IDomainEventBus
 {
     /// Called by the framework after the event-store append. Not called by

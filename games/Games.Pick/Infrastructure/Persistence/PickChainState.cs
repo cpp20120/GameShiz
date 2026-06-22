@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Persistence;
 
 /// <summary>
 /// State for a pending double-or-nothing chain offer. The user has just won

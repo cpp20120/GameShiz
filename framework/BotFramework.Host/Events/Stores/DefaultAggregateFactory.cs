@@ -1,7 +1,7 @@
 using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Stores;
 
 public sealed class DefaultAggregateFactory<TAggregate>(IServiceProvider services) : IAggregateFactory<TAggregate>
     where TAggregate : class, IAggregateRoot

@@ -6,7 +6,7 @@
 // Adding a game to a Host = reference the module's assembly + register it once.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Modules;
 // ─────────────────────────────────────────────────────────────────────────────
 // Host-supplied abstractions that modules bind against. Modules never see the
 // concrete DI container type — they see these narrower views. That keeps them

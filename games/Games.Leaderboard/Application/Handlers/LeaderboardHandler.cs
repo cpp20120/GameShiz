@@ -9,7 +9,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Leaderboard;
+namespace Games.Leaderboard.Application.Handlers;
 
 [Command("/top")]
 [Command("/topall")]

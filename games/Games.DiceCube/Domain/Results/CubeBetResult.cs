@@ -1,4 +1,4 @@
-namespace Games.DiceCube;
+namespace Games.DiceCube.Domain.Results;
 
 public sealed record CubeBetResult(
     CubeBetError Error,

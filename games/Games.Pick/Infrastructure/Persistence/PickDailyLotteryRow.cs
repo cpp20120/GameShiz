@@ -15,7 +15,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Persistence;
 
 public sealed record PickDailyLotteryRow(
     Guid Id,

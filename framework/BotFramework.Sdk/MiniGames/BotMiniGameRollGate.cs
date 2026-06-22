@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>
 /// After <c>/game bet</c> the bot sends the dice; user throws in the same window would cause two

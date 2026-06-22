@@ -2,7 +2,7 @@ using BotFramework.Host;
 using Games.Poker.Domain;
 using SkiaSharp;
 
-namespace Games.Poker;
+namespace Games.Poker.Infrastructure.Rendering;
 
 public static class PokerBoardRenderer
 {

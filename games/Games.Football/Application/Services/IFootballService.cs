@@ -6,7 +6,7 @@
 using BotFramework.Host;
 using BotFramework.Sdk;
 
-namespace Games.Football;
+namespace Games.Football.Application.Services;
 
 public interface IFootballService
 {

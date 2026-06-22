@@ -7,7 +7,7 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Store;
 public sealed record StoredEvent(
     string StreamId,
     long Version,

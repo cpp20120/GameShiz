@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-namespace Games.Darts;
+namespace Games.Darts.Infrastructure.Queues;
 
 public sealed class DartsRollQueue : IDartsRollQueue
 {

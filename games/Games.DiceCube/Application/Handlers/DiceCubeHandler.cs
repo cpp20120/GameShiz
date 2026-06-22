@@ -12,7 +12,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.DiceCube;
+namespace Games.DiceCube.Application.Handlers;
 
 [Command("/dice")]
 [Command("/cube")]

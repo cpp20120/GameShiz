@@ -1,4 +1,4 @@
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Persistence;
 
 public interface IPixelBattleStore
 {

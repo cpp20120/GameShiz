@@ -1,4 +1,4 @@
-namespace Games.Pick;
+namespace Games.Pick.Domain.Configuration;
 
 /// <summary>
 /// Tunables for the <c>/pick</c> casino game.

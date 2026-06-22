@@ -1,7 +1,7 @@
 using BotFramework.Sdk;
 using Dapper;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Dispatch;
 
 public sealed class EventDispatchRetryService(
     INpgsqlConnectionFactory connections,

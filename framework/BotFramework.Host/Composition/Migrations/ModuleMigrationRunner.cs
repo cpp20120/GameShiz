@@ -27,7 +27,7 @@
 using BotFramework.Sdk;
 using Dapper;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Migrations;
 
 public sealed partial class ModuleMigrationRunner(
     INpgsqlConnectionFactory connections,

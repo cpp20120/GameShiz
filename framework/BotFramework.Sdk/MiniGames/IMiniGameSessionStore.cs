@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 public interface IMiniGameSessionStore
 {
     Task<MiniGameSessionBeginResult> TryBeginPlaceBetAsync(

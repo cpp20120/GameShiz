@@ -1,4 +1,4 @@
-namespace Games.Bowling;
+namespace Games.Bowling.Domain.Results;
 
 public enum BowlingBetError
 {

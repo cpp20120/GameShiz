@@ -24,7 +24,7 @@
 // and Host authors (for middleware registration) share the same vocabulary.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Commands;
 public interface ICommandHandler<in TCommand> where TCommand : ICommand
 {
     Task HandleAsync(TCommand command, CancellationToken ct);

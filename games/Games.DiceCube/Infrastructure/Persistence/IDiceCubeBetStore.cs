@@ -7,7 +7,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.DiceCube;
+namespace Games.DiceCube.Infrastructure.Persistence;
 
 public interface IDiceCubeBetStore
 {

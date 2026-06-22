@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Meta;
+namespace Games.Meta.Domain.Achievements;
 
 public static class AchievementRegistry
 {

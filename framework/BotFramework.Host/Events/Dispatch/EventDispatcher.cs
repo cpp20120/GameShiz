@@ -18,7 +18,7 @@
 
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Dispatch;
 
 public sealed class EventDispatcher(
     IEnumerable<IProjection> projections,

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Games.Blackjack.Domain;
+namespace Games.Blackjack.Domain.Rules;
 
 public static class Deck
 {

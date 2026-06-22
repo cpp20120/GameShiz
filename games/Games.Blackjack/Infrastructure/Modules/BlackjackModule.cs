@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Infrastructure.Modules;
 
 public sealed class BlackjackModule : IModule
 {

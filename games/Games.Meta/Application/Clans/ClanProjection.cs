@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Clans;
 
 public sealed class ClanProjection(IClanService clans, ILogger<ClanProjection> logger)
     : DomainEventSubscriber<GameCompletedMetaEvent>

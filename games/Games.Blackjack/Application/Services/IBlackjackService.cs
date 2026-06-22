@@ -17,7 +17,7 @@ using BotFramework.Sdk;
 using Games.Blackjack.Domain;
 using Microsoft.Extensions.Options;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Application.Services;
 
 public interface IBlackjackService
 {

@@ -8,7 +8,7 @@
 using BotFramework.Host;
 using BotFramework.Sdk;
 
-namespace Games.Basketball;
+namespace Games.Basketball.Application.Services;
 
 public interface IBasketballService
 {

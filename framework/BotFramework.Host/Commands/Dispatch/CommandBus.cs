@@ -20,7 +20,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Commands;
+namespace BotFramework.Host.Commands.Dispatch;
 
 public sealed class CommandBus(
     IServiceProvider services,

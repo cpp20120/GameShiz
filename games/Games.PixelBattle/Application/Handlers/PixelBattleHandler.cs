@@ -5,7 +5,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Application.Handlers;
 
 [Command("/pixelbattle")]
 public sealed class PixelBattleHandler(

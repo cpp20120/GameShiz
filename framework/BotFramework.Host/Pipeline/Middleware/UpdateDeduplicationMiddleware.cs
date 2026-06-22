@@ -1,7 +1,7 @@
 using BotFramework.Sdk;
 using Dapper;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Middleware;
 
 public sealed partial class UpdateDeduplicationMiddleware(
     INpgsqlConnectionFactory connections,

@@ -44,7 +44,7 @@ using StackExchange.Redis;
 using Telegram.Bot;
 using Microsoft.AspNetCore.Http;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Builder;
 
 internal sealed class BotFrameworkBuilder : IBotFrameworkBuilder
 {

@@ -2,7 +2,7 @@ using BotFramework.Host;
 using Dapper;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Meta;
 
 public sealed partial class MetaSeasonRolloverJob(
     IServiceScopeFactory scopes,

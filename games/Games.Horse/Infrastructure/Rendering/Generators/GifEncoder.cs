@@ -1,6 +1,6 @@
 using SkiaSharp;
 
-namespace Games.Horse.Generators;
+namespace Games.Horse.Infrastructure.Rendering.Generators;
 
 public static class GifEncoder
 {

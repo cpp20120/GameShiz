@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Bowling;
+namespace Games.Bowling.Infrastructure.Migrations;
 
 public sealed class BowlingMigrations : IModuleMigrations
 {

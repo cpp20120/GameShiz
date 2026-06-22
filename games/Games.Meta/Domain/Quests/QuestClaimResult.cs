@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Quests;
 
 public sealed record QuestClaimResult(
     string QuestId,

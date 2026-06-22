@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Basketball;
+namespace Games.Basketball.Domain.Events;
 
 public sealed record BasketballThrowCompleted(
     long UserId,

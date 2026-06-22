@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace Games.Meta;
+namespace Games.Meta.Domain.Seasons;
 
 public sealed class SeasonProgressionConfig
 {

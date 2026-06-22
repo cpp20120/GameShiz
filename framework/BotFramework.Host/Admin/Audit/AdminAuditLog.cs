@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Dapper;
 
-namespace BotFramework.Host.Admin;
+namespace BotFramework.Host.Admin.Audit;
 
 public sealed class AdminAuditLog(INpgsqlConnectionFactory connections) : IAdminAuditLog
 {

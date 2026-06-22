@@ -1,6 +1,6 @@
 using BotFramework.Host;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Tournaments;
 
 public sealed class TournamentService(
     IMetaService meta,

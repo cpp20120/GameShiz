@@ -20,7 +20,7 @@
 // report their status. Host adapter wraps between the two at the edge.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Health;
 public sealed record HealthStatus(bool Healthy, string? Detail = null)
 {
     public static HealthStatus Ok { get; } = new(true);

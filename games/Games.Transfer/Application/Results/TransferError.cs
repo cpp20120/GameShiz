@@ -1,6 +1,6 @@
 using BotFramework.Host;
 
-namespace Games.Transfer;
+namespace Games.Transfer.Application.Results;
 
 public enum TransferError
 {

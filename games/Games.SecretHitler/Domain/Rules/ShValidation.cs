@@ -1,4 +1,4 @@
-namespace Games.SecretHitler.Domain;
+namespace Games.SecretHitler.Domain.Rules;
 
 public enum ShValidation
 {

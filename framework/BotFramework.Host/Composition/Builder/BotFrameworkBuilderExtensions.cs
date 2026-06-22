@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using Telegram.Bot;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Builder;
 
 public static class BotFrameworkBuilderExtensions
 {
@@ -55,8 +55,8 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
         services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
         services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, BotFramework.Host.Pipeline.LoggingMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, BotFramework.Host.Pipeline.RateLimitMiddleware>();
+        services.AddSingleton<IUpdateMiddleware, BotFramework.Host.Pipeline.Middleware.LoggingMiddleware>();
+        services.AddSingleton<IUpdateMiddleware, BotFramework.Host.Pipeline.Middleware.RateLimitMiddleware>();
         services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();
 
         services.AddSingleton<ICommandBus, CommandBus>();

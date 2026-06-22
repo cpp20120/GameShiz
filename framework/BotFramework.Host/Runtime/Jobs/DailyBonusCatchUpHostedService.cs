@@ -2,7 +2,7 @@ using BotFramework.Host.Composition;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace BotFramework.Host.Runtime;
+namespace BotFramework.Host.Runtime.Jobs;
 
 public sealed partial class DailyBonusCatchUpHostedService(
     IDailyBonusService dailyBonus,

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Infrastructure.Migrations;
 
 public sealed class BlackjackMigrations : IModuleMigrations
 {

@@ -18,7 +18,7 @@
 using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Stores;
 
 public sealed partial class EventSourcedRepository<TAggregate>(
     IEventStore eventStore,

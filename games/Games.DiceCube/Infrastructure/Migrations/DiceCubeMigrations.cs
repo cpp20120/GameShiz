@@ -7,7 +7,7 @@
 
 using BotFramework.Sdk;
 
-namespace Games.DiceCube;
+namespace Games.DiceCube.Infrastructure.Migrations;
 
 public sealed class DiceCubeMigrations : IModuleMigrations
 {

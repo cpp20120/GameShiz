@@ -4,7 +4,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Football;
+namespace Games.Football.Application.Handlers;
 
 [Command("/football")]
 [MessageDice("⚽")]

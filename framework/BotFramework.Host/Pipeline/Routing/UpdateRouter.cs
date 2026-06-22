@@ -24,7 +24,7 @@ using BotFramework.Sdk;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Routing;
 
 public sealed partial class UpdateRouter(IEnumerable<IModule> modules, ILogger<UpdateRouter> logger)
 {

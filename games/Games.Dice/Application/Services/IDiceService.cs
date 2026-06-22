@@ -14,7 +14,7 @@
 using BotFramework.Host;
 using BotFramework.Sdk;
 
-namespace Games.Dice;
+namespace Games.Dice.Application.Services;
 
 public interface IDiceService
 {

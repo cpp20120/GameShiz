@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Domain.Entities;
 
 public sealed record TelegramWebAppUser(
     [property: JsonPropertyName("id")] long Id,

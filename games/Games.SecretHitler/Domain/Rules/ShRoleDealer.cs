@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Games.SecretHitler.Domain;
+namespace Games.SecretHitler.Domain.Rules;
 
 public static class ShRoleDealer
 {

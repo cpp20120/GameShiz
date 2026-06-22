@@ -27,7 +27,7 @@ using System.Text.Json;
 using BotFramework.Host.Composition;
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Serialization;
 
 public sealed partial class JsonEventSerializer : IEventSerializer
 {

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Darts;
+namespace Games.Darts.Infrastructure.Modules;
 
 public sealed class DartsModule : IModule
 {

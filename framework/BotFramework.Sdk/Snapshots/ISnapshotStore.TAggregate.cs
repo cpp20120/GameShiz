@@ -26,7 +26,7 @@
 // snapshots; the event stream is the history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Snapshots;
 public interface ISnapshotStore<TAggregate> where TAggregate : class, IAggregateRoot
 {
     /// Newest snapshot for the stream, or null if none exists yet.

@@ -1,4 +1,4 @@
-namespace Games.Horse;
+namespace Games.Horse.Domain.Rules;
 
 public static class HorseTimeHelper
 {

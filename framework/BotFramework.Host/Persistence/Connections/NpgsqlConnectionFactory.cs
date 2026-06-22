@@ -14,7 +14,7 @@
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 
-namespace BotFramework.Host.Persistence;
+namespace BotFramework.Host.Persistence.Connections;
 
 public sealed class NpgsqlConnectionFactory(IConfiguration configuration) : INpgsqlConnectionFactory
 {

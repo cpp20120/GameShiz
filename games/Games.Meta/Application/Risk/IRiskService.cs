@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Risk;
 
 public interface IRiskService
 {

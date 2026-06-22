@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Blackjack;
+namespace Games.Blackjack.Domain.Events;
 
 public sealed record BlackjackHandUpdated(
     long UserId,

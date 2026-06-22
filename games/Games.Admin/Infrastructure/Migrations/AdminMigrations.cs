@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Admin;
+namespace Games.Admin.Infrastructure.Migrations;
 
 public sealed class AdminMigrations : IModuleMigrations
 {

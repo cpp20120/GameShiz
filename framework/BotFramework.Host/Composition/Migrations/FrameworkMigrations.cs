@@ -10,7 +10,7 @@
 
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Composition;
+namespace BotFramework.Host.Composition.Migrations;
 
 internal sealed class FrameworkMigrations : IModuleMigrations
 {

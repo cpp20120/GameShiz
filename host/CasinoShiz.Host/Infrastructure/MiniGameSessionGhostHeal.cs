@@ -5,7 +5,7 @@ using Games.Darts;
 using Games.DiceCube;
 using Games.Football;
 
-namespace CasinoShiz.Host;
+namespace CasinoShiz.Host.Infrastructure;
 
 public sealed class MiniGameSessionGhostHeal(
     IDiceCubeBetStore diceCube,

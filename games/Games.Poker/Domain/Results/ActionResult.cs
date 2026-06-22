@@ -1,6 +1,6 @@
 using Games.Poker.Domain;
 
-namespace Games.Poker;
+namespace Games.Poker.Domain.Results;
 
 public sealed record ActionResult(
     PokerError Error,

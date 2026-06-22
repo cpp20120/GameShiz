@@ -27,7 +27,7 @@ using BotFramework.Host;
 using BotFramework.Host.Composition;
 using Microsoft.Extensions.Options;
 
-namespace Games.Pick;
+namespace Games.Pick.Application.Results;
 
 public sealed record DailyBuyResult(
     DailyBuyStatus Status,

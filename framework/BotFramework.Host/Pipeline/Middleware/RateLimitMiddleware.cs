@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using BotFramework.Sdk;
 using StackExchange.Redis;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Middleware;
 
 public sealed partial class RateLimitMiddleware(
     IServiceProvider services,

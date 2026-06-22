@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Domain.Seasons;
 
 internal sealed record SeasonTheme(
     string Key,

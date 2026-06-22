@@ -1,4 +1,4 @@
-namespace Games.Horse;
+namespace Games.Horse.Domain.Results;
 
 /// <summary>Whether a race settles one chat's pool or every chat merged (legacy).</summary>
 public enum HorseRunKind

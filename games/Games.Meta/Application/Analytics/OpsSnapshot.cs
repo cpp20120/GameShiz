@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Analytics;
 
 internal sealed record OpsSnapshot(
     long UnresolvedDispatchFailures,

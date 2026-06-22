@@ -15,7 +15,7 @@
 
 using BotFramework.Sdk;
 
-namespace Games.Dice;
+namespace Games.Dice.Infrastructure.Modules;
 
 public sealed class DiceModule : IModule
 {

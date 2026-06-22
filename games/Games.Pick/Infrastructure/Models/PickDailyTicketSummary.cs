@@ -15,6 +15,6 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Models;
 
 public sealed record PickDailyTicketSummary(long UserId, string DisplayName, int TicketCount);

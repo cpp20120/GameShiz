@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Meta;
+namespace Games.Meta.Application.Meta;
 
 public sealed class MetaXpProjection(
     IMetaService meta,

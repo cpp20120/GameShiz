@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Persistence;
 
 /// <summary>
 /// In-memory consecutive-win counter, keyed by <c>(userId, chatId)</c>. Singleton.

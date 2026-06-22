@@ -7,7 +7,7 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Contracts;
 public interface IDomainEvent
 {
     /// Fully-qualified event name, e.g. "sh.chancellor_nominated". Stable across

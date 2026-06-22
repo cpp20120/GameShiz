@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
 
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Infrastructure.Integrations;
 
 public sealed class TelegramWebAppInitDataValidator(
     IOptions<BotFrameworkOptions> botOptions,

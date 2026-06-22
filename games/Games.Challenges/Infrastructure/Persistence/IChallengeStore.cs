@@ -1,4 +1,4 @@
-namespace Games.Challenges;
+namespace Games.Challenges.Infrastructure.Persistence;
 
 public interface IChallengeStore
 {

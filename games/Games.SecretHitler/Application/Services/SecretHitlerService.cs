@@ -3,9 +3,9 @@ using BotFramework.Host;
 using BotFramework.Sdk;
 using Games.SecretHitler.Domain;
 using Microsoft.Extensions.Options;
-using static Games.SecretHitler.ShResultHelpers;
+using static Games.SecretHitler.Domain.Rules.ShResultHelpers;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Application.Services;
 
 public sealed partial class SecretHitlerService(
     ISecretHitlerGameStore games,

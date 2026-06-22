@@ -14,7 +14,7 @@
 // idioms bake in; operators will thank us for consistency.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Metrics;
 
 public interface IMetrics
 {

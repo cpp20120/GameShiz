@@ -8,7 +8,7 @@
 using BotFramework.Host;
 using BotFramework.Sdk;
 
-namespace Games.Bowling;
+namespace Games.Bowling.Application.Services;
 
 public sealed class BowlingService(
     IEconomicsService economics,

@@ -1,4 +1,4 @@
-namespace Games.Basketball;
+namespace Games.Basketball.Domain.Configuration;
 
 public sealed class BasketballOptions
 {

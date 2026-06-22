@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Clans;
 
 internal sealed record ClanSeasonRewardWinner(
     int Place,

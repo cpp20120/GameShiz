@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Meta;
 /// <summary>
 /// Normalized daily-claim event for later quest and streak projections.
 /// </summary>

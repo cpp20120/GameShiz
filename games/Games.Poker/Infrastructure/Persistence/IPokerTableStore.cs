@@ -12,7 +12,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Poker;
+namespace Games.Poker.Infrastructure.Persistence;
 
 public interface IPokerTableStore
 {

@@ -12,7 +12,7 @@ using BotFramework.Sdk;
 using Dapper;
 using Microsoft.Extensions.Options;
 
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Services;
 
 public sealed partial class EconomicsService(
     INpgsqlConnectionFactory connections,

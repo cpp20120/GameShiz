@@ -1,4 +1,4 @@
-namespace Games.Challenges;
+namespace Games.Challenges.Domain.Configuration;
 
 public sealed class ChallengeOptions
 {

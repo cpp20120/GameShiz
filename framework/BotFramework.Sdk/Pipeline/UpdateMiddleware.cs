@@ -14,7 +14,7 @@
 //   update out ← [exception] ← [logging] ← [rate-limit] ← router/handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Pipeline;
 
 public delegate Task UpdateDelegate(UpdateContext ctx);
 

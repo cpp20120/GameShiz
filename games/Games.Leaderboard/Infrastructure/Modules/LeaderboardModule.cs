@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Leaderboard;
+namespace Games.Leaderboard.Infrastructure.Modules;
 
 public sealed class LeaderboardModule : IModule
 {

@@ -1,4 +1,4 @@
-namespace Games.Blackjack;
+namespace Games.Blackjack.Domain.Configuration;
 
 public sealed class BlackjackOptions
 {

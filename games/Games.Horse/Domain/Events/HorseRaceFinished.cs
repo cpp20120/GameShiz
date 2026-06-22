@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Horse;
+namespace Games.Horse.Domain.Events;
 
 public sealed record HorseRaceFinished(
     string RaceDate,

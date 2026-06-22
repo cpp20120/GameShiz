@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Redis;
+namespace BotFramework.Host.Redis.Streams;
 
 public sealed class RedisOptions
 {

@@ -1,4 +1,4 @@
-namespace Games.Admin;
+namespace Games.Admin.Domain.Configuration;
 
 public sealed class AdminOptions
 {

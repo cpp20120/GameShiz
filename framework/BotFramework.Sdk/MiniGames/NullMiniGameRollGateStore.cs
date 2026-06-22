@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 public sealed class NullMiniGameRollGateStore : IMiniGameRollGateStore
 {
     public static readonly NullMiniGameRollGateStore Instance = new();

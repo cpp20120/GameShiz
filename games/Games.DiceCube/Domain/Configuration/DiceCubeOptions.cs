@@ -1,4 +1,4 @@
-namespace Games.DiceCube;
+namespace Games.DiceCube.Domain.Configuration;
 
 public sealed class DiceCubeOptions
 {

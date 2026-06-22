@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Leaderboard;
+namespace Games.Leaderboard.Infrastructure.Persistence;
 
 public sealed class LeaderboardStore(INpgsqlConnectionFactory connections) : ILeaderboardStore
 {

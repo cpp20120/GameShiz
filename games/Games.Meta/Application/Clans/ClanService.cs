@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Clans;
 
 public sealed class ClanService(
     IMetaService meta,

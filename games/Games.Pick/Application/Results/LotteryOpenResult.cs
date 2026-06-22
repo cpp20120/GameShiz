@@ -21,7 +21,7 @@
 using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
-namespace Games.Pick;
+namespace Games.Pick.Application.Results;
 
 public sealed record LotteryOpenResult(
     LotteryOpenStatus Status,

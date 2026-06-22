@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Middleware;
 
 public sealed partial class ExceptionMiddleware(
     IAnalyticsService analytics,

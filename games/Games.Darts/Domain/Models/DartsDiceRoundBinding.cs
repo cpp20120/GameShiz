@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Games.Darts;
+namespace Games.Darts.Domain.Models;
 
 /// <summary>Maps bot 🎯 dice message id → darts round id (multi-round per chat).</summary>
 public static class DartsDiceRoundBinding

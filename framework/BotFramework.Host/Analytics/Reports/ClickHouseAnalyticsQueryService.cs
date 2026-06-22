@@ -24,7 +24,7 @@ using System.Globalization;
 using ClickHouse.Client.ADO;
 using Microsoft.Extensions.Options;
 
-namespace BotFramework.Host.Analytics;
+namespace BotFramework.Host.Analytics.Reports;
 
 public sealed class ClickHouseAnalyticsQueryService(
     IOptions<ClickHouseOptions> options) : IAnalyticsQueryService

@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Pick;
+namespace Games.Pick.Infrastructure.Migrations;
 
 public sealed class PickMigrations : IModuleMigrations
 {

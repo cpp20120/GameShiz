@@ -1,4 +1,4 @@
-namespace Games.Bowling;
+namespace Games.Bowling.Domain.Configuration;
 
 public sealed class BowlingOptions
 {

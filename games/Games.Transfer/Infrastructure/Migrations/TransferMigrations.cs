@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Transfer;
+namespace Games.Transfer.Infrastructure.Migrations;
 
 public sealed class TransferMigrations : IModuleMigrations
 {

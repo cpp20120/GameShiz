@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Redeem;
+namespace Games.Redeem.Domain.Events;
 
 public sealed record RedeemCodeIssued(Guid Code, long IssuedBy, string FreeSpinGameId, long OccurredAt) : IDomainEvent
 {

@@ -1,4 +1,4 @@
-namespace Games.Dice;
+namespace Games.Dice.Domain.Results;
 
 public sealed record DicePlayResult(
     DiceOutcome Outcome,

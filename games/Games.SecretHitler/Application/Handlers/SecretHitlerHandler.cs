@@ -8,7 +8,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Application.Handlers;
 
 [Command("/sh")]
 [CallbackPrefix("sh:")]

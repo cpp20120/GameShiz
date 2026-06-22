@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Meta;
 /// <summary>
 /// Normalized game completion event consumed by meta systems such as seasons,
 /// quests, achievements, clans, tournaments, and risk control.

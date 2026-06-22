@@ -7,7 +7,7 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Domain;
 // ─────────────────────────────────────────────────────────────────────────────
 
 public interface IRepository<TAggregate> where TAggregate : IAggregateRoot

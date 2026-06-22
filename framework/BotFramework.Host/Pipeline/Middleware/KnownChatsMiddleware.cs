@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Middleware;
 
 public sealed partial class KnownChatsMiddleware(
     INpgsqlConnectionFactory connections,

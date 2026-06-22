@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Telegram;
 public sealed record TelegramMiniGameRedeemCodeDropRequested(
     long UserId,
     long ChatId,

@@ -1,4 +1,4 @@
-namespace Games.Blackjack.Domain;
+namespace Games.Blackjack.Domain.Models;
 
 public static class BlackjackHandValue
 {

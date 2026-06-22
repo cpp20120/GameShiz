@@ -1,4 +1,4 @@
-namespace Games.Blackjack;
+namespace Games.Blackjack.Domain.Results;
 
 public sealed record BlackjackSnapshot(
     string[] PlayerCards,

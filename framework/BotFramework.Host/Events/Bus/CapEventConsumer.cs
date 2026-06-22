@@ -1,6 +1,6 @@
 using DotNetCore.CAP;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Bus;
 
 public sealed class CapEventConsumer(CapEventBus bus) : ICapSubscribe
 {

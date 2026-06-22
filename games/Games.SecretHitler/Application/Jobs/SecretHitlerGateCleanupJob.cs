@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.SecretHitler;
+namespace Games.SecretHitler.Application.Jobs;
 
 public sealed partial class SecretHitlerGateCleanupJob : IBackgroundJob
 {

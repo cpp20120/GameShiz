@@ -1,4 +1,4 @@
-namespace Games.PixelBattle;
+namespace Games.PixelBattle.Domain.Models;
 
 public static class PixelBattleConstants
 {

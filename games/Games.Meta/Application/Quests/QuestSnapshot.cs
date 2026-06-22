@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Application.Quests;
 
 internal sealed record QuestSnapshot(
     string QuestId,

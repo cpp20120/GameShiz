@@ -2,7 +2,7 @@ using BotFramework.Sdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Games.Darts;
+namespace Games.Darts.Application.Jobs;
 
 public sealed partial class DartsRollDispatcherJob(
     IDartsRollQueue queue,

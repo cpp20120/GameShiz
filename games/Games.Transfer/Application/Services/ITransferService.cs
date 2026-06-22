@@ -1,6 +1,6 @@
 using BotFramework.Host;
 
-namespace Games.Transfer;
+namespace Games.Transfer.Application.Services;
 
 public interface ITransferService
 {

@@ -10,7 +10,7 @@
 
 using BotFramework.Sdk;
 
-namespace BotFramework.Host.Pipeline;
+namespace BotFramework.Host.Pipeline.Routing;
 
 public sealed class UpdatePipeline
 {

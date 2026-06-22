@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace BotFramework.Host.Economics;
+namespace BotFramework.Host.Economics.Options;
 
 /// <summary>Daily caps for user-initiated Telegram random-dice games (🎰 🎲 🎯 🎳 🏀 ⚽) per wallet.</summary>
 public sealed class TelegramDiceDailyLimitOptions

@@ -1,5 +1,5 @@
-using Games.Blackjack.Domain;
 using Xunit;
+using Deck = Games.Blackjack.Domain.Rules.Deck;
 
 namespace CasinoShiz.Tests;
 

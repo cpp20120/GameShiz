@@ -1,4 +1,4 @@
-namespace Games.Transfer;
+namespace Games.Transfer.Domain.Configuration;
 
 public sealed class TransferOptions
 {

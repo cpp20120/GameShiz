@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Poker;
+namespace Games.Poker.Infrastructure.Migrations;
 
 public sealed class PokerMigrations : IModuleMigrations
 {

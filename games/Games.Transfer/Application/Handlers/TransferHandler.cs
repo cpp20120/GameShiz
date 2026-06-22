@@ -7,7 +7,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace Games.Transfer;
+namespace Games.Transfer.Application.Handlers;
 
 [Command("/transfer")]
 public sealed class TransferHandler(

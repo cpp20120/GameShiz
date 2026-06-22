@@ -1,4 +1,4 @@
-namespace Games.Darts;
+namespace Games.Darts.Domain.Results;
 
 public sealed record DartsBetResult(
     DartsBetError Error,

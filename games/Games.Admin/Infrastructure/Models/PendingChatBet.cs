@@ -1,7 +1,7 @@
 using BotFramework.Host;
 using Dapper;
 
-namespace Games.Admin;
+namespace Games.Admin.Infrastructure.Models;
 
 public sealed class PendingChatBet
 {

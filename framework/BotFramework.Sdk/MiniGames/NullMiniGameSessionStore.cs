@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 public sealed class NullMiniGameSessionStore : IMiniGameSessionStore
 {
     public static readonly NullMiniGameSessionStore Instance = new();

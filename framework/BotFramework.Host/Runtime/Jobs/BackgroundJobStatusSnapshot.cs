@@ -1,4 +1,4 @@
-namespace BotFramework.Host.Runtime;
+namespace BotFramework.Host.Runtime.Jobs;
 
 public sealed record BackgroundJobStatusSnapshot(
     string Name,

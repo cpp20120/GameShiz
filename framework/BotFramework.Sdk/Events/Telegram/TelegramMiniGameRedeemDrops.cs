@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Telegram;
 public static class TelegramMiniGameRedeemDrops
 {
     public static Task MaybePublishAsync(

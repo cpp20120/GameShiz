@@ -26,5 +26,5 @@
 // snapshots; the event stream is the history.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Snapshots;
 public sealed record StoredSnapshot(long Version, string StateJson, long TakenAt);

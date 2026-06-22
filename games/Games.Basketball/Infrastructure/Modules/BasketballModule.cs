@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Basketball;
+namespace Games.Basketball.Infrastructure.Modules;
 
 public sealed class BasketballModule : IModule
 {

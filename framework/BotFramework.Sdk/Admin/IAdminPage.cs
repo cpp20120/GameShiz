@@ -33,7 +33,7 @@
 // just like pages that live in the Host project itself.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Admin;
 public interface IAdminPage
 {
     /// Path under the module's admin root. "" = index, "rooms" → /admin/sh/rooms.

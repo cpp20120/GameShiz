@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Games.Horse;
+namespace Games.Horse.Application.Jobs;
 
 /// <summary>
 /// When <see cref="HorseOptions.AutoRunEnabled"/> is true, runs one global race per calendar day

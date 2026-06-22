@@ -2,7 +2,7 @@ using System.Text.Json;
 using BotFramework.Sdk;
 using DotNetCore.CAP;
 
-namespace BotFramework.Host.Events;
+namespace BotFramework.Host.Events.Bus;
 
 public sealed partial class CapEventBus(
     IServiceScopeFactory scopeFactory,

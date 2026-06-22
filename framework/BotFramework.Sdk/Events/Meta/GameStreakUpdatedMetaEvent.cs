@@ -1,4 +1,4 @@
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Events.Meta;
 /// <summary>
 /// Emitted once per player, game, and local play day after streak progress changes.
 /// Mirrored to analytics for retention and per-game streak reporting.

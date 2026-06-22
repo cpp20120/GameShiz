@@ -1,4 +1,4 @@
-namespace Games.Meta;
+namespace Games.Meta.Infrastructure.History;
 
 public sealed record MetaReconstructionResult(
     long BeforePlayers,

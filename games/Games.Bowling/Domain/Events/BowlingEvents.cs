@@ -1,6 +1,6 @@
 using BotFramework.Sdk;
 
-namespace Games.Bowling;
+namespace Games.Bowling.Domain.Events;
 
 public sealed record BowlingRollCompleted(
     long UserId,

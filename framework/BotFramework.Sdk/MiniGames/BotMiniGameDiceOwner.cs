@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.MiniGames;
 
 /// <summary>
 /// When the bot sends dice with <c>replyParameters</c>, Telegram sometimes omits

@@ -28,7 +28,7 @@
 //   columns the admin UI actually wants.
 // ─────────────────────────────────────────────────────────────────────────────
 
-namespace BotFramework.Sdk;
+namespace BotFramework.Sdk.Projections;
 /// Context passed by the Host on each Apply — carries stream metadata plus an
 /// optional provider-specific transaction object. Transaction is null in the
 /// current post-commit dispatch mode.
