@@ -190,6 +190,14 @@ flowchart LR
 - **Redis enabled**: DotNetCore.CAP with PostgreSQL outbox + Redis Streams transport. At-least-once delivery across pods. `CapEventBus` resolves a scoped `ICapPublisher` per publish call via `IServiceScopeFactory`. `CapEventConsumer` receives all events on the `"domain.event"` topic and dispatches to pattern-matched subscribers.
 - **Redis disabled**: `InProcessEventBus` — in-memory, sync dispatch, single-process only. Fine for dev / single-pod.
 
+### Telegram outbox
+
+`ITelegramOutbox.EnqueueAsync(TelegramOutboxMessage)` persists critical async outbound Telegram text messages in `telegram_outbox`. `TelegramOutboxDispatcherService` starts after framework migrations, claims due rows with `FOR UPDATE SKIP LOCKED`, sends them through `ITelegramBotClient.SendMessage`, records `telegram_message_id` on success, and schedules exponential retry on failure.
+
+Use it for business-important messages emitted outside the live update response path: event subscribers, scheduled settlement announcements, reward/drop notifications, and similar `DB/event -> Telegram side effect` flows. Normal interactive replies from handlers (`/help`, validation errors, balance/menu views, immediate game feedback) should stay direct `ctx.Bot.SendMessage(...)`; delayed retries there would produce stale or confusing messages.
+
+`dedupe_key` is optional but recommended for subscriber/job sends. It suppresses duplicate enqueues from repeated event handling. Telegram's Bot API still has no end-to-end idempotency for `sendMessage`, so callers should keep retried notification text/buttons safe to receive more than once.
+
 ### Router (attribute-based)
 
 Routes are declared on handler classes, not in a central table. `UpdateRouter` scans for `IUpdateHandler` implementations at startup and builds a priority-sorted dispatch list.
@@ -771,7 +779,7 @@ Redeem code = single-use UUID that grants **one extra Telegram-dice roll** (not 
 | `/redeem <uuid>` | Activate a code. **Private chat only.** Triggers an emoji captcha. |
 | `/codegen [count]` | Admin-only: generate copy-paste-ready codes |
 
-**Drop flow**. After every Telegram-dice game roll, `TelegramMiniGameRedeemDrops.MaybePublishAsync` rolls against `Games:<game>:RedeemDropChance` (default `0.02`). On hit it publishes a `RedeemDropRequested` domain event consumed by `RedeemDropSubscriber`, which inserts a fresh `redeem_codes` row with `issued_by = 0`.
+**Drop flow**. After every Telegram-dice game roll, `TelegramMiniGameRedeemDrops.MaybePublishAsync` rolls against `Games:<game>:RedeemDropChance` (default `0.02`). On hit it publishes a `RedeemDropRequested` domain event consumed by `RedeemDropSubscriber`, which inserts a fresh `redeem_codes` row with `issued_by = 0` and enqueues the announcement through `ITelegramOutbox` using a stable drop dedupe key.
 
 **Captcha**. On `/redeem`, the bot:
 
@@ -1552,6 +1560,7 @@ All UI in Russian. Command names are ASCII.
 - No `Task.Delay` for scheduling — use `IBackgroundJob` / `IHostedService` sweepers.
 - Services return result records; handlers map to messages. Only throw for programmer errors.
 - **Balance changes go through `IEconomicsService` — always.** Never raw SQL on `users.coins`.
+- Critical async Telegram notifications go through `ITelegramOutbox`; direct `ctx.Bot.SendMessage(...)` is for live handler replies.
 - Logging: source-generated `[LoggerMessage]` only. No string interpolation in log calls. Classes that use `[LoggerMessage]` must be `partial`.
 - Primary constructors are the default style: `public sealed class Foo(Dep dep) : IBar`.
 - Services: `Scoped`; hosted services / analytics / process-memory state stores (e.g. `PickStreakStore`, `PickChainStore`): `Singleton`; `ITelegramBotClient`: `Singleton`.

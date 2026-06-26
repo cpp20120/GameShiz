@@ -8,7 +8,6 @@
 // ModuleMigrationRunner, not through this migration — chicken-and-egg.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Composition.Migrations;
 
@@ -268,6 +267,31 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             CREATE UNIQUE INDEX IF NOT EXISTS ux_economics_ledger_operation_id
                 ON economics_ledger (operation_id)
                 WHERE operation_id IS NOT NULL;
+            """),
+
+        new Migration("015_telegram_outbox", """
+            CREATE TABLE IF NOT EXISTS telegram_outbox (
+                id                  BIGSERIAL    PRIMARY KEY,
+                dedupe_key          TEXT,
+                chat_id             BIGINT       NOT NULL,
+                text                TEXT         NOT NULL,
+                parse_mode          TEXT,
+                status              TEXT         NOT NULL DEFAULT 'pending',
+                attempts            INTEGER      NOT NULL DEFAULT 0,
+                next_attempt_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                locked_until        TIMESTAMPTZ,
+                last_error          TEXT,
+                telegram_message_id INTEGER,
+                created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                sent_at             TIMESTAMPTZ
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_telegram_outbox_dedupe_key
+                ON telegram_outbox (dedupe_key)
+                WHERE dedupe_key IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS ix_telegram_outbox_due
+                ON telegram_outbox (status, next_attempt_at, id)
+                WHERE status = 'pending';
             """),
     ];
 }

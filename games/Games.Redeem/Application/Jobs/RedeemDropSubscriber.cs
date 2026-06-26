@@ -1,14 +1,13 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
+using BotFramework.Host.Contracts.Telegram;
 using Microsoft.Extensions.DependencyInjection;
-using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 
 namespace Games.Redeem.Application.Jobs;
 
 public sealed partial class RedeemDropSubscriber(
     IServiceProvider services,
-    ITelegramBotClient bot,
+    ITelegramOutbox telegramOutbox,
     ILocalizer localizer,
     ILogger<RedeemDropSubscriber> logger) : IDomainEventSubscriber
 {
@@ -16,8 +15,8 @@ public sealed partial class RedeemDropSubscriber(
 
     public async Task HandleAsync(IDomainEvent ev, CancellationToken ct)
     {
-        if (ev.EventType != DropEventType) return;
-        if (!TryReadDrop(ev, out _, out var chatId, out var gameId)) return;
+        if (!string.Equals(ev.EventType, DropEventType, StringComparison.Ordinal)) return;
+        if (!TryReadDrop(ev, out var userId, out var chatId, out var gameId)) return;
 
         try
         {
@@ -25,15 +24,18 @@ public sealed partial class RedeemDropSubscriber(
             var redeem = scope.ServiceProvider.GetRequiredService<IRedeemService>();
 
             var code = await redeem.IssueAdminCodeAsync(userId: 0, ct, gameId);
-            await bot.SendMessage(
-                chatId,
-                string.Format(localizer.Get("redeem", "drop.message"), code),
-                parseMode: ParseMode.Html,
-                cancellationToken: ct);
+            await telegramOutbox.EnqueueAsync(
+                new TelegramOutboxMessage(
+                    chatId,
+                    string.Format(CultureInfo.InvariantCulture, localizer.Get("redeem", "drop.message"), code),
+                    DedupeKey: $"redeem-drop:{userId}:{chatId}:{gameId}:{ev.OccurredAt}",
+                    ParseMode: ParseMode.Html),
+                ct);
         }
         catch (Exception ex)
         {
             LogDropFailed(ex);
+            throw;
         }
     }
 
