@@ -13,7 +13,8 @@ public static class AdminSessionExtensions
         var bytes = session.Get(Key);
         if (bytes is null or { Length: 0 }) return null;
         try { return JsonSerializer.Deserialize<AdminSession>(bytes, JsonOpts); }
-        catch { return null; }
+        catch (JsonException) { return null; }
+        catch (NotSupportedException) { return null; }
     }
 
     public static void SetAdminSession(this ISession session, AdminSession admin)

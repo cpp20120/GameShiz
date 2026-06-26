@@ -1,4 +1,4 @@
-using Games.Blackjack;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -18,7 +18,7 @@ public class BlackjackServiceTests
             new NullEventBus(),
             Options.Create(new BlackjackOptions { MinBet = minBet, MaxBet = maxBet }));
 
-    private static string Op(int id) => $"blackjack-test:{id}";
+    private static string Op(int id) => string.Create(CultureInfo.InvariantCulture, $"blackjack-test:{id}");
 
     [Theory]
     [InlineData(0)]

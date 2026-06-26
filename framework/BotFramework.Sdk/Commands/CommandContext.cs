@@ -13,17 +13,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Commands;
+/// <summary>
 /// Carries the command plus out-of-band data middleware wants to stash.
 /// Items is a loose dictionary — typed accessors live in middleware-specific
 /// extensions so the surface here stays minimal.
+/// </summary>
 public sealed class CommandContext(ICommand command, RequestContext request, CancellationToken ct)
 {
     public ICommand Command { get; } = command;
     public CancellationToken Cancellation { get; } = ct;
-    public IDictionary<string, object?> Items { get; } = new Dictionary<string, object?>();
+    public IDictionary<string, object?> Items { get; } = new Dictionary<string, object?>(StringComparer.Ordinal);
 
+    /// <summary>
     /// Populated by the Host before dispatch — user id parsed from the
     /// incoming Update, culture, trace id. Middleware uses it for auth
     /// decisions and logging.
+    /// </summary>
     public RequestContext Request { get; } = request;
 }

@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Meta.Infrastructure.Persistence;
@@ -9,9 +8,9 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
     {
         gameKey = NormalizeGameKey(gameKey);
         if (!IsSupportedGame(gameKey))
-            return new TournamentCreateResult(false, "Игра для турнира пока не поддерживается. Доступно: dice, cube, darts, football, basketball, bowling.");
-        if (entryFee < 0) return new TournamentCreateResult(false, "Entry fee не может быть отрицательным.");
-        if (maxPlayers is < 2 or > 64) return new TournamentCreateResult(false, "Количество игроков должно быть от 2 до 64.");
+            return new TournamentCreateResult(Created: false, "Игра для турнира пока не поддерживается. Доступно: dice, cube, darts, football, basketball, bowling.");
+        if (entryFee < 0) return new TournamentCreateResult(Created: false, "Entry fee не может быть отрицательным.");
+        if (maxPlayers is < 2 or > 64) return new TournamentCreateResult(Created: false, "Количество игроков должно быть от 2 до 64.");
 
         const string sql = """
             INSERT INTO meta_tournaments (season_id, chat_id, game_key, type, status, entry_fee, max_players, created_by)
@@ -21,7 +20,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await using var conn = await connections.OpenAsync(ct);
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(sql, new { seasonId = season.Id, chatId, gameKey, entryFee, maxPlayers, createdBy }, cancellationToken: ct));
         var tournament = await GetAsync(id, ct);
-        return new TournamentCreateResult(true, "Турнир создан.", tournament);
+        return new TournamentCreateResult(Created: true, "Турнир создан.", tournament);
     }
 
     public async Task<TournamentJoinResult> JoinAsync(long tournamentId, long userId, string displayName, CancellationToken ct)
@@ -29,21 +28,21 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         var tournament = await GetForUpdateAsync(conn, tx, tournamentId, ct);
-        if (tournament is null) { await tx.CommitAsync(ct); return new TournamentJoinResult(false, "Турнир не найден."); }
-        if (tournament.Status != "open") { await tx.CommitAsync(ct); return new TournamentJoinResult(false, "Турнир уже не открыт для регистрации."); }
-        if (tournament.PlayerCount >= tournament.MaxPlayers) { await tx.CommitAsync(ct); return new TournamentJoinResult(false, "Турнир уже заполнен.", tournament); }
+        if (tournament is null) { await tx.CommitAsync(ct); return new TournamentJoinResult(Joined: false, "Турнир не найден."); }
+        if (!string.Equals(tournament.Status, "open", StringComparison.Ordinal)) { await tx.CommitAsync(ct); return new TournamentJoinResult(Joined: false, "Турнир уже не открыт для регистрации."); }
+        if (tournament.PlayerCount >= tournament.MaxPlayers) { await tx.CommitAsync(ct); return new TournamentJoinResult(Joined: false, "Турнир уже заполнен.", tournament); }
 
         var exists = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT COUNT(*) FROM meta_tournament_players WHERE tournament_id = @tournamentId AND user_id = @userId",
             new { tournamentId, userId }, transaction: tx, cancellationToken: ct));
-        if (exists > 0) { await tx.CommitAsync(ct); return new TournamentJoinResult(false, "Ты уже зарегистрирован в этом турнире.", tournament); }
+        if (exists > 0) { await tx.CommitAsync(ct); return new TournamentJoinResult(Joined: false, "Ты уже зарегистрирован в этом турнире.", tournament); }
 
         await conn.ExecuteAsync(new CommandDefinition(
             "INSERT INTO meta_tournament_players (tournament_id, user_id, display_name) VALUES (@tournamentId, @userId, @displayName)",
             new { tournamentId, userId, displayName }, transaction: tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
         var updated = await GetAsync(tournamentId, ct);
-        return new TournamentJoinResult(true, "Ты зарегистрирован в турнире.", updated);
+        return new TournamentJoinResult(Joined: true, "Ты зарегистрирован в турнире.", updated);
     }
 
     public async Task<TournamentInfo?> GetAsync(long tournamentId, CancellationToken ct)
@@ -114,7 +113,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         var tournament = await GetForUpdateAsync(conn, tx, tournamentId, ct);
-        if (tournament is null || tournament.CreatedBy != userId || tournament.Status != "open") { await tx.CommitAsync(ct); return false; }
+        if (tournament is null || tournament.CreatedBy != userId || !string.Equals(tournament.Status, "open", StringComparison.Ordinal)) { await tx.CommitAsync(ct); return false; }
 
         var existing = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT COUNT(*) FROM meta_tournament_matches WHERE tournament_id = @tournamentId",
@@ -151,7 +150,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         {
             var p1 = i < players.Count ? players[i] : null;
             var p2 = i + 1 < players.Count ? players[i + 1] : null;
-            var index = i / 2 + 1;
+            var index = (i / 2) + 1;
             if (p1 is not null && p2 is not null)
             {
                 await conn.ExecuteAsync(new CommandDefinition(
@@ -185,22 +184,22 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await using var tx = await conn.BeginTransactionAsync(ct);
 
         var match = await GetMatchForUpdateAsync(conn, tx, matchId, ct);
-        if (match is null) { await tx.CommitAsync(ct); return new TournamentReportResult(false, false, "Матч не найден."); }
+        if (match is null) { await tx.CommitAsync(ct); return new TournamentReportResult(Updated: false, Finished: false, "Матч не найден."); }
         var tournament = await GetForUpdateAsync(conn, tx, match.TournamentId, ct);
-        if (tournament is null || tournament.CreatedBy != actorUserId || tournament.Status != "started")
+        if (tournament is null || tournament.CreatedBy != actorUserId || !string.Equals(tournament.Status, "started", StringComparison.Ordinal))
         {
             await tx.CommitAsync(ct);
-            return new TournamentReportResult(false, false, "Нужен creator и started-турнир.");
+            return new TournamentReportResult(Updated: false, Finished: false, "Нужен creator и started-турнир.");
         }
-        if (match.Status != "ready" || match.Player1UserId is null || match.Player2UserId is null)
+        if (!string.Equals(match.Status, "ready", StringComparison.Ordinal) || match.Player1UserId is null || match.Player2UserId is null)
         {
             await tx.CommitAsync(ct);
-            return new TournamentReportResult(false, false, "Матч не готов к репорту.");
+            return new TournamentReportResult(Updated: false, Finished: false, "Матч не готов к репорту.");
         }
         if (victorUserId != match.Player1UserId && victorUserId != match.Player2UserId)
         {
             await tx.CommitAsync(ct);
-            return new TournamentReportResult(false, false, "Игрок не участвует в этом матче.");
+            return new TournamentReportResult(Updated: false, Finished: false, "Игрок не участвует в этом матче.");
         }
 
         var victorName = victorUserId == match.Player1UserId ? match.Player1DisplayName! : match.Player2DisplayName!;
@@ -224,7 +223,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await tx.CommitAsync(ct);
         var updated = await GetMatchAsync(matchId, ct);
         var victor = await GetPlayerAsync(match.TournamentId, victorUserId, ct);
-        return new TournamentReportResult(true, finished, finished ? "Турнир завершён." : "Матч засчитан, игрок продвинут дальше.", updated, victor);
+        return new TournamentReportResult(Updated: true, finished, finished ? "Турнир завершён." : "Матч засчитан, игрок продвинут дальше.", updated, victor);
     }
 
     public async Task<TournamentPlayerInfo?> FinishAsync(long tournamentId, long actorUserId, long winnerUserId, CancellationToken ct)
@@ -232,9 +231,9 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
         var tournament = await GetForUpdateAsync(conn, tx, tournamentId, ct);
-        if (tournament is null || tournament.CreatedBy != actorUserId || tournament.Status != "started") { await tx.CommitAsync(ct); return null; }
+        if (tournament is null || tournament.CreatedBy != actorUserId || !string.Equals(tournament.Status, "started", StringComparison.Ordinal)) { await tx.CommitAsync(ct); return null; }
         var player = await GetPlayerForUpdateAsync(conn, tx, tournamentId, winnerUserId, ct);
-        if (player is null || player.Status != "joined") { await tx.CommitAsync(ct); return null; }
+        if (player is null || !string.Equals(player.Status, "joined", StringComparison.Ordinal)) { await tx.CommitAsync(ct); return null; }
         await CompleteTournamentAsync(conn, tx, tournamentId, winnerUserId, ct);
         await tx.CommitAsync(ct);
         return player with { Status = "winner" };
@@ -258,7 +257,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         return players;
     }
 
-    private async Task AdvanceAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, int round, int matchIndex, long userId, string displayName, CancellationToken ct)
+    private static async Task AdvanceAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, int round, int matchIndex, long userId, string displayName, CancellationToken ct)
     {
         var nextRound = round + 1;
         var nextIndex = (matchIndex + 1) / 2;
@@ -278,7 +277,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
             """, new { tournamentId, nextRound, nextIndex }, transaction: tx, cancellationToken: ct));
     }
 
-    private async Task CompleteTournamentAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, long victorUserId, CancellationToken ct)
+    private static async Task CompleteTournamentAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, long victorUserId, CancellationToken ct)
     {
         await conn.ExecuteAsync(new CommandDefinition("UPDATE meta_tournament_players SET status = 'eliminated' WHERE tournament_id = @tournamentId AND status = 'joined' AND user_id <> @victorUserId", new { tournamentId, victorUserId }, transaction: tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition("UPDATE meta_tournament_players SET status = 'winner' WHERE tournament_id = @tournamentId AND user_id = @victorUserId", new { tournamentId, victorUserId }, transaction: tx, cancellationToken: ct));
@@ -303,7 +302,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
     private static Task<TournamentPlayerInfo?> GetPlayerForUpdateAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, long userId, CancellationToken ct) =>
         conn.QuerySingleOrDefaultAsync<TournamentPlayerInfo>(new CommandDefinition(PlayerSelectSql + " WHERE tournament_id = @tournamentId AND user_id = @userId LIMIT 1 FOR UPDATE", new { tournamentId, userId }, transaction: tx, cancellationToken: ct));
 
-    private async Task<TournamentInfo?> GetForUpdateAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, CancellationToken ct)
+    private static async Task<TournamentInfo?> GetForUpdateAsync(System.Data.Common.DbConnection conn, System.Data.Common.DbTransaction tx, long tournamentId, CancellationToken ct)
     {
         const string sql = """
             SELECT t.id, t.season_id AS SeasonId, t.chat_id AS ChatId, t.game_key AS GameKey, t.type, t.status,

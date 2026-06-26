@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Challenges.Infrastructure.Modules;
 
@@ -27,7 +26,7 @@ public sealed class ChallengeModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "PvP Challenges",
             ["cmd.challenge"] = "Вызвать игрока на PvP ставку",
             ["usage"] = "⚔️ <b>PvP Challenge</b>\n"

@@ -5,8 +5,6 @@
 // Payout: 4→x1, 5→x2, 6 (strike)→x2 (uniform d6 EV 5/6 of stake; house +EV).
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
 
 namespace Games.Bowling.Application.Services;
 

@@ -1,4 +1,3 @@
-using Games.SecretHitler;
 using Xunit;
 
 namespace CasinoShiz.Tests;

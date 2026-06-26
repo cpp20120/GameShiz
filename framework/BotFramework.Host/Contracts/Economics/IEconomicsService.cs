@@ -42,7 +42,7 @@ public interface IEconomicsService
     {
         await CreditAsync(userId, balanceScopeId, amount, reason, ct);
         var balance = await GetBalanceAsync(userId, balanceScopeId, ct);
-        return new EconomicsMutationResult(true, false, balance);
+        return new EconomicsMutationResult(Applied: true, Rejected: false, balance);
     }
 
     Task AdjustUncheckedAsync(long userId, long balanceScopeId, int delta, CancellationToken ct);

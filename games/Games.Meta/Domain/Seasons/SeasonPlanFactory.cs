@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -54,7 +55,7 @@ public static class SeasonPlanFactory
     public static string NameFor(int seasonNumber)
     {
         var theme = ThemeFor(seasonNumber);
-        return $"Season {seasonNumber:00}: {theme.Title}";
+        return string.Create(CultureInfo.InvariantCulture, $"Season {seasonNumber:00}: {theme.Title}");
     }
 
     public static string BuildConfigJson(int seasonNumber, int durationDays = DefaultDurationDays)

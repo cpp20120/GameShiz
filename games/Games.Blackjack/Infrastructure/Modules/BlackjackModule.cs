@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Blackjack.Infrastructure.Modules;
 
@@ -28,7 +27,7 @@ public sealed class BlackjackModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Блэкджек",
             ["cmd.blackjack"] = "Сыграть в блэкджек",
             ["usage"] = "🃏 <b>Блэкджек</b>\n\n/blackjack <i>ставка</i> — начать раздачу (от {0} до {1}).\nКнопки: Ещё / Стоп / Удвоить.",

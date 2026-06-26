@@ -23,7 +23,7 @@
 namespace BotFramework.Sdk.Health;
 public sealed record HealthStatus(bool Healthy, string? Detail = null)
 {
-    public static HealthStatus Ok { get; } = new(true);
-    public static HealthStatus Degraded(string detail) => new(true, detail);
-    public static HealthStatus Down(string detail) => new(false, detail);
+    public static HealthStatus Ok { get; } = new(Healthy: true);
+    public static HealthStatus Degraded(string detail) => new(Healthy: true, detail);
+    public static HealthStatus Down(string detail) => new(Healthy: false, detail);
 }

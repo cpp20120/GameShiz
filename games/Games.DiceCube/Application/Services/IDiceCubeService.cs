@@ -11,8 +11,6 @@
 // when the bet was placed after runtime config changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Games.DiceCube.Application.Services;

@@ -24,6 +24,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.UpdateHandling.Routes;
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class CallbackFallbackAttribute : RouteAttribute
 {
     public override int Priority => 1;

@@ -1,4 +1,4 @@
-using BotFramework.Sdk;
+using System.Globalization;
 
 namespace Games.Meta.Domain.Streaks;
 
@@ -27,7 +27,7 @@ public static class GameStreakRegistry
     {
         if (!Supports(streak.GameKey)) return [];
 
-        var game = Games.Single(x => x.GameKey == streak.GameKey);
+        var game = Games.Single(x => string.Equals(x.GameKey, streak.GameKey, StringComparison.Ordinal));
         return AchievementDays
             .Where(days => streak.CurrentStreak >= days)
             .Select(days => CreateAchievement(game, days))
@@ -47,11 +47,11 @@ public static class GameStreakRegistry
     private static AchievementDefinition CreateAchievement(GameStreakDefinition game, int days) =>
         new(
             AchievementId(game.GameKey, days),
-            $"{game.Title}: {days} дней",
-            $"Играть в {game.Command} {days} дней подряд.",
+            string.Create(CultureInfo.InvariantCulture, $"{game.Title}: {days} дней"),
+            string.Create(CultureInfo.InvariantCulture, $"Играть в {game.Command} {days} дней подряд."),
             "streaks",
-            true,
-            false);
+IsSeasonal: true,
+IsSecret: false);
 
     private static string AchievementId(string gameKey, int days) =>
         $"streak_{gameKey}_{days}";

@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -49,7 +48,7 @@ public sealed class UsersModel(
         await audit.LogAsync(actor.UserId, actor.Name, "users.set_coins",
             new { targetUserId = userId, balanceScopeId, coins, newCoins, operationId }, ct);
 
-        TempData["Flash"] = $"User {userId} scope {balanceScopeId} → {newCoins} coins";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"User {userId} scope {balanceScopeId} → {newCoins} coins");
         return RedirectToPage(new { q = Q });
     }
 

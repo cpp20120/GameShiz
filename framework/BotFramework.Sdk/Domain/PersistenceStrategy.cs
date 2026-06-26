@@ -9,9 +9,13 @@
 namespace BotFramework.Sdk.Domain;
 public enum PersistenceStrategy
 {
+    /// <summary>
     /// Aggregate is mutated in place and persisted as a row. Default.
+    /// </summary>
     Classical,
+    /// <summary>
     /// Aggregate emits domain events which are appended to an event store.
     /// State is rebuilt by replaying events. Opt in per aggregate.
+    /// </summary>
     EventSourced,
 }

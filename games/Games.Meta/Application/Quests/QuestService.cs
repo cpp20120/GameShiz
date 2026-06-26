@@ -1,4 +1,5 @@
-using BotFramework.Host;
+
+using System.Globalization;
 
 namespace Games.Meta.Application.Quests;
 
@@ -35,7 +36,7 @@ public sealed class QuestService(
                 chatId,
                 amount,
                 "quest.reward",
-                $"quest:reward:{season.Id}:{chatId}:{userId}:{result.QuestId}",
+                string.Create(CultureInfo.InvariantCulture, $"quest:reward:{season.Id}:{chatId}:{userId}:{result.QuestId}"),
                 ct);
         }
 

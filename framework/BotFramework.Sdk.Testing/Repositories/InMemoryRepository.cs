@@ -15,14 +15,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Testing.Repositories;
+/// <summary>
 /// Classical-aggregate repository backed by a dictionary. Stable semantics:
 /// FindAsync returns the live reference (mutations in test code are visible
 /// on subsequent Find calls), SaveAsync is a no-op replace. That matches EF
 /// identity-map behavior closely enough for service-level tests.
+/// </summary>
 public sealed class InMemoryRepository<TAggregate> : IRepository<TAggregate>
     where TAggregate : class, IAggregateRoot
 {
-    private readonly Dictionary<string, TAggregate> _store = new();
+    private readonly Dictionary<string, TAggregate> _store = new(StringComparer.Ordinal);
 
     public Task<TAggregate?> FindAsync(string id, CancellationToken ct) =>
         Task.FromResult(_store.GetValueOrDefault(id));

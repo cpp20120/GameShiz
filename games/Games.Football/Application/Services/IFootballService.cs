@@ -3,8 +3,6 @@
 // Payout: 1–3 → x0, 4 → x2, 5 → x2. Uniform 1..5 ⇒ EV 0.8 of stake.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
 
 namespace Games.Football.Application.Services;
 

@@ -1,5 +1,8 @@
+using System.Runtime.InteropServices;
+
 namespace Games.Poker.Domain.Commands;
 
+[StructLayout(LayoutKind.Auto)]
 public readonly record struct PokerAction(PokerActionKind Kind, int Amount = 0)
 {
     public static PokerAction Check() => new(PokerActionKind.Check);

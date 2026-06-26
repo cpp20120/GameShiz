@@ -1,7 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Dapper;
-using Microsoft.Extensions.Logging;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 

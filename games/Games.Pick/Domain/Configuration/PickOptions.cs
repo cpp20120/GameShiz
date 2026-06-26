@@ -1,13 +1,14 @@
 namespace Games.Pick.Domain.Configuration;
 
 /// <summary>
-/// Tunables for the <c>/pick</c> casino game.
-///
+/// <para>Tunables for the <c>/pick</c> casino game.</para>
+/// <para>
 /// Game shape: user supplies 2..N variants and (optionally) which one(s) they
 /// back. Bot rolls one variant uniformly at random. House takes
 /// <see cref="HouseEdge"/> off the gross win; remainder goes to the player.
 /// Streak bonus rewards consecutive wins; chain (double-or-nothing) lets the
 /// player re-stake their entire payout for another roll.
+/// </para>
 /// </summary>
 public sealed class PickOptions
 {
@@ -71,16 +72,3 @@ public sealed class PickOptions
 
     public PickDailyLotteryOptions Daily { get; init; } = new();
 }
-
-/// <summary>
-/// Tunables for <c>/picklottery</c> + <c>/pickjoin</c>. A lottery is a fixed-
-/// stake pool in one chat that fills for a time window then draws a single
-/// random entrant. Rake goes to the house; below quorum, all stakes refund.
-/// </summary>
-
-/// <summary>
-/// Tunables for the per-chat <c>/dailylottery</c>: every chat gets one daily
-/// pool that opens lazily on the first ticket purchase and draws at the next
-/// local-midnight (UTC + <see cref="TimezoneOffsetHoursOverride"/> if set,
-/// otherwise the global TelegramDiceDailyLimit offset).
-/// </summary>

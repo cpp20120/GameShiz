@@ -13,7 +13,7 @@ public sealed class TransferOptions
     public int MinNetCoins { get; init; } = 1;
 
     /// <summary>0 = no cap.</summary>
-    public int MaxNetCoins { get; init; } = 0;
+    public int MaxNetCoins { get; init; }
 
     /// <summary>
     /// Fee = <paramref name="netToRecipient"/> × <paramref name="feePercent"/>, rounded to the nearest

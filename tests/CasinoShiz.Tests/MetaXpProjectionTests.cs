@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-using Games.Meta;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -53,7 +51,7 @@ public sealed class MetaXpProjectionTests
                 MiniGameIds.Darts,
                 10,
                 20,
-                true,
+IsWin: true,
                 2,
                 occurredAt),
             CancellationToken.None);
@@ -105,7 +103,7 @@ public sealed class MetaXpProjectionTests
                 MiniGameIds.Darts,
                 10,
                 0,
-                false,
+IsWin: false,
                 0,
                 DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
             CancellationToken.None);

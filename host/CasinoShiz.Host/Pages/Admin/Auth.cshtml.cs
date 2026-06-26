@@ -1,4 +1,3 @@
-using BotFramework.Host.Composition;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
@@ -14,7 +13,7 @@ public sealed class AuthModel(
 
     public IActionResult OnGet()
     {
-        var fields = Request.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        var fields = Request.Query.ToDictionary(kv => kv.Key, kv => kv.Value.ToString(), StringComparer.Ordinal);
 
         if (!verifier.Verify(fields, out var userId, out var name))
             return RedirectToPage("Login", new { returnUrl = ReturnUrl });

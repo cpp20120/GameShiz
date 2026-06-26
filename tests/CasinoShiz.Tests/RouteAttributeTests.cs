@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Xunit;
@@ -19,7 +18,7 @@ public class RouteAttributeTests
             From = new User { Id = userId, IsBot = false, FirstName = "T" },
             Chat = new Chat { Id = 1, Type = ChatType.Private },
             Date = DateTime.UtcNow,
-        }
+        },
     };
 
     private static Update CallbackUpdate(string data) => new()
@@ -30,7 +29,7 @@ public class RouteAttributeTests
             Id = "1",
             Data = data,
             From = new User { Id = 1, IsBot = false, FirstName = "T" },
-        }
+        },
     };
 
     private static Update DiceUpdate(string emoji) => new()
@@ -43,7 +42,7 @@ public class RouteAttributeTests
             From = new User { Id = 1, IsBot = false, FirstName = "T" },
             Chat = new Chat { Id = 1, Type = ChatType.Private },
             Date = DateTime.UtcNow,
-        }
+        },
     };
 
     private static Update ChannelPostUpdate() => new()
@@ -55,7 +54,7 @@ public class RouteAttributeTests
             Text = "hello",
             Chat = new Chat { Id = -100, Type = ChatType.Channel },
             Date = DateTime.UtcNow,
-        }
+        },
     };
 
     // ── CommandAttribute ─────────────────────────────────────────────────────
@@ -140,16 +139,16 @@ public class RouteAttributeTests
     [Fact]
     public void Command_LongerPrefixHigherPriority()
     {
-        var short_ = new CommandAttribute("/p");
-        var long_ = new CommandAttribute("/poker");
-        Assert.True(long_.Priority > short_.Priority);
+        var @short = new CommandAttribute("/p");
+        var @long = new CommandAttribute("/poker");
+        Assert.True(@long.Priority > @short.Priority);
     }
 
     [Fact]
     public void Command_NameContainsPrefix()
     {
         var attr = new CommandAttribute("/poker");
-        Assert.Contains("/poker", attr.Name);
+        Assert.Contains("/poker", attr.Name, StringComparison.Ordinal);
     }
 
     // ── CallbackPrefixAttribute ──────────────────────────────────────────────

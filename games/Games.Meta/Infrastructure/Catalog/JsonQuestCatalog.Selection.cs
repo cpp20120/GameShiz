@@ -7,58 +7,122 @@ public sealed partial class JsonQuestCatalog
 {
     private static QuestCatalogState BuildState(QuestPoolDocument document)
     {
-        var games = document.Games.ToDictionary(x => x.Key, StringComparer.OrdinalIgnoreCase);
-        var slots = document.Slots.Select(x => new QuestSlot(
-            x.Id,
-            NormalizePeriod(x.Period),
-            x.PoolTags.Select(NormalizeTag).ToArray(),
-            Math.Max(1, x.Count),
-            Math.Max(0, x.RepeatCooldownPeriods))).ToArray();
+        var games = document.Games.ToDictionary(
+            x => x.Key,
+            StringComparer.OrdinalIgnoreCase);
 
-        var candidates = BuildCandidates(document.Definitions, games);
-        var all = candidates.Select(x => x.Template).ToArray();
+        var slots = document.Slots
+            .Select(x => new QuestSlot(
+                x.Id,
+                NormalizePeriod(x.Period),
+                x.PoolTags
+                    .Select(NormalizeTag)
+                    .ToArray(),
+                Math.Max(1, x.Count),
+                Math.Max(0, x.RepeatCooldownPeriods)))
+            .ToArray();
+
+        var candidates = BuildCandidates(
+            document.Definitions,
+            games);
+
+        var all = candidates
+            .Select(x => x.Template)
+            .ToArray();
 
         var duplicate = all
-            .GroupBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(x => x.Count() > 1);
-        if (duplicate is not null)
-            throw new InvalidOperationException($"Duplicate quest id in {FileName}: {duplicate.Key}");
+            .GroupBy(
+                x => x.Id,
+                StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(x => x.Skip(1).Any());
 
-        return new QuestCatalogState(candidates, slots, all);
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException(
+                $"Duplicate quest id in {FileName}: {duplicate.Key}");
+        }
+
+        return new QuestCatalogState(
+            candidates,
+            slots,
+            all);
     }
 
-    private static IReadOnlyList<QuestCandidate> BuildCandidates(
+    private static List<QuestCandidate> BuildCandidates(
         IReadOnlyList<QuestDefinition> definitions,
-        IReadOnlyDictionary<string, QuestGame> games)
+        Dictionary<string, QuestGame> games)
     {
         var result = new List<QuestCandidate>();
+
         foreach (var definition in definitions)
         {
             var period = NormalizePeriod(definition.Period);
             var kind = NormalizeKind(definition.Kind);
-            var targets = definition.Targets.Count == 0 ? [1] : definition.Targets;
-            var titles = definition.Titles.Count == 0 ? [definition.Id] : definition.Titles;
-            var descriptions = definition.Descriptions.Count == 0 ? ["Выполни цель: {target}."] : definition.Descriptions;
-            var gameKeys = definition.GameKeys.Count == 0 ? [(string?)null] : definition.GameKeys.Select(x => (string?)x).ToArray();
+
+            var targets = definition.Targets.Count == 0
+                ? [1]
+                : definition.Targets;
+
+            var titles = definition.Titles.Count == 0
+                ? [definition.Id]
+                : definition.Titles;
+
+            var descriptions = definition.Descriptions.Count == 0
+                ? ["Выполни цель: {target}."]
+                : definition.Descriptions;
+
+            var gameKeys = definition.GameKeys.Count == 0
+                ? [null]
+                : definition.GameKeys.Cast<string?>().ToArray();
+
             var conditions = BuildConditions(definition);
 
             foreach (var gameKey in gameKeys)
             {
                 QuestGame? game = null;
-                if (gameKey is not null && !games.TryGetValue(gameKey, out game))
-                    throw new InvalidOperationException($"Quest definition {definition.Id} references unknown game '{gameKey}'.");
+
+                if (gameKey is not null &&
+                    !games.TryGetValue(gameKey, out game))
+                {
+                    throw new InvalidOperationException(
+                        $"Quest definition {definition.Id} " +
+                        $"references unknown game '{gameKey}'.");
+                }
 
                 foreach (var target in targets)
                 {
                     foreach (var condition in conditions)
                     {
-                        for (var titleIndex = 0; titleIndex < titles.Count; titleIndex++)
+                        for (var titleIndex = 0;
+                             titleIndex < titles.Count;
+                             titleIndex++)
                         {
-                            for (var descriptionIndex = 0; descriptionIndex < descriptions.Count; descriptionIndex++)
+                            for (var descriptionIndex = 0;
+                                 descriptionIndex < descriptions.Count;
+                                 descriptionIndex++)
                             {
-                                var id = BuildId(definition.Id, period, kind, gameKey, target, condition.Id, titleIndex, descriptionIndex);
-                                var title = FormatText(titles[titleIndex], target, game, condition);
-                                var description = FormatText(descriptions[descriptionIndex], target, game, condition);
+                                var id = BuildId(
+                                    definition.Id,
+                                    period,
+                                    kind,
+                                    gameKey,
+                                    target,
+                                    condition.Id,
+                                    titleIndex,
+                                    descriptionIndex);
+
+                                var title = FormatText(
+                                    titles[titleIndex],
+                                    target,
+                                    game,
+                                    condition);
+
+                                var description = FormatText(
+                                    descriptions[descriptionIndex],
+                                    target,
+                                    game,
+                                    condition);
+
                                 var template = new QuestTemplate(
                                     id,
                                     title,
@@ -75,17 +139,34 @@ public sealed partial class JsonQuestCatalog
                                     condition.MinProfit,
                                     condition.MinMultiplier,
                                     NormalizeRarity(definition.Rarity),
-                                    string.IsNullOrWhiteSpace(definition.Cluster) ? "core" : SanitizeId(definition.Cluster),
+                                    string.IsNullOrWhiteSpace(definition.Cluster)
+                                        ? "core"
+                                        : SanitizeId(definition.Cluster),
                                     Math.Max(0, definition.MinLevel),
                                     Math.Max(0, definition.MinGamesPlayed),
                                     Math.Max(0, definition.MinTotalStaked));
 
-                                var repeatKey = $"{period}:{SanitizeId(definition.Id)}:{kind}:{(gameKey is null ? "any" : SanitizeId(gameKey))}";
-                                result.Add(new QuestCandidate(
-                                    template,
-                                    BuildCandidateTags(definition, period, kind, gameKey),
-                                    repeatKey,
-                                    RarityWeight(definition.Rarity)));
+                                var normalizedGameKey = gameKey is null
+                                    ? "any"
+                                    : SanitizeId(gameKey);
+
+                                var repeatKey =
+                                    $"{period}:" +
+                                    $"{SanitizeId(definition.Id)}:" +
+                                    $"{kind}:" +
+                                    $"{normalizedGameKey}";
+
+                                result.Add(
+                                    new QuestCandidate(
+                                        template,
+                                        BuildCandidateTags(
+                                            definition,
+                                            period,
+                                            kind,
+                                            gameKey),
+                                        repeatKey,
+                                        RarityWeight(
+                                            definition.Rarity)));
                             }
                         }
                     }
@@ -106,109 +187,252 @@ public sealed partial class JsonQuestCatalog
         int titleIndex,
         int descriptionIndex)
     {
-        var game = gameKey is null ? "any" : SanitizeId(gameKey);
-        if (conditionId == "base")
-            return $"{period}_{SanitizeId(definitionId)}_{kind}_{game}_t{target}_v{titleIndex}_{descriptionIndex}";
+        var game = gameKey is null
+            ? "any"
+            : SanitizeId(gameKey);
 
-        return $"{period}_{SanitizeId(definitionId)}_{kind}_{game}_t{target}_{conditionId}_v{titleIndex}_{descriptionIndex}";
+        if (string.Equals(
+                conditionId,
+                "base",
+                StringComparison.Ordinal))
+        {
+            return
+                $"{period}_" +
+                $"{SanitizeId(definitionId)}_" +
+                $"{kind}_" +
+                $"{game}_" +
+                string.Create(CultureInfo.InvariantCulture, $"t{target}_") +
+                $"v{titleIndex}_{descriptionIndex}";
+        }
+
+        return
+            $"{period}_" +
+            $"{SanitizeId(definitionId)}_" +
+            $"{kind}_" +
+            $"{game}_" +
+            $"t{target}_" +
+            $"{conditionId}_" +
+            $"v{titleIndex}_{descriptionIndex}";
     }
 
-    private static string FormatText(string text, int target, QuestGame? game, QuestCondition condition)
+    private static string FormatText(
+        string text,
+        int target,
+        QuestGame? game,
+        QuestCondition condition)
     {
         return text
-            .Replace("{target}", target.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)
-            .Replace("{game}", game?.Title ?? "любую игру", StringComparison.Ordinal)
-            .Replace("{gameCommand}", game?.Command ?? "/games", StringComparison.Ordinal)
-            .Replace("{minStake}", condition.MinStake?.ToString(CultureInfo.InvariantCulture) ?? "0", StringComparison.Ordinal)
-            .Replace("{maxStake}", condition.MaxStake?.ToString(CultureInfo.InvariantCulture) ?? "0", StringComparison.Ordinal)
-            .Replace("{minPayout}", condition.MinPayout?.ToString(CultureInfo.InvariantCulture) ?? "0", StringComparison.Ordinal)
-            .Replace("{minProfit}", condition.MinProfit?.ToString(CultureInfo.InvariantCulture) ?? "0", StringComparison.Ordinal)
-            .Replace("{minMultiplier}", condition.MinMultiplier?.ToString("0.##", CultureInfo.InvariantCulture) ?? "0", StringComparison.Ordinal);
+            .Replace(
+                "{target}",
+                target.ToString(CultureInfo.InvariantCulture),
+                StringComparison.Ordinal)
+            .Replace(
+                "{game}",
+                game?.Title ?? "любую игру",
+                StringComparison.Ordinal)
+            .Replace(
+                "{gameCommand}",
+                game?.Command ?? "/games",
+                StringComparison.Ordinal)
+            .Replace(
+                "{minStake}",
+                condition.MinStake?.ToString(
+                    CultureInfo.InvariantCulture) ?? "0",
+                StringComparison.Ordinal)
+            .Replace(
+                "{maxStake}",
+                condition.MaxStake?.ToString(
+                    CultureInfo.InvariantCulture) ?? "0",
+                StringComparison.Ordinal)
+            .Replace(
+                "{minPayout}",
+                condition.MinPayout?.ToString(
+                    CultureInfo.InvariantCulture) ?? "0",
+                StringComparison.Ordinal)
+            .Replace(
+                "{minProfit}",
+                condition.MinProfit?.ToString(
+                    CultureInfo.InvariantCulture) ?? "0",
+                StringComparison.Ordinal)
+            .Replace(
+                "{minMultiplier}",
+                condition.MinMultiplier?.ToString(
+                    "0.##",
+                    CultureInfo.InvariantCulture) ?? "0",
+                StringComparison.Ordinal);
     }
 
-    private static IReadOnlyList<string> BuildCandidateTags(
+    private static string[] BuildCandidateTags(
         QuestDefinition definition,
         string period,
         string kind,
         string? gameKey)
     {
-        var tags = definition.Tags.Select(NormalizeTag)
+        var tags = definition.Tags
+            .Select(NormalizeTag)
             .Append(period)
             .Append(kind)
             .Append(NormalizeTag(definition.Cluster))
             .Append(NormalizeRarity(definition.Rarity));
 
         if (!string.IsNullOrWhiteSpace(gameKey))
+        {
             tags = tags.Append(NormalizeTag(gameKey));
+        }
 
-        return tags.Distinct(StringComparer.Ordinal).ToArray();
+        return tags
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
-    private static bool MatchesKind(QuestTemplate quest, GameCompletedMetaEvent ev)
+    private static bool MatchesKind(
+        QuestTemplate quest,
+        GameCompletedMetaEvent ev)
     {
-        if (quest.MinStake is { } minStake && ev.Stake < minStake) return false;
-        if (quest.MaxStake is { } maxStake && ev.Stake > maxStake) return false;
-        if (quest.MinPayout is { } minPayout && ev.Payout < minPayout) return false;
-        if (quest.MinProfit is { } minProfit && ev.Payout - ev.Stake < minProfit) return false;
-        if (quest.MinMultiplier is { } minMultiplier && ev.Multiplier < minMultiplier) return false;
+        if (quest.MinStake is { } minStake &&
+            ev.Stake < minStake)
+        {
+            return false;
+        }
+
+        if (quest.MaxStake is { } maxStake &&
+            ev.Stake > maxStake)
+        {
+            return false;
+        }
+
+        if (quest.MinPayout is { } minPayout &&
+            ev.Payout < minPayout)
+        {
+            return false;
+        }
+
+        if (quest.MinProfit is { } minProfit &&
+            ev.Payout - ev.Stake < minProfit)
+        {
+            return false;
+        }
+
+        if (quest.MinMultiplier is { } minMultiplier &&
+            ev.Multiplier < minMultiplier)
+        {
+            return false;
+        }
 
         return quest.Kind switch
         {
-            "play" or "play_game" or "low_stake" or "high_stake" => true,
+            "play" or
+            "play_game" or
+            "low_stake" or
+            "high_stake" => true,
+
             "win" => ev.IsWin,
             "loss" => !ev.IsWin,
             "volume" => ev.Stake > 0,
             "payout" => ev.Payout > 0,
             "profit" => ev.Payout > ev.Stake,
-            "multiplier" => ev.IsWin && ev.Multiplier > 0,
+
+            "multiplier" =>
+                ev is { IsWin: true, Multiplier: > 0 },
+
             _ => false,
         };
     }
 
-    private static bool IsUnlocked(QuestTemplate quest, QuestPlayerProgress progress)
+    private static bool IsUnlocked(
+        QuestTemplate quest,
+        QuestPlayerProgress progress)
     {
-        return progress.Level >= quest.MinLevel &&
-               progress.GamesPlayed >= quest.MinGamesPlayed &&
-               progress.TotalStaked >= quest.MinTotalStaked;
+        return
+            progress.Level >= quest.MinLevel &&
+            progress.GamesPlayed >= quest.MinGamesPlayed &&
+            progress.TotalStaked >= quest.MinTotalStaked;
     }
 
-    private static IReadOnlyList<QuestCondition> BuildConditions(QuestDefinition definition)
+    private static List<QuestCondition> BuildConditions(
+        QuestDefinition definition)
     {
-        var conditions = new List<QuestCondition>();
+        var conditions = definition.MinStakes
+            .ConvertAll(value => new QuestCondition(
+                $"minstake{value}",
+                MinStake: value))
+;
 
-        foreach (var value in definition.MinStakes)
-            conditions.Add(new QuestCondition($"minstake{value}", MinStake: value));
-        foreach (var value in definition.MaxStakes)
-            conditions.Add(new QuestCondition($"maxstake{value}", MaxStake: value));
-        foreach (var value in definition.MinPayouts)
-            conditions.Add(new QuestCondition($"minpayout{value}", MinPayout: value));
-        foreach (var value in definition.MinProfits)
-            conditions.Add(new QuestCondition($"minprofit{value}", MinProfit: value));
-        foreach (var value in definition.MinMultipliers)
-            conditions.Add(new QuestCondition($"minmult{SanitizeId(value.ToString("0.##", CultureInfo.InvariantCulture))}", MinMultiplier: value));
+        conditions.AddRange(
+            definition.MaxStakes.Select(
+                value => new QuestCondition(
+                    $"maxstake{value}",
+                    MaxStake: value)));
 
-        return conditions.Count == 0 ? [new QuestCondition("base")] : conditions;
+        conditions.AddRange(
+            definition.MinPayouts.Select(
+                value => new QuestCondition(
+                    $"minpayout{value}",
+                    MinPayout: value)));
+
+        conditions.AddRange(
+            definition.MinProfits.Select(
+                value => new QuestCondition(
+                    $"minprofit{value}",
+                    MinProfit: value)));
+
+        conditions.AddRange(
+            definition.MinMultipliers.Select(
+                value => new QuestCondition(
+                    $"minmult{SanitizeId(
+                        value.ToString(
+                            "0.##",
+                            CultureInfo.InvariantCulture))}",
+                    MinMultiplier: value)));
+
+        if (conditions.Count == 0)
+        {
+            conditions.Add(
+                new QuestCondition("base"));
+        }
+
+        return conditions;
     }
 
     private static QuestCandidate? Pick(
         IReadOnlyList<QuestCandidate> candidates,
         string seed,
-        ISet<string> hardBlocked,
-        ISet<string> hardBlockedRepeatKeys,
-        ISet<string> softBlocked,
+        HashSet<string> hardBlocked,
+        HashSet<string> hardBlockedRepeatKeys,
+        HashSet<string> softBlocked,
         SeasonQuestRotationConfig rotation)
     {
         var eligible = candidates
-            .Where(x => !hardBlocked.Contains(x.Template.Id))
-            .Where(x => !hardBlockedRepeatKeys.Contains(x.RepeatKey))
+            .Where(candidate =>
+                !hardBlocked.Contains(candidate.Template.Id) && !hardBlockedRepeatKeys.Contains(
+                    candidate.RepeatKey))
             .ToArray();
-        if (eligible.Length == 0)
-            return null;
 
-        var preferred = eligible.Where(x => !softBlocked.Contains(x.RepeatKey)).ToArray();
-        var pool = preferred.Length == 0 ? eligible : preferred;
-        var focusPool = pool.Where(x => MatchesFocus(x, rotation.Focus)).ToArray();
-        return PickWeighted(focusPool.Length == 0 ? pool : focusPool, seed, rotation);
+        if (eligible.Length == 0)
+        {
+            return null;
+        }
+
+        var preferred = eligible
+            .Where(candidate =>
+                !softBlocked.Contains(candidate.RepeatKey))
+            .ToArray();
+
+        var pool = preferred.Length == 0
+            ? eligible
+            : preferred;
+
+        var focusPool = pool
+            .Where(candidate =>
+                MatchesFocus(candidate, rotation.Focus))
+            .ToArray();
+
+        return PickWeighted(
+            focusPool.Length == 0
+                ? pool
+                : focusPool,
+            seed,
+            rotation);
     }
 
     private static QuestCandidate PickWeighted(
@@ -216,14 +440,26 @@ public sealed partial class JsonQuestCatalog
         string seed,
         SeasonQuestRotationConfig rotation)
     {
-        var totalWeight = candidates.Sum(x => EffectiveWeight(x, rotation));
-        var bucket = (int)(StableHash(seed) % (ulong)totalWeight);
+        var totalWeight = candidates.Sum(
+            candidate =>
+                EffectiveWeight(candidate, rotation));
+
+        var bucket = (int)(
+            StableHash(seed) %
+            (ulong)totalWeight);
+
         var cursor = 0;
+
         foreach (var candidate in candidates)
         {
-            cursor += EffectiveWeight(candidate, rotation);
+            cursor += EffectiveWeight(
+                candidate,
+                rotation);
+
             if (bucket < cursor)
+            {
                 return candidate;
+            }
         }
 
         return candidates[^1];
@@ -239,109 +475,383 @@ public sealed partial class JsonQuestCatalog
         IReadOnlyList<QuestCandidate> candidates,
         SeasonQuestRotationConfig rotation)
     {
-        for (var i = 1; i <= slot.RepeatCooldownPeriods; i++)
+        for (var i = 1;
+             i <= slot.RepeatCooldownPeriods;
+             i++)
         {
-            var previous = slot.Period == "weekly" ? now.AddDays(-7 * i) : now.AddDays(-i);
-            var seed = $"{season.Id}:{chatId}:{userId}:{PeriodKey(slot.Period, previous)}:{slot.Id}:{index}";
+            var previous = string.Equals(
+                slot.Period,
+                "weekly",
+                StringComparison.Ordinal)
+                    ? now.AddDays(-7 * i)
+                    : now.AddDays(-i);
+
+            var seed =
+                $"{season.Id}:" +
+                $"{chatId}:" +
+                $"{userId}:" +
+                $"{PeriodKey(slot.Period, previous)}:" +
+                $"{slot.Id}:" +
+                $"{index}";
+
             var picked = Pick(
                 candidates,
                 seed,
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase),
                 rotation);
+
             if (picked is not null)
+            {
                 yield return picked.RepeatKey;
+            }
         }
     }
 
-    private static bool HasTags(QuestCandidate candidate, IReadOnlyList<string> tags)
+    private static bool HasTags(
+        QuestCandidate candidate,
+        IReadOnlyList<string> tags)
     {
-        return tags.All(tag => candidate.Tags.Contains(tag, StringComparer.Ordinal));
+        return tags.All(
+            tag => candidate.Tags.Contains(
+                tag,
+                StringComparer.Ordinal));
     }
 
-    private static bool MatchesFocus(QuestCandidate candidate, string focus)
+    private static bool MatchesFocus(
+        QuestCandidate candidate,
+        string focus)
     {
-        return focus switch
+        if (string.Equals(
+                focus,
+                "all-round",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                focus,
+                "normal",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                focus,
+                "balanced",
+                StringComparison.Ordinal))
         {
-            "all-round" or "normal" or "balanced" => true,
-            "daily" or "weekly" => string.Equals(candidate.Template.Period, focus, StringComparison.Ordinal),
-            "volume" => candidate.Template.Kind is "volume" or "high_stake",
-            "payout" => candidate.Template.Kind is "payout" or "profit" or "multiplier",
-            "streaks" => candidate.Tags.Contains("streak", StringComparer.Ordinal) ||
-                         candidate.Template.Cluster.Contains("streak", StringComparison.OrdinalIgnoreCase),
-            "clans" => candidate.Tags.Contains("clan", StringComparer.Ordinal),
-            "tournaments" => candidate.Tags.Contains("tournament", StringComparer.Ordinal),
-            "controlled" => candidate.Template.Kind is "low_stake" or "play" or "loss",
-            _ => candidate.Tags.Contains(NormalizeTag(focus), StringComparer.Ordinal) ||
-                 string.Equals(candidate.Template.Kind, focus, StringComparison.OrdinalIgnoreCase) ||
-                 string.Equals(candidate.Template.Cluster, focus, StringComparison.OrdinalIgnoreCase),
-        };
+            return true;
+        }
+
+        if (string.Equals(
+                focus,
+                "daily",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                focus,
+                "weekly",
+                StringComparison.Ordinal))
+        {
+            return string.Equals(
+                candidate.Template.Period,
+                focus,
+                StringComparison.Ordinal);
+        }
+
+        if (string.Equals(
+                focus,
+                "volume",
+                StringComparison.Ordinal))
+        {
+            return
+                string.Equals(
+                    candidate.Template.Kind,
+                    "volume",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    candidate.Template.Kind,
+                    "high_stake",
+                    StringComparison.Ordinal);
+        }
+
+        if (string.Equals(
+                focus,
+                "payout",
+                StringComparison.Ordinal))
+        {
+            return
+                string.Equals(
+                    candidate.Template.Kind,
+                    "payout",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    candidate.Template.Kind,
+                    "profit",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    candidate.Template.Kind,
+                    "multiplier",
+                    StringComparison.Ordinal);
+        }
+
+        if (string.Equals(
+                focus,
+                "streaks",
+                StringComparison.Ordinal))
+        {
+            return
+                candidate.Tags.Contains(
+                    "streak",
+                    StringComparer.Ordinal) ||
+                candidate.Template.Cluster.Contains(
+                    "streak",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(
+                focus,
+                "clans",
+                StringComparison.Ordinal))
+        {
+            return candidate.Tags.Contains(
+                "clan",
+                StringComparer.Ordinal);
+        }
+
+        if (string.Equals(
+                focus,
+                "tournaments",
+                StringComparison.Ordinal))
+        {
+            return candidate.Tags.Contains(
+                "tournament",
+                StringComparer.Ordinal);
+        }
+
+        if (string.Equals(
+                focus,
+                "controlled",
+                StringComparison.Ordinal))
+        {
+            return
+                string.Equals(
+                    candidate.Template.Kind,
+                    "low_stake",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    candidate.Template.Kind,
+                    "play",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    candidate.Template.Kind,
+                    "loss",
+                    StringComparison.Ordinal);
+        }
+
+        return
+            candidate.Tags.Contains(
+                NormalizeTag(focus),
+                StringComparer.Ordinal) ||
+            string.Equals(
+                candidate.Template.Kind,
+                focus,
+                StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(
+                candidate.Template.Cluster,
+                focus,
+                StringComparison.OrdinalIgnoreCase);
     }
 
-    private static int EffectiveWeight(QuestCandidate candidate, SeasonQuestRotationConfig rotation)
+    private static int EffectiveWeight(
+        QuestCandidate candidate,
+        SeasonQuestRotationConfig rotation)
     {
         var weight = candidate.Weight;
-        var rarity = NormalizeRarity(candidate.Template.Rarity);
-        weight = rotation.RarityBias switch
+        var rarity = NormalizeRarity(
+            candidate.Template.Rarity);
+
+        if (string.Equals(
+                rotation.RarityBias,
+                "uncommon",
+                StringComparison.Ordinal))
         {
-            "uncommon" => rarity == "uncommon" ? weight * 2 : weight,
-            "rare" => rarity is "rare" or "epic" or "legendary" ? weight * 3 : weight,
-            "epic" => rarity is "epic" or "legendary" ? weight * 4 : weight,
-            "common" => rarity == "common" ? weight * 2 : Math.Max(1, weight / 2),
-            _ => weight,
-        };
+            if (string.Equals(
+                    rarity,
+                    "uncommon",
+                    StringComparison.Ordinal))
+            {
+                weight *= 2;
+            }
+        }
+        else if (string.Equals(
+                     rotation.RarityBias,
+                     "rare",
+                     StringComparison.Ordinal))
+        {
+            if (string.Equals(
+                    rarity,
+                    "rare",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    rarity,
+                    "epic",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    rarity,
+                    "legendary",
+                    StringComparison.Ordinal))
+            {
+                weight *= 3;
+            }
+        }
+        else if (string.Equals(
+                     rotation.RarityBias,
+                     "epic",
+                     StringComparison.Ordinal))
+        {
+            if (string.Equals(
+                    rarity,
+                    "epic",
+                    StringComparison.Ordinal) ||
+                string.Equals(
+                    rarity,
+                    "legendary",
+                    StringComparison.Ordinal))
+            {
+                weight *= 4;
+            }
+        }
+        else if (string.Equals(
+                     rotation.RarityBias,
+                     "common",
+                     StringComparison.Ordinal))
+        {
+            weight = string.Equals(
+                rarity,
+                "common",
+                StringComparison.Ordinal)
+                    ? weight * 2
+                    : Math.Max(1, weight / 2);
+        }
 
         return Math.Max(1, weight);
     }
 
     private static string NormalizePeriod(string period)
     {
-        var normalized = period.Trim().ToLowerInvariant();
-        return normalized is "weekly" ? "weekly" : "daily";
+        var normalized = period
+            .Trim()
+            .ToLowerInvariant();
+
+        return string.Equals(
+            normalized,
+            "weekly",
+            StringComparison.Ordinal)
+                ? "weekly"
+                : "daily";
     }
 
     private static string NormalizeKind(string kind)
     {
-        return kind.Trim().ToLowerInvariant();
+        return kind
+            .Trim()
+            .ToLowerInvariant();
     }
 
     private static string NormalizeRarity(string rarity)
     {
-        var normalized = rarity.Trim().ToLowerInvariant();
-        return normalized switch
+        var normalized = rarity
+            .Trim()
+            .ToLowerInvariant();
+
+        if (string.Equals(
+                normalized,
+                "uncommon",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                normalized,
+                "rare",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                normalized,
+                "epic",
+                StringComparison.Ordinal) ||
+            string.Equals(
+                normalized,
+                "legendary",
+                StringComparison.Ordinal))
         {
-            "uncommon" or "rare" or "epic" or "legendary" => normalized,
-            _ => "common",
-        };
+            return normalized;
+        }
+
+        return "common";
     }
 
     private static int RarityWeight(string rarity)
     {
-        return NormalizeRarity(rarity) switch
+        var normalized = NormalizeRarity(rarity);
+
+        if (string.Equals(
+                normalized,
+                "uncommon",
+                StringComparison.Ordinal))
         {
-            "uncommon" => 60,
-            "rare" => 25,
-            "epic" => 10,
-            "legendary" => 4,
-            _ => 100,
-        };
+            return 60;
+        }
+
+        if (string.Equals(
+                normalized,
+                "rare",
+                StringComparison.Ordinal))
+        {
+            return 25;
+        }
+
+        if (string.Equals(
+                normalized,
+                "epic",
+                StringComparison.Ordinal))
+        {
+            return 10;
+        }
+
+        if (string.Equals(
+                normalized,
+                "legendary",
+                StringComparison.Ordinal))
+        {
+            return 4;
+        }
+
+        return 100;
     }
 
     private static string NormalizeTag(string tag)
     {
-        return tag.Trim().ToLowerInvariant();
+        return tag
+            .Trim()
+            .ToLowerInvariant();
     }
 
     private static string SanitizeId(string value)
     {
-        var builder = new StringBuilder(value.Length);
-        foreach (var ch in value.Trim().ToLowerInvariant())
+        var normalized = value
+            .Trim()
+            .ToLowerInvariant();
+
+        var builder = new StringBuilder(
+            normalized.Length);
+
+        foreach (var ch in normalized)
         {
-            builder.Append(char.IsLetterOrDigit(ch) ? ch : '_');
+            builder.Append(
+                char.IsLetterOrDigit(ch)
+                    ? ch
+                    : '_');
         }
 
-        return builder.ToString().Trim('_');
+        return builder
+            .ToString()
+            .Trim('_');
     }
 
     private static ulong StableHash(string value)
@@ -350,13 +860,13 @@ public sealed partial class JsonQuestCatalog
         const ulong prime = 1099511628211UL;
 
         var hash = offset;
-        foreach (var b in Encoding.UTF8.GetBytes(value))
+
+        foreach (var valueByte in Encoding.UTF8.GetBytes(value))
         {
-            hash ^= b;
+            hash ^= valueByte;
             hash *= prime;
         }
 
         return hash;
     }
-
 }

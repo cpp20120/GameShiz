@@ -1,6 +1,5 @@
+using System.Globalization;
 using System.Text;
-using BotFramework.Host;
-using Games.SecretHitler.Domain;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Games.SecretHitler.Infrastructure.Rendering;
@@ -21,9 +20,9 @@ public static class SecretHitlerStateRenderer
 
         var lines = new List<string>
         {
-            string.Format(Loc(localizer, "board.header"), game.InviteCode, game.Pot),
-            string.Format(Loc(localizer, "board.liberals"), libTrack, game.LiberalPolicies, ShTransitions.LiberalWinThreshold),
-            string.Format(Loc(localizer, "board.fascists"), facTrack, game.FascistPolicies, ShTransitions.FascistWinThreshold),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.header"), game.InviteCode, game.Pot),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.liberals"), libTrack, game.LiberalPolicies, ShTransitions.LiberalWinThreshold),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.fascists"), facTrack, game.FascistPolicies, ShTransitions.FascistWinThreshold),
             string.Format(Loc(localizer, "board.election_tracker"), electionTrack),
             "",
             string.Format(Loc(localizer, "board.phase"), phaseLabel),
@@ -37,7 +36,7 @@ public static class SecretHitlerStateRenderer
             lines.Add("");
             var alive = players.Where(p => p.IsAlive).OrderBy(p => p.Position).ToList();
             var voted = alive.Count(p => p.LastVote != ShVote.None);
-            lines.Add(string.Format(Loc(localizer, "board.votes"), voted, alive.Count));
+            lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.votes"), voted, alive.Count));
         }
 
         if (game.Phase == ShPhase.GameEnd)
@@ -53,10 +52,10 @@ public static class SecretHitlerStateRenderer
                 let marker = p.Position == game.CurrentPresidentPosition ? "👑"
                     : p.Position == game.NominatedChancellorPosition ? "🎩"
                     : p.IsAlive ? "•" : "💀"
-                select $"  {marker} <b>{p.DisplayName}</b> <span class=\"muted\">(#{p.Position})</span>");
+                select string.Create(CultureInfo.InvariantCulture, $"  {marker} <b>{p.DisplayName}</b> <span class=\"muted\">(#{p.Position})</span>"));
         }
 
-        return string.Join("\n", lines);
+        return string.Join('\n', lines);
     }
 
     public static string RenderRoleCard(SecretHitlerPlayer me, List<SecretHitlerPlayer> players, int playerCount, ILocalizer localizer)
@@ -85,7 +84,7 @@ public static class SecretHitlerStateRenderer
             }
         }
 
-        return string.Join("\n", lines);
+        return string.Join('\n', lines);
     }
 
     public static InlineKeyboardMarkup? BuildBoardMarkup(SecretHitlerGame game, SecretHitlerPlayer viewer, List<SecretHitlerPlayer> players, ILocalizer localizer)
@@ -94,7 +93,7 @@ public static class SecretHitlerStateRenderer
         {
             var candidates = EligibleChancellors(game, viewer, players);
             var rows = candidates.Chunk(2).Select(chunk =>
-                chunk.Select(c => InlineKeyboardButton.WithCallbackData($"🎩 {c.DisplayName}", $"sh:nominate:{c.Position}")).ToArray()
+                chunk.Select(c => InlineKeyboardButton.WithCallbackData($"🎩 {c.DisplayName}", string.Create(CultureInfo.InvariantCulture, $"sh:nominate:{c.Position}"))).ToArray()
             ).ToArray();
             return rows.Length == 0 ? null : new InlineKeyboardMarkup(rows);
         }
@@ -105,7 +104,7 @@ public static class SecretHitlerStateRenderer
                 [
                     InlineKeyboardButton.WithCallbackData(Loc(localizer, "btn.ja"), "sh:vote:ja"),
                     InlineKeyboardButton.WithCallbackData(Loc(localizer, "btn.nein"), "sh:vote:nein")
-                ]
+                ],
             ]);
         }
 
@@ -114,7 +113,7 @@ public static class SecretHitlerStateRenderer
             var draw = ShPolicyDeck.Parse(game.PresidentDraw);
             var buttons = draw.Select((p, i) =>
                 InlineKeyboardButton.WithCallbackData(
-                    string.Format(Loc(localizer, "btn.discard"), PolicyLabel(p, localizer), i + 1),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "btn.discard"), PolicyLabel(p, localizer), i + 1),
                     $"sh:discard:{i}")).ToArray();
             return new InlineKeyboardMarkup([buttons]);
         }
@@ -124,7 +123,7 @@ public static class SecretHitlerStateRenderer
             var received = ShPolicyDeck.Parse(game.ChancellorReceived);
             var buttons = received.Select((p, i) =>
                 InlineKeyboardButton.WithCallbackData(
-                    string.Format(Loc(localizer, "btn.enact"), PolicyLabel(p, localizer), i + 1),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "btn.enact"), PolicyLabel(p, localizer), i + 1),
                     $"sh:enact:{i}")).ToArray();
             return new InlineKeyboardMarkup([buttons]);
         }
@@ -141,7 +140,7 @@ public static class SecretHitlerStateRenderer
                 [
                     InlineKeyboardButton.WithCallbackData(Loc(localizer, "btn.join"), $"sh:join:{game.InviteCode}"),
                     InlineKeyboardButton.WithCallbackData(Loc(localizer, "btn.start"), "sh:start")
-                ]
+                ],
             ]);
         }
 
@@ -151,7 +150,7 @@ public static class SecretHitlerStateRenderer
                 [
                     InlineKeyboardButton.WithCallbackData(Loc(localizer, "btn.ja"), "sh:vote:ja"),
                     InlineKeyboardButton.WithCallbackData(Loc(localizer, "btn.nein"), "sh:vote:nein")
-                ]
+                ],
             ]);
         }
 
@@ -207,7 +206,7 @@ public static class SecretHitlerStateRenderer
             ShWinReason.HitlerExecuted => Loc(localizer, "end.reason.hitler_executed"),
             _ => "",
         };
-        var reveal = string.Join("\n", players.OrderBy(p => p.Position).Select(p =>
+        var reveal = string.Join('\n', players.OrderBy(p => p.Position).Select(p =>
         {
             var role = RoleLabel(p.Role, localizer);
             return $"  • <b>{p.DisplayName}</b> — {role}";
@@ -228,7 +227,7 @@ public static class SecretHitlerStateRenderer
             };
             lines.Add($"  {mark}  <b>{p.DisplayName}</b>");
         }
-        return string.Join("\n", lines);
+        return string.Join('\n', lines);
     }
 
     private static string RenderTrack(int filled, int total, string onChar, string offChar)

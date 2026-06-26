@@ -14,9 +14,6 @@
 
 using System.Security.Cryptography;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Horse.Infrastructure.Rendering;
 using Microsoft.Extensions.Options;
 using static Games.Horse.Domain.Rules.HorseResultHelpers;
 
@@ -30,6 +27,9 @@ public interface IHorseService
     Task<BetResult> PlaceBetAsync(
         long userId, string displayName, long balanceScopeId, int horseId, int amount, int sourceMessageId, CancellationToken ct);
 
+    /// <summary>
+    /// 
+    /// </summary>
     /// <param name="balanceScopeIdOnly">If null, aggregate every chat (admin). Else this Telegram chat only.</param>
     Task<RaceInfo> GetTodayInfoAsync(long? balanceScopeIdOnly, CancellationToken ct);
 

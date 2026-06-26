@@ -16,11 +16,6 @@
 // Migration runs separately (ModuleMigrationRunner is its own IHostedService
 // registered before this one, so schema is ready when we start polling).
 // ─────────────────────────────────────────────────────────────────────────────
-
-using BotFramework.Host.Composition;
-using BotFramework.Host.Pipeline;
-using BotFramework.Host.Redis;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using TgBotCommand = Telegram.Bot.Types.BotCommand;
@@ -93,12 +88,20 @@ public sealed partial class BotHostedService(
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _cts?.Cancel();
+        if (_cts is not null)
+            await _cts.CancelAsync();
+
         if (_pollingTask is not null)
         {
             try { await _pollingTask.WaitAsync(cancellationToken); }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _cts?.IsCancellationRequested == true)
+            {
+                // Normal shutdown: either the host stop token or the polling token was canceled.
+            }
         }
+        _cts?.Dispose();
+        _cts = null;
+        _pollingTask = null;
         LogBotStopped();
     }
 

@@ -15,6 +15,6 @@ public static class RuntimeTuningMerge
 
         var baseNode = JsonSerializer.SerializeToNode(baseObj) as JsonObject ?? new JsonObject();
         var merged = JsonObjectMerge.Merge(baseNode, patchObj);
-        return JsonSerializer.Deserialize<T>(merged) ?? baseObj;
+        return merged.Deserialize<T>() ?? baseObj;
     }
 }

@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Redeem.Infrastructure.Persistence;
@@ -17,13 +16,13 @@ public sealed class RedeemStore(INpgsqlConnectionFactory connections) : IRedeemS
         return row?.ToEntity();
     }
 
-    public async Task InsertAsync(RedeemCode c, CancellationToken ct)
+    public async Task InsertAsync(RedeemCode code, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition(
             "INSERT INTO redeem_codes (code, active, issued_by, issued_at, free_spin_game_id) " +
             "VALUES (@Code, @Active, @IssuedBy, @IssuedAt, @FreeSpinGameId)",
-            new { c.Code, c.Active, c.IssuedBy, c.IssuedAt, c.FreeSpinGameId },
+            new { code.Code, code.Active, code.IssuedBy, code.IssuedAt, code.FreeSpinGameId },
             cancellationToken: ct));
     }
 

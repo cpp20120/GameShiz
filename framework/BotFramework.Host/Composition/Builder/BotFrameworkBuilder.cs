@@ -1,55 +1,11 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// BotFrameworkBuilder — the ASP.NET-Core-style composition surface for a Host.
-//
-// Usage:
-//
-//   var builder = WebApplication.CreateBuilder(args);
-//
-//   builder.AddBotFramework()
-//       .AddModule<DiceModule>()
-//       .AddModule<PokerModule>();
-//
-//   var app = builder.Build();
-//   app.UseBotFramework();
-//   app.Run();
-//
-// Why a builder and not a single `AddModules(params Type[])` call:
-//   modules declare fluent options (future: AddModule<T>().WithOptions(...))
-//   and the chainable style mirrors ASP.NET Core's AddAuthentication/AddJwtBearer
-//   pattern the user already knows. New module authors get a familiar shape.
-//
-// Phase ordering inside the builder:
-//   1. AddBotFramework() — registers framework singletons (Telegram client,
-//      UpdateRouter, UpdatePipeline, the three default update middlewares,
-//      BotHostedService) and constructs the ModuleServiceCollectionAdapter
-//      modules will see during ConfigureServices.
-//   2. AddModule<T>() — instantiates the module (parameterless ctor),
-//      registers it as IModule in DI, calls module.ConfigureServices(adapter)
-//      so its handlers/aggregates/projections/commands are wired, and folds
-//      its locales/commands/migrations into the builder-local aggregate.
-//   3. builder.Build() — the container is built. LoadedModules is resolved
-//      from a singleton factory that closes over the aggregate built in (2),
-//      so by the time BotHostedService asks for it every module is there.
-// ─────────────────────────────────────────────────────────────────────────────
-
-using BotFramework.Host.Pipeline;
-using BotFramework.Host.Commands;
-using BotFramework.Host.Redis;
-using BotFramework.Host.Configuration.RuntimeTuning;
-using BotFramework.Sdk;
-using DotNetCore.CAP;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
-using StackExchange.Redis;
-using Telegram.Bot;
-using Microsoft.AspNetCore.Http;
 
 namespace BotFramework.Host.Composition.Builder;
 
 internal sealed class BotFrameworkBuilder : IBotFrameworkBuilder
 {
     private readonly List<IModule> _modules = [];
-    private readonly Dictionary<string, Dictionary<string, string>> _locales = new();
+    private readonly Dictionary<string, Dictionary<string, string>> _locales = new(StringComparer.Ordinal);
     private readonly List<BotCommand> _botCommands = [];
     private readonly List<IModuleMigrations> _migrations = [];
     private readonly ModuleServiceCollectionAdapter _adapter;
@@ -86,7 +42,7 @@ internal sealed class BotFrameworkBuilder : IBotFrameworkBuilder
         foreach (var bundle in module.GetLocales())
         {
             if (!_locales.TryGetValue(bundle.CultureCode, out var dict))
-                _locales[bundle.CultureCode] = dict = new();
+                _locales[bundle.CultureCode] = dict = new(StringComparer.Ordinal);
 
             foreach (var (key, value) in bundle.Strings)
                 dict[$"{module.Id}.{key}"] = value;

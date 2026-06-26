@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -79,7 +77,7 @@ public sealed class DebugHandler(
             : 0;
 
         var workingSetMb = process.WorkingSet64 / 1024.0 / 1024.0;
-        var gcBytes = GC.GetTotalMemory(false);
+        var gcBytes = GC.GetTotalMemory(forceFullCollection: false);
 
         var sb = new StringBuilder();
         sb.AppendLine($"chat id: <code>{Enc(chatId)}</code>");
@@ -88,10 +86,10 @@ public sealed class DebugHandler(
         sb.AppendLine($"ASPNETCORE_ENVIRONMENT: <code>{Enc(hostEnvironment.EnvironmentName)}</code>");
         sb.AppendLine($"postgres conn: <code>{(hasPg ? "yes" : "no")}</code>");
         sb.AppendLine($"proxy: <code>{Enc(proxyMode)}</code>");
-        sb.AppendLine($"uptime: <code>{uptimeSec}s</code>");
-        sb.AppendLine($"cpu (sample 100ms): <code>{cpuPercent:F1}%</code>");
-        sb.AppendLine($"rss: <code>{workingSetMb:F1} MB</code>");
-        sb.AppendLine($"GC heap: <code>{gcBytes / 1024.0 / 1024.0:F1} MB</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"uptime: <code>{uptimeSec}s</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"cpu (sample 100ms): <code>{cpuPercent:F1}%</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"rss: <code>{workingSetMb:F1} MB</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"GC heap: <code>{gcBytes / 1024.0 / 1024.0:F1} MB</code>");
         return sb.ToString().TrimEnd();
     }
 

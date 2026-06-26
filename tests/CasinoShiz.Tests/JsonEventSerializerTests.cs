@@ -1,6 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -30,7 +27,7 @@ public class JsonEventSerializerTests
     private static JsonEventSerializer MakeSerializer(IModule? module = null)
     {
         var modules = module == null ? Array.Empty<IModule>() : new[] { module };
-        var loaded = new LoadedModules(modules, new Dictionary<string, Dictionary<string, string>>(), [], []);
+        var loaded = new LoadedModules(modules, new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal), [], []);
         return new JsonEventSerializer(loaded, NullLogger<JsonEventSerializer>.Instance);
     }
 
@@ -43,7 +40,7 @@ public class JsonEventSerializerTests
         var ev = new TestEvent("hello", 42);
         var json = serializer.Serialize(ev);
         Assert.NotEmpty(json);
-        Assert.StartsWith("{", json);
+        Assert.StartsWith("{", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -52,8 +49,8 @@ public class JsonEventSerializerTests
         var serializer = MakeSerializer();
         var ev = new TestEvent("world", 99);
         var json = serializer.Serialize(ev);
-        Assert.Contains("world", json);
-        Assert.Contains("99", json);
+        Assert.Contains("world", json, StringComparison.Ordinal);
+        Assert.Contains("99", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -83,7 +80,7 @@ public class JsonEventSerializerTests
     public void Deserialize_KnownEventType_ReturnsEvent()
     {
         var serializer = MakeSerializer(new TestModule());
-        var json = """{"Name":"foo","Value":7,"EventType":"test.event","OccurredAt":0}""";
+        const string json = """{"Name":"foo","Value":7,"EventType":"test.event","OccurredAt":0}""";
         var result = serializer.Deserialize("test.event", json);
         Assert.NotNull(result);
         Assert.IsType<TestEvent>(result);
@@ -93,7 +90,7 @@ public class JsonEventSerializerTests
     public void Deserialize_KnownEventType_CorrectEventType()
     {
         var serializer = MakeSerializer(new TestModule());
-        var json = """{"Name":"x","Value":1,"EventType":"test.event","OccurredAt":0}""";
+        const string json = """{"Name":"x","Value":1,"EventType":"test.event","OccurredAt":0}""";
         var result = serializer.Deserialize("test.event", json);
         Assert.Equal("test.event", result!.EventType);
     }
@@ -112,7 +109,7 @@ public class JsonEventSerializerTests
     {
         var serializer = MakeSerializer(new TestModule());
         // If the type table was built correctly, Deserialize should work
-        var json = """{"Name":"a","Value":0,"EventType":"test.event","OccurredAt":0}""";
+        const string json = """{"Name":"a","Value":0,"EventType":"test.event","OccurredAt":0}""";
         var result = serializer.Deserialize("test.event", json);
         Assert.NotNull(result);
     }
@@ -123,7 +120,7 @@ public class JsonEventSerializerTests
         // Two modules from the same assembly — should not throw on duplicate scanning
         var loaded = new LoadedModules(
             [new TestModule(), new TestModule()],
-            new Dictionary<string, Dictionary<string, string>>(), [], []);
+            new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal), [], []);
         var ex = Record.Exception(() => new JsonEventSerializer(loaded, NullLogger<JsonEventSerializer>.Instance));
         Assert.Null(ex);
     }

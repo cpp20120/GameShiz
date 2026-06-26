@@ -3,8 +3,8 @@
 // Payout: 1–3 → x0, 4 → x2, 5 → x2. Uniform 1..5 ⇒ EV 0.8 of stake.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+
+using System.Globalization;
 
 namespace Games.Football.Application.Services;
 
@@ -60,10 +60,12 @@ public sealed class FootballService(
 
         var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Football, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
+        {
             return new FootballBetResult(
-                FootballBetError.DailyRollLimit, 0, balance, 0, null, gate.UsedToday, gate.Limit);
+                FootballBetError.DailyRollLimit, 0, balance, 0, BlockingGameId: null, gate.UsedToday, gate.Limit);
+        }
 
-        var betOperationId = $"football:bet:{chatId}:{sourceMessageId}:{userId}";
+        var betOperationId = string.Create(CultureInfo.InvariantCulture, $"football:bet:{chatId}:{sourceMessageId}:{userId}");
         var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "football.bet", betOperationId, ct);
         if (debit.Rejected)
         {
@@ -83,11 +85,12 @@ public sealed class FootballService(
         await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Football, ct);
 
         analytics.Track("football", "bet", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount,
         });
 
-        return new FootballBetResult(FootballBetError.None, amount, debit.NewBalance, 0, null, 0, 0);
+        return new FootballBetResult(FootballBetError.None, amount, debit.NewBalance, 0, BlockingGameId: null, 0, 0);
     }
 
     public async Task<FootballThrowResult> ThrowAsync(long userId, string displayName, long chatId, int face, CancellationToken ct)
@@ -108,6 +111,7 @@ public sealed class FootballService(
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
 
         analytics.Track("football", "throw", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
             ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
@@ -126,7 +130,7 @@ public sealed class FootballService(
                 GameKey: MiniGameIds.Football,
                 Stake: bet.Amount,
                 Payout: payout,
-                IsWin: payout - bet.Amount > 0,
+                IsWin: payout > bet.Amount,
                 Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
                 OccurredAt: occurredAt),
             ct);
@@ -157,6 +161,7 @@ public sealed class FootballService(
         await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Football, ct);
 
         analytics.Track("football", "bet_aborted", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["chat_id"] = chatId,

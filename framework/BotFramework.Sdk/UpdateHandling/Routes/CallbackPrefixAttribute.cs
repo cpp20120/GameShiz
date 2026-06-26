@@ -24,11 +24,12 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.UpdateHandling.Routes;
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class CallbackPrefixAttribute(string prefix) : RouteAttribute
 {
     public string Prefix { get; } = prefix;
     public override int Priority => 200;
     public override string Name => $"cb:{Prefix}";
     public override bool Matches(Update update) =>
-        update.CallbackQuery?.Data?.StartsWith(Prefix) == true;
+        update.CallbackQuery?.Data?.StartsWith(Prefix, StringComparison.Ordinal) == true;
 }

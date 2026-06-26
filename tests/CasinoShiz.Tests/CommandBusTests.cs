@@ -1,6 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Host.Commands;
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -57,7 +54,7 @@ public class CommandBusTests
     [Fact]
     public async Task SendAsync_CallsHandler()
     {
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         var bus = MakeBus(sp);
         await bus.SendAsync(new PingCommand(), default);
         var handler = (PingHandler)sp.GetRequiredService<ICommandHandler<PingCommand>>();
@@ -68,7 +65,7 @@ public class CommandBusTests
     public async Task SendAsync_NoHandlerRegistered_Throws()
     {
         var sc = new ServiceCollection();
-        using var sp = sc.BuildServiceProvider();
+        await using var sp = sc.BuildServiceProvider();
         var bus = MakeBus(sp);
         await Assert.ThrowsAsync<InvalidOperationException>(() => bus.SendAsync(new PingCommand(), default));
     }
@@ -78,7 +75,7 @@ public class CommandBusTests
     [Fact]
     public async Task SendAsync_WithResult_ReturnsHandlerResult()
     {
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         var bus = MakeBus(sp);
         var result = await bus.SendAsync<string>(new EchoCommand("hello"), default);
         Assert.Equal("HELLO", result);
@@ -87,7 +84,7 @@ public class CommandBusTests
     [Fact]
     public async Task SendAsync_WithResult_DifferentPayloads()
     {
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         var bus = MakeBus(sp);
         var r1 = await bus.SendAsync<string>(new EchoCommand("foo"), default);
         var r2 = await bus.SendAsync<string>(new EchoCommand("bar"), default);
@@ -100,7 +97,7 @@ public class CommandBusTests
     [Fact]
     public async Task SendAsync_SingleMiddleware_ExecutesAroundHandler()
     {
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         var mw = new CapturingMiddleware();
         var bus = MakeBus(sp, mw);
         await bus.SendAsync(new PingCommand(), default);
@@ -110,7 +107,7 @@ public class CommandBusTests
     [Fact]
     public async Task SendAsync_MultipleMiddleware_ExecutesInOrder()
     {
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         var order = new List<string>();
         var mw1 = new OrderedMiddleware("mw1", order);
         var mw2 = new OrderedMiddleware("mw2", order);
@@ -122,7 +119,7 @@ public class CommandBusTests
     [Fact]
     public async Task SendAsync_MiddlewareShortCircuits_HandlerNotCalled()
     {
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         var bus = MakeBus(sp, new ShortCircuitMiddleware());
         // Should complete without calling handler — no throw
         var ex = await Record.ExceptionAsync(() => bus.SendAsync(new PingCommand(), default));
@@ -145,7 +142,7 @@ public class CommandBusTests
     public void RequestContextAccessor_SetAndGet_RoundTrips()
     {
         var original = RequestContextAccessor.Current;
-        var custom = new RequestContext(42, "en", "trace-id", new Dictionary<string, string>());
+        var custom = new RequestContext(42, "en", "trace-id", new Dictionary<string, string>(StringComparer.Ordinal));
         try
         {
             RequestContextAccessor.Current = custom;

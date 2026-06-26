@@ -1,7 +1,5 @@
+using System.Globalization;
 using System.Net;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -46,7 +44,7 @@ public sealed class DebugEsSmokeHandler(
             var replay = await replayService.RebuildProjectionAsync(nameof(DebugEsSmokeProjection), ctx.Ct);
             await ctx.Bot.SendMessage(
                 msg.Chat.Id,
-                $"✅ <b>Debug ES projection rebuilt</b>\nprojection: <code>{Enc(replay.ProjectionName)}</code>\nseen: <code>{replay.EventsSeen}</code>\napplied: <code>{replay.EventsApplied}</code>",
+                string.Create(CultureInfo.InvariantCulture, $"✅ <b>Debug ES projection rebuilt</b>\nprojection: <code>{Enc(replay.ProjectionName)}</code>\nseen: <code>{replay.EventsSeen}</code>\napplied: <code>{replay.EventsApplied}</code>"),
                 parseMode: ParseMode.Html,
                 replyParameters: new ReplyParameters { MessageId = msg.MessageId },
                 cancellationToken: ctx.Ct);

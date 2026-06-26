@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -19,7 +18,7 @@ public sealed class MetaTournamentsModel(INpgsqlConnectionFactory connections) :
 
         var status = NormalizeStatus(Status);
         Status = status;
-        long? chatId = long.TryParse(ChatId, out var cid) ? cid : null;
+        long? chatId = long.TryParse(ChatId, System.Globalization.CultureInfo.InvariantCulture, out var cid) ? cid : null;
 
         const string sql = """
             SELECT t.id AS Id,

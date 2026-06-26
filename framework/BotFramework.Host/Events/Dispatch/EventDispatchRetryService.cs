@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Dapper;
 
 namespace BotFramework.Host.Events.Dispatch;
@@ -13,19 +12,19 @@ public sealed class EventDispatchRetryService(
     {
         var failure = await failures.FindAsync(failureId, ct);
         if (failure is null)
-            return new EventDispatchRetryResult(false, true, "failure not found or already resolved");
+            return new EventDispatchRetryResult(Success: false, NotFound: true, "failure not found or already resolved");
 
         var stored = await LoadEventAsync(failure.StreamId, failure.StreamVersion, ct);
         if (stored is null)
-            return new EventDispatchRetryResult(false, true, "source event not found");
+            return new EventDispatchRetryResult(Success: false, NotFound: true, "source event not found");
 
         var ev = serializer.Deserialize(stored.EventType, stored.PayloadText);
         if (ev is null)
-            return new EventDispatchRetryResult(false, false, $"cannot deserialize event {stored.EventType}");
+            return new EventDispatchRetryResult(Success: false, NotFound: false, $"cannot deserialize event {stored.EventType}");
 
         await dispatcher.DispatchAsync(failure.StreamId, failure.StreamVersion, ev, transaction: null, ct);
         await failures.MarkResolvedAsync(failureId, ct);
-        return new EventDispatchRetryResult(true, false, "retry succeeded");
+        return new EventDispatchRetryResult(Success: true, NotFound: false, "retry succeeded");
     }
 
     private async Task<EventRow?> LoadEventAsync(string streamId, long streamVersion, CancellationToken ct)

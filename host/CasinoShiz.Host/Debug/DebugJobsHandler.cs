@@ -1,7 +1,5 @@
 using System.Net;
 using System.Text;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -58,9 +56,9 @@ public sealed class DebugJobsHandler(
                 sb.AppendLine($"completed: <code>{Fmt(job.LastCompletedAt)}</code>");
                 sb.AppendLine($"failed: <code>{Fmt(job.LastFailedAt)}</code>");
                 sb.AppendLine($"next: <code>{Fmt(job.NextRunAt)}</code>");
-                sb.AppendLine($"crashes: <code>{job.CrashCount}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"crashes: <code>{job.CrashCount}</code>");
                 if (job.RestartBackoffMs.HasValue)
-                    sb.AppendLine($"restart backoff: <code>{job.RestartBackoffMs.Value}ms</code>");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"restart backoff: <code>{job.RestartBackoffMs.Value}ms</code>");
                 if (!string.IsNullOrWhiteSpace(job.Note))
                     sb.AppendLine($"note: <code>{Enc(job.Note)}</code>");
                 if (!string.IsNullOrWhiteSpace(job.LastError))
@@ -86,7 +84,7 @@ public sealed class DebugJobsHandler(
     }
 
     private static string Fmt(DateTimeOffset? value) =>
-        value?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "—";
+        value?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
 
     private static string Enc<T>(T value) => WebUtility.HtmlEncode(value?.ToString() ?? "");
 }

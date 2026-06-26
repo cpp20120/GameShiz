@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Pipeline.Middleware;
 
@@ -20,6 +19,7 @@ public sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> logger)
         };
 
         using var scope = logger.BeginScope(new Dictionary<string, object>
+(StringComparer.Ordinal)
         {
             ["update_id"] = update.Id,
             ["user_id"]   = ctx.UserId,

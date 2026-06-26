@@ -1,9 +1,8 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -36,9 +35,9 @@ public sealed partial class RedeemHandler(
         var msg = ctx.Update.Message;
         if (msg?.Text == null) return;
 
-        if (msg.Text.StartsWith("/codegen"))
+        if (msg.Text.StartsWith("/codegen", StringComparison.OrdinalIgnoreCase))
             await HandleCodeGenAsync(ctx, msg);
-        else if (msg.Text.StartsWith("/redeem"))
+        else if (msg.Text.StartsWith("/redeem", StringComparison.OrdinalIgnoreCase))
             await HandleRedeemAsync(ctx, msg);
     }
 
@@ -74,7 +73,7 @@ public sealed partial class RedeemHandler(
 
         var parts = msg.Text!.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var codeText = parts.Length > 1 ? parts[1] : "";
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var result = await service.BeginRedeemAsync(userId, chatId, displayName, codeText, ctx.Ct);
 
@@ -98,7 +97,7 @@ public sealed partial class RedeemHandler(
         var markup = BuildCaptchaMarkup(result.CodeGuid, captcha);
 
         var captchaMsg = await ctx.Bot.SendMessage(chatId,
-            string.Format(Loc("captcha.prompt"), captcha.Pattern),
+            string.Format(CultureInfo.InvariantCulture, Loc("captcha.prompt"), captcha.Pattern),
             parseMode: ParseMode.Html,
             replyMarkup: markup,
             cancellationToken: ctx.Ct);
@@ -109,16 +108,17 @@ public sealed partial class RedeemHandler(
 
     private async Task HandleCallbackAsync(UpdateContext ctx, CallbackQuery cbq)
     {
-        try { await ctx.Bot.AnswerCallbackQuery(cbq.Id, cancellationToken: ctx.Ct); } catch { }
+        try { await ctx.Bot.AnswerCallbackQuery(cbq.Id, cancellationToken: ctx.Ct); }
+        catch (ApiRequestException ex) { LogCallbackAnswerFailed(cbq.Id, ex); }
 
         var userId = cbq.From.Id;
         var chatId = cbq.Message?.Chat.Id ?? 0;
         if (chatId == 0 || cbq.Data == null) return;
 
         var parts = cbq.Data.Split(':');
-        if (parts.Length != 3 || parts[0] != "rd") return;
+        if (parts.Length != 3 || !string.Equals(parts[0], "rd", StringComparison.Ordinal)) return;
         if (!Guid.TryParse(parts[1], out var codeGuid)) return;
-        if (!int.TryParse(parts[2], out var chosenId)) return;
+        if (!int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var chosenId)) return;
 
         // Cancel the pending timeout the moment the user picks an answer —
         // otherwise the fire-and-forget Task.Delay still lands and tells the
@@ -135,7 +135,7 @@ public sealed partial class RedeemHandler(
             if (cbq.Message != null)
                 await ctx.Bot.DeleteMessage(chatId, cbq.Message.MessageId, cancellationToken: ctx.Ct);
         }
-        catch { }
+        catch (ApiRequestException ex) { LogCaptchaDeleteFailed(chatId, cbq.Message?.MessageId ?? 0, ex); }
 
         if (!passed)
         {
@@ -156,7 +156,7 @@ public sealed partial class RedeemHandler(
     private int ParseCodegenCount(string? text)
     {
         var parts = text?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? [];
-        if (parts.Length <= 1 || !int.TryParse(parts[1], out var requested))
+        if (parts.Length <= 1 || !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var requested))
             return 1;
 
         return Math.Clamp(requested, 1, Math.Max(1, _opts.MaxCodegenCount));
@@ -175,8 +175,10 @@ public sealed partial class RedeemHandler(
             // the entry first, Forget returns false and we silently bow out so
             // the user doesn't see a stray "took too long" after answering.
             if (!timeouts.Forget(codeGuid, cts)) return;
-            try { await bot.DeleteMessage(chatId, messageId); } catch { }
-            try { await bot.SendMessage(chatId, Loc("captcha.timeout")); } catch { }
+            try { await bot.DeleteMessage(chatId, messageId); }
+            catch (ApiRequestException ex) { LogCaptchaDeleteFailed(chatId, messageId, ex); }
+            try { await bot.SendMessage(chatId, Loc("captcha.timeout")); }
+            catch (ApiRequestException ex) { LogTimeoutMessageFailed(chatId, ex); }
         }
         catch (OperationCanceledException)
         {
@@ -204,7 +206,7 @@ public sealed partial class RedeemHandler(
         {
             keyboardRows.Add(captcha.Items
                 .Skip(i * splitAfter).Take(splitAfter)
-                .Select(item => InlineKeyboardButton.WithCallbackData(item.Text, $"rd:{codeGuid}:{item.Data}"))
+                .Select(item => InlineKeyboardButton.WithCallbackData(item.Text, string.Create(CultureInfo.InvariantCulture, $"rd:{codeGuid}:{item.Data}")))
                 .ToArray());
         }
         return new InlineKeyboardMarkup(keyboardRows);
@@ -214,4 +216,13 @@ public sealed partial class RedeemHandler(
 
     [LoggerMessage(LogLevel.Warning, "redeem.captcha_timeout_failed")]
     partial void LogTimeoutFailed(Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "redeem.callback.answer_failed id={CallbackQueryId}")]
+    partial void LogCallbackAnswerFailed(string callbackQueryId, Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "redeem.captcha.delete_failed chat={ChatId} message={MessageId}")]
+    partial void LogCaptchaDeleteFailed(long chatId, int messageId, Exception ex);
+
+    [LoggerMessage(LogLevel.Debug, "redeem.captcha.timeout_message_failed chat={ChatId}")]
+    partial void LogTimeoutMessageFailed(long chatId, Exception ex);
 }

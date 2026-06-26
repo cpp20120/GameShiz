@@ -34,11 +34,16 @@ public sealed class ClickHouseAnalyticsQueryService(
     public async Task<AnalyticsServiceStatus> GetStatusAsync(CancellationToken ct)
     {
         if (!_options.Enabled)
+        {
             return new AnalyticsServiceStatus(Configured: false, Reachable: false,
                 Error: "ClickHouse:Enabled = false");
+        }
+
         if (string.IsNullOrWhiteSpace(_options.Host))
+        {
             return new AnalyticsServiceStatus(Configured: false, Reachable: false,
                 Error: "ClickHouse:Host is empty");
+        }
 
         try
         {
@@ -102,10 +107,10 @@ public sealed class ClickHouseAnalyticsQueryService(
             WHERE project = {projectLiteral}
             """;
         var raw = await cmd.ExecuteScalarAsync(ct);
-        return Convert.ToInt64(raw);
+        return Convert.ToInt64(raw, CultureInfo.InvariantCulture);
     }
 
-    private async Task<AnalyticsWindowReport> GetWindowReportAsync(
+    private static async Task<AnalyticsWindowReport> GetWindowReportAsync(
         ClickHouseConnection conn, string qualifiedTable, string projectLiteral,
         string label, TimeSpan window, int topN, CancellationToken ct)
     {
@@ -125,8 +130,8 @@ public sealed class ClickHouseAnalyticsQueryService(
                 """;
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             await reader.ReadAsync(ct);
-            total = Convert.ToInt64(reader.GetValue(0));
-            distinctUsers = Convert.ToInt64(reader.GetValue(1));
+            total = Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture);
+            distinctUsers = Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture);
         }
 
         var topEvents = await ListGroupedAsync(
@@ -159,7 +164,7 @@ public sealed class ClickHouseAnalyticsQueryService(
         };
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"""
+        cmd.CommandText = string.Create(CultureInfo.InvariantCulture, $"""
             SELECT {safeColumn} AS name, count() AS c
             FROM {qualifiedTable}
             WHERE project = {projectLiteral}
@@ -167,14 +172,14 @@ public sealed class ClickHouseAnalyticsQueryService(
             GROUP BY {safeColumn}
             ORDER BY c DESC, {safeColumn} ASC
             LIMIT {topN}
-            """;
+            """);
 
         var rows = new List<AnalyticsCount>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var name = reader.IsDBNull(0) ? "" : Convert.ToString(reader.GetValue(0)) ?? "";
-            var c = Convert.ToInt64(reader.GetValue(1));
+            var name = await reader.IsDBNullAsync(0, ct) ? "" : Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture) ?? "";
+            var c = Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture);
             rows.Add(new AnalyticsCount(name, c));
         }
         return rows;
@@ -185,7 +190,7 @@ public sealed class ClickHouseAnalyticsQueryService(
         string sinceLiteral, int topN, CancellationToken ct)
     {
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"""
+        cmd.CommandText = string.Create(CultureInfo.InvariantCulture, $"""
             SELECT user_id, count() AS c
             FROM {qualifiedTable}
             WHERE project = {projectLiteral}
@@ -194,14 +199,14 @@ public sealed class ClickHouseAnalyticsQueryService(
             GROUP BY user_id
             ORDER BY c DESC, user_id ASC
             LIMIT {topN}
-            """;
+            """);
 
         var rows = new List<AnalyticsUserCount>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var userId = Convert.ToInt64(reader.GetValue(0));
-            var c = Convert.ToInt64(reader.GetValue(1));
+            var userId = Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture);
+            var c = Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture);
             rows.Add(new AnalyticsUserCount(userId, c));
         }
         return rows;
@@ -236,7 +241,7 @@ public sealed class ClickHouseAnalyticsQueryService(
                     DateTime dt => DateOnly.FromDateTime(dt),
                     _ => DateOnly.FromDateTime(Convert.ToDateTime(raw, CultureInfo.InvariantCulture)),
                 };
-                byDay[d] = Convert.ToInt64(reader.GetValue(1));
+                byDay[d] = Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture);
             }
         }
 
@@ -265,11 +270,11 @@ public sealed class ClickHouseAnalyticsQueryService(
         if (string.IsNullOrEmpty(raw))
             throw new InvalidOperationException("ClickHouse identifier is empty.");
         // ClickHouse backtick-quoted identifier; escape backticks defensively.
-        return "`" + raw.Replace("`", "``") + "`";
+        return "`" + raw.Replace("`", "``", StringComparison.Ordinal) + "`";
     }
 
     private static string QuoteString(string raw) =>
-        "'" + raw.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+        "'" + raw.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal) + "'";
 
     private static string FormatDateTime64(DateTime utc)
     {
@@ -290,7 +295,7 @@ public sealed class ClickHouseAnalyticsQueryService(
         if (Uri.TryCreate(o.Host, UriKind.Absolute, out var uri))
         {
             parts.Add($"Host={uri.Host}");
-            if (!uri.IsDefaultPort) parts.Add($"Port={uri.Port}");
+            if (!uri.IsDefaultPort) parts.Add(string.Create(CultureInfo.InvariantCulture, $"Port={uri.Port}"));
             parts.Add($"Protocol={uri.Scheme}");
         }
         else
@@ -300,6 +305,6 @@ public sealed class ClickHouseAnalyticsQueryService(
         parts.Add($"Username={o.User}");
         parts.Add($"Password={o.Password}");
         parts.Add($"Database={o.Database}");
-        return string.Join(";", parts);
+        return string.Join(';', parts);
     }
 }

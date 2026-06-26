@@ -1,6 +1,5 @@
+using System.Globalization;
 using System.Net;
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
@@ -94,7 +93,7 @@ public sealed partial class MetaMenuHandler(
                     await EditQuestsAsync(ctx, message, callback.From);
                     break;
                 case "close":
-                    await EditAsync(ctx, message, "Меню закрыто.", null);
+                    await EditAsync(ctx, message, "Меню закрыто.", markup: null);
                     break;
                 default:
                     toast = "Неизвестное действие.";
@@ -107,7 +106,7 @@ public sealed partial class MetaMenuHandler(
             toast = "Не удалось обновить меню. Попробуй ещё раз.";
         }
 
-        await AnswerAsync(ctx, callback, toast, alert: toast?.StartsWith("Не удалось") == true);
+        await AnswerAsync(ctx, callback, toast, alert: toast?.StartsWith("Не удалось", StringComparison.Ordinal) == true);
     }
 
     private async Task SendHomeAsync(UpdateContext ctx, long chatId, User user, int replyToMessageId)
@@ -117,8 +116,8 @@ public sealed partial class MetaMenuHandler(
             chatId,
             text,
             parseMode: ParseMode.Html,
-            replyMarkup: markup,
             replyParameters: new ReplyParameters { MessageId = replyToMessageId },
+            replyMarkup: markup,
             cancellationToken: ctx.Ct);
     }
 
@@ -143,6 +142,7 @@ public sealed partial class MetaMenuHandler(
         await Task.WhenAll(balanceTask, profileTask, questsTask, achievementsTask);
 
         var profile = await profileTask;
+        var balance = await balanceTask;
         var questRows = await questsTask;
         var achievementRows = await achievementsTask;
         var completedQuests = questRows.Count(x => x.Completed && !x.Claimed);
@@ -152,8 +152,8 @@ public sealed partial class MetaMenuHandler(
             "🎰 <b>CasinoShiz</b>",
             $"Игрок: <b>{Html(displayName)}</b>",
             "",
-            $"💰 Баланс: <b>{await balanceTask}</b>",
-            $"⭐ Уровень: <b>{profile.Player.Level}</b> · XP: <b>{profile.Player.Xp}</b>",
+            string.Create(CultureInfo.InvariantCulture, $"💰 Баланс: <b>{balance}</b>"),
+            string.Create(CultureInfo.InvariantCulture, $"⭐ Уровень: <b>{profile.Player.Level}</b> · XP: <b>{profile.Player.Xp}</b>"),
             $"🏅 Ранг: <b>{Html(profile.Division)}</b> · рейтинг <b>{profile.Player.Rating}</b>",
             $"📜 Квесты: <b>{completedQuests}</b> наград ждут",
             $"🏆 Ачивки: <b>{unlocked}/{achievementRows.Count}</b>",
@@ -172,7 +172,7 @@ public sealed partial class MetaMenuHandler(
         var xpForNext = Math.Max(1, profile.NextLevelXp - profile.CurrentLevelXpFloor);
         var winsPercent = player.GamesPlayed == 0
             ? 0
-            : (int)Math.Round(player.Wins * 100d / player.GamesPlayed);
+            : (int)Math.Round(player.Wins * 100d / player.GamesPlayed, MidpointRounding.ToEven);
 
         var text = string.Join("\n", [
             "👤 <b>Профиль сезона</b>",
@@ -207,7 +207,7 @@ public sealed partial class MetaMenuHandler(
         if (rows.Count == 0)
             lines.Add("Активных квестов пока нет.");
 
-        await EditAsync(ctx, message, string.Join("\n", lines), QuestsMarkup(user.Id, rows));
+        await EditAsync(ctx, message, string.Join('\n', lines), QuestsMarkup(user.Id, rows));
     }
 
     private async Task EditAchievementsAsync(UpdateContext ctx, Message message, User user)
@@ -222,7 +222,7 @@ public sealed partial class MetaMenuHandler(
             lines.Add($"{mark} <b>{Html(achievement.Title)}</b> — {Html(achievement.Description)}");
         }
 
-        await EditAsync(ctx, message, string.Join("\n", lines), BackMarkup(user.Id));
+        await EditAsync(ctx, message, string.Join('\n', lines), BackMarkup(user.Id));
     }
 
     private async Task EditStreaksAsync(UpdateContext ctx, Message message, User user)
@@ -237,7 +237,7 @@ public sealed partial class MetaMenuHandler(
         foreach (var row in rows)
             lines.Add($"<b>{Html(row.Title)}</b> — сейчас <b>{row.CurrentStreak}</b> · рекорд <b>{row.BestStreak}</b>");
 
-        await EditAsync(ctx, message, string.Join("\n", lines), BackMarkup(user.Id));
+        await EditAsync(ctx, message, string.Join('\n', lines), BackMarkup(user.Id));
     }
 
     private async Task EditTopAsync(UpdateContext ctx, Message message, long ownerId)
@@ -251,7 +251,7 @@ public sealed partial class MetaMenuHandler(
         if (rows.Count == 0)
             lines.Add("Топ пока пуст.");
 
-        await EditAsync(ctx, message, string.Join("\n", lines), BackMarkup(ownerId));
+        await EditAsync(ctx, message, string.Join('\n', lines), BackMarkup(ownerId));
     }
 
     private async Task<string> ClaimQuestAsync(
@@ -298,7 +298,7 @@ public sealed partial class MetaMenuHandler(
             : $"Забрано: {claimed} · +{xp} XP · +{coins} монет";
     }
 
-    private async Task EditAsync(
+    private static async Task EditAsync(
         UpdateContext ctx,
         Message message,
         string text,
@@ -314,7 +314,7 @@ public sealed partial class MetaMenuHandler(
                 replyMarkup: markup,
                 cancellationToken: ctx.Ct);
         }
-        catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified"))
+        catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified", StringComparison.Ordinal))
         {
         }
     }
@@ -326,22 +326,22 @@ public sealed partial class MetaMenuHandler(
             new[]
             {
                 Button("👤 Профиль", ownerId, "profile"),
-                Button("📜 Квесты", ownerId, "quests")
+                Button("📜 Квесты", ownerId, "quests"),
             },
             new[]
             {
                 Button("🏆 Ачивки", ownerId, "achievements"),
-                Button("🔥 Стрики", ownerId, "streaks")
+                Button("🔥 Стрики", ownerId, "streaks"),
             },
             new[]
             {
                 Button("🥇 Топ сезона", ownerId, "top"),
-                Button("🎁 Ежедневный бонус", ownerId, "daily")
+                Button("🎁 Ежедневный бонус", ownerId, "daily"),
             },
             new[]
             {
                 Button("🎮 Игры", ownerId, "games")
-            }
+            },
         };
 
         if (hasQuestRewards)
@@ -404,7 +404,7 @@ public sealed partial class MetaMenuHandler(
     {
         if (string.IsNullOrWhiteSpace(data)) return null;
         var parts = data.Split(':', 4, StringSplitOptions.None);
-        if (parts.Length < 3 || parts[0] != "mm" || !long.TryParse(parts[1], out var ownerId))
+        if (parts.Length < 3 || !string.Equals(parts[0], "mm", StringComparison.Ordinal) || !long.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var ownerId))
             return null;
         return (ownerId, parts[2], parts.Length == 4 ? parts[3] : null);
     }
@@ -433,9 +433,9 @@ public sealed partial class MetaMenuHandler(
     private static string DisplayName(User user)
     {
         if (!string.IsNullOrWhiteSpace(user.Username)) return "@" + user.Username;
-        var name = string.Join(" ", new[] { user.FirstName, user.LastName }
+        var name = string.Join(' ', new[] { user.FirstName, user.LastName }
             .Where(x => !string.IsNullOrWhiteSpace(x)));
-        return string.IsNullOrWhiteSpace(name) ? user.Id.ToString() : name;
+        return string.IsNullOrWhiteSpace(name) ? user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) : name;
     }
 
     private static string Html(string value) => WebUtility.HtmlEncode(value);

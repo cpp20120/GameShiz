@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 
 namespace Games.Redeem.Application.Services;

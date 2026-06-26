@@ -1,5 +1,4 @@
 using Dapper;
-using BotFramework.Host.Composition;
 using Microsoft.Extensions.Options;
 
 namespace BotFramework.Host.Economics.Services;
@@ -244,9 +243,5 @@ internal sealed class TelegramDiceDailyRollLimiter(
     private bool IsPrivateAdminScope(long userId, long balanceScopeId) =>
         userId == balanceScopeId && botOptions.Value.Admins.Contains(userId);
 
-    private sealed class DiceRollRow
-    {
-        public DateOnly? RollsOn { get; init; }
-        public int RollCount { get; init; }
-    }
+    private sealed record DiceRollRow(DateOnly? RollsOn, int RollCount);
 }

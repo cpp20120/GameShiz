@@ -4,8 +4,8 @@
 // <see cref="DartsRollDispatcherJob"/> + <see cref="DartsBotDiceSender"/>.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+
+using System.Globalization;
 
 namespace Games.Darts.Application.Services;
 
@@ -57,10 +57,12 @@ public sealed class DartsService(
 
         var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Darts, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
+        {
             return new DartsBetResult(
-                DartsBetError.DailyRollLimit, 0, balance, 0, null, 0, 0, gate.UsedToday, gate.Limit);
+                DartsBetError.DailyRollLimit, 0, balance, 0, BlockingGameId: null, 0, 0, gate.UsedToday, gate.Limit);
+        }
 
-        var betOperationId = $"darts:bet:{chatId}:{replyToMessageId}:{userId}";
+        var betOperationId = string.Create(CultureInfo.InvariantCulture, $"darts:bet:{chatId}:{replyToMessageId}:{userId}");
         var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "darts.bet", betOperationId, ct);
         if (debit.Rejected)
         {
@@ -79,7 +81,7 @@ public sealed class DartsService(
                     amount,
                     DateTimeOffset.UtcNow,
                     DartsRoundStatus.Queued,
-                    null,
+BotMessageId: null,
                     replyToMessageId),
                 ct);
         }
@@ -97,12 +99,13 @@ public sealed class DartsService(
         rollQueue.Enqueue(new DartsRollJob(roundId, chatId, userId, displayName, replyToMessageId));
 
         analytics.Track("darts", "bet", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount, ["round_id"] = roundId,
         });
 
         return new DartsBetResult(
-            DartsBetError.None, amount, debit.NewBalance, 0, null, roundId, queuedAhead, 0, 0);
+            DartsBetError.None, amount, debit.NewBalance, 0, BlockingGameId: null, roundId, queuedAhead, 0, 0);
     }
 
     public async Task<DartsThrowResult> ThrowAsync(
@@ -114,7 +117,9 @@ public sealed class DartsService(
             || bet.UserId != userId
             || bet.ChatId != chatId
             || bet.BotMessageId != botDiceMessageId)
+        {
             return new DartsThrowResult(DartsThrowOutcome.NoBet);
+        }
 
         await economics.EnsureUserAsync(userId, chatId, displayName, ct);
         var multiplier = Multipliers.TryGetValue(face, out var m) ? m : 0;
@@ -136,6 +141,7 @@ public sealed class DartsService(
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
 
         analytics.Track("darts", "throw", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
             ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout, ["round_id"] = roundId,
@@ -154,7 +160,7 @@ public sealed class DartsService(
                 GameKey: MiniGameIds.Darts,
                 Stake: bet.Amount,
                 Payout: payout,
-                IsWin: payout - bet.Amount > 0,
+                IsWin: payout > bet.Amount,
                 Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
                 OccurredAt: occurredAt),
             ct);
@@ -224,10 +230,12 @@ public sealed class DartsService(
 
         var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Darts, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
+        {
             return new DartsThrowResult(
                 DartsThrowOutcome.BetDailyLimit,
                 DailyRollUsed: gate.UsedToday,
                 DailyRollLimit: gate.Limit);
+        }
 
         var operationPrefix = $"darts:quick:{chatId}:{diceMessageId}:{userId}";
         var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "darts.quickplay.bet", $"{operationPrefix}:bet", ct);
@@ -249,6 +257,7 @@ public sealed class DartsService(
         var newBalance = await economics.GetBalanceAsync(userId, chatId, ct);
 
         analytics.Track("darts", "quickplay", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
             ["bet"] = amount, ["multiplier"] = multiplier, ["payout"] = payout,
@@ -267,7 +276,7 @@ public sealed class DartsService(
                 GameKey: MiniGameIds.Darts,
                 Stake: amount,
                 Payout: payout,
-                IsWin: payout - amount > 0,
+                IsWin: payout > amount,
                 Multiplier: amount > 0 ? decimal.Divide(payout, amount) : 0m,
                 OccurredAt: occurredAt),
             ct);

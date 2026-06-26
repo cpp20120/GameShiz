@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Football.Infrastructure.Modules;
 
@@ -27,7 +26,7 @@ public sealed class FootballModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Футбол",
             ["cmd.football"] = "Поставить на футбол (⚽)",
             ["usage"] = "⚽ <b>Футбол</b>\n"

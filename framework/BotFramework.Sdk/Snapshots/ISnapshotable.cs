@@ -27,19 +27,25 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Snapshots;
+/// <summary>
 /// Aggregates that opt into snapshotting. The framework loads the snapshot,
 /// calls RestoreFromSnapshot, then replays newer events. Aggregates without
 /// this interface fall back to full replay.
+/// </summary>
 public interface ISnapshotable
 {
+    /// <summary>
     /// Serializable snapshot of the aggregate's current state. Does NOT include
     /// the pending-event list — a snapshot is "what's already committed". Any
     /// format the serializer understands (JSON-friendly record types are the
     /// simple default).
+    /// </summary>
     object CreateSnapshot();
 
+    /// <summary>
     /// Restore state from the snapshot. Called BEFORE any post-snapshot event
     /// replay. Version is set by the framework from the snapshot record, not
     /// inferred from the state object.
+    /// </summary>
     void RestoreFromSnapshot(object snapshot, long snapshotVersion);
 }

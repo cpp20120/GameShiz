@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Events.Stores;
 

@@ -16,8 +16,6 @@
 // a future loader supports untrusted modules, this is where a sandbox goes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
-
 namespace BotFramework.Host.Admin.Endpoints;
 
 public sealed class AdminMount(
@@ -33,7 +31,7 @@ public sealed class AdminMount(
         if (!pagesByModule.TryGetValue(moduleId, out var pages))
             return new AdminResponse("module not found", 404);
 
-        var page = pages.FirstOrDefault(p => p.Route == route);
+        var page = pages.FirstOrDefault(p => string.Equals(p.Route, route, StringComparison.Ordinal));
         if (page is null) return new AdminResponse("page not found", 404);
 
         var body = await page.RenderAsync(new AdminRequest(query, scope), ct);
@@ -41,7 +39,7 @@ public sealed class AdminMount(
         return new AdminResponse(html, body.StatusCode);
     }
 
-    private string WrapInChrome(string body, string moduleId, string title)
+    private static string WrapInChrome(string body, string moduleId, string title)
     {
         // Real impl renders a Razor layout with the menu list. Sketch just shows
         // the wrapping happens somewhere.

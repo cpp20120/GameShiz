@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Games.Poker.Domain.Commands;
 
 public static class PokerCommandParser
@@ -17,8 +19,7 @@ public static class PokerCommandParser
             "start" => new PokerCommand.Start(),
             "leave" => new PokerCommand.Leave(),
             "status" => new PokerCommand.Status(),
-            "raise" => parts.Length > 2 && int.TryParse(parts[2], out int amt)
-                ? new PokerCommand.Raise(amt)
+            "raise" => parts.Length > 2 && int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out int amt) ? new PokerCommand.Raise(amt)
                 : new PokerCommand.RaiseMissingAmount(),
             _ => new PokerCommand.Unknown(verb),
         };
@@ -26,14 +27,15 @@ public static class PokerCommandParser
 
     public static PokerCommand? ParseCallback(string? data)
     {
-        if (string.IsNullOrEmpty(data) || !data.StartsWith("poker:")) return null;
+        if (string.IsNullOrEmpty(data) || !data.StartsWith("poker:", StringComparison.Ordinal)) return null;
         var tokens = data.Split(':');
         var verb = tokens.Length > 1 ? tokens[1] : "";
 
         return verb switch
         {
             "check" or "call" or "fold" or "allin" => new PokerCommand.PlayerAction(verb, 0, ParseUserId(tokens, 2)),
-            "raise" when tokens.Length > 2 && int.TryParse(tokens[2], out int amt)
+            "raise" when tokens.Length > 2 &&
+                         int.TryParse(tokens[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int amt)
                 => new PokerCommand.PlayerAction("raise", amt, ParseUserId(tokens, 3)),
             "raise_menu" => new PokerCommand.RaiseMenu(ParseUserId(tokens, 2)),
             "join" => new PokerCommand.JoinCurrent(),
@@ -44,5 +46,8 @@ public static class PokerCommandParser
     }
 
     private static long? ParseUserId(string[] tokens, int index) =>
-        tokens.Length > index && long.TryParse(tokens[index], out var userId) ? userId : null;
+        tokens.Length > index &&
+        long.TryParse(tokens[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out var userId)
+            ? userId
+            : null;
 }

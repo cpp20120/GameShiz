@@ -25,6 +25,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Commands;
+/// <summary>
 /// Commands that return a value. Split by convention so middleware can
 /// handle "fire and forget" separately from "request/response" shapes.
-public interface ICommand<TResult> : ICommand { }
+/// </summary>
+public interface ICommand<TResult> : ICommand;

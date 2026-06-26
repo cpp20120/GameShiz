@@ -1,6 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -21,7 +19,7 @@ public sealed class DebugRetryDispatchFailureHandler(
         if (!DebugAccess.IsAllowed(msg, configuration, botOptions.Value)) return;
 
         var parts = msg.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length < 2 || !long.TryParse(parts[1], out var id))
+        if (parts.Length < 2 || !long.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var id))
         {
             await ctx.Bot.SendMessage(
                 msg.Chat.Id,
@@ -33,8 +31,9 @@ public sealed class DebugRetryDispatchFailureHandler(
 
         var result = await retryService.RetryAsync(id, ctx.Ct);
         var text = result.Success
-            ? $"retry ok #{id}"
-            : $"retry failed #{id}: {result.Message}";
+            ? string.Create(CultureInfo.InvariantCulture, $"retry ok #{id}"
+)
+            : string.Create(CultureInfo.InvariantCulture, $"retry failed #{id}: {result.Message}");
 
         await ctx.Bot.SendMessage(
             msg.Chat.Id,

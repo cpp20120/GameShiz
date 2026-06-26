@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using BotFramework.Host.Composition;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -13,6 +11,7 @@ public class TelegramDiceDailyLimitOptionsTests
         {
             MaxRollsPerUserPerDay = 5,
             MaxRollsPerUserPerDayByGame = new Dictionary<string, int>
+(StringComparer.Ordinal)
             {
                 ["dice"] = 2,
                 ["basketball"] = 8,

@@ -1,4 +1,3 @@
-using BotFramework.Host.Random;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -38,7 +37,7 @@ public class Mulberry32Tests
     [Fact]
     public void UuidToSeed_SameUuid_ReturnsSameSeed()
     {
-        var uuid = "550e8400-e29b-41d4-a716-446655440000";
+        const string uuid = "550e8400-e29b-41d4-a716-446655440000";
         Assert.Equal(Mulberry32.UuidToSeed(uuid), Mulberry32.UuidToSeed(uuid));
     }
 

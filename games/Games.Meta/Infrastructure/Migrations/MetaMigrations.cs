@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-
 namespace Games.Meta.Infrastructure.Migrations;
 
 public sealed class MetaMigrations : IModuleMigrations

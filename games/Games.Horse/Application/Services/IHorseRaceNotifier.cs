@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;

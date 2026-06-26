@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -30,14 +28,14 @@ public sealed class PixelBattleHandler(
         }
 
         var markup = new InlineKeyboardMarkup([
-            [InlineKeyboardButton.WithWebApp(Loc("open.button"), new WebAppInfo(webAppUrl))]
+            [InlineKeyboardButton.WithWebApp(Loc("open.button"), new WebAppInfo(webAppUrl))],
         ]);
 
         await ctx.Bot.SendMessage(
             msg.Chat.Id,
             Loc("open.text"),
-            replyMarkup: markup,
             replyParameters: reply,
+            replyMarkup: markup,
             cancellationToken: ctx.Ct);
     }
 

@@ -15,7 +15,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Diagnostics;
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Commands.Middleware;
 
@@ -39,12 +38,14 @@ public sealed class MetricsMiddleware(IMetrics metrics) : ICommandMiddleware
         finally
         {
             metrics.CounterInc("bot_commands_total", new Dictionary<string, string>
+(StringComparer.Ordinal)
             {
                 ["module"] = ctx.Command.ModuleId,
                 ["command"] = commandType,
                 ["outcome"] = outcome,
             });
             metrics.HistogramObserve("bot_command_duration_ms", sw.ElapsedMilliseconds, new Dictionary<string, string>
+(StringComparer.Ordinal)
             {
                 ["module"] = ctx.Command.ModuleId,
                 ["command"] = commandType,

@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Redeem.Infrastructure.Modules;
 
@@ -29,7 +28,7 @@ public sealed class RedeemModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Redeem",
             ["cmd.redeem"] = "Активировать код",
 

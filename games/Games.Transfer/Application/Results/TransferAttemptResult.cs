@@ -1,7 +1,9 @@
-using BotFramework.Host;
+
+using System.Runtime.InteropServices;
 
 namespace Games.Transfer.Application.Results;
 
+[StructLayout(LayoutKind.Auto)]
 public readonly record struct TransferAttemptResult(
     TransferError Error,
     int NetToRecipient,

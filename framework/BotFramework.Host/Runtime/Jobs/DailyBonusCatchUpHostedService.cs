@@ -1,7 +1,3 @@
-using BotFramework.Host.Composition;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
 namespace BotFramework.Host.Runtime.Jobs;
 
 public sealed partial class DailyBonusCatchUpHostedService(
@@ -28,8 +24,17 @@ public sealed partial class DailyBonusCatchUpHostedService(
         if (_cts is null || _runTask is null) return;
         await _cts.CancelAsync();
         try { await _runTask.WaitAsync(cancellationToken); }
-        catch (OperationCanceledException) { }
-        finally { statuses.MarkStopped(JobName); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _cts.IsCancellationRequested)
+        {
+            // Normal shutdown: either the host stop token or the service token was canceled.
+        }
+        finally
+        {
+            _cts.Dispose();
+            _cts = null;
+            _runTask = null;
+            statuses.MarkStopped(JobName);
+        }
     }
 
     private async Task RunLoopAsync(CancellationToken ct)

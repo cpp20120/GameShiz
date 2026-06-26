@@ -24,9 +24,6 @@
 // reasoning (sidechannel resistance).
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host.Pipeline;
-using BotFramework.Host.Redis;
-using BotFramework.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -98,36 +95,55 @@ public static class BotFrameworkApplicationExtensions
     {
         app.Use(async (ctx, next) =>
         {
-            if (!ctx.Request.Path.StartsWithSegments("/admin"))
+            if (!ctx.Request.Path.StartsWithSegments(
+                    "/admin",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 await next();
                 return;
             }
 
-            var opts = ctx.RequestServices.GetRequiredService<IOptions<BotFrameworkOptions>>().Value;
+            var opts = ctx.RequestServices
+                .GetRequiredService<IOptions<BotFrameworkOptions>>()
+                .Value;
+
             if (string.IsNullOrEmpty(opts.Username))
             {
-                ctx.Response.StatusCode = 503;
+                ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+
                 await ctx.Response.WriteAsync(
                     "Admin UI disabled: bot username not configured. "
-                    + "Set Bot:Username or Bot:BotUsername (e.g. env Bot__BotUsername=YourBotName — no @, same as BotFather). "
+                    + "Set Bot:Username or Bot:BotUsername "
+                    + "(e.g. env Bot__BotUsername=YourBotName — no @, same as BotFather). "
                     + "Then restart the app.");
+
                 return;
             }
 
-            // Login and auth callback pages are always accessible
-            if (ctx.Request.Path.StartsWithSegments("/admin/login") ||
-                ctx.Request.Path.StartsWithSegments("/admin/auth") ||
-                ctx.Request.Path.StartsWithSegments("/admin/logout"))
+            var path = ctx.Request.Path;
+
+            // Login and auth callback pages are always accessible.
+            if (path.StartsWithSegments(
+                    "/admin/login",
+                    StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments(
+                    "/admin/auth",
+                    StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments(
+                    "/admin/logout",
+                    StringComparison.OrdinalIgnoreCase))
             {
                 await next();
                 return;
             }
 
             var session = ctx.Session.GetAdminSession();
+
             if (session is null)
             {
-                ctx.Response.Redirect($"/admin/login?returnUrl={Uri.EscapeDataString(ctx.Request.Path)}");
+                var returnUrl = Uri.EscapeDataString(ctx.Request.Path);
+
+                ctx.Response.Redirect($"/admin/login?returnUrl={returnUrl}");
                 return;
             }
 

@@ -1,6 +1,5 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Darts;
+
+using System.Globalization;
 
 namespace Games.Admin.Application.Services;
 
@@ -22,6 +21,7 @@ public sealed partial class AdminService(
         foreach (var u in users)
         {
             analytics.Track("admin", "user_map", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = u.TelegramUserId,
                 ["display_name"] = u.DisplayName,
@@ -29,6 +29,7 @@ public sealed partial class AdminService(
         }
 
         analytics.Track("admin", "command", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["command"] = "usersync",
             ["caller_id"] = callerId,
@@ -43,7 +44,7 @@ public sealed partial class AdminService(
         long callerId, long targetUserId, long balanceScopeId, int amount, CancellationToken ct)
     {
         var before = await store.FindUserAsync(targetUserId, balanceScopeId, ct);
-        var displayName = before?.DisplayName ?? $"User ID: {targetUserId}";
+        var displayName = before?.DisplayName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {targetUserId}");
         await economics.EnsureUserAsync(targetUserId, balanceScopeId, displayName, ct);
 
         if (amount > 0)
@@ -59,6 +60,7 @@ public sealed partial class AdminService(
         if (after == null) return null;
 
         analytics.Track("admin", "command", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["command"] = "pay",
             ["caller_id"] = callerId,
@@ -113,6 +115,7 @@ public sealed partial class AdminService(
 
         var refunded = deleted.Sum(x => x.Amount);
         analytics.Track("admin", "command", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["command"] = "clearbets",
             ["caller_id"] = callerId,
@@ -127,7 +130,7 @@ public sealed partial class AdminService(
     {
         var existing = await store.GetOverrideAsync(oldName, ct);
 
-        if (newName == "*")
+        if (string.Equals(newName, "*", StringComparison.Ordinal))
         {
             if (existing == null) return new RenameResult(RenameOp.NoChange, oldName, newName);
             await store.DeleteOverrideAsync(oldName, ct);
@@ -141,6 +144,7 @@ public sealed partial class AdminService(
     public void ReportNotAdmin(long userId)
     {
         analytics.Track("admin", "command", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["command"] = "not_admin",
             ["caller_id"] = userId,
@@ -151,6 +155,7 @@ public sealed partial class AdminService(
     public void ReportUserInfo(long callerId, string targetId)
     {
         analytics.Track("admin", "command", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["command"] = "userinfo",
             ["caller_id"] = callerId,

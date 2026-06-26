@@ -1,4 +1,4 @@
-using BotFramework.Sdk;
+using System.Globalization;
 
 namespace Games.Meta.Application.Quests;
 
@@ -20,7 +20,7 @@ public sealed class QuestProjection(
                 await history.AppendAsync(
                     "quest.progressed",
                     "player",
-                    $"{season.Id}:{ev.ChatId}:{ev.UserId}",
+                    string.Create(CultureInfo.InvariantCulture, $"{season.Id}:{ev.ChatId}:{ev.UserId}"),
                     season.Id,
                     ev.ChatId,
                     ev.UserId,

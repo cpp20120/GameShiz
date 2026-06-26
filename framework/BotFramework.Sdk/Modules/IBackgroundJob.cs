@@ -7,9 +7,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Modules;
+/// <summary>
 /// Long-running worker registered by a module. Host starts it on app start
 /// and cancels the token on shutdown. Exceptions do NOT bring the Host down —
 /// the runner logs and restarts with backoff.
+/// </summary>
 public interface IBackgroundJob
 {
     string Name { get; }

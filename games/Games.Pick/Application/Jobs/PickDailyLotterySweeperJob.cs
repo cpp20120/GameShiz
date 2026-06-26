@@ -8,8 +8,7 @@
 // stay in 'open' and the next tick picks them up.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
@@ -58,7 +57,7 @@ public sealed partial class PickDailyLotterySweeperJob(
     private async Task PostAsync(DailySettleResult result, CancellationToken ct)
     {
         var chatId = result.Row.ChatId;
-        var day = result.Row.DayLocal.ToString("yyyy-MM-dd");
+        var day = result.Row.DayLocal.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         string text;
 
         if (!result.Drawn || result.WinnerId is null)
@@ -67,15 +66,15 @@ public sealed partial class PickDailyLotterySweeperJob(
             // (no point pinging the chat). Only post if some race made us
             // arrive here with a non-trivial state.
             if (result.TicketsTotal == 0) return;
-            text = string.Format(Loc("daily.sweep.cancelled"), day, result.TicketsTotal);
+            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.sweep.cancelled"), day, result.TicketsTotal);
         }
         else
         {
             var winnerLabel = string.IsNullOrEmpty(result.WinnerName)
-                ? $"User ID: {result.WinnerId}"
+                ? string.Create(CultureInfo.InvariantCulture, $"User ID: {result.WinnerId}"
+)
                 : System.Net.WebUtility.HtmlEncode(result.WinnerName);
-            text = string.Format(
-                Loc("daily.sweep.settled"),
+            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.sweep.settled"),
                 day,
                 winnerLabel,
                 result.WinnerTicketCount ?? 0,

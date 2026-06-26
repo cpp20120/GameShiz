@@ -15,7 +15,9 @@
 namespace BotFramework.Sdk.Commands;
 public interface ICommandMiddleware
 {
+    /// <summary>
     /// Called for every command flowing through the bus. Call next() to
     /// forward; skip it to short-circuit (e.g. rate-limit rejection).
+    /// </summary>
     Task InvokeAsync(CommandContext ctx, Func<Task> next);
 }

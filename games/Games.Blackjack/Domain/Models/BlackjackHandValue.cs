@@ -9,7 +9,7 @@ public static class BlackjackHandValue
         {
             "A" => 11,
             "T" or "J" or "Q" or "K" => 10,
-            _ => int.Parse(rank),
+            _ => int.Parse(rank, System.Globalization.CultureInfo.InvariantCulture),
         };
     }
 

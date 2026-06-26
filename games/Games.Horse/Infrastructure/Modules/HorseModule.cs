@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Horse.Infrastructure.Modules;
 
@@ -30,7 +29,7 @@ public sealed class HorseModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Скачки",
             ["cmd.horse"] = "Поставить на скачки",
             ["help"] =

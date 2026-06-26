@@ -28,8 +28,10 @@
 namespace BotFramework.Sdk.Events.Bus;
 public interface IDomainEventSubscriber
 {
+    /// <summary>
     /// Handles a published domain event. Subscribers should be fast and
     /// idempotent; slow work belongs in a background job triggered by the
     /// subscriber.
+    /// </summary>
     Task HandleAsync(IDomainEvent ev, CancellationToken ct);
 }

@@ -14,9 +14,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Concurrent;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Poker.Domain;
 using static Games.Poker.Domain.Rules.PokerResultHelpers;
 
 namespace Games.Poker.Application.Services;

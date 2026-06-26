@@ -44,9 +44,9 @@ public static class SpeedGenerator
 
         while (sum < distance)
         {
-            var raw = prevSpeed + (CryptoRandom() - 0.5) * 2 * deviation;
+            var raw = prevSpeed + ((CryptoRandom() - 0.5) * 2 * deviation);
             var clamped = Math.Min(velocity + deviation, Math.Max(velocity - deviation, raw));
-            var newSpeed = Math.Round(clamped, 3);
+            var newSpeed = Math.Round(clamped, 3, MidpointRounding.ToEven);
             sum += newSpeed;
             series.Add(newSpeed);
             prevSpeed = newSpeed;

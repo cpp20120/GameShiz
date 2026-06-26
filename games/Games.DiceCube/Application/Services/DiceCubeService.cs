@@ -11,8 +11,7 @@
 // when the bet was placed after runtime config changes.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Games.DiceCube.Application.Services;
@@ -42,7 +41,7 @@ public sealed class DiceCubeService(
             [1] = 0, [2] = 0, [3] = 0, [4] = o.Mult4, [5] = o.Mult5, [6] = o.Mult6,
         };
 
-    private static string CooldownCacheKey(long userId, long chatId) => $"dicecube:lastroll:{userId}:{chatId}";
+    private static string CooldownCacheKey(long userId, long chatId) => string.Create(CultureInfo.InvariantCulture, $"dicecube:lastroll:{userId}:{chatId}");
 
     public Task<CubeBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, CancellationToken ct) =>
         PlaceBetAsync(userId, displayName, chatId, amount, sourceMessageId: 0, ct);
@@ -90,8 +89,10 @@ public sealed class DiceCubeService(
 
         var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
+        {
             return new CubeBetResult(
-                CubeBetError.DailyRollLimit, 0, balance, 0, 0, null, gate.UsedToday, gate.Limit);
+                CubeBetError.DailyRollLimit, 0, balance, 0, 0, BlockingGameId: null, gate.UsedToday, gate.Limit);
+        }
 
         var betOperationId = $"dicecube:bet:{chatId}:{sourceMessageId}:{userId}";
         var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "dicecube.bet", betOperationId, ct);
@@ -123,11 +124,12 @@ public sealed class DiceCubeService(
         await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.DiceCube, ct);
 
         analytics.Track("dicecube", "bet", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount,
         });
 
-        return new CubeBetResult(CubeBetError.None, amount, debit.NewBalance, 0, 0, null, 0, 0);
+        return new CubeBetResult(CubeBetError.None, amount, debit.NewBalance, 0, 0, BlockingGameId: null, 0, 0);
     }
 
     public async Task<CubeRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct)
@@ -167,6 +169,7 @@ public sealed class DiceCubeService(
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
 
         analytics.Track("dicecube", "roll", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
             ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
@@ -184,7 +187,7 @@ public sealed class DiceCubeService(
                 GameKey: MiniGameIds.DiceCube,
                 Stake: bet.Amount,
                 Payout: payout,
-                IsWin: payout - bet.Amount > 0,
+                IsWin: payout > bet.Amount,
                 Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
                 OccurredAt: occurredAt),
             ct);

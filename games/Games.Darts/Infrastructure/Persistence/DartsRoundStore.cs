@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Darts.Infrastructure.Persistence;
@@ -129,17 +128,16 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
             cancellationToken: ct));
     }
 
-    private sealed class DartsRoundRow
+    private sealed record DartsRoundRow(
+        long Id,
+        long UserId,
+        long ChatId,
+        int Amount,
+        DateTimeOffset CreatedAt,
+        short Status,
+        int? BotMessageId,
+        int ReplyToMessageId)
     {
-        public long Id { get; init; }
-        public long UserId { get; init; }
-        public long ChatId { get; init; }
-        public int Amount { get; init; }
-        public DateTimeOffset CreatedAt { get; init; }
-        public short Status { get; init; }
-        public int? BotMessageId { get; init; }
-        public int ReplyToMessageId { get; init; }
-
         public DartsRound ToRound() => new(
             Id,
             UserId,

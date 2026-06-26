@@ -9,7 +9,6 @@
 // scope for this port.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Poker.Infrastructure.Persistence;
@@ -71,7 +70,7 @@ public sealed class PokerSeatStore(INpgsqlConnectionFactory connections) : IPoke
             cancellationToken: ct));
     }
 
-    public async Task InsertAsync(PokerSeat s, CancellationToken ct)
+    public async Task InsertAsync(PokerSeat seat, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("""
@@ -82,11 +81,11 @@ public sealed class PokerSeatStore(INpgsqlConnectionFactory connections) : IPoke
                 (@InviteCode, @Position, @UserId, @DisplayName, @Stack, @HoleCards, @Status,
                  @CurrentBet, @TotalCommitted, @HasActedThisRound, @ChatId, @StateMessageId, @JoinedAt)
             """,
-            SeatRow.From(s),
+            SeatRow.From(seat),
             cancellationToken: ct));
     }
 
-    public async Task UpdateAsync(PokerSeat s, CancellationToken ct)
+    public async Task UpdateAsync(PokerSeat seat, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("""
@@ -102,7 +101,7 @@ public sealed class PokerSeatStore(INpgsqlConnectionFactory connections) : IPoke
                 state_message_id = @StateMessageId
             WHERE invite_code = @InviteCode AND position = @Position
             """,
-            SeatRow.From(s),
+            SeatRow.From(seat),
             cancellationToken: ct));
     }
 

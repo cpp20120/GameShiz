@@ -29,10 +29,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Projections;
+/// <summary>
 /// Marker for a projection that can rebuild itself from scratch. Host exposes
 /// an admin command ("rebuild sh_active_rooms") that truncates the target
 /// table and replays the whole event store. Useful when the projection shape
 /// changes across deploys.
+/// </summary>
 public interface IRebuildableProjection : IProjection
 {
     Task ResetAsync(CancellationToken ct);

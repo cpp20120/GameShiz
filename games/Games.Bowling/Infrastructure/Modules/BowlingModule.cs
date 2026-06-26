@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Bowling.Infrastructure.Modules;
 
@@ -27,7 +26,7 @@ public sealed class BowlingModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Боулинг",
             ["cmd.bowling"] = "Поставить на боулинг",
             ["usage"] = "🎳 <b>Боулинг</b>\n"

@@ -8,7 +8,6 @@
 // rebuilding the chain on every update is wasteful.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Pipeline.Routing;
 
@@ -20,10 +19,7 @@ public sealed class UpdatePipeline
     {
         var ordered = middleware.ToArray();
 
-        UpdateDelegate terminal = async ctx =>
-        {
-            await router.DispatchAsync(ctx.Bot, ctx.Update, ctx.Services, ctx.Ct);
-        };
+        UpdateDelegate terminal = async ctx => await router.DispatchAsync(ctx.Bot, ctx.Update, ctx.Services, ctx.Ct);
 
         var chain = terminal;
         for (var i = ordered.Length - 1; i >= 0; i--)

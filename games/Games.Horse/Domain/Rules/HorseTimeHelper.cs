@@ -8,6 +8,6 @@ public static class HorseTimeHelper
         var offset = TimeSpan.FromHours(timezoneOffsetHours);
         var now = DateTimeOffset.UtcNow.ToOffset(offset);
         var day = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, offset);
-        return day.ToString("MM-dd-yyyy");
+        return day.ToString("MM-dd-yyyy", System.Globalization.CultureInfo.InvariantCulture);
     }
 }

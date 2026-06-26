@@ -1,4 +1,3 @@
-using Games.SecretHitler.Domain;
 
 namespace Games.SecretHitler.Domain.Results;
 

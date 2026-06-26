@@ -1,5 +1,5 @@
+using System.Globalization;
 using System.Net;
-using BotFramework.Sdk;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -21,7 +21,7 @@ public sealed class RiskHandler(IRiskService risks) : IUpdateHandler
             return;
         }
 
-        if (parts.Length >= 3 && long.TryParse(parts[2], out var flagId) &&
+        if (parts.Length >= 3 && long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var flagId) &&
             (string.Equals(parts[1], "resolve", StringComparison.OrdinalIgnoreCase) ||
              string.Equals(parts[1], "ignore", StringComparison.OrdinalIgnoreCase)))
         {
@@ -50,14 +50,14 @@ public sealed class RiskHandler(IRiskService risks) : IUpdateHandler
         var lines = new List<string> { "🛡 <b>Open risk flags</b>" };
         foreach (var row in rows)
         {
-            lines.Add($"#<code>{row.Id}</code> <b>{Html(row.Severity)}</b> · <code>{Html(row.Kind)}</code> · <b>{Html(row.DisplayName)}</b>");
-            lines.Add($"   {Html(row.Reason)} · <code>{row.CreatedAt:yyyy-MM-dd HH:mm 'UTC'}</code>");
+            lines.Add(string.Create(CultureInfo.InvariantCulture, $"#<code>{row.Id}</code> <b>{Html(row.Severity)}</b> · <code>{Html(row.Kind)}</code> · <b>{Html(row.DisplayName)}</b>"));
+            lines.Add(string.Create(CultureInfo.InvariantCulture, $"   {Html(row.Reason)} · <code>{row.CreatedAt:yyyy-MM-dd HH:mm 'UTC'}</code>"));
         }
 
-        await SendHtmlAsync(ctx, msg, string.Join("\n", lines));
+        await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
-    private Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text,
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },

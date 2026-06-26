@@ -23,8 +23,6 @@
 //     pot − fee to winner, MarkSettled.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Host.Composition;
 using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Application.Services;
@@ -43,8 +41,8 @@ public sealed partial class PickDailyLotteryService(
     {
         get
         {
-            var override_ = Opts.TimezoneOffsetHoursOverride;
-            return override_ != 0 ? override_ : diceLimitOptions.Value.TimezoneOffsetHours;
+            var @override = Opts.TimezoneOffsetHoursOverride;
+            return @override != 0 ? @override : diceLimitOptions.Value.TimezoneOffsetHours;
         }
     }
 
@@ -86,10 +84,10 @@ public sealed partial class PickDailyLotteryService(
     {
         var perCommandCap = Math.Max(1, Opts.MaxTicketsPerBuyCommand);
         if (count <= 0)
-            return new DailyBuyResult(DailyBuyStatus.InvalidCount, null, 0, 0, 0, 0, 0);
+            return new DailyBuyResult(DailyBuyStatus.InvalidCount, Row: null, 0, 0, 0, 0, 0);
 
         if (count > perCommandCap)
-            return new DailyBuyResult(DailyBuyStatus.OverPerCommandCap, null, 0, 0, 0, 0, 0);
+            return new DailyBuyResult(DailyBuyStatus.OverPerCommandCap, Row: null, 0, 0, 0, 0, 0);
 
         var ticketPrice = Math.Max(1, Opts.TicketPrice);
         var dayLocal = LocalToday();
@@ -100,7 +98,7 @@ public sealed partial class PickDailyLotteryService(
         // could still match the open row from "yesterday" with deadline in
         // the past. Handled via the freshness check below.
         var lottery = await store.GetOrCreateOpenAsync(chatId, dayLocal, ticketPrice, deadlineUtc, ct);
-        if (lottery.Status != "open" || lottery.DeadlineAt <= DateTime.UtcNow)
+        if (!string.Equals(lottery.Status, "open", StringComparison.Ordinal) || lottery.DeadlineAt <= DateTime.UtcNow)
             return new DailyBuyResult(DailyBuyStatus.DayAlreadyClosing, lottery, 0, 0, 0, 0, 0);
 
         // Per-user daily cap.
@@ -146,6 +144,7 @@ public sealed partial class PickDailyLotteryService(
         balance = await economics.GetBalanceAsync(userId, chatId, ct);
 
         analytics.Track("pick", "daily.buy", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["chat_id"] = chatId,
@@ -193,10 +192,11 @@ public sealed partial class PickDailyLotteryService(
         {
             await store.MarkCancelledAsync(row.Id, ct);
             analytics.Track("pick", "daily.cancelled_empty", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["chat_id"] = row.ChatId,
                 ["lottery_id"] = row.Id.ToString(),
-                ["day_local"] = row.DayLocal.ToString("yyyy-MM-dd"),
+                ["day_local"] = row.DayLocal.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             });
             LogSettleCancelledEmpty(row.Id, row.ChatId);
             return new DailySettleResult(
@@ -237,10 +237,11 @@ public sealed partial class PickDailyLotteryService(
 
         var winnerTickets = await store.CountUserTicketsAsync(row.Id, winner.Value.UserId, ct);
         analytics.Track("pick", "daily.settled", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["chat_id"] = row.ChatId,
             ["lottery_id"] = row.Id.ToString(),
-            ["day_local"] = row.DayLocal.ToString("yyyy-MM-dd"),
+            ["day_local"] = row.DayLocal.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             ["tickets"] = totalTickets,
             ["distinct_users"] = distinctUsers,
             ["pot"] = pot,

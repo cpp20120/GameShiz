@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Leaderboard.Infrastructure.Modules;
 
@@ -30,7 +29,7 @@ public sealed class LeaderboardModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Топ",
             ["cmd.top"] = "Топ игроков",
             ["cmd.balance"] = "Мой баланс",
@@ -118,7 +117,7 @@ public sealed class LeaderboardModule : IModule
                 + "• /tournament — турниры\n\n"
 
                 + "<i>Подсказка: у любой команды с аргументами есть <code>help</code> — "
-                + "<code>/transfer help</code>, <code>/pick help</code>, и т.д.</i>"
+                + "<code>/transfer help</code>, <code>/pick help</code>, и т.д.</i>",
         }),
     ];
 }

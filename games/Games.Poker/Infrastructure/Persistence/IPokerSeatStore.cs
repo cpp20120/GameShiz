@@ -9,7 +9,6 @@
 // scope for this port.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Poker.Infrastructure.Persistence;

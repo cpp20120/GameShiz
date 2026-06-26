@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Horse.Domain.Events;
 

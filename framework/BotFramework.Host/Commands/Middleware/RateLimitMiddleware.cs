@@ -17,8 +17,6 @@
 // Telegram message — that stays up-stack where the Telegram client is.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
-
 namespace BotFramework.Host.Commands.Middleware;
 
 public sealed class RateLimitMiddleware(IRateLimitPolicy policy) : ICommandMiddleware

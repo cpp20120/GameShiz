@@ -24,12 +24,12 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.UpdateHandling.Routes;
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class MessageDiceAttribute(string emoji) : RouteAttribute
 {
     public string Emoji { get; } = emoji;
     public override int Priority => 250;
     public override string Name => $"dice:{Emoji}";
-    public override bool Matches(Update update) =>
-        update.Message?.Dice?.Emoji == Emoji
-        || update.EditedMessage?.Dice?.Emoji == Emoji;
+    public override bool Matches(Update update) => string.Equals(update.Message?.Dice?.Emoji, Emoji
+, StringComparison.Ordinal) || string.Equals(update.EditedMessage?.Dice?.Emoji, Emoji, StringComparison.Ordinal);
 }

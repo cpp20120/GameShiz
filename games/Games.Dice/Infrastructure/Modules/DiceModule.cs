@@ -13,7 +13,6 @@
 // needed for this game). Those paths are proven by other modules during #15.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace Games.Dice.Infrastructure.Modules;
 
@@ -37,7 +36,7 @@ public sealed class DiceModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Слоты",
             ["err.forwarded"] = "Не обманывай меня! 😠",
             ["err.not_enough_coins"] = "Кажется, у кого-то закончились монеты. 😢\nКрутить барабан стоит {0} монет.",

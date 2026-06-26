@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using Games.Transfer;
 using Xunit;
 
 namespace CasinoShiz.Tests;

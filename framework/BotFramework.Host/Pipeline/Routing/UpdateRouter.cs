@@ -20,7 +20,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Reflection;
-using BotFramework.Sdk;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -28,11 +27,11 @@ namespace BotFramework.Host.Pipeline.Routing;
 
 public sealed partial class UpdateRouter(IEnumerable<IModule> modules, ILogger<UpdateRouter> logger)
 {
-    private readonly IReadOnlyList<Route> _routes = BuildRoutes(modules);
+    private readonly Route[] _routes = BuildRoutes(modules);
 
     private readonly record struct Route(RouteAttribute Attribute, Type HandlerType);
 
-    private static IReadOnlyList<Route> BuildRoutes(IEnumerable<IModule> modules)
+    private static Route[] BuildRoutes(IEnumerable<IModule> modules)
     {
         var marker = typeof(IUpdateHandler);
         var assemblies = modules.Select(m => m.GetType().Assembly).Distinct();
@@ -64,7 +63,7 @@ public sealed partial class UpdateRouter(IEnumerable<IModule> modules, ILogger<U
     {
         foreach (var route in _routes)
             LogRouteRegistered(route.Attribute.Priority, route.Attribute.Name, route.HandlerType.Name);
-        LogRouteCount(_routes.Count);
+        LogRouteCount(_routes.Length);
     }
 
     [LoggerMessage(EventId = 1100, Level = LogLevel.Debug,

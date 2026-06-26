@@ -6,7 +6,6 @@
 // state" has been designed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace Games.Dice.Infrastructure.Migrations;
 

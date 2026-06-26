@@ -17,8 +17,6 @@
 // helper so no call site changes shape.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 
 namespace BotFramework.Host.Localization;
@@ -32,8 +30,7 @@ public sealed class Localizer(
     public string Get(string moduleId, string key, string cultureCode = "ru")
     {
         var scopedKey = $"{moduleId}.{key}";
-        if (TryLookup(cultureCode, scopedKey, out var value)) return value;
-        if (cultureCode != _defaultCulture && TryLookup(_defaultCulture, scopedKey, out value)) return value;
+        if (TryLookup(cultureCode, scopedKey, out var value) || (!string.Equals(cultureCode, _defaultCulture, StringComparison.Ordinal) && TryLookup(_defaultCulture, scopedKey, out value))) return value;
         return scopedKey;
     }
 

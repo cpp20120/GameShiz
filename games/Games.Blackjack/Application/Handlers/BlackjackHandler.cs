@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -33,11 +32,11 @@ public sealed partial class BlackjackHandler(
         if (userId == 0) return;
 
         var chatId = msg.Chat.Id;
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
         var reply = new ReplyParameters { MessageId = msg.MessageId };
 
         var parts = msg.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2 || !int.TryParse(parts[1], out var bet))
+        if (parts.Length < 2 || !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var bet))
         {
             var (existing, existingMsgId) = await service.GetSnapshotAsync(userId, ctx.Ct);
             if (existing != null)
@@ -48,12 +47,12 @@ public sealed partial class BlackjackHandler(
             }
             await ctx.Bot.SendMessage(
                 chatId,
-                string.Format(Loc("usage"), _opts.MinBet, _opts.MaxBet),
+                string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("usage"), _opts.MinBet, _opts.MaxBet),
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
 
-        var operationId = $"blackjack:start:{chatId}:{msg.MessageId}:{userId}";
+        var operationId = string.Create(CultureInfo.InvariantCulture, $"blackjack:start:{chatId}:{msg.MessageId}:{userId}");
         var result = await service.StartAsync(userId, displayName, chatId, bet, operationId, ctx.Ct);
         if (result.Error != BlackjackError.None)
         {
@@ -67,7 +66,8 @@ public sealed partial class BlackjackHandler(
 
     private async Task DispatchCallbackAsync(UpdateContext ctx, CallbackQuery cbq)
     {
-        try { await ctx.Bot.AnswerCallbackQuery(cbq.Id, cancellationToken: ctx.Ct); } catch { /* best-effort */ }
+        try { await ctx.Bot.AnswerCallbackQuery(cbq.Id, cancellationToken: ctx.Ct); }
+        catch (ApiRequestException ex) { LogCallbackAnswerFailed(cbq.Id, ex); }
 
         var userId = cbq.From.Id;
         var chatId = cbq.Message?.Chat.Id ?? userId;
@@ -78,7 +78,7 @@ public sealed partial class BlackjackHandler(
             "hit" => await service.HitAsync(userId, ctx.Ct),
             "stand" => await service.StandAsync(userId, ctx.Ct),
             "double" => await service.DoubleAsync(userId, ctx.Ct),
-            _ => new BlackjackResult(BlackjackError.NoActiveHand, null),
+            _ => new BlackjackResult(BlackjackError.NoActiveHand, Snapshot: null),
         };
 
         if (result.Error != BlackjackError.None)
@@ -106,8 +106,8 @@ public sealed partial class BlackjackHandler(
                     parseMode: ParseMode.Html, replyMarkup: markup, cancellationToken: ctx.Ct);
                 return;
             }
-            catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified")) { return; }
-            catch { /* fall through */ }
+            catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified", StringComparison.Ordinal)) { return; }
+            catch (ApiRequestException ex) { LogStateEditFailed(userId, ex); }
         }
 
         try
@@ -127,7 +127,7 @@ public sealed partial class BlackjackHandler(
 
     private string ErrorText(BlackjackError err) => err switch
     {
-        BlackjackError.InvalidBet => string.Format(Loc("err.invalid_bet"), _opts.MinBet, _opts.MaxBet),
+        BlackjackError.InvalidBet => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.invalid_bet"), _opts.MinBet, _opts.MaxBet),
         BlackjackError.NotEnoughCoins => Loc("err.not_enough_coins"),
         BlackjackError.HandInProgress => Loc("err.hand_in_progress"),
         BlackjackError.NoActiveHand => Loc("err.no_active_hand"),
@@ -137,4 +137,10 @@ public sealed partial class BlackjackHandler(
 
     [LoggerMessage(EventId = 2301, Level = LogLevel.Debug, Message = "blackjack.state.send_failed user={UserId}")]
     partial void LogStateSendFailed(long userId, Exception exception);
+
+    [LoggerMessage(EventId = 2302, Level = LogLevel.Debug, Message = "blackjack.callback.answer_failed id={CallbackQueryId}")]
+    partial void LogCallbackAnswerFailed(string callbackQueryId, Exception exception);
+
+    [LoggerMessage(EventId = 2303, Level = LogLevel.Debug, Message = "blackjack.state.edit_failed user={UserId}")]
+    partial void LogStateEditFailed(long userId, Exception exception);
 }

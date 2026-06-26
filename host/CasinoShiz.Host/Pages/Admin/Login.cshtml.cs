@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using BotFramework.Host.Composition;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;

@@ -1,6 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Host.Pipeline;
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Telegram.Bot.Types;
@@ -66,7 +63,7 @@ public class UpdateRouterTests
             From = new User { Id = 1, IsBot = false, FirstName = "T" },
             Chat = new Chat { Id = 1, Type = ChatType.Private },
             Date = DateTime.UtcNow,
-        }
+        },
     };
 
     private static Update CallbackUpdate(string data) => new()
@@ -77,7 +74,7 @@ public class UpdateRouterTests
             Id = "1",
             Data = data,
             From = new User { Id = 1, IsBot = false, FirstName = "T" },
-        }
+        },
     };
 
     // ── Dispatch ─────────────────────────────────────────────────────────────
@@ -87,7 +84,7 @@ public class UpdateRouterTests
     {
         TestCommandHandler.WasCalled = false;
         var router = MakeRouter();
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         using var scope = sp.CreateScope();
 
         await router.DispatchAsync(null!, TextUpdate("/testcmd create"), scope.ServiceProvider, default);
@@ -100,7 +97,7 @@ public class UpdateRouterTests
     {
         TestCallbackHandler.WasCalled = false;
         var router = MakeRouter();
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         using var scope = sp.CreateScope();
 
         await router.DispatchAsync(null!, CallbackUpdate("testcb:action"), scope.ServiceProvider, default);
@@ -113,7 +110,7 @@ public class UpdateRouterTests
     {
         FallbackHandler.WasCalled = false;
         var router = MakeRouter();
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         using var scope = sp.CreateScope();
 
         await router.DispatchAsync(null!, CallbackUpdate("unknown:data"), scope.ServiceProvider, default);
@@ -127,7 +124,7 @@ public class UpdateRouterTests
         TestCallbackHandler.WasCalled = false;
         FallbackHandler.WasCalled = false;
         var router = MakeRouter();
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         using var scope = sp.CreateScope();
 
         await router.DispatchAsync(null!, CallbackUpdate("testcb:check"), scope.ServiceProvider, default);
@@ -140,7 +137,7 @@ public class UpdateRouterTests
     public async Task Router_NoMatch_DoesNotThrow()
     {
         var router = MakeRouter();
-        using var sp = (ServiceProvider)BuildServices();
+        await using var sp = (ServiceProvider)BuildServices();
         using var scope = sp.CreateScope();
 
         var ex = await Record.ExceptionAsync(() =>

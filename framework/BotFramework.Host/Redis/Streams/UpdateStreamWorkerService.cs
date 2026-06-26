@@ -1,6 +1,5 @@
+using System.Globalization;
 using System.Text.Json;
-using BotFramework.Host.Pipeline;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 using Telegram.Bot;
@@ -19,7 +18,7 @@ public sealed partial class UpdateStreamWorkerService(
     private CancellationTokenSource? _cts;
     private Task? _running;
 
-    public async Task StartAsync(CancellationToken ct)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         var db = redis.GetDatabase();
         for (var i = 0; i < _opts.PartitionCount; i++)
@@ -27,7 +26,7 @@ public sealed partial class UpdateStreamWorkerService(
             var key = StreamKey(i);
             try
             {
-                await EnsureStreamAndConsumerGroupAsync(db, key, ct);
+                await EnsureStreamAndConsumerGroupAsync(db, key);
             }
             catch (Exception ex)
             {
@@ -35,27 +34,39 @@ public sealed partial class UpdateStreamWorkerService(
             }
         }
 
-        _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var tasks = Enumerable.Range(0, _opts.PartitionCount)
             .Select(p => RunPartitionAsync(p, _cts.Token))
             .ToArray();
         _running = Task.WhenAll(tasks);
     }
 
-    public async Task StopAsync(CancellationToken ct)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _cts?.Cancel();
+        if (_cts is not null)
+        {
+            await _cts.CancelAsync();
+            _cts.Dispose();
+            _cts = null;
+        }
         if (_running is not null)
-            try { await _running.WaitAsync(ct); } catch { }
+        {
+            try { await _running.WaitAsync(cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Stop timeout/cancellation is expected during host shutdown.
+            }
+            catch (Exception ex) { LogStopFailed(ex); }
+        }
     }
 
-    private string StreamKey(int partition) => $"{_opts.StreamKeyPrefix}:{partition}";
+    private string StreamKey(int partition) => string.Create(CultureInfo.InvariantCulture, $"{_opts.StreamKeyPrefix}:{partition}");
 
     /// <summary>
     /// <c>XREADGROUP</c> returns NOGROUP if the stream was never created or the group is missing
     /// (e.g. startup XGROUP failed silently, empty Redis, or key evicted). MKSTREAM + create group fixes it.
     /// </summary>
-    private async Task EnsureStreamAndConsumerGroupAsync(IDatabase db, string streamKey, CancellationToken ct)
+    private async Task EnsureStreamAndConsumerGroupAsync(IDatabase db, string streamKey)
     {
         try
         {
@@ -78,7 +89,7 @@ public sealed partial class UpdateStreamWorkerService(
     {
         var db = redis.GetDatabase();
         var streamKey = StreamKey(partition);
-        var consumer = $"partition:{partition}";
+        var consumer = string.Create(CultureInfo.InvariantCulture, $"partition:{partition}");
 
         while (!ct.IsCancellationRequested)
         {
@@ -113,7 +124,7 @@ public sealed partial class UpdateStreamWorkerService(
             {
                 try
                 {
-                    await EnsureStreamAndConsumerGroupAsync(db, streamKey, ct);
+                    await EnsureStreamAndConsumerGroupAsync(db, streamKey);
                 }
                 catch (Exception ensureEx)
                 {
@@ -123,7 +134,8 @@ public sealed partial class UpdateStreamWorkerService(
             catch (Exception ex)
             {
                 LogWorkerError(ex, partition);
-                try { await Task.Delay(1_000, ct); } catch { return; }
+                try { await Task.Delay(1_000, ct); }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             }
         }
     }
@@ -146,7 +158,7 @@ public sealed partial class UpdateStreamWorkerService(
             var retryKey = RetryKey(partition, entry.Id.ToString());
             var attempts = await db.StringIncrementAsync(retryKey);
             await db.KeyExpireAsync(retryKey, TimeSpan.FromSeconds(_opts.RetryCounterTtlSeconds));
-            LogProcessingFailed(ex, partition, entry.Id.ToString(), (long)attempts);
+            LogProcessingFailed(ex, partition, entry.Id.ToString(), attempts);
 
             if (attempts < _opts.MaxProcessingAttempts)
                 return;
@@ -157,7 +169,7 @@ public sealed partial class UpdateStreamWorkerService(
                 new NameValueEntry("partition", partition),
                 new NameValueEntry("stream", streamKey),
                 new NameValueEntry("entry_id", entry.Id.ToString()),
-                new NameValueEntry("attempts", attempts.ToString()),
+                new NameValueEntry("attempts", attempts.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 new NameValueEntry("error_type", ex.GetType().FullName ?? "Exception"),
                 new NameValueEntry("error_message", ex.Message),
                 new NameValueEntry("u", payload),
@@ -166,7 +178,7 @@ public sealed partial class UpdateStreamWorkerService(
 
             await db.StreamAcknowledgeAsync(streamKey, _opts.ConsumerGroup, entry.Id);
             await db.KeyDeleteAsync(retryKey);
-            LogMovedToDlq(partition, entry.Id.ToString(), (long)attempts);
+            LogMovedToDlq(partition, entry.Id.ToString(), attempts);
         }
     }
 
@@ -199,4 +211,7 @@ public sealed partial class UpdateStreamWorkerService(
 
     [LoggerMessage(LogLevel.Error, "update_worker.moved_to_dlq partition={Partition} id={EntryId} attempts={Attempts}")]
     partial void LogMovedToDlq(int partition, string entryId, long attempts);
+
+    [LoggerMessage(LogLevel.Warning, "update_worker.stop_failed")]
+    partial void LogStopFailed(Exception exception);
 }

@@ -19,7 +19,6 @@
 //     at migration time — exactly the coupling we're trying to avoid
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 using Dapper;
 using Npgsql;
 
@@ -43,11 +42,11 @@ public sealed class PostgresEventStore(
         var rows = await conn.QueryAsync<EventRow>(new CommandDefinition(sql, new { streamId }, cancellationToken: ct));
 
         return rows.Select(r => new StoredEvent(
-            StreamId: r.stream_id,
-            Version: r.version,
-            EventType: r.event_type,
-            PayloadJson: r.payload_text,
-            OccurredAt: r.occurred_at_ms)).ToList();
+            StreamId: r.StreamId,
+            Version: r.Version,
+            EventType: r.EventType,
+            PayloadJson: r.PayloadText,
+            OccurredAt: r.OccurredAtMs)).ToList();
     }
 
     public async Task AppendAsync(
@@ -81,14 +80,12 @@ public sealed class PostgresEventStore(
             }
             await tx.CommitAsync(ct);
         }
-        catch (PostgresException ex) when (ex.SqlState == "23505")
+        catch (PostgresException ex) when (string.Equals(ex.SqlState, "23505", StringComparison.Ordinal))
         {
             await tx.RollbackAsync(ct);
             throw new ConcurrencyException(streamId, expectedVersion, version);
         }
     }
 
-    // Dapper's default column binding is case-insensitive snake-case-friendly;
-    // lowercase names here match the returned column identifiers exactly.
-    private sealed record EventRow(string stream_id, long version, string event_type, string payload_text, long occurred_at_ms);
+    private sealed record EventRow(string StreamId, long Version, string EventType, string PayloadText, long OccurredAtMs);
 }

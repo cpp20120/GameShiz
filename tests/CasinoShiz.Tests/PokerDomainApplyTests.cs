@@ -1,5 +1,3 @@
-using Games.Poker;
-using Games.Poker.Domain;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -77,7 +75,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void StartHand_PostsBlinds_PotEqualsSmallPlusBlind()
     {
-        var table = MakeTable(sb: 5, bb: 10);
+        var table = MakeTable(bb: 10, sb: 5);
         var seats = new List<PokerSeat> { MakeSeat(1, stack: 500), MakeSeat(2, stack: 500) };
         PokerDomain.StartHand(table, seats);
         Assert.Equal(15, table.Pot);
@@ -95,7 +93,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void StartHand_HeadsUp_ButtonPostsSmallBlind()
     {
-        var table = MakeTable(sb: 5, bb: 10);
+        var table = MakeTable(bb: 10, sb: 5);
         var seat1 = MakeSeat(1, stack: 500);
         var seat2 = MakeSeat(2, stack: 500);
         var seats = new List<PokerSeat> { seat1, seat2 };
@@ -108,7 +106,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void StartHand_ThreePlayers_SmallBlindIsNextAfterButton()
     {
-        var table = MakeTable(sb: 5, bb: 10);
+        var table = MakeTable(bb: 10, sb: 5);
         var seats = new List<PokerSeat> { MakeSeat(1, 500), MakeSeat(2, 500), MakeSeat(3, 500) };
         PokerDomain.StartHand(table, seats);
 
@@ -153,7 +151,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Check_DoesNotMutateStackOrPot()
     {
-        var table = MakeTable(currentBet: 0, pot: 30);
+        var table = MakeTable(pot: 30, currentBet: 0);
         var seat = MakeSeat(1, stack: 200, currentBet: 0);
         PokerDomain.Apply(table, seat, PokerAction.Check());
         Assert.Equal(200, seat.Stack);
@@ -172,7 +170,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Call_ReducesStackByToCall()
     {
-        var table = MakeTable(currentBet: 20, pot: 20);
+        var table = MakeTable(pot: 20, currentBet: 20);
         var seat = MakeSeat(1, stack: 200, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Call));
         Assert.Equal(180, seat.Stack);
@@ -190,7 +188,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Call_AddsToPot()
     {
-        var table = MakeTable(currentBet: 20, pot: 20);
+        var table = MakeTable(pot: 20, currentBet: 20);
         var seat = MakeSeat(1, stack: 200, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Call));
         Assert.Equal(40, table.Pot);
@@ -199,7 +197,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Call_TracksTotalCommitted()
     {
-        var table = MakeTable(currentBet: 20, pot: 20);
+        var table = MakeTable(pot: 20, currentBet: 20);
         var seat = MakeSeat(1, stack: 200, currentBet: 0, totalCommitted: 10);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Call));
         Assert.Equal(30, seat.TotalCommitted);
@@ -208,7 +206,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Call_ShortStack_GoesAllIn()
     {
-        var table = MakeTable(currentBet: 100, pot: 100);
+        var table = MakeTable(pot: 100, currentBet: 100);
         var seat = MakeSeat(1, stack: 40, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Call));
         Assert.Equal(0, seat.Stack);
@@ -218,7 +216,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_AllIn_ZeroesStack()
     {
-        var table = MakeTable(currentBet: 0, pot: 0);
+        var table = MakeTable(pot: 0, currentBet: 0);
         var seat = MakeSeat(1, stack: 200, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.AllIn));
         Assert.Equal(0, seat.Stack);
@@ -236,7 +234,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_AllIn_UpdatesTableCurrentBetWhenHigher()
     {
-        var table = MakeTable(currentBet: 50, pot: 50);
+        var table = MakeTable(pot: 50, currentBet: 50);
         var seat = MakeSeat(1, stack: 200, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.AllIn));
         Assert.Equal(200, table.CurrentBet);
@@ -245,7 +243,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Raise_ReducesStackByPut()
     {
-        var table = MakeTable(currentBet: 10, pot: 10, minRaise: 10);
+        var table = MakeTable(pot: 10, currentBet: 10, minRaise: 10);
         var seat = MakeSeat(1, stack: 500, currentBet: 0);
         // Raise to 30: put = 30 - 0 = 30
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Raise, 30));
@@ -255,7 +253,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Raise_UpdatesSeatCurrentBet()
     {
-        var table = MakeTable(currentBet: 10, pot: 10);
+        var table = MakeTable(pot: 10, currentBet: 10);
         var seat = MakeSeat(1, stack: 500, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Raise, 30));
         Assert.Equal(30, seat.CurrentBet);
@@ -264,7 +262,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Raise_UpdatesTableCurrentBet()
     {
-        var table = MakeTable(currentBet: 10, pot: 10);
+        var table = MakeTable(pot: 10, currentBet: 10);
         var seat = MakeSeat(1, stack: 500, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Raise, 30));
         Assert.Equal(30, table.CurrentBet);
@@ -273,7 +271,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Raise_AddsToPot()
     {
-        var table = MakeTable(currentBet: 10, pot: 10);
+        var table = MakeTable(pot: 10, currentBet: 10);
         var seat = MakeSeat(1, stack: 500, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Raise, 30));
         Assert.Equal(40, table.Pot); // initial 10 + raise put of 30
@@ -282,7 +280,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void Apply_Raise_ToExactStack_SetsAllIn()
     {
-        var table = MakeTable(currentBet: 10, pot: 10);
+        var table = MakeTable(pot: 10, currentBet: 10);
         var seat = MakeSeat(1, stack: 30, currentBet: 0);
         PokerDomain.Apply(table, seat, new PokerAction(PokerActionKind.Raise, 30));
         Assert.Equal(PokerSeatStatus.AllIn, seat.Status);
@@ -308,7 +306,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void ResolveAfterAction_PhaseAdvanced_WhenBettingRoundComplete()
     {
-        var table = MakeTable(currentBet: 10, phase: PokerPhase.PreFlop, pot: 20);
+        var table = MakeTable(pot: 20, currentBet: 10, phase: PokerPhase.PreFlop);
         var s1 = MakeSeat(1, currentBet: 10, hasActed: true);
         var s2 = MakeSeat(2, currentBet: 10, hasActed: true);
         var seats = new List<PokerSeat> { s1, s2 };
@@ -323,7 +321,7 @@ public class PokerDomainApplyTests
     [Fact]
     public void ResolveAfterAction_PhaseAdvanced_FlopToTurn()
     {
-        var table = MakeTable(currentBet: 0, phase: PokerPhase.Flop, pot: 20,
+        var table = MakeTable(pot: 20, currentBet: 0, phase: PokerPhase.Flop,
             deck: "2S 3S 4S 5S 6S 7S 8S 9S TS JS");
         table.CommunityCards = "KH QH JH";
         var s1 = MakeSeat(1, currentBet: 0, hasActed: true);
@@ -388,7 +386,7 @@ public class PokerDomainApplyTests
     public void ResolveAfterAction_HandEndedShowdown_WhenRiverBettingDone()
     {
         // River complete → showdown settle
-        var table = MakeTable(pot: 100, phase: PokerPhase.River, currentBet: 0);
+        var table = MakeTable(pot: 100, currentBet: 0, phase: PokerPhase.River);
         table.CommunityCards = "KH KD KC 2C 3C";
         var s1 = MakeSeat(1, stack: 200, currentBet: 0, hasActed: true, holeCards: "AS AD");
         var s2 = MakeSeat(2, stack: 200, currentBet: 0, hasActed: true, holeCards: "7H 8H");
@@ -405,12 +403,12 @@ public class PokerDomainApplyTests
     public void ResolveAfterAction_HandEndedShowdown_BestHandWinsPot()
     {
         // s1 has KKKAA (full house) vs s2 has KKKJ8 (trips) — s1 should win
-        var table = MakeTable(pot: 100, phase: PokerPhase.River, currentBet: 0);
+        var table = MakeTable(pot: 100, currentBet: 0, phase: PokerPhase.River);
         table.CommunityCards = "KH KD KC 2C 3C";
-        var s1 = MakeSeat(1, stack: 0, currentBet: 0, hasActed: true,
-            status: PokerSeatStatus.Seated, holeCards: "AS AD");
-        var s2 = MakeSeat(2, stack: 0, currentBet: 0, hasActed: true,
-            status: PokerSeatStatus.Seated, holeCards: "JH 8H");
+        var s1 = MakeSeat(1, stack: 0, currentBet: 0, status: PokerSeatStatus.Seated,
+hasActed: true, holeCards: "AS AD");
+        var s2 = MakeSeat(2, stack: 0, currentBet: 0, status: PokerSeatStatus.Seated,
+hasActed: true, holeCards: "JH 8H");
         var seats = new List<PokerSeat> { s1, s2 };
 
         PokerDomain.ResolveAfterAction(table, seats);
@@ -422,14 +420,14 @@ public class PokerDomainApplyTests
     [Fact]
     public void ResolveAfterAction_HandEndedShowdown_SettlesSidePots()
     {
-        var table = MakeTable(pot: 300, phase: PokerPhase.River, currentBet: 0);
+        var table = MakeTable(pot: 300, currentBet: 0, phase: PokerPhase.River);
         table.CommunityCards = "2C 7D 9H JS QC";
-        var shortWinner = MakeSeat(1, stack: 0, currentBet: 0, hasActed: true,
-            status: PokerSeatStatus.AllIn, holeCards: "AS AD", totalCommitted: 50);
-        var bigStackWinner = MakeSeat(2, stack: 0, currentBet: 0, hasActed: true,
-            status: PokerSeatStatus.Seated, holeCards: "KH KD", totalCommitted: 125);
-        var caller = MakeSeat(3, stack: 0, currentBet: 0, hasActed: true,
-            status: PokerSeatStatus.Seated, holeCards: "3S 4D", totalCommitted: 125);
+        var shortWinner = MakeSeat(1, stack: 0, currentBet: 0, status: PokerSeatStatus.AllIn,
+hasActed: true, holeCards: "AS AD", totalCommitted: 50);
+        var bigStackWinner = MakeSeat(2, stack: 0, currentBet: 0, status: PokerSeatStatus.Seated,
+hasActed: true, holeCards: "KH KD", totalCommitted: 125);
+        var caller = MakeSeat(3, stack: 0, currentBet: 0, status: PokerSeatStatus.Seated,
+hasActed: true, holeCards: "3S 4D", totalCommitted: 125);
         var seats = new List<PokerSeat> { shortWinner, bigStackWinner, caller };
 
         PokerDomain.ResolveAfterAction(table, seats);
@@ -443,7 +441,7 @@ public class PokerDomainApplyTests
     public void ResolveAfterAction_RaiseResetsHasActed_ForSeatedPlayersBelow()
     {
         // s2 had acted, but s1 raises above s2's current bet — s2 must act again
-        var table = MakeTable(currentBet: 30, phase: PokerPhase.PreFlop, pot: 40);
+        var table = MakeTable(pot: 40, currentBet: 30, phase: PokerPhase.PreFlop);
         table.CurrentSeat = 1;
         var s1 = MakeSeat(1, stack: 470, currentBet: 30, hasActed: true);
         var s2 = MakeSeat(2, stack: 480, currentBet: 10, hasActed: true); // below currentBet

@@ -21,7 +21,8 @@ public static class HandEvaluator
         var hasBest = false;
         var n = cards.Length;
         for (var a = 0; a < n - 4; a++)
-        for (var b = a + 1; b < n - 3; b++)
+        {
+            for (var b = a + 1; b < n - 3; b++)
         for (var c = b + 1; c < n - 2; c++)
         for (var d = c + 1; d < n - 1; d++)
         for (var e = d + 1; e < n; e++)
@@ -32,14 +33,16 @@ public static class HandEvaluator
             best = rank;
             hasBest = true;
         }
+        }
+
         return best;
     }
 
     private static HandRank EvaluateFive(string[] five)
     {
-        var ranks = five.Select(RankOf).OrderByDescending(r => r).ToArray();
+        var ranks = five.Select(RankOf).OrderDescending().ToArray();
         var suits = five.Select(SuitOf).ToArray();
-        var isFlush = suits.Distinct().Count() == 1;
+        var isFlush = suits.Distinct().Take(2).Count() == 1;
 
         var groups = ranks
             .GroupBy(r => r)
@@ -96,7 +99,7 @@ public static class HandEvaluator
 
     private static int StraightHigh(int[] sortedDesc)
     {
-        var unique = sortedDesc.Distinct().OrderByDescending(r => r).ToArray();
+        var unique = sortedDesc.Distinct().OrderDescending().ToArray();
         if (unique.Length < 5) return 0;
 
         for (var i = 0; i <= unique.Length - 5; i++)
@@ -107,7 +110,9 @@ public static class HandEvaluator
 
         if (unique.Contains(14) && unique.Contains(2) && unique.Contains(3)
             && unique.Contains(4) && unique.Contains(5))
+        {
             return 5;
+        }
 
         return 0;
     }

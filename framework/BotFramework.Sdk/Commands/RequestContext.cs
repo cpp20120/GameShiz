@@ -13,9 +13,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Commands;
+/// <summary>
 /// Request-scoped identity + tracing metadata. Propagated through the bus so
 /// every middleware sees the same view. Built once per incoming Telegram
 /// update (or admin HTTP request) by the Host before any command dispatches.
+/// </summary>
 public sealed record RequestContext(
     long UserId,
     string CultureCode,

@@ -12,10 +12,9 @@
 // emits replies to the user's command.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
 using System.Net;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -44,7 +43,7 @@ public sealed partial class PickDailyLotteryHandler(
         var reply = new ReplyParameters { MessageId = msg.MessageId };
         var displayName = msg.From?.Username is { Length: > 0 } un
             ? $"@{un}"
-            : msg.From?.FirstName ?? $"User ID: {userId}";
+            : msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var args = StripCommandPrefix(text);
 
@@ -70,20 +69,20 @@ public sealed partial class PickDailyLotteryHandler(
                 case "buy":
                 {
                     var count = 1;
-                    if (parts.Length > 1 && int.TryParse(parts[1], out var n)) count = n;
+                    if (parts.Length > 1 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var n)) count = n;
                     await HandleBuyAsync(ctx, userId, displayName, chatId, count, reply);
                     return;
                 }
                 case "history":
                 {
                     var lim = Math.Max(1, Opts.HistoryLimit);
-                    if (parts.Length > 1 && int.TryParse(parts[1], out var n)) lim = n;
+                    if (parts.Length > 1 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var n)) lim = n;
                     await HandleHistoryAsync(ctx, chatId, lim, reply);
                     return;
                 }
                 default:
                 {
-                    if (int.TryParse(head, out var n) && n > 0)
+                    if (int.TryParse(head, System.Globalization.CultureInfo.InvariantCulture, out var n) && n > 0)
                     {
                         await HandleBuyAsync(ctx, userId, displayName, chatId, n, reply);
                         return;
@@ -109,7 +108,7 @@ public sealed partial class PickDailyLotteryHandler(
         if (snap is null)
         {
             await ctx.Bot.SendMessage(chatId,
-                string.Format(Loc("daily.info.empty"), Math.Max(1, Opts.TicketPrice)),
+                string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.info.empty"), Math.Max(1, Opts.TicketPrice)),
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
@@ -118,21 +117,19 @@ public sealed partial class PickDailyLotteryHandler(
         var hoursLeft = minutesLeft / 60;
         var minsTail = minutesLeft % 60;
         var timeLeftText = hoursLeft > 0
-            ? string.Format(Loc("daily.time.h_m"), hoursLeft, minsTail)
-            : string.Format(Loc("daily.time.m"), minsTail);
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.time.h_m"), hoursLeft, minsTail) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.time.m"), minsTail);
 
         var winChancePct = snap.TicketsTotal > 0
-            ? Math.Round(100.0 * snap.ViewerTickets / snap.TicketsTotal, 1)
-            : 0.0;
+            ? Math.Round(100.0 * snap.ViewerTickets / snap.TicketsTotal, 1, MidpointRounding.ToEven) : 0.0;
 
         var sb = new StringBuilder();
-        sb.AppendFormat(Loc("daily.info.header"),
-            snap.Row.TicketPrice, snap.Row.DayLocal.ToString("yyyy-MM-dd"));
+        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.info.header"),
+            snap.Row.TicketPrice, snap.Row.DayLocal.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
         sb.Append('\n');
-        sb.AppendFormat(Loc("daily.info.stats"),
+        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.info.stats"),
             snap.TicketsTotal, snap.DistinctUsers, snap.PotTotal, timeLeftText);
         sb.Append('\n');
-        sb.AppendFormat(Loc("daily.info.your_tickets"),
+        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.info.your_tickets"),
             snap.ViewerTickets, winChancePct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
         sb.Append('\n');
 
@@ -143,14 +140,14 @@ public sealed partial class PickDailyLotteryHandler(
             for (var i = 0; i < snap.TopHolders.Count; i++)
             {
                 var t = snap.TopHolders[i];
-                sb.AppendFormat(Loc("daily.info.top_row"),
+                sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.info.top_row"),
                     i + 1, WebUtility.HtmlEncode(t.DisplayName), t.TicketCount);
                 sb.Append('\n');
             }
         }
 
         sb.Append('\n');
-        sb.AppendFormat(Loc("daily.info.buy_hint"), snap.Row.TicketPrice);
+        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.info.buy_hint"), snap.Row.TicketPrice);
 
         await ctx.Bot.SendMessage(chatId, sb.ToString().TrimEnd(),
             parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
@@ -171,13 +168,13 @@ public sealed partial class PickDailyLotteryHandler(
 
             case DailyBuyStatus.OverPerCommandCap:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("daily.err.over_command_cap"), Math.Max(1, Opts.MaxTicketsPerBuyCommand)),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.err.over_command_cap"), Math.Max(1, Opts.MaxTicketsPerBuyCommand)),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
 
             case DailyBuyStatus.OverDailyCap:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("daily.err.over_daily_cap"), Opts.MaxTicketsPerUserPerDay, result.TotalUserTickets),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.err.over_daily_cap"), Opts.MaxTicketsPerUserPerDay, result.TotalUserTickets),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
 
@@ -185,7 +182,7 @@ public sealed partial class PickDailyLotteryHandler(
             {
                 var price = result.Row?.TicketPrice ?? Opts.TicketPrice;
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("daily.err.no_coins"), count, price, count * price, result.Balance),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.err.no_coins"), count, price, count * price, result.Balance),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             }
@@ -199,7 +196,7 @@ public sealed partial class PickDailyLotteryHandler(
             {
                 var row = result.Row!;
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("daily.bought"),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.bought"),
                         WebUtility.HtmlEncode(displayName),
                         result.TicketsBought, result.TotalUserTickets,
                         result.TicketsBought * row.TicketPrice,
@@ -231,13 +228,14 @@ public sealed partial class PickDailyLotteryHandler(
         sb.AppendLine(Loc("daily.history.header"));
         foreach (var row in history)
         {
-            var day = row.DayLocal.ToString("yyyy-MM-dd");
-            if (row.Status == "settled" && row.WinnerId is not null)
+            var day = row.DayLocal.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            if (string.Equals(row.Status, "settled", StringComparison.Ordinal) && row.WinnerId is not null)
             {
                 var winnerLabel = string.IsNullOrEmpty(row.WinnerName)
-                    ? $"User ID: {row.WinnerId}"
+                    ? string.Create(CultureInfo.InvariantCulture, $"User ID: {row.WinnerId}"
+)
                     : WebUtility.HtmlEncode(row.WinnerName);
-                sb.AppendFormat(Loc("daily.history.row_settled"),
+                sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.history.row_settled"),
                     day, winnerLabel,
                     row.PotTotal ?? 0, row.Payout ?? 0,
                     row.TicketCount ?? 0);
@@ -258,14 +256,12 @@ public sealed partial class PickDailyLotteryHandler(
 
     private async Task SendUsageAsync(UpdateContext ctx, long chatId, ReplyParameters reply)
     {
-        var feePct = (int)Math.Round(Opts.HouseFeePercent * 100);
+        var feePct = (int)Math.Round(Opts.HouseFeePercent * 100, MidpointRounding.ToEven);
         var capText = Opts.MaxTicketsPerUserPerDay > 0
-            ? Opts.MaxTicketsPerUserPerDay.ToString()
-            : "∞";
+            ? Opts.MaxTicketsPerUserPerDay.ToString(System.Globalization.CultureInfo.InvariantCulture) : "∞";
         var drawTime = FormatDrawTime();
         await ctx.Bot.SendMessage(chatId,
-            string.Format(
-                Loc("daily.usage"),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.usage"),
                 Math.Max(1, Opts.TicketPrice),
                 Math.Max(1, Opts.MaxTicketsPerBuyCommand),
                 capText,
@@ -282,11 +278,11 @@ public sealed partial class PickDailyLotteryHandler(
         return $"{service.DrawHourLocal:00}:00 (UTC{sign}{hoursOffset})";
     }
 
-    private static string StripCommandPrefix(string text)
+    private string StripCommandPrefix(string text)
     {
         var trimmed = text.TrimStart();
         if (trimmed.Length == 0 || trimmed[0] != '/') return string.Empty;
-        var firstSpace = trimmed.IndexOf(' ');
+        var firstSpace = trimmed.IndexOf(' ', StringComparison.Ordinal);
         return firstSpace < 0 ? string.Empty : trimmed[(firstSpace + 1)..].Trim();
     }
 

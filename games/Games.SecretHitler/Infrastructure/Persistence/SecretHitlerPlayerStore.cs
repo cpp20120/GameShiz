@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.SecretHitler.Infrastructure.Persistence;
@@ -49,7 +48,7 @@ public sealed class SecretHitlerPlayerStore(INpgsqlConnectionFactory connections
             cancellationToken: ct));
     }
 
-    public async Task InsertAsync(SecretHitlerPlayer p, CancellationToken ct)
+    public async Task InsertAsync(SecretHitlerPlayer player, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("""
@@ -60,11 +59,11 @@ public sealed class SecretHitlerPlayerStore(INpgsqlConnectionFactory connections
                 (@InviteCode, @Position, @UserId, @DisplayName, @ChatId, @Role,
                  @IsAlive, @LastVote, @StateMessageId, @JoinedAt)
             """,
-            PlayerRow.From(p),
+            PlayerRow.From(player),
             cancellationToken: ct));
     }
 
-    public async Task UpdateAsync(SecretHitlerPlayer p, CancellationToken ct)
+    public async Task UpdateAsync(SecretHitlerPlayer player, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("""
@@ -78,7 +77,7 @@ public sealed class SecretHitlerPlayerStore(INpgsqlConnectionFactory connections
                 state_message_id = @StateMessageId
             WHERE invite_code = @InviteCode AND position = @Position
             """,
-            PlayerRow.From(p),
+            PlayerRow.From(player),
             cancellationToken: ct));
     }
 

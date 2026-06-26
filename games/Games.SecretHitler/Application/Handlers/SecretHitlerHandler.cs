@@ -1,6 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.SecretHitler.Domain;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -48,7 +46,7 @@ public sealed partial class SecretHitlerHandler(
         var userId = msg.From!.Id;
         var chatId = msg.Chat.Id;
         var playerChatId = msg.Chat.Type == ChatType.Private ? chatId : userId;
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
         var reply = new ReplyParameters { MessageId = msg.MessageId };
 
         switch (command)
@@ -80,7 +78,8 @@ public sealed partial class SecretHitlerHandler(
 
     private async Task DispatchCallbackAsync(UpdateContext ctx, CallbackQuery cbq)
     {
-        try { await ctx.Bot.AnswerCallbackQuery(cbq.Id, cancellationToken: ctx.Ct); } catch { }
+        try { await ctx.Bot.AnswerCallbackQuery(cbq.Id, cancellationToken: ctx.Ct); }
+        catch (ApiRequestException ex) { LogShCallbackAnswerFailed(cbq.Id, ex); }
 
         var command = SecretHitlerCommandParser.ParseCallback(cbq.Data);
         if (command == null) return;
@@ -88,7 +87,7 @@ public sealed partial class SecretHitlerHandler(
         var userId = cbq.From.Id;
         var chatId = cbq.Message?.Chat.Id ?? userId;
         var playerChatId = cbq.Message?.Chat.Type == ChatType.Private ? chatId : userId;
-        var displayName = cbq.From.Username ?? cbq.From.FirstName ?? $"User ID: {userId}";
+        var displayName = cbq.From.Username ?? cbq.From.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         switch (command)
         {
@@ -118,7 +117,7 @@ public sealed partial class SecretHitlerHandler(
     {
         var r = await service.CreateGameAsync(userId, displayName, publicChatId, playerChatId, ctx.Ct);
         if (r.Error != ShError.None) { await SendError(ctx, publicChatId, r.Error); return; }
-        await ctx.Bot.SendMessage(publicChatId, string.Format(Loc("created"), r.InviteCode, r.BuyIn),
+        await ctx.Bot.SendMessage(publicChatId, string.Format(CultureInfo.InvariantCulture, Loc("created"), r.InviteCode, r.BuyIn),
             parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
         var (snap, _) = await service.FindMyGameAsync(userId, ctx.Ct);
         if (snap != null) await BroadcastLobbyAsync(ctx, snap);
@@ -129,7 +128,7 @@ public sealed partial class SecretHitlerHandler(
     {
         var r = await service.JoinGameAsync(userId, displayName, playerChatId, code, ctx.Ct);
         if (r.Error != ShError.None) { await SendError(ctx, chatId, r.Error); return; }
-        await ctx.Bot.SendMessage(chatId, string.Format(Loc("joined"), code.ToUpperInvariant(), r.Joined, r.Max),
+        await ctx.Bot.SendMessage(chatId, string.Format(CultureInfo.InvariantCulture, Loc("joined"), code.ToUpperInvariant(), r.Joined, r.Max),
             parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
         if (r.Snapshot != null) await BroadcastLobbyAsync(ctx, r.Snapshot);
     }
@@ -230,18 +229,18 @@ public sealed partial class SecretHitlerHandler(
             {
                 var chancellor = snap.Players.First(p => p.Position == snap.Game.LastElectedChancellorPosition);
                 msg = $"{SecretHitlerStateRenderer.RenderVoteReveal(snap.Players, localizer)}\n\n" +
-                      string.Format(Loc("vote.election_passed"), after.JaVotes, after.NeinVotes, chancellor.DisplayName);
+                      string.Format(CultureInfo.InvariantCulture, Loc("vote.election_passed"), after.JaVotes, after.NeinVotes, chancellor.DisplayName);
                 break;
             }
             case ShAfterVoteKind.ElectionFailed:
                 msg = $"{SecretHitlerStateRenderer.RenderVoteReveal(snap.Players, localizer)}\n\n" +
-                      string.Format(Loc("vote.election_failed"), after.JaVotes, after.NeinVotes, snap.Game.ElectionTracker);
+                      string.Format(CultureInfo.InvariantCulture, Loc("vote.election_failed"), after.JaVotes, after.NeinVotes, snap.Game.ElectionTracker);
                 break;
             case ShAfterVoteKind.HitlerElectedWin:
             {
                 var hitler = snap.Players.First(p => p.Role == ShRole.Hitler);
                 msg = $"{SecretHitlerStateRenderer.RenderVoteReveal(snap.Players, localizer)}\n\n" +
-                      string.Format(Loc("vote.hitler_elected_win"), hitler.DisplayName);
+                      string.Format(CultureInfo.InvariantCulture, Loc("vote.hitler_elected_win"), hitler.DisplayName);
                 break;
             }
         }
@@ -278,8 +277,8 @@ public sealed partial class SecretHitlerHandler(
                     parseMode: ParseMode.Html, replyMarkup: markup, cancellationToken: ctx.Ct);
                 return;
             }
-            catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified")) { return; }
-            catch { }
+            catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified", StringComparison.Ordinal)) { return; }
+            catch (ApiRequestException ex) { LogShPublicBoardEditFailed(snap.Game.InviteCode, ex); }
         }
 
         try
@@ -307,8 +306,8 @@ public sealed partial class SecretHitlerHandler(
                     parseMode: ParseMode.Html, replyMarkup: markup, cancellationToken: ctx.Ct);
                 return;
             }
-            catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified")) { return; }
-            catch { }
+            catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified", StringComparison.Ordinal)) { return; }
+            catch (ApiRequestException ex) { LogShBoardEditFailed(viewer.UserId, ex); }
         }
 
         try
@@ -339,7 +338,7 @@ public sealed partial class SecretHitlerHandler(
     {
         var text = error switch
         {
-            ShError.NotEnoughCoins => string.Format(Loc("err.not_enough_coins"), _opts.BuyIn),
+            ShError.NotEnoughCoins => string.Format(CultureInfo.InvariantCulture, Loc("err.not_enough_coins"), _opts.BuyIn),
             ShError.AlreadyInGame => Loc("err.already_in_game"),
             ShError.GameNotFound => Loc("err.game_not_found"),
             ShError.GameFull => Loc("err.game_full"),
@@ -369,4 +368,13 @@ public sealed partial class SecretHitlerHandler(
 
     [LoggerMessage(EventId = 2603, Level = LogLevel.Debug, Message = "sh.public_board.send_failed code={Code}")]
     partial void LogShPublicBoardSendFailed(string code, Exception exception);
+
+    [LoggerMessage(EventId = 2604, Level = LogLevel.Debug, Message = "sh.callback.answer_failed id={CallbackQueryId}")]
+    partial void LogShCallbackAnswerFailed(string callbackQueryId, Exception exception);
+
+    [LoggerMessage(EventId = 2605, Level = LogLevel.Debug, Message = "sh.board.edit_failed user={U}")]
+    partial void LogShBoardEditFailed(long u, Exception exception);
+
+    [LoggerMessage(EventId = 2606, Level = LogLevel.Debug, Message = "sh.public_board.edit_failed code={Code}")]
+    partial void LogShPublicBoardEditFailed(string code, Exception exception);
 }

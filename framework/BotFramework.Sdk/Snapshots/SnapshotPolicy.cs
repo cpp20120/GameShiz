@@ -27,9 +27,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Snapshots;
+/// <summary>
 /// Per-module cadence policy. A cash-poker table with thousands of events per
 /// hour wants Every = 200; a Secret Hitler room with dozens of events per
 /// game wants snapshotting disabled (SnapshotEvery = 0 → always full replay).
+/// </summary>
 public sealed record SnapshotPolicy(int Every)
 {
     public static SnapshotPolicy Disabled { get; } = new(0);

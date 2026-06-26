@@ -8,17 +8,23 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Events.Store;
+/// <summary>
 /// Event-store contract. Typical implementation: a Postgres table
 ///   (stream_id TEXT, version BIGINT, event_type TEXT, payload JSONB,
 ///    occurred_at BIGINT, PRIMARY KEY (stream_id, version))
 /// with an exclusive row-level lock on the last version at append time.
+/// </summary>
 public interface IEventStore
 {
+    /// <summary>
     /// Returns all events in the stream, ordered by version ascending.
+    /// </summary>
     Task<IReadOnlyList<StoredEvent>> LoadAsync(string streamId, CancellationToken ct);
 
+    /// <summary>
     /// Appends events. Throws ConcurrencyException if the stream's current
     /// version doesn't match expectedVersion.
+    /// </summary>
     Task AppendAsync(
         string streamId,
         long expectedVersion,

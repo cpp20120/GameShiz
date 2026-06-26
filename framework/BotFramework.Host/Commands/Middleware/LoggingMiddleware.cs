@@ -1,24 +1,7 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// LoggingMiddleware — one log line per command, with timing + outcome.
-//
-// Placed OUTERMOST in the pipeline so it observes everything: auth rejections,
-// rate-limit rejections, validation failures, unhandled exceptions. Structure
-// the line so operators can pivot by module_id + command_type + outcome in
-// Grafana without grep.
-//
-// Trade-off: every command produces a log line whether it succeeded or not.
-// For noisy commands (e.g. /roll under load) this becomes chatty. Operators
-// turn the verbosity down per module-id through standard ILogger filters;
-// the framework doesn't add its own level config on top.
-// ─────────────────────────────────────────────────────────────────────────────
-
 using System.Diagnostics;
-using BotFramework.Sdk;
-using Microsoft.Extensions.Logging;
-
 namespace BotFramework.Host.Commands.Middleware;
 
-public sealed class LoggingMiddleware(ILogger<LoggingMiddleware> log) : ICommandMiddleware
+public sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> log) : ICommandMiddleware
 {
     public async Task InvokeAsync(CommandContext ctx, Func<Task> next)
     {
@@ -28,16 +11,24 @@ public sealed class LoggingMiddleware(ILogger<LoggingMiddleware> log) : ICommand
         try
         {
             await next();
-            log.LogInformation(
-                "cmd module={ModuleId} type={CommandType} user={UserId} trace={TraceId} ms={Ms} outcome=ok",
+            LogCommandSucceeded(log,
                 ctx.Command.ModuleId, commandType, ctx.Request.UserId, ctx.Request.TraceId, sw.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            log.LogError(ex,
-                "cmd module={ModuleId} type={CommandType} user={UserId} trace={TraceId} ms={Ms} outcome=error",
+            LogCommandFailed(log, ex,
                 ctx.Command.ModuleId, commandType, ctx.Request.UserId, ctx.Request.TraceId, sw.ElapsedMilliseconds);
             throw;
         }
     }
+
+    [LoggerMessage(EventId = 1100, Level = LogLevel.Information,
+        Message = "cmd module={ModuleId} type={CommandType} user={UserId} trace={TraceId} ms={Ms} outcome=ok")]
+    private static partial void LogCommandSucceeded(
+        ILogger logger, string moduleId, string commandType, long userId, string traceId, long ms);
+
+    [LoggerMessage(EventId = 1101, Level = LogLevel.Error,
+        Message = "cmd module={ModuleId} type={CommandType} user={UserId} trace={TraceId} ms={Ms} outcome=error")]
+    private static partial void LogCommandFailed(
+        ILogger logger, Exception exception, string moduleId, string commandType, long userId, string traceId, long ms);
 }

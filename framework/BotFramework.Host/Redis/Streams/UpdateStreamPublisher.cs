@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -14,7 +15,7 @@ public sealed class UpdateStreamPublisher(IConnectionMultiplexer redis, IOptions
     {
         var chatId = ExtractChatId(update);
         var partition = (int)(Math.Abs(chatId) % _opts.PartitionCount);
-        var key = $"{_opts.StreamKeyPrefix}:{partition}";
+        var key = string.Create(CultureInfo.InvariantCulture, $"{_opts.StreamKeyPrefix}:{partition}");
         var json = JsonSerializer.Serialize(update, JsonOpts);
         await redis.GetDatabase().StreamAddAsync(key, [new NameValueEntry("u", json)]);
     }

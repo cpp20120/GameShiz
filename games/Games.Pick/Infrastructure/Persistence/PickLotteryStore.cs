@@ -9,7 +9,6 @@
 //     the DB level, no application-side locking required.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Pick.Infrastructure.Persistence;
@@ -58,7 +57,7 @@ public sealed class PickLotteryStore(INpgsqlConnectionFactory connections) : IPi
             await tx.CommitAsync(ct);
             return (LotteryOpenError.None, row);
         }
-        catch (Npgsql.PostgresException pe) when (pe.SqlState == "23505")
+        catch (Npgsql.PostgresException pe) when (string.Equals(pe.SqlState, "23505", StringComparison.Ordinal))
         {
             // ux_pick_lottery_open_per_chat — concurrent /picklottery in same chat.
             await tx.RollbackAsync(ct);

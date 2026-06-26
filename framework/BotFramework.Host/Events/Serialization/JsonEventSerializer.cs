@@ -1,31 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// JsonEventSerializer — System.Text.Json-backed IEventSerializer.
-//
-// Serialization side is easy: hand the object to JsonSerializer, done.
-//
-// Deserialization needs a type table mapping event_type strings ("poker.card_dealt")
-// back to the concrete CLR Type. We build that table once at construction by
-// walking every registered module's assembly, finding every IDomainEvent
-// implementation, and asking a cheap "uninitialized" instance for its EventType.
-//
-// Constraint on module-authored IDomainEvent implementations: EventType must
-// be a property that returns a constant without touching constructor-injected
-// fields. In practice this means
-//
-//     public sealed record PlayerJoined(...) : IDomainEvent {
-//         public string EventType => "poker.player_joined";   // ok
-//         public long OccurredAt { get; init; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-//     }
-//
-// A type whose EventType getter depends on ctor params (uncommon) will return
-// an empty string through an uninitialized instance and is skipped — the
-// serializer logs a warning at startup so the mistake surfaces immediately.
-// ─────────────────────────────────────────────────────────────────────────────
-
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Events.Serialization;
 
@@ -83,13 +57,13 @@ public sealed partial class JsonEventSerializer : IEventSerializer
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "event.type.probe_failed type={Type}", type.FullName);
+                    LogEventTypeProbeFailed(logger, ex, type.FullName);
                     continue;
                 }
 
                 if (string.IsNullOrEmpty(eventTypeName))
                 {
-                    logger.LogWarning("event.type.empty type={Type}", type.FullName);
+                    LogEmptyEventType(logger, type.FullName);
                     continue;
                 }
 
@@ -112,4 +86,10 @@ public sealed partial class JsonEventSerializer : IEventSerializer
 
     [LoggerMessage(EventId = 1601, Level = LogLevel.Warning, Message = "event.deserialize.unknown event_type={EventType}")]
     partial void LogUnknownEventType(string eventType);
+
+    [LoggerMessage(EventId = 1602, Level = LogLevel.Warning, Message = "event.type.probe_failed type={Type}")]
+    private static partial void LogEventTypeProbeFailed(ILogger logger, Exception exception, string? type);
+
+    [LoggerMessage(EventId = 1603, Level = LogLevel.Warning, Message = "event.type.empty type={Type}")]
+    private static partial void LogEmptyEventType(ILogger logger, string? type);
 }

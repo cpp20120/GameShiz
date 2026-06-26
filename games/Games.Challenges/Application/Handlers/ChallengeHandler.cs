@@ -1,8 +1,5 @@
+using System.Globalization;
 using System.Net;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Blackjack.Domain;
-using Games.Horse.Infrastructure.Rendering;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -54,7 +51,7 @@ public sealed class ChallengeHandler(
             target = await service.FindKnownUserByUsernameAsync(chatId, username!, ctx.Ct);
             if (target is null)
             {
-                await ctx.Bot.SendMessage(chatId, string.Format(Loc("target.not_found"), Html(username!)),
+                await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("target.not_found"), Html(username!)),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             }
@@ -79,16 +76,15 @@ public sealed class ChallengeHandler(
         var challenge = result.Challenge!;
         await ctx.Bot.SendMessage(
             chatId,
-            string.Format(
-                Loc("created"),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("created"),
                 Mention(challenge.ChallengerId, challenge.ChallengerName),
                 Mention(challenge.TargetId, challenge.TargetName),
                 challenge.Amount,
                 ChallengeGameCatalog.DisplayName(challenge.Game),
                 ChallengeGameCatalog.Emoji(challenge.Game)),
             parseMode: ParseMode.Html,
-            replyMarkup: BuildMarkup(challenge.Id),
             replyParameters: reply,
+            replyMarkup: BuildMarkup(challenge.Id),
             cancellationToken: ctx.Ct);
     }
 
@@ -101,20 +97,23 @@ public sealed class ChallengeHandler(
             return;
         }
 
-        if (action == "d")
+        if (string.Equals(action, "d", StringComparison.Ordinal))
         {
             var decline = await service.DeclineAsync(challengeId, cbq.From.Id, ctx.Ct);
             await AnswerCallbackAsync(ctx, cbq, CallbackErrorText(decline), decline != ChallengeAcceptError.None);
             if (decline == ChallengeAcceptError.None && cbq.Message is not null)
+            {
                 await ctx.Bot.EditMessageText(cbq.Message.Chat.Id, cbq.Message.MessageId, Loc("declined"),
                     cancellationToken: ctx.Ct);
+            }
+
             return;
         }
 
         var begun = await service.BeginAcceptAsync(challengeId, cbq.From.Id, ctx.Ct);
         if (begun.Error != ChallengeAcceptError.None)
         {
-            await AnswerCallbackAsync(ctx, cbq, CallbackErrorText(begun.Error), true);
+            await AnswerCallbackAsync(ctx, cbq, CallbackErrorText(begun.Error), alert: true);
             return;
         }
 
@@ -125,8 +124,7 @@ public sealed class ChallengeHandler(
             await ctx.Bot.EditMessageText(
                 cbq.Message.Chat.Id,
                 cbq.Message.MessageId,
-                string.Format(
-                    Loc("accepted"),
+                string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("accepted"),
                     Mention(challenge.ChallengerId, challenge.ChallengerName),
                     Mention(challenge.TargetId, challenge.TargetName),
                     ChallengeGameCatalog.Emoji(challenge.Game)),
@@ -199,8 +197,7 @@ public sealed class ChallengeHandler(
             await ctx.Bot.SendAnimation(
                 challenge.ChatId,
                 InputFile.FromStream(stream, "challenge-horse.gif"),
-                caption: string.Format(
-                    Loc("horse.caption"),
+                caption: string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("horse.caption"),
                     Mention(challenge.ChallengerId, challenge.ChallengerName),
                     Mention(challenge.TargetId, challenge.TargetName)),
                 parseMode: ParseMode.Html,
@@ -239,7 +236,7 @@ public sealed class ChallengeHandler(
         }
     }
 
-    private static bool TryParseCommand(
+    private bool TryParseCommand(
         Message msg,
         string[] args,
         out ChallengeUser? target,
@@ -265,8 +262,7 @@ public sealed class ChallengeHandler(
 
         return (target is not null || !string.IsNullOrWhiteSpace(username))
             && args.Length >= offset + 2
-            && int.TryParse(args[offset], out amount)
-            && ChallengeGameCatalog.TryParse(args[offset + 1], out game);
+            && int.TryParse(args[offset], System.Globalization.CultureInfo.InvariantCulture, out amount) && ChallengeGameCatalog.TryParse(args[offset + 1], out game);
     }
 
     private static string StripCommand(string text)
@@ -278,7 +274,7 @@ public sealed class ChallengeHandler(
     private static (string Action, Guid ChallengeId) ParseCallback(string? data)
     {
         var parts = data?.Split(':');
-        if (parts is not { Length: 3 } || parts[0] != "ch")
+        if (parts is not { Length: 3 } || !string.Equals(parts[0], "ch", StringComparison.Ordinal))
             return ("", Guid.Empty);
 
         return Guid.TryParse(parts[2], out var id) ? (parts[1], id) : ("", Guid.Empty);
@@ -295,7 +291,7 @@ public sealed class ChallengeHandler(
     {
         ChallengeCreateError.InvalidAmount => Loc("err.amount"),
         ChallengeCreateError.SelfChallenge => Loc("err.self"),
-        ChallengeCreateError.NotEnoughCoins => string.Format(Loc("err.not_enough"), result.Balance),
+        ChallengeCreateError.NotEnoughCoins => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.not_enough"), result.Balance),
         ChallengeCreateError.AlreadyPending => Loc("err.pending"),
         _ => Loc("usage"),
     };
@@ -315,14 +311,14 @@ public sealed class ChallengeHandler(
     {
         var challenge = result.Challenge!;
         if (result.IsTie)
-            return string.Format(
-                Loc("result.tie"),
+        {
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.tie"),
                 challenge.ChallengerRollLabel(result.ChallengerRoll),
                 challenge.TargetRollLabel(result.TargetRoll),
                 challenge.Amount);
+        }
 
-        return string.Format(
-            Loc("result.win"),
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.win"),
             Mention(challenge.ChallengerId, challenge.ChallengerName),
             result.ChallengerRoll,
             Mention(challenge.TargetId, challenge.TargetName),
@@ -338,8 +334,7 @@ public sealed class ChallengeHandler(
         var challengerHorse = result.ChallengerRoll > result.TargetRoll ? "🏆 #1" : "#1";
         var targetHorse = result.TargetRoll > result.ChallengerRoll ? "🏆 #2" : "#2";
 
-        return string.Format(
-            Loc("horse.result"),
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("horse.result"),
             Mention(challenge.ChallengerId, challenge.ChallengerName),
             challengerHorse,
             Mention(challenge.TargetId, challenge.TargetName),
@@ -356,16 +351,16 @@ public sealed class ChallengeHandler(
         var targetLine = FormatBlackjackLine(duel.TargetCards, duel.TargetTotal, duel.TargetNatural);
 
         if (result.IsTie)
-            return string.Format(
-                Loc("blackjack.tie"),
+        {
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("blackjack.tie"),
                 Mention(challenge.ChallengerId, challenge.ChallengerName),
                 challengerLine,
                 Mention(challenge.TargetId, challenge.TargetName),
                 targetLine,
                 challenge.Amount);
+        }
 
-        return string.Format(
-            Loc("blackjack.win"),
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("blackjack.win"),
             Mention(challenge.ChallengerId, challenge.ChallengerName),
             challengerLine,
             Mention(challenge.TargetId, challenge.TargetName),
@@ -398,13 +393,13 @@ public sealed class ChallengeHandler(
         return ([.. cards], BlackjackHandValue.Compute(cards), BlackjackHandValue.IsNaturalBlackjack(cards));
     }
 
-    private static int BlackjackScore(int total, bool natural) =>
+    private int BlackjackScore(int total, bool natural) =>
         total > 21 ? 0 : natural ? 22 : total;
 
-    private static string FormatBlackjackLine(string[] cards, int total, bool natural)
+    private string FormatBlackjackLine(string[] cards, int total, bool natural)
     {
         var suffix = total > 21 ? " bust" : natural ? " blackjack" : "";
-        return $"{Html(string.Join(' ', cards.Select(FormatCard)))} = <b>{total}</b>{suffix}";
+        return string.Create(CultureInfo.InvariantCulture, $"{Html(string.Join(' ', cards.Select(FormatCard)))} = <b>{total}</b>{suffix}");
     }
 
     private static string FormatCard(string card)
@@ -412,7 +407,7 @@ public sealed class ChallengeHandler(
         if (card.Length < 2)
             return card;
 
-        var rank = card[..^1] == "T" ? "10" : card[..^1];
+        var rank = string.Equals(card[..^1], "T", StringComparison.Ordinal) ? "10" : card[..^1];
         var suit = card[^1] switch
         {
             'S' => "♠",
@@ -424,13 +419,13 @@ public sealed class ChallengeHandler(
         return rank + suit;
     }
 
-    private static string DisplayName(User user) =>
-        user.Username ?? user.FirstName ?? $"User ID: {user.Id}";
+    private string DisplayName(User user) =>
+        user.Username ?? user.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {user.Id}");
 
-    private static string Mention(long userId, string displayName) =>
+    private string Mention(long userId, string displayName) =>
         $"<a href=\"tg://user?id={userId}\">{Html(displayName)}</a>";
 
-    private static string Html(string value) => WebUtility.HtmlEncode(value);
+    private string Html(string value) => WebUtility.HtmlEncode(value);
 
     private string Loc(string key) => localizer.Get("challenges", key);
 
@@ -449,4 +444,3 @@ public sealed class ChallengeHandler(
         bool ChallengerNatural,
         bool TargetNatural);
 }
-

@@ -1,9 +1,7 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Dapper;
-using Games.Meta;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -64,16 +62,16 @@ public sealed class MetaSeasonsModel(
             """;
 
         await using var conn = await connections.OpenAsync(ct);
-        var startsAt = await NextPlannedStartsAtAsync(conn, null, ct);
+        var startsAt = await NextPlannedStartsAtAsync(conn, tx: null, ct);
         var endsAt = startsAt.AddDays(DurationDays);
         var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
             sql,
             new { name = Name, startsAt, endsAt, configJson = ConfigJson },
             cancellationToken: ct));
         await audit.LogAsync(actor.UserId, actor.Name, "meta_season.create", new { id, Name, DurationDays }, ct);
-        await history.AppendAsync("season.created", "season", id.ToString(), id, null, actor.UserId, new { id, Name, DurationDays, actor = actor.Name }, ct);
+        await history.AppendAsync("season.created", "season", id.ToString(CultureInfo.InvariantCulture), id, chatId: null, actor.UserId, new { id, Name, DurationDays, actor = actor.Name }, ct);
 
-        TempData["Flash"] = $"Season #{id} created as planned.";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{id} created as planned.");
         return RedirectToPage();
     }
 
@@ -140,8 +138,8 @@ public sealed class MetaSeasonsModel(
             "season.prepared",
             "season",
             "planned",
-            null,
-            null,
+seasonId: null,
+chatId: null,
             actor.UserId,
             new
             {
@@ -154,8 +152,9 @@ public sealed class MetaSeasonsModel(
             ct);
 
         TempData["Flash"] = toCreate == 0
-            ? $"Already have {existingPlanned} future planned seasons."
-            : $"Prepared {toCreate} planned seasons ({PrepareDurationDays} days each).";
+            ? string.Create(CultureInfo.InvariantCulture, $"Already have {existingPlanned} future planned seasons."
+)
+            : string.Create(CultureInfo.InvariantCulture, $"Prepared {toCreate} planned seasons ({PrepareDurationDays} days each).");
         return RedirectToPage();
     }
 
@@ -183,13 +182,13 @@ public sealed class MetaSeasonsModel(
         if (changed > 0)
         {
             await audit.LogAsync(actor.UserId, actor.Name, "meta_season.activate", new { seasonId }, ct);
-            await history.AppendAsync("season.activated", "season", seasonId.ToString(), seasonId, null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
-            TempData["Flash"] = $"Season #{seasonId} activated.";
+            await history.AppendAsync("season.activated", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} activated.");
         }
         else
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Season #{seasonId} was not activated.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} was not activated.");
         }
 
         return RedirectToPage();
@@ -211,13 +210,13 @@ public sealed class MetaSeasonsModel(
         if (changed > 0)
         {
             await audit.LogAsync(actor.UserId, actor.Name, "meta_season.finish", new { seasonId }, ct);
-            await history.AppendAsync("season.finished", "season", seasonId.ToString(), seasonId, null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
-            TempData["Flash"] = $"Season #{seasonId} finished.";
+            await history.AppendAsync("season.finished", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} finished.");
         }
         else
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Season #{seasonId} was not changed.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} was not changed.");
         }
 
         return RedirectToPage();
@@ -231,7 +230,7 @@ public sealed class MetaSeasonsModel(
         if (!await SeasonExistsAsync(seasonId, ct))
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Season #{seasonId} not found.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} not found.");
             return RedirectToPage();
         }
 
@@ -242,9 +241,9 @@ public sealed class MetaSeasonsModel(
             seasonId,
             winners = winnerPayload,
         }, ct);
-        await history.AppendAsync("season.reward_paid", "season", seasonId.ToString(), seasonId, null, actor.UserId, new { seasonId, paid = result.Paid, winners = winnerPayload, actor = actor.Name }, ct);
+        await history.AppendAsync("season.reward_paid", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, paid = result.Paid, winners = winnerPayload, actor = actor.Name }, ct);
 
-        TempData["Flash"] = $"Season #{seasonId} rewards processed for {result.Paid} winners.";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} rewards processed for {result.Paid} winners.");
         return RedirectToPage();
     }
 
@@ -256,7 +255,7 @@ public sealed class MetaSeasonsModel(
         if (!await SeasonExistsAsync(seasonId, ct))
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Season #{seasonId} not found.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} not found.");
             return RedirectToPage();
         }
 
@@ -267,9 +266,9 @@ public sealed class MetaSeasonsModel(
             seasonId,
             winners = winnerPayload,
         }, ct);
-        await history.AppendAsync("season.clan_reward_paid", "season", seasonId.ToString(), seasonId, null, actor.UserId, new { seasonId, paid = result.Paid, winners = winnerPayload, actor = actor.Name }, ct);
+        await history.AppendAsync("season.clan_reward_paid", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, paid = result.Paid, winners = winnerPayload, actor = actor.Name }, ct);
 
-        TempData["Flash"] = $"Season #{seasonId} clan rewards processed for {result.Paid} clans.";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} clan rewards processed for {result.Paid} clans.");
         return RedirectToPage();
     }
 
@@ -296,13 +295,13 @@ public sealed class MetaSeasonsModel(
         if (changed > 0)
         {
             await audit.LogAsync(actor.UserId, actor.Name, "meta_season.config_update", new { seasonId }, ct);
-            await history.AppendAsync("season.config_updated", "season", seasonId.ToString(), seasonId, null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
-            TempData["Flash"] = $"Season #{seasonId} config updated.";
+            await history.AppendAsync("season.config_updated", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} config updated.");
         }
         else
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Season #{seasonId} was not found.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} was not found.");
         }
 
         return RedirectToPage();
@@ -345,7 +344,7 @@ public sealed class MetaSeasonsModel(
         if (existing is null)
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Season #{seasonId} was not found.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} was not found.");
             return RedirectToPage();
         }
 
@@ -388,9 +387,9 @@ public sealed class MetaSeasonsModel(
             cancellationToken: ct));
 
         await audit.LogAsync(actor.UserId, actor.Name, "meta_season.structured_config_update", new { seasonId }, ct);
-        await history.AppendAsync("season.config_updated", "season", seasonId.ToString(), seasonId, null, actor.UserId, new { seasonId, actor = actor.Name, structured = true }, ct);
+        await history.AppendAsync("season.config_updated", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name, structured = true }, ct);
 
-        TempData["Flash"] = $"Season #{seasonId} structured config updated.";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} structured config updated.");
         return RedirectToPage();
     }
 
@@ -431,8 +430,8 @@ public sealed class MetaSeasonsModel(
     {
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(value);
-            return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+            using var doc = JsonDocument.Parse(value);
+            return doc.RootElement.ValueKind == JsonValueKind.Object;
         }
         catch
         {
@@ -471,9 +470,9 @@ public sealed class MetaSeasonsModel(
 
     private static IReadOnlyList<int> ParseRewardCsv(string value, IReadOnlyList<int> fallback)
     {
-        var values = (value ?? "")
+        var values = value
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => int.TryParse(x, out var parsed) ? Math.Max(0, parsed) : 0)
+            .Select(x => int.TryParse(x, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) ? Math.Max(0, parsed) : 0)
             .Where(x => x > 0)
             .Take(10)
             .ToArray();

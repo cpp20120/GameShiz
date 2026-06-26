@@ -12,9 +12,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Concurrent;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Blackjack.Domain;
 using Microsoft.Extensions.Options;
 
 namespace Games.Blackjack.Application.Services;

@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;

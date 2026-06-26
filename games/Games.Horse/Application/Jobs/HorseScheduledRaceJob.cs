@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,7 +41,7 @@ public sealed partial class HorseScheduledRaceJob(
 
                 var tzHours = opts.TimezoneOffsetHours;
                 var raceDate = HorseTimeHelper.GetRaceDate(tzHours);
-                if (raceDate != _skippedOrFailedRaceDate)
+                if (!string.Equals(raceDate, _skippedOrFailedRaceDate, StringComparison.Ordinal))
                     _skippedOrFailedRaceDate = null;
 
                 var offset = TimeSpan.FromHours(tzHours);
@@ -70,7 +69,7 @@ public sealed partial class HorseScheduledRaceJob(
                     continue;
                 }
 
-                if (_skippedOrFailedRaceDate == raceDate)
+                if (string.Equals(_skippedOrFailedRaceDate, raceDate, StringComparison.Ordinal))
                 {
                     await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken).ConfigureAwait(false);
                     continue;

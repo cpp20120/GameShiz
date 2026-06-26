@@ -24,6 +24,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.UpdateHandling.Routes;
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class CommandAttribute(string prefix) : RouteAttribute
 {
     public string Prefix { get; } = prefix;

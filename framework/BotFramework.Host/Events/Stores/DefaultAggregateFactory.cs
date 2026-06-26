@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BotFramework.Host.Events.Stores;

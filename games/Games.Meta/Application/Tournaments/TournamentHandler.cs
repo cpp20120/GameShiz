@@ -1,5 +1,5 @@
+using System.Globalization;
 using System.Net;
-using BotFramework.Sdk;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -16,7 +16,9 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         if (msg?.Text is null) return;
         if (!msg.Text.StartsWith("/tournament", StringComparison.OrdinalIgnoreCase) &&
             !msg.Text.StartsWith("/tour", StringComparison.OrdinalIgnoreCase))
+        {
             return;
+        }
 
         var user = msg.From;
         if (user is null) return;
@@ -48,7 +50,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
 
     private async Task HandleCreateAsync(UpdateContext ctx, Message msg, User user, string[] parts)
     {
-        if (parts.Length < 5 || !int.TryParse(parts[3], out var entryFee) || !int.TryParse(parts[4], out var maxPlayers))
+        if (parts.Length < 5 || !int.TryParse(parts[3], System.Globalization.CultureInfo.InvariantCulture, out var entryFee) || !int.TryParse(parts[4], System.Globalization.CultureInfo.InvariantCulture, out var maxPlayers))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament create &lt;game&gt; &lt;entryFee&gt; &lt;maxPlayers&gt;</code>");
             return;
@@ -56,12 +58,12 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         var result = await tournaments.CreateAsync(msg.Chat.Id, user.Id, parts[2], entryFee, maxPlayers, ctx.Ct);
         await SendHtmlAsync(ctx, msg, result.Tournament is null
             ? $"❌ {Html(result.Message)}"
-            : $"🏆 {Html(result.Message)} ID <code>{result.Tournament.Id}</code> · game <b>{Html(result.Tournament.GameKey)}</b> · fee <b>{result.Tournament.EntryFee}</b> · players <code>0/{result.Tournament.MaxPlayers}</code>");
+            : string.Create(CultureInfo.InvariantCulture, $"🏆 {Html(result.Message)} ID <code>{result.Tournament.Id}</code> · game <b>{Html(result.Tournament.GameKey)}</b> · fee <b>{result.Tournament.EntryFee}</b> · players <code>0/{result.Tournament.MaxPlayers}</code>"));
     }
 
     private async Task HandleJoinAsync(UpdateContext ctx, Message msg, User user, string[] parts)
     {
-        if (parts.Length < 3 || !long.TryParse(parts[2], out var tournamentId))
+        if (parts.Length < 3 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament join &lt;id&gt;</code>");
             return;
@@ -74,7 +76,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
 
     private async Task HandleStatusAsync(UpdateContext ctx, Message msg, string[] parts)
     {
-        if (parts.Length < 3 || !long.TryParse(parts[2], out var tournamentId))
+        if (parts.Length < 3 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament status &lt;id&gt;</code>");
             return;
@@ -85,7 +87,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
 
     private async Task HandlePlayersAsync(UpdateContext ctx, Message msg, string[] parts)
     {
-        if (parts.Length < 3 || !long.TryParse(parts[2], out var tournamentId))
+        if (parts.Length < 3 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament players &lt;id&gt;</code>");
             return;
@@ -100,12 +102,12 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         foreach (var p in players.Take(40))
             lines.Add($"• <b>{Html(p.DisplayName)}</b> — <code>{Html(p.Status)}</code> · <code>{p.UserId}</code>");
         if (players.Count > 40) lines.Add($"…и ещё {players.Count - 40} участников.");
-        await SendHtmlAsync(ctx, msg, string.Join("\n", lines));
+        await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
     private async Task HandleBracketAsync(UpdateContext ctx, Message msg, string[] parts)
     {
-        if (parts.Length < 3 || !long.TryParse(parts[2], out var tournamentId))
+        if (parts.Length < 3 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament bracket &lt;id&gt;</code>");
             return;
@@ -122,18 +124,18 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             lines.Add($"\n<b>Round {group.Key}</b>");
             foreach (var m in group.OrderBy(x => x.MatchIndex))
             {
-                var p1 = m.Player1UserId is null ? "—" : $"{Html(m.Player1DisplayName ?? m.Player1UserId.Value.ToString())} <code>{m.Player1UserId}</code>";
-                var p2 = m.Player2UserId is null ? "—" : $"{Html(m.Player2DisplayName ?? m.Player2UserId.Value.ToString())} <code>{m.Player2UserId}</code>";
+                var p1 = m.Player1UserId is null ? "—" : $"{Html(m.Player1DisplayName ?? m.Player1UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))} <code>{m.Player1UserId}</code>";
+                var p2 = m.Player2UserId is null ? "—" : $"{Html(m.Player2DisplayName ?? m.Player2UserId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))} <code>{m.Player2UserId}</code>";
                 var victor = m.VictorUserId is null ? "" : $" · victor <code>{m.VictorUserId}</code>";
                 lines.Add($"#<code>{m.Id}</code> [{Html(m.Status)}] {p1} vs {p2}{victor}");
             }
         }
-        await SendHtmlAsync(ctx, msg, string.Join("\n", lines));
+        await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
     private async Task HandleReportAsync(UpdateContext ctx, Message msg, User user, string[] parts)
     {
-        if (parts.Length < 4 || !long.TryParse(parts[2], out var matchId) || !long.TryParse(parts[3], out var victorUserId))
+        if (parts.Length < 4 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var matchId) || !long.TryParse(parts[3], System.Globalization.CultureInfo.InvariantCulture, out var victorUserId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament report &lt;matchId&gt; &lt;victorUserId&gt;</code>");
             return;
@@ -142,7 +144,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         await SendHtmlAsync(ctx, msg, !result.Updated
             ? $"❌ {Html(result.Message)}"
             : result.Finished
-                ? $"🏆 {Html(result.Message)} Победитель: <b>{Html(result.Victor?.DisplayName ?? victorUserId.ToString())}</b>."
+                ? $"🏆 {Html(result.Message)} Победитель: <b>{Html(result.Victor?.DisplayName ?? victorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture))}</b>."
                 : $"✅ {Html(result.Message)} Матч <code>{matchId}</code> закрыт.");
     }
 
@@ -157,12 +159,12 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         var lines = new List<string> { "🏆 <b>Открытые турниры</b>" };
         foreach (var t in open)
             lines.Add($"#{t.Id}: <b>{Html(t.GameKey)}</b> · fee <b>{t.EntryFee}</b> · <code>{t.PlayerCount}/{t.MaxPlayers}</code> · prize <b>{t.PrizePool}</b>");
-        await SendHtmlAsync(ctx, msg, string.Join("\n", lines));
+        await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
     private async Task HandleStartAsync(UpdateContext ctx, Message msg, User user, string[] parts)
     {
-        if (parts.Length < 3 || !long.TryParse(parts[2], out var tournamentId))
+        if (parts.Length < 3 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament start &lt;id&gt;</code>");
             return;
@@ -175,7 +177,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
 
     private async Task HandleFinishAsync(UpdateContext ctx, Message msg, User user, string[] parts)
     {
-        if (parts.Length < 4 || !long.TryParse(parts[2], out var tournamentId) || !long.TryParse(parts[3], out var victorUserId))
+        if (parts.Length < 4 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId) || !long.TryParse(parts[3], System.Globalization.CultureInfo.InvariantCulture, out var victorUserId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament finish &lt;id&gt; &lt;winnerUserId&gt;</code>");
             return;
@@ -189,7 +191,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
 
     private async Task HandleCancelAsync(UpdateContext ctx, Message msg, User user, string[] parts)
     {
-        if (parts.Length < 3 || !long.TryParse(parts[2], out var tournamentId))
+        if (parts.Length < 3 || !long.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var tournamentId))
         {
             await SendHtmlAsync(ctx, msg, "Использование: <code>/tournament cancel &lt;id&gt;</code>");
             return;
@@ -211,7 +213,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         $"Создан: <code>{t.CreatedAt:yyyy-MM-dd HH:mm 'UTC'}</code>",
     ]);
 
-    private Task ReplyHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n", [
+    private static Task ReplyHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n", [
         "🏆 <b>Турниры</b>",
         "<code>/tournament create &lt;game&gt; &lt;entryFee&gt; &lt;maxPlayers&gt;</code>",
         "<code>/tournament join &lt;id&gt;</code>",
@@ -225,15 +227,15 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         "<code>/tournament cancel &lt;id&gt;</code>",
     ]));
 
-    private Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text, parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId }, cancellationToken: ctx.Ct);
 
     private static string DisplayName(User user)
     {
         if (!string.IsNullOrWhiteSpace(user.Username)) return "@" + user.Username;
-        var name = string.Join(" ", new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        return string.IsNullOrWhiteSpace(name) ? user.Id.ToString() : name;
+        var name = string.Join(' ', new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.IsNullOrWhiteSpace(name) ? user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) : name;
     }
 
     private static string Html(string value) => WebUtility.HtmlEncode(value);

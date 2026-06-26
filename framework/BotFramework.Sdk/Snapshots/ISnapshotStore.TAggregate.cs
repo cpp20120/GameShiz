@@ -29,11 +29,15 @@
 namespace BotFramework.Sdk.Snapshots;
 public interface ISnapshotStore<TAggregate> where TAggregate : class, IAggregateRoot
 {
+    /// <summary>
     /// Newest snapshot for the stream, or null if none exists yet.
+    /// </summary>
     Task<StoredSnapshot?> LoadLatestAsync(string streamId, CancellationToken ct);
 
+    /// <summary>
     /// Overwrite the snapshot for this stream. Callers are expected to pass
     /// a version that's consistent with what's in the event store; the store
     /// does not validate.
+    /// </summary>
     Task SaveAsync(string streamId, long version, object state, CancellationToken ct);
 }

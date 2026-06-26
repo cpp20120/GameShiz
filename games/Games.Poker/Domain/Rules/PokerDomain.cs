@@ -20,7 +20,7 @@ public static class PokerDomain
         foreach (var s in playable)
         {
             var cards = Deck.Draw(ref deck, 2);
-            s.HoleCards = string.Join(" ", cards);
+            s.HoleCards = string.Join(' ', cards);
         }
 
         var buttonPos = table.Status == PokerTableStatus.HandComplete
@@ -281,7 +281,7 @@ public static class PokerDomain
         }
 
         table.DeckState = deck;
-        table.CommunityCards = string.Join(" ", community);
+        table.CommunityCards = string.Join(' ', community);
 
         table.CurrentBet = 0;
         table.MinRaise = table.BigBlind;
@@ -301,7 +301,7 @@ public static class PokerDomain
         if (awardSingle != null)
         {
             awardSingle.Stack += table.Pot;
-            results.Add(new ShowdownEntry(awardSingle, null, table.Pot, awardSingle.HoleCards));
+            results.Add(new ShowdownEntry(awardSingle, Rank: null, table.Pot, awardSingle.HoleCards));
             table.Pot = 0;
         }
         else
@@ -335,14 +335,14 @@ public static class PokerDomain
                 if (potSlice <= 0) continue;
 
                 var eligible = ranked
-                    .Where(x => committedLevels.Count == 1 && x.seat.TotalCommitted == 0 || x.seat.TotalCommitted >= level)
+                    .Where(x => (committedLevels.Count == 1 && x.seat.TotalCommitted == 0) || x.seat.TotalCommitted >= level)
                     .ToList();
                 if (eligible.Count == 0) eligible = ranked;
 
                 var best = eligible[0].rank;
                 var winners = eligible.Where(x => x.rank.CompareTo(best) == 0).ToList();
                 var share = potSlice / winners.Count;
-                var remainder = potSlice - share * winners.Count;
+                var remainder = potSlice - (share * winners.Count);
 
                 foreach (var winner in winners)
                 {
@@ -362,7 +362,7 @@ public static class PokerDomain
                 var winners = ranked.Where(x => x.rank.CompareTo(best) == 0).ToList();
                 var remainderPot = table.Pot - awarded;
                 var share = remainderPot / winners.Count;
-                var remainder = remainderPot - share * winners.Count;
+                var remainder = remainderPot - (share * winners.Count);
                 foreach (var winner in winners)
                 {
                     var won = share + (remainder > 0 ? 1 : 0);

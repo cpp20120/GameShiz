@@ -1,4 +1,3 @@
-using System.Data;
 using Dapper;
 
 namespace BotFramework.Host.Persistence.Dapper;

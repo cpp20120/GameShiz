@@ -1,4 +1,4 @@
-using BotFramework.Host;
+using System.Globalization;
 using SkiaSharp;
 
 namespace Games.Horse.Infrastructure.Rendering.Generators;
@@ -13,14 +13,14 @@ public static class HorseRaceRenderer
     private const int Radius = 10;
     private const int MenuWidth = 140;
     private const int FinishHoldFrames = 90;
-    private static readonly float Modifier = (Width - 2 * StartX - MenuWidth) / (float)IterCount;
+    private const float Modifier = (Width - (2 * StartX) - MenuWidth) / (float)IterCount;
 
     private static readonly string[] Colors =
     [
         "#f87171", "#fb923c", "#fbbf24", "#facc15",
         "#a3e635", "#4ade80", "#059669", "#2dd4bf",
         "#22d3ee", "#818cf8", "#c084fc", "#e879f9",
-        "#ec4899", "#fb7185"
+        "#ec4899", "#fb7185",
     ];
 
     private static SKColor GetColor(int i)
@@ -33,13 +33,13 @@ public static class HorseRaceRenderer
     public static (byte[][] buffers, int height, int width) DrawHorses(double[][] series)
     {
         var horsesCount = series.Length;
-        var height = 2 * StartY + (horsesCount - 1) * YPadding;
+        var height = (2 * StartY) + ((horsesCount - 1) * YPadding);
 
         var maxFrames = series.Max(s => s.Length) + FinishHoldFrames;
 
         var horses = new HorseState[horsesCount];
         for (var i = 0; i < horsesCount; i++)
-            horses[i] = new HorseState(StartX, StartY + YPadding * i, GetColor(i));
+            horses[i] = new HorseState(StartX, StartY + (YPadding * i), GetColor(i));
 
         var buffers = new byte[maxFrames][];
         var currentPlace = 1;
@@ -89,9 +89,9 @@ public static class HorseRaceRenderer
                 using var numPaint = new SKPaint();
                 numPaint.Color = SKColors.White;
                 numPaint.IsAntialias = true;
-                canvas.DrawText($"{horseId + 1}", horse.X - 4, y + 5, SKTextAlign.Left, numFont, numPaint);
+                canvas.DrawText(string.Create(CultureInfo.InvariantCulture, $"{horseId + 1}"), horse.X - 4, y + 5, SKTextAlign.Left, numFont, numPaint);
 
-                var distToRender = Math.Min(horse.Distance, 100).ToString("F1");
+                var distToRender = Math.Min(horse.Distance, 100).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
                 using var pctPaint = new SKPaint();
                 pctPaint.Color = horse.Color;
                 pctPaint.IsAntialias = true;
@@ -175,7 +175,7 @@ public static class HorseRaceRenderer
                 _ => "th",
             };
 
-        return $"{place}{suffix}";
+        return string.Create(CultureInfo.InvariantCulture, $"{place}{suffix}");
     }
 
     private sealed class HorseState(float x, float y, SKColor color)

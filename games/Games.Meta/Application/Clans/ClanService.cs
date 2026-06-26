@@ -14,7 +14,7 @@ public sealed class ClanService(
             await history.AppendAsync(
                 "clan.created",
                 "clan",
-                result.Clan.Id.ToString(),
+                result.Clan.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 season.Id,
                 chatId,
                 userId,
@@ -40,7 +40,7 @@ public sealed class ClanService(
             await history.AppendAsync(
                 "clan.joined",
                 "clan",
-                result.Clan.Id.ToString(),
+                result.Clan.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 season.Id,
                 chatId,
                 userId,
@@ -90,7 +90,7 @@ public sealed class ClanService(
             await history.AppendAsync(
                 "clan.progressed",
                 "clan",
-                clan.Id.ToString(),
+                clan.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 season.Id,
                 ev.ChatId,
                 ev.UserId,

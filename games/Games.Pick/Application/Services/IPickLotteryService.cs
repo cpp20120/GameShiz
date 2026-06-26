@@ -18,7 +18,6 @@
 // sweeper job) can post the right message to the chat.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Application.Services;

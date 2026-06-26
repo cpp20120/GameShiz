@@ -1,3 +1,4 @@
+using System.Globalization;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -14,7 +15,7 @@ public class TaxServiceTests
     public void GasTax_LargeVolume_UsesPercentage()
     {
         var tax = TaxService.GetGasTax(1000);
-        Assert.True(tax >= 35 && tax <= 45, $"expected ~40, got {tax}");
+        Assert.True(tax >= 35 && tax <= 45, string.Create(CultureInfo.InvariantCulture, $"expected ~40, got {tax}"));
     }
 
     [Fact]

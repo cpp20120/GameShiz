@@ -16,7 +16,6 @@
 // ProjectionContext.Transaction without changing module contracts.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Events.Dispatch;
 
@@ -54,6 +53,7 @@ public sealed class EventDispatcher(
             moduleId: ev.EventType.Split('.', 2)[0],
             eventName: ev.EventType,
             tags: new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["stream_id"] = streamId,
                 ["stream_version"] = streamVersion,
@@ -63,14 +63,17 @@ public sealed class EventDispatcher(
 
     private static Dictionary<string, List<IProjection>> BuildIndex(IEnumerable<IProjection> projections)
     {
-        var index = new Dictionary<string, List<IProjection>>();
+        var index = new Dictionary<string, List<IProjection>>(StringComparer.Ordinal);
         foreach (var proj in projections)
-        foreach (var type in proj.SubscribedEventTypes)
+        {
+            foreach (var type in proj.SubscribedEventTypes)
         {
             if (!index.TryGetValue(type, out var list))
                 index[type] = list = [];
             list.Add(proj);
         }
+        }
+
         return index;
     }
 }

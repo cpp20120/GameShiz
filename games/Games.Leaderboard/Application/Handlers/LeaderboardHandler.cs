@@ -1,8 +1,6 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -31,15 +29,15 @@ public sealed class LeaderboardHandler(
         var msg = ctx.Update.Message;
         if (msg?.Text == null) return;
 
-        if (msg.Text.StartsWith("/help"))
+        if (msg.Text.StartsWith("/help", StringComparison.OrdinalIgnoreCase))
             await HandleHelpAsync(ctx, msg);
-        else if (msg.Text.StartsWith("/topall"))
+        else if (msg.Text.StartsWith("/topall", StringComparison.OrdinalIgnoreCase))
             await HandleTopAllAsync(ctx, msg);
-        else if (msg.Text.StartsWith("/top"))
+        else if (msg.Text.StartsWith("/top", StringComparison.OrdinalIgnoreCase))
             await HandleTopAsync(ctx, msg);
-        else if (msg.Text.StartsWith("/balance"))
+        else if (msg.Text.StartsWith("/balance", StringComparison.OrdinalIgnoreCase))
             await HandleBalanceAsync(ctx, msg);
-        else if (msg.Text.StartsWith("/daily"))
+        else if (msg.Text.StartsWith("/daily", StringComparison.OrdinalIgnoreCase))
             await HandleDailyAsync(ctx, msg);
     }
 
@@ -55,8 +53,7 @@ public sealed class LeaderboardHandler(
         var drawHour = ReadHourOfDay(configuration, "Games:pick:Daily:DrawHourLocal", 18);
         var offsetHours = ReadInt(configuration, "Bot:TelegramDiceDailyLimit:TimezoneOffsetHours", 7);
 
-        var text = string.Format(
-            Loc("help"),
+        var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("help"),
             diceDef, dartsDef, footballDef, basketDef, bowlingDef,
             pickDef, ticketPrice, drawHour, FormatUtcOffset(offsetHours));
 
@@ -69,28 +66,28 @@ public sealed class LeaderboardHandler(
     private static int ReadInt(IConfiguration cfg, string key, int fallback)
     {
         var s = cfg[key];
-        return int.TryParse(s, out var v) ? v : fallback;
+        return int.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
     }
 
     private static int ReadHourOfDay(IConfiguration cfg, string key, int fallback)
     {
         var s = cfg[key];
-        if (!int.TryParse(s, out var v)) return fallback;
+        if (!int.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var v)) return fallback;
         return v is >= 0 and <= 23 ? v : fallback;
     }
 
-    private static string FormatUtcOffset(int hours) => hours >= 0 ? $"+{hours}" : hours.ToString();
+    private static string FormatUtcOffset(int hours) => hours >= 0 ? string.Create(CultureInfo.InvariantCulture, $"+{hours}") : hours.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     private static int ReadPositiveInt(IConfiguration cfg, string key, int fallback)
     {
         var s = cfg[key];
-        return int.TryParse(s, out var v) && v > 0 ? v : fallback;
+        return int.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0 ? v : fallback;
     }
 
     private async Task HandleTopAsync(UpdateContext ctx, Message msg)
     {
         var parts = msg.Text!.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var limit = parts.Length > 1 && parts[1] == "full" ? 0 : 15;
+        var limit = parts.Length > 1 && string.Equals(parts[1], "full", StringComparison.Ordinal) ? 0 : 15;
 
         var board = await service.GetTopAsync(limit, msg.Chat.Id, ctx.Ct);
         if (board.Places.Count == 0)
@@ -104,7 +101,8 @@ public sealed class LeaderboardHandler(
         {
             var isFirst = i == 0;
             return entry.Users.Count == 1
-                ? $"{entry.Place}. {FormatUser(entry.Users[0], isFirst)}"
+                ? string.Create(CultureInfo.InvariantCulture, $"{entry.Place}. {FormatUser(entry.Users[0], isFirst)}"
+)
                 : $"{entry.Place}.\n  - {string.Join("\n  - ", entry.Users.Select(u => FormatUser(u, isFirst)))}";
         });
 
@@ -113,7 +111,7 @@ public sealed class LeaderboardHandler(
         if (board.Truncated) lines.Add(Loc("top.truncated"));
         lines.Add(Loc("top.hidden_reminder"));
 
-        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join("\n", lines),
+        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join('\n', lines),
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
             cancellationToken: ctx.Ct);
@@ -140,7 +138,7 @@ public sealed class LeaderboardHandler(
 
         var parts = msg.Text!.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var mode = parts.Length > 1 ? parts[1].ToLowerInvariant() : "";
-        var full = mode == "full" || (parts.Length > 2 && parts[2].Equals("full", StringComparison.OrdinalIgnoreCase));
+        var full = string.Equals(mode, "full", StringComparison.Ordinal) || (parts.Length > 2 && parts[2].Equals("full", StringComparison.OrdinalIgnoreCase));
 
         if (mode is "split" or "by-chat" or "bychat")
         {
@@ -173,14 +171,14 @@ public sealed class LeaderboardHandler(
 
         var lines = new List<string>
         {
-            string.Format(Loc("topall.header"), board.TotalUsers),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.header"), board.TotalUsers),
         };
         lines.AddRange(placeStrings);
         if (board.Truncated)
             lines.Add(Loc("topall.truncated"));
         lines.Add(Loc("topall.hidden_reminder"));
 
-        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join("\n", lines),
+        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join('\n', lines),
             parseMode: ParseMode.Html,
             replyParameters: reply,
             cancellationToken: ctx.Ct);
@@ -199,7 +197,7 @@ public sealed class LeaderboardHandler(
         }
 
         var sb = new StringBuilder();
-        sb.AppendLine(string.Format(Loc("topall.split.header"), board.Chats.Count));
+        sb.AppendFormat(CultureInfo.InvariantCulture, Loc("topall.split.header"), board.Chats.Count).AppendLine();
         sb.AppendLine();
 
         foreach (var chat in board.Chats)
@@ -211,11 +209,11 @@ public sealed class LeaderboardHandler(
                 var isFirst = i == 0;
                 if (place.Users.Count == 1)
                 {
-                    sb.AppendLine($"{place.Place}. {FormatUser(place.Users[0], isFirst)}");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{place.Place}. {FormatUser(place.Users[0], isFirst)}");
                 }
                 else
                 {
-                    sb.AppendLine($"{place.Place}.");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{place.Place}.");
                     foreach (var u in place.Users)
                         sb.AppendLine($"  - {FormatUser(u, isFirst)}");
                 }
@@ -231,7 +229,7 @@ public sealed class LeaderboardHandler(
         await SendChunkedAsync(ctx, msg.Chat.Id, text, reply);
     }
 
-    private async Task SendChunkedAsync(UpdateContext ctx, long chatId, string text, ReplyParameters reply)
+    private static async Task SendChunkedAsync(UpdateContext ctx, long chatId, string text, ReplyParameters reply)
     {
         const int maxLen = 3800;
         if (text.Length <= maxLen)
@@ -270,11 +268,10 @@ public sealed class LeaderboardHandler(
         var rawTitle = !string.IsNullOrWhiteSpace(chat.Title)
             ? chat.Title!
             : (chat.ChatType.Equals("private", StringComparison.OrdinalIgnoreCase)
-                ? string.Format(Loc("topall.split.private_label"), chat.ChatId)
-                : string.Format(Loc("topall.split.unknown_label"), chat.ChatId));
+                ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.private_label"), chat.ChatId) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.unknown_label"), chat.ChatId));
         var title = WebUtility.HtmlEncode(rawTitle);
         var typeBadge = WebUtility.HtmlEncode(chat.ChatType);
-        return string.Format(Loc("topall.split.chat_header"), title, typeBadge, chat.ChatId);
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.chat_header"), title, typeBadge, chat.ChatId);
     }
 
     private async Task HandleBalanceAsync(UpdateContext ctx, Message msg)
@@ -286,8 +283,7 @@ public sealed class LeaderboardHandler(
         var bal = await service.GetBalanceAsync(userId, msg.Chat.Id, displayName, ctx.Ct);
 
         var text = bal.Visible
-            ? string.Format(Loc("balance.visible"), bal.Coins)
-            : string.Format(Loc("balance.hidden"), bal.Coins);
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("balance.visible"), bal.Coins) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("balance.hidden"), bal.Coins);
 
         await ctx.Bot.SendMessage(msg.Chat.Id, text,
             parseMode: ParseMode.Html,
@@ -318,7 +314,7 @@ public sealed class LeaderboardHandler(
 
         var text = r.Status switch
         {
-            DailyBonusClaimStatus.Claimed => string.Format(Loc("daily.claimed"), r.BonusCoins, r.NewBalance),
+            DailyBonusClaimStatus.Claimed => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.claimed"), r.BonusCoins, r.NewBalance),
             DailyBonusClaimStatus.AlreadyClaimedToday => Loc("daily.already"),
             DailyBonusClaimStatus.Disabled => Loc("daily.disabled"),
             DailyBonusClaimStatus.IneligibleEmptyBalance => Loc("daily.empty_balance"),
@@ -335,14 +331,14 @@ public sealed class LeaderboardHandler(
     private static string FormatUser(LeaderboardUser user, bool isFirstPlace)
     {
         var crown = isFirstPlace ? "👑 " : "";
-        var safeName = WebUtility.HtmlEncode(user.DisplayName ?? "Unknown").Replace("@", "@\u200B");
+        var safeName = WebUtility.HtmlEncode(user.DisplayName ?? "Unknown").Replace("@", "@\u200B", StringComparison.Ordinal);
         return $"{crown}{safeName} - {user.Coins}";
     }
 
-    private static string FormatGlobalUser(GlobalLeaderboardUser user, bool isFirstPlace)
+    private string FormatGlobalUser(GlobalLeaderboardUser user, bool isFirstPlace)
     {
         var crown = isFirstPlace ? "👑 " : "";
-        var safeName = WebUtility.HtmlEncode(user.DisplayName ?? "Unknown").Replace("@", "@\u200B");
+        var safeName = WebUtility.HtmlEncode(user.DisplayName ?? "Unknown").Replace("@", "@\u200B", StringComparison.Ordinal);
         return user.ChatCount > 1
             ? $"{crown}{safeName} - {user.TotalCoins} (×{user.ChatCount})"
             : $"{crown}{safeName} - {user.TotalCoins}";

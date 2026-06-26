@@ -1,4 +1,4 @@
-using BotFramework.Host;
+using System.Globalization;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Games.Blackjack.Infrastructure.Rendering;
@@ -8,21 +8,21 @@ public static class BlackjackRenderer
     public static string Render(BlackjackSnapshot snap, ILocalizer localizer)
     {
         var dealerCards = snap.DealerHoleRevealed
-            ? string.Join(" ", snap.DealerCards.Select(Format))
+            ? string.Join(' ', snap.DealerCards.Select(Format))
             : $"{Format(snap.DealerCards[0])} 🂠";
 
-        var dealerTotalLabel = snap.DealerHoleRevealed ? $" ({snap.DealerTotal})" : "";
-        var playerCards = string.Join(" ", snap.PlayerCards.Select(Format));
+        var dealerTotalLabel = snap.DealerHoleRevealed ? string.Create(CultureInfo.InvariantCulture, $" ({snap.DealerTotal})") : "";
+        var playerCards = string.Join(' ', snap.PlayerCards.Select(Format));
 
         var lines = new List<string>
         {
-            string.Format(localizer.Get("blackjack", "render.header"), snap.Bet),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("blackjack", "render.header"), snap.Bet),
             "",
             string.Format(localizer.Get("blackjack", "render.dealer"), dealerCards, dealerTotalLabel),
-            string.Format(localizer.Get("blackjack", "render.player"), playerCards, snap.PlayerTotal),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("blackjack", "render.player"), playerCards, snap.PlayerTotal),
         };
 
-        if (!snap.Outcome.HasValue) return string.Join("\n", lines);
+        if (!snap.Outcome.HasValue) return string.Join('\n', lines);
         var net = snap.Payout - snap.Bet;
         var outcomeKey = snap.Outcome.Value switch
         {
@@ -36,12 +36,12 @@ public static class BlackjackRenderer
         };
         var outcomeText = outcomeKey.Length == 0
             ? ""
-            : string.Format(localizer.Get("blackjack", outcomeKey), net, snap.Bet);
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("blackjack", outcomeKey), net, snap.Bet);
         lines.Add("");
         if (!string.IsNullOrEmpty(outcomeText)) lines.Add(outcomeText);
-        lines.Add(string.Format(localizer.Get("blackjack", "render.balance"), snap.PlayerCoins));
+        lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("blackjack", "render.balance"), snap.PlayerCoins));
 
-        return string.Join("\n", lines);
+        return string.Join('\n', lines);
     }
 
     public static InlineKeyboardMarkup? BuildKeyboard(BlackjackSnapshot snap, ILocalizer localizer)

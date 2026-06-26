@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Dapper;
 
 namespace Games.Blackjack.Infrastructure.Persistence;

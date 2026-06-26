@@ -1,6 +1,5 @@
+using System.Globalization;
 using System.Text.Json;
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -26,13 +25,13 @@ public sealed class AdminHandler(
         var userId = msg.From?.Id ?? 0;
         if (userId == 0) return;
 
-        if (msg.Text.StartsWith("/rename"))
+        if (msg.Text.StartsWith("/rename", StringComparison.OrdinalIgnoreCase))
         {
             await HandleRenameAsync(ctx, msg, userId);
             return;
         }
 
-        if (msg.Text.StartsWith("/debug"))
+        if (msg.Text.StartsWith("/debug", StringComparison.OrdinalIgnoreCase))
         {
             await HandleDebugAsync(ctx, msg);
             return;
@@ -72,7 +71,7 @@ public sealed class AdminHandler(
                         replyParameters: reply, cancellationToken: ctx.Ct);
                     break;
                 }
-                var targetId = msg.ReplyToMessage.From?.Id.ToString() ?? "unknown";
+                var targetId = msg.ReplyToMessage.From?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown";
                 await ctx.Bot.SendMessage(msg.Chat.Id,
                     string.Format(Loc("userinfo.result"), targetId),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
@@ -101,7 +100,7 @@ public sealed class AdminHandler(
     private async Task HandlePayAsync(UpdateContext ctx, Message msg, long userId, string[] args)
     {
         var reply = new ReplyParameters { MessageId = msg.MessageId };
-        if (args.Length < 2 || !long.TryParse(args[0], out var forUserId) || !int.TryParse(args[1], out var amount))
+        if (args.Length < 2 || !long.TryParse(args[0], System.Globalization.CultureInfo.InvariantCulture, out var forUserId) || !int.TryParse(args[1], System.Globalization.CultureInfo.InvariantCulture, out var amount))
         {
             await ctx.Bot.SendMessage(msg.Chat.Id, Loc("pay.usage"),
                 replyParameters: reply, cancellationToken: ctx.Ct);
@@ -116,16 +115,16 @@ public sealed class AdminHandler(
             return;
         }
 
-        var diff = amount >= 0 ? $"+{amount}" : amount.ToString();
+        var diff = amount >= 0 ? $"+{amount.ToString(CultureInfo.InvariantCulture)}" : amount.ToString(CultureInfo.InvariantCulture);
         await ctx.Bot.SendMessage(msg.Chat.Id,
-            string.Format(Loc("pay.result"), r.DisplayName, forUserId, r.OldCoins, diff, r.NewCoins),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("pay.result"), r.DisplayName, forUserId, r.OldCoins, diff, r.NewCoins),
             replyParameters: reply, cancellationToken: ctx.Ct);
     }
 
     private async Task HandleGetUserAsync(UpdateContext ctx, Message msg, string[] args)
     {
         var reply = new ReplyParameters { MessageId = msg.MessageId };
-        if (args.Length == 0 || !long.TryParse(args[0], out var forUserId))
+        if (args.Length == 0 || !long.TryParse(args[0], System.Globalization.CultureInfo.InvariantCulture, out var forUserId))
         {
             await ctx.Bot.SendMessage(msg.Chat.Id, Loc("getuser.usage"),
                 replyParameters: reply, cancellationToken: ctx.Ct);
@@ -146,7 +145,7 @@ public sealed class AdminHandler(
         var isAdmin = _opts.Admins.Contains(userId);
         await ctx.Bot.SendMessage(
             msg.Chat.Id,
-            string.Format(Loc("whoami.result"), userId, msg.Chat.Id, username, firstName, isAdmin ? "yes" : "no"),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("whoami.result"), userId, msg.Chat.Id, username, firstName, isAdmin ? "yes" : "no"),
             parseMode: ParseMode.Html,
             replyParameters: reply,
             cancellationToken: ctx.Ct);
@@ -158,7 +157,7 @@ public sealed class AdminHandler(
         var result = await service.ClearChatBetsAsync(userId, msg.Chat.Id, ctx.Ct);
         var text = result.ClearedCount == 0
             ? Loc("clearbets.empty")
-            : string.Format(Loc("clearbets.done"), result.ClearedCount, result.TotalRefunded);
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("clearbets.done"), result.ClearedCount, result.TotalRefunded);
         await ctx.Bot.SendMessage(msg.Chat.Id, text, replyParameters: reply, cancellationToken: ctx.Ct);
     }
 
@@ -189,25 +188,25 @@ public sealed class AdminHandler(
         return parts.Length > 1 ? parts[1].Trim() : "";
     }
 
-    private static readonly System.Diagnostics.Process _process = System.Diagnostics.Process.GetCurrentProcess();
+    private static readonly System.Diagnostics.Process Process = System.Diagnostics.Process.GetCurrentProcess();
 
     private async Task HandleDebugAsync(UpdateContext ctx, Message msg)
     {
         var chatId = msg.Chat.Id;
         var chatType = msg.Chat.Type.ToString();
-        var uptime = Math.Round((DateTime.UtcNow - _process.StartTime.ToUniversalTime()).TotalSeconds);
-        var rss = _process.WorkingSet64 / 1024 / 1024;
-        var cpuTime = _process.TotalProcessorTime.TotalSeconds;
+        var uptime = Math.Round((DateTime.UtcNow - Process.StartTime.ToUniversalTime()).TotalSeconds, MidpointRounding.ToEven);
+        var rss = Process.WorkingSet64 / 1024 / 1024;
+        var cpuTime = Process.TotalProcessorTime.TotalSeconds;
 
-        var text = $"chat id: <code>{chatId}</code>\n" +
+        var text = string.Create(CultureInfo.InvariantCulture, $"chat id: <code>{chatId}</code>\n") +
                    $"chat type: <code>{chatType}</code>\n" +
-                   $"uptime: <code>{uptime}s</code>\n" +
-                   $"cpu time: <code>{cpuTime:F2}s</code>\n" +
-                   $"rss: <code>{rss} MB</code>";
+                   string.Create(CultureInfo.InvariantCulture, $"uptime: <code>{uptime}s</code>\n") +
+                   string.Create(CultureInfo.InvariantCulture, $"cpu time: <code>{cpuTime:F2}s</code>\n") +
+                   string.Create(CultureInfo.InvariantCulture, $"rss: <code>{rss} MB</code>");
 
         await ctx.Bot.SendMessage(msg.Chat.Id, text,
-            parseMode: ParseMode.Html, 
-            replyParameters: new ReplyParameters { MessageId = msg.MessageId }, 
+            parseMode: ParseMode.Html,
+            replyParameters: new ReplyParameters { MessageId = msg.MessageId },
             cancellationToken: ctx.Ct);
     }
 

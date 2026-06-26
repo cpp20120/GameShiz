@@ -1,6 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -14,7 +11,7 @@ public class LocalizerTests
     {
         var loaded = new LoadedModules(
             [],
-            locales ?? new Dictionary<string, Dictionary<string, string>>(),
+            locales ?? new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal),
             [],
             []);
         var options = Options.Create(new BotFrameworkOptions { DefaultCulture = defaultCulture });
@@ -23,8 +20,8 @@ public class LocalizerTests
 
     private static Dictionary<string, Dictionary<string, string>> RuLocale(params (string key, string value)[] entries)
     {
-        var dict = entries.ToDictionary(e => e.key, e => e.value);
-        return new Dictionary<string, Dictionary<string, string>> { ["ru"] = dict };
+        var dict = entries.ToDictionary(e => e.key, e => e.value, StringComparer.Ordinal);
+        return new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal) { ["ru"] = dict };
     }
 
     // ── Get — basic lookup ───────────────────────────────────────────────────
@@ -47,8 +44,9 @@ public class LocalizerTests
     public void Get_FallsBackToDefaultCulture()
     {
         var locales = new Dictionary<string, Dictionary<string, string>>
+(StringComparer.Ordinal)
         {
-            ["ru"] = new() { ["poker.welcome"] = "Привет" }
+            ["ru"] = new(StringComparer.Ordinal) { ["poker.welcome"] = "Привет" },
         };
         var loc = MakeLocalizer(locales);
         Assert.Equal("Привет", loc.Get("poker", "welcome", "en"));
@@ -58,9 +56,10 @@ public class LocalizerTests
     public void Get_ExplicitCultureWhenPresent_UsesThatCulture()
     {
         var locales = new Dictionary<string, Dictionary<string, string>>
+(StringComparer.Ordinal)
         {
-            ["ru"] = new() { ["poker.hi"] = "Привет" },
-            ["en"] = new() { ["poker.hi"] = "Hello" },
+            ["ru"] = new(StringComparer.Ordinal) { ["poker.hi"] = "Привет" },
+            ["en"] = new(StringComparer.Ordinal) { ["poker.hi"] = "Hello" },
         };
         var loc = MakeLocalizer(locales);
         Assert.Equal("Hello", loc.Get("poker", "hi", "en"));
@@ -77,13 +76,14 @@ public class LocalizerTests
 
     private static Localizer MakePluralLocalizer(string moduleId = "m") =>
         MakeLocalizer(new Dictionary<string, Dictionary<string, string>>
+(StringComparer.Ordinal)
         {
-            ["ru"] = new()
+            ["ru"] = new(StringComparer.Ordinal)
             {
                 [$"{moduleId}.coins.one"] = "монета",
                 [$"{moduleId}.coins.few"] = "монеты",
                 [$"{moduleId}.coins.many"] = "монет",
-            }
+            },
         });
 
     [Theory]
@@ -130,12 +130,13 @@ public class LocalizerTests
     {
         // en culture: 1 → one, everything else → many
         var locales = new Dictionary<string, Dictionary<string, string>>
+(StringComparer.Ordinal)
         {
-            ["en"] = new()
+            ["en"] = new(StringComparer.Ordinal)
             {
                 ["m.coins.one"] = "монета",
                 ["m.coins.many"] = "монет",
-            }
+            },
         };
         var loc = MakeLocalizer(locales);
         Assert.Equal(expected, loc.GetPlural("m", "coins", count, "en"));

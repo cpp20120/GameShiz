@@ -1,4 +1,5 @@
-using BotFramework.Host;
+
+using System.Globalization;
 
 namespace Games.Transfer.Application.Services;
 
@@ -43,7 +44,7 @@ public sealed class TransferService(
         await economics.EnsureUserAsync(fromUserId, chatId, senderDisplayName, ct);
         await economics.EnsureUserAsync(toUserId, chatId, recipientDisplayName, ct);
 
-        var operationId = $"peer:{chatId}:{sourceMessageId}:{fromUserId}:{toUserId}";
+        var operationId = string.Create(CultureInfo.InvariantCulture, $"peer:{chatId}:{sourceMessageId}:{fromUserId}:{toUserId}");
         var result = await economics.TryPeerTransferOnceAsync(
             fromUserId,
             toUserId,
@@ -70,6 +71,7 @@ public sealed class TransferService(
         }
 
         analytics.Track("transfer", "completed", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["from_user_id"] = fromUserId,
             ["to_user_id"] = toUserId,

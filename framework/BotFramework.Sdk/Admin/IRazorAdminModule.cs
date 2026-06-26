@@ -34,11 +34,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Admin;
+/// <summary>
 /// Tier 2 marker — module ships a Razor Class Library with .cshtml pages.
 /// The Host calls AdminAssembly on each IRazorAdminModule it sees and adds
 /// the returned assembly to its Razor application parts so the RCL's pages
 /// become routable. Area name is conventionally the module Id in PascalCase
 /// (e.g. module "sh" → RCL Area "Sh" → URL /admin/sh/…).
+/// </summary>
 public interface IRazorAdminModule
 {
     /// The RCL assembly that carries the .cshtml pages. Typically

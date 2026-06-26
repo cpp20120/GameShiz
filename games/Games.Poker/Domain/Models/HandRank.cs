@@ -1,6 +1,6 @@
 namespace Games.Poker.Domain.Models;
 
-public readonly struct HandRank(HandCategory category, int[] tiebreakers) : IComparable<HandRank>
+public readonly struct HandRank(HandCategory category, int[] tiebreakers) : IComparable<HandRank>, IEquatable<HandRank>
 {
     public HandCategory Category { get; } = category;
     private int[] Tiebreakers { get; } = tiebreakers;
@@ -18,5 +18,6 @@ public readonly struct HandRank(HandCategory category, int[] tiebreakers) : ICom
         return 0;
     }
 
-    public override string ToString() => $"{Category}[{string.Join(",", Tiebreakers)}]";
+    public override string ToString() => $"{Category}[{string.Join(',', Tiebreakers)}]";
+    public bool Equals(HandRank other) => CompareTo(other) == 0;
 }

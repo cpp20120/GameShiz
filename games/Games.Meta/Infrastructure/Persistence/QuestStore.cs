@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Meta.Infrastructure.Persistence;
@@ -168,8 +167,8 @@ public sealed class QuestStore(INpgsqlConnectionFactory connections, IQuestCatal
             cancellationToken: ct));
 
         return claimedQuestId is null
-            ? new QuestClaimResult(quest.Id, quest.Title, quest.RewardXp, quest.RewardCoins, false)
-            : new QuestClaimResult(quest.Id, quest.Title, quest.RewardXp, quest.RewardCoins, true);
+            ? new QuestClaimResult(quest.Id, quest.Title, quest.RewardXp, quest.RewardCoins, Claimed: false)
+            : new QuestClaimResult(quest.Id, quest.Title, quest.RewardXp, quest.RewardCoins, Claimed: true);
     }
 
     private static async Task<QuestPlayerProgress> LoadPlayerProgressAsync(

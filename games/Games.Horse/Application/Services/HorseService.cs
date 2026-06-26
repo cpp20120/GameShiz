@@ -12,11 +12,9 @@
 // payout = bet * koef (integer-floored).
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Horse.Infrastructure.Rendering;
 using Microsoft.Extensions.Options;
 using static Games.Horse.Domain.Rules.HorseResultHelpers;
 
@@ -58,7 +56,7 @@ public sealed partial class HorseService(
             return BetFail(HorseError.InvalidAmount, horseId, balance);
         }
 
-        var operationId = $"horse:bet:{balanceScopeId}:{sourceMessageId}:{userId}";
+        var operationId = string.Create(CultureInfo.InvariantCulture, $"horse:bet:{balanceScopeId}:{sourceMessageId}:{userId}");
         var debit = await economics.TryDebitOnceAsync(userId, balanceScopeId, amount, "horse.bet", operationId, ct);
         if (debit.Rejected)
             return BetFail(HorseError.InvalidAmount, horseId, balance);
@@ -69,6 +67,7 @@ public sealed partial class HorseService(
 
         LogHorseBetPlaced(userId, horseId, amount, raceDate);
         analytics.Track("horse", "bet", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["horse_id"] = horseId, ["amount"] = amount, ["race_date"] = raceDate,
         });
@@ -101,7 +100,7 @@ public sealed partial class HorseService(
 
         var global = await resultStore.FindAsync(raceDate, 0, ct);
         return global == null
-            ? new TodayRaceResult(null, null)
+            ? new TodayRaceResult(Winner: null, FileId: null)
             : new TodayRaceResult(global.Winner, global.FileId);
     }
 
@@ -148,7 +147,7 @@ public sealed partial class HorseService(
             ? betScopeIds.Prepend(0L).Distinct()
             : [resultScope];
         foreach (var scopeId in resultScopes)
-            await resultStore.UpsertAsync(new HorseResultRow(raceDate, scopeId, winner, null), ct);
+            await resultStore.UpsertAsync(new HorseResultRow(raceDate, scopeId, winner, FileId: null), ct);
 
         var transactions = Payoff(bets, ks, winner);
 
@@ -182,6 +181,7 @@ public sealed partial class HorseService(
         var pot = bets.Sum(b => b.Amount);
         LogHorseRaceFinished(winner + 1, bets.Count, transactions.Count, pot);
         analytics.Track("horse", "run", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["race_date"] = raceDate,
             ["winner"] = winner + 1,
@@ -194,8 +194,8 @@ public sealed partial class HorseService(
             transactions.Count, pot, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()), ct);
 
         var txForUi = transactions
-            .Select(t => new RaceTransaction(t.UserId, t.BalanceScopeId, t.Amount))
-            .ToList();
+            .ConvertAll(t => new RaceTransaction(t.UserId, t.BalanceScopeId, t.Amount))
+;
         return new RaceOutcome(HorseError.None, winner, gifBytes, txForUi, participants, betScopeIds);
     }
 
@@ -206,7 +206,7 @@ public sealed partial class HorseService(
             kv => kv.Key,
             kv => kv.Value == 0
                 ? 1.0
-                : Math.Floor((sum - kv.Value) / (1.1 * kv.Value) * 1000) / 1000 + 1
+                : (Math.Floor((sum - kv.Value) / (1.1 * kv.Value) * 1000) / 1000) + 1
         );
     }
 

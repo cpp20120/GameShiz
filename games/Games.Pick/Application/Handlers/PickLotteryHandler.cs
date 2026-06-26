@@ -10,9 +10,8 @@
 // (settle / cancellation by sweeper) come from the sweeper, not from here.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
 using System.Net;
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -42,13 +41,13 @@ public sealed partial class PickLotteryHandler(
         var reply = new ReplyParameters { MessageId = msg.MessageId };
         var displayName = msg.From?.Username is { Length: > 0 } un
             ? $"@{un}"
-            : msg.From?.FirstName ?? $"User ID: {userId}";
+            : msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var (verb, args) = SplitVerbAndArgs(text);
 
         try
         {
-            if (verb == "/pickjoin")
+            if (string.Equals(verb, "/pickjoin", StringComparison.Ordinal))
             {
                 await HandleJoinAsync(ctx, userId, displayName, chatId, reply);
                 return;
@@ -74,7 +73,7 @@ public sealed partial class PickLotteryHandler(
                 return;
             }
 
-            if (!int.TryParse(sub, out var stake) || stake <= 0)
+            if (!int.TryParse(sub, System.Globalization.CultureInfo.InvariantCulture, out var stake) || stake <= 0)
             {
                 await SendUsageAsync(ctx, chatId, reply);
                 return;
@@ -100,15 +99,15 @@ public sealed partial class PickLotteryHandler(
         {
             case LotteryOpenStatus.InvalidStake:
             {
-                var max = LotteryOpts.MaxStake > 0 ? LotteryOpts.MaxStake.ToString() : "∞";
+                var max = LotteryOpts.MaxStake > 0 ? LotteryOpts.MaxStake.ToString(System.Globalization.CultureInfo.InvariantCulture) : "∞";
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("lottery.err.invalid_stake"), Math.Max(1, LotteryOpts.MinStake), max),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.err.invalid_stake"), Math.Max(1, LotteryOpts.MinStake), max),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             }
             case LotteryOpenStatus.NotEnoughCoins:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("lottery.err.no_coins"), result.Balance),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.err.no_coins"), result.Balance),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             case LotteryOpenStatus.AlreadyOpen:
@@ -118,7 +117,7 @@ public sealed partial class PickLotteryHandler(
                 {
                     var minutesLeft = Math.Max(1, (int)Math.Ceiling((existing.DeadlineAt - DateTime.UtcNow).TotalMinutes));
                     await ctx.Bot.SendMessage(chatId,
-                        string.Format(Loc("lottery.err.already_open"), existing.Stake, minutesLeft),
+                        string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.err.already_open"), existing.Stake, minutesLeft),
                         parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 }
                 else
@@ -132,10 +131,10 @@ public sealed partial class PickLotteryHandler(
             {
                 var row = result.Row!;
                 var minutes = Math.Max(1, (int)Math.Ceiling((row.DeadlineAt - DateTime.UtcNow).TotalMinutes));
-                var feePct = (int)Math.Round(LotteryOpts.HouseFeePercent * 100);
+                var feePct = (int)Math.Round(LotteryOpts.HouseFeePercent * 100, MidpointRounding.ToEven);
                 var minEntrants = Math.Max(2, LotteryOpts.MinEntrantsToSettle);
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("lottery.opened"), row.Stake, minutes, feePct, minEntrants, result.Balance),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.opened"), row.Stake, minutes, feePct, minEntrants, result.Balance),
                     parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
                 return;
             }
@@ -160,7 +159,7 @@ public sealed partial class PickLotteryHandler(
 
         var minutes = Math.Max(0, (int)Math.Ceiling((snap.Row.DeadlineAt - DateTime.UtcNow).TotalMinutes));
         await ctx.Bot.SendMessage(chatId,
-            string.Format(Loc("lottery.info.open"),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.info.open"),
                 snap.Row.Stake, snap.Entrants, snap.PotSoFar, minutes,
                 WebUtility.HtmlEncode(snap.Row.OpenerName)),
             parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
@@ -179,7 +178,7 @@ public sealed partial class PickLotteryHandler(
         }
 
         await ctx.Bot.SendMessage(chatId,
-            string.Format(Loc("lottery.cancelled_by_opener"), settle.Entries.Count, settle.Row.Stake),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.cancelled_by_opener"), settle.Entries.Count, settle.Row.Stake),
             parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
     }
 
@@ -203,7 +202,7 @@ public sealed partial class PickLotteryHandler(
             {
                 var stake = result.Row?.Stake ?? 0;
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("lottery.err.no_coins_join"), stake, result.Balance),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.err.no_coins_join"), stake, result.Balance),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             }
@@ -211,7 +210,7 @@ public sealed partial class PickLotteryHandler(
             {
                 var row = result.Row!;
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("lottery.joined"),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.joined"),
                         WebUtility.HtmlEncode(displayName), row.Stake, result.Entrants, result.PotSoFar),
                     parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
                 return;
@@ -232,11 +231,11 @@ public sealed partial class PickLotteryHandler(
         if (trimmed.Length == 0 || trimmed[0] != '/')
             return (string.Empty, string.Empty);
 
-        var firstSpace = trimmed.IndexOf(' ');
+        var firstSpace = trimmed.IndexOf(' ', StringComparison.Ordinal);
         var head = firstSpace < 0 ? trimmed : trimmed[..firstSpace];
         var rest = firstSpace < 0 ? string.Empty : trimmed[(firstSpace + 1)..];
 
-        var atIdx = head.IndexOf('@');
+        var atIdx = head.IndexOf('@', StringComparison.Ordinal);
         if (atIdx > 0) head = head[..atIdx];
 
         return (head.ToLowerInvariant(), rest);
@@ -244,13 +243,12 @@ public sealed partial class PickLotteryHandler(
 
     private async Task SendUsageAsync(UpdateContext ctx, long chatId, ReplyParameters reply)
     {
-        var text = string.Format(
-            Loc("lottery.usage"),
+        var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.usage"),
             Math.Max(1, LotteryOpts.MinStake),
-            LotteryOpts.MaxStake > 0 ? LotteryOpts.MaxStake.ToString() : "∞",
+            LotteryOpts.MaxStake > 0 ? LotteryOpts.MaxStake.ToString(System.Globalization.CultureInfo.InvariantCulture) : "∞",
             Math.Max(1, LotteryOpts.DurationSeconds / 60),
             Math.Max(2, LotteryOpts.MinEntrantsToSettle),
-            (int)Math.Round(LotteryOpts.HouseFeePercent * 100));
+            (int)Math.Round(LotteryOpts.HouseFeePercent * 100, MidpointRounding.ToEven));
         await ctx.Bot.SendMessage(chatId, text,
             parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
     }

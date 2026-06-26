@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Dapper;
 
 namespace Games.Blackjack.Infrastructure.Persistence;
@@ -12,10 +11,7 @@ public sealed class BlackjackHandStore(
     public async Task<BlackjackHandRow?> FindAsync(long userId, CancellationToken ct)
     {
         var state = await LoadStateAsync(userId, ct);
-        if (state.Active is not null)
-            return state.Active;
-
-        return await FindLegacyProjectionAsync(userId, ct);
+        return state.Active ?? await FindLegacyProjectionAsync(userId, ct);
     }
 
     public async Task<bool> InsertAsync(BlackjackHandRow hand, CancellationToken ct)
@@ -249,7 +245,7 @@ public sealed class BlackjackHandStore(
             ev.StateMessageId,
             DateTimeOffset.FromUnixTimeMilliseconds(ev.CreatedAtMs));
 
-    private static string StreamId(long userId) => $"blackjack:{userId}";
+    private static string StreamId(long userId) => string.Create(CultureInfo.InvariantCulture, $"blackjack:{userId}");
 
     private sealed record BlackjackEsState(long Version, BlackjackHandRow? Active);
 }

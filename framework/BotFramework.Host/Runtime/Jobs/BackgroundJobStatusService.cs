@@ -122,6 +122,8 @@ public sealed class BackgroundJobStatusService : IBackgroundJobStatusService
 
     private sealed class MutableStatus(string name)
     {
+        private readonly Lock _sync = new();
+
         public string Name { get; } = name;
         public string Kind { get; set; } = "module";
         public string State { get; set; } = "registered";
@@ -137,7 +139,7 @@ public sealed class BackgroundJobStatusService : IBackgroundJobStatusService
 
         public BackgroundJobStatusSnapshot ToSnapshot()
         {
-            lock (this)
+            lock (_sync)
             {
                 return new BackgroundJobStatusSnapshot(
                     Name,

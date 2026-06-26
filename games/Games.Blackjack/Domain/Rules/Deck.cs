@@ -17,7 +17,7 @@ public static class Deck
             var j = RandomNumberGenerator.GetInt32(i + 1);
             (deck[i], deck[j]) = (deck[j], deck[i]);
         }
-        return string.Join(" ", deck);
+        return string.Join(' ', deck);
     }
 
     public static string[] Draw(ref string deck, int count)
@@ -29,7 +29,7 @@ public static class Deck
 
         var drawn = new string[count];
         Array.Copy(cards, 0, drawn, 0, count);
-        deck = string.Join(" ", cards.Skip(count));
+        deck = string.Join(' ', cards.Skip(count));
         return drawn;
     }
 

@@ -2,56 +2,85 @@ using System.Text.Json.Nodes;
 
 namespace BotFramework.Host.Configuration;
 
-/// <summary>Whitelists JSON keys allowed in <c>runtime_tuning.payload</c> (admin-edited overlay).</summary>
+/// <summary>
+/// Whitelists JSON keys allowed in
+/// <c>runtime_tuning.payload</c> (admin-edited overlay).
+/// </summary>
 public static class RuntimeTuningPayloadSanitizer
 {
-    public static readonly HashSet<string> AllowedBotKeys = new(StringComparer.Ordinal)
-    {
-        "DailyBonus",
-        "TelegramDiceDailyLimit",
-    };
+    private static readonly HashSet<string> AllowedBotKeys =
+        new(StringComparer.Ordinal)
+        {
+            "DailyBonus",
+            "TelegramDiceDailyLimit",
+        };
 
-    public static readonly HashSet<string> AllowedGameKeys = new(StringComparer.Ordinal)
-    {
-        // Telegram-dice family
-        "dice", "dicecube", "darts", "football", "basketball", "bowling",
-        // Bigger games
-        "horse", "poker", "blackjack", "sh",
-        // Casino-style
-        "pick",
-        // PvP / utilities
-        "challenges", "transfer",
-        // Front-end / admin / cross-cutting
-        "pixelbattle", "redeem", "leaderboard", "admin", "meta",
-    };
+    private static readonly HashSet<string> AllowedGameKeys =
+        new(StringComparer.Ordinal)
+        {
+            // Telegram-dice family
+            "dice",
+            "dicecube",
+            "darts",
+            "football",
+            "basketball",
+            "bowling",
+
+            // Bigger games
+            "horse",
+            "poker",
+            "blackjack",
+            "sh",
+
+            // Casino-style
+            "pick",
+
+            // PvP / utilities
+            "challenges",
+            "transfer",
+
+            // Front-end / admin / cross-cutting
+            "pixelbattle",
+            "redeem",
+            "leaderboard",
+            "admin",
+            "meta",
+        };
 
     public static JsonObject Sanitize(JsonObject raw)
     {
-        var o = new JsonObject();
+        ArgumentNullException.ThrowIfNull(raw);
+
+        var result = new JsonObject();
+
         if (raw["Bot"] is JsonObject bot)
         {
-            var b = new JsonObject();
-            foreach (var p in bot)
-            {
-                if (AllowedBotKeys.Contains(p.Key))
-                    b[p.Key] = p.Value?.DeepClone();
-            }
+            var sanitizedBot = SanitizeSection(bot, AllowedBotKeys);
 
-            if (b.Count > 0) o["Bot"] = b;
+            if (sanitizedBot.Count > 0)
+                result["Bot"] = sanitizedBot;
         }
 
-        if (raw["Games"] is not JsonObject games)
-            return o;
+        if (raw["Games"] is not JsonObject games) return result;
+        var sanitizedGames = SanitizeSection(games, AllowedGameKeys);
 
-        var g = new JsonObject();
-        foreach (var p in games)
-        {
-            if (AllowedGameKeys.Contains(p.Key))
-                g[p.Key] = p.Value?.DeepClone();
-        }
+        if (sanitizedGames.Count > 0)
+            result["Games"] = sanitizedGames;
 
-        if (g.Count > 0) o["Games"] = g;
+        return result;
+    }
 
-        return o;
+    private static JsonObject SanitizeSection(
+        JsonObject source,
+        IReadOnlySet<string> allowedKeys)
+    {
+        ArgumentNullException.ThrowIfNull(allowedKeys);
+        return new JsonObject(
+            source
+                .Where(property => allowedKeys.Contains(property.Key))
+                .Select(property =>
+                    new KeyValuePair<string, JsonNode?>(
+                        property.Key,
+                        property.Value?.DeepClone())));
     }
 }

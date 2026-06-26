@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -50,7 +49,7 @@ public sealed class LedgerModel(
                         economicsLedgerId = ledgerId,
                         newBalance = result.NewBalance,
                     }, ct);
-                    TempData["Flash"] = $"Reverted ledger line #{ledgerId} — balance now {result.NewBalance}.";
+                    TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Reverted ledger line #{ledgerId} — balance now {result.NewBalance}.");
                     break;
                 case LedgerRevertStatus.AlreadyReverted:
                     TempData["FlashError"] = true;
@@ -89,8 +88,8 @@ public sealed class LedgerModel(
 
     private async Task LoadAsync(CancellationToken ct)
     {
-        long? userId = long.TryParse(U, out var uid) ? uid : null;
-        long? scopeId = long.TryParse(S, out var sid) ? sid : null;
+        long? userId = long.TryParse(U, System.Globalization.CultureInfo.InvariantCulture, out var uid) ? uid : null;
+        long? scopeId = long.TryParse(S, System.Globalization.CultureInfo.InvariantCulture, out var sid) ? sid : null;
 
         const string sql = """
             SELECT l.id AS Id,

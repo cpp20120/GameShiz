@@ -6,7 +6,6 @@
 // economics to dapper").
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Dice.Infrastructure.Models;

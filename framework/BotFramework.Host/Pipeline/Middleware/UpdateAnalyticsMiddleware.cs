@@ -1,6 +1,4 @@
-using BotFramework.Sdk;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace BotFramework.Host.Pipeline.Middleware;
 
@@ -16,6 +14,7 @@ public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUp
     {
         var kind = Kind(update);
         var tags = new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["update_id"] = update.Id,
             ["user_id"] = userId,
@@ -61,12 +60,12 @@ public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUp
 
     private static string Kind(Update update) => update switch
     {
-        { Message.Text: { } } => "text",
-        { Message.Dice: { } } => "dice",
-        { CallbackQuery: { } } => "callback",
-        { ChannelPost: { } } => "channel_post",
-        { EditedMessage: { } } => "edited_message",
-        { InlineQuery: { } } => "inline_query",
+        { Message.Text: not null } => "text",
+        { Message.Dice: not null } => "dice",
+        { CallbackQuery: not null } => "callback",
+        { ChannelPost: not null } => "channel_post",
+        { EditedMessage: not null } => "edited_message",
+        { InlineQuery: not null } => "inline_query",
         _ => update.Type.ToString().ToLowerInvariant(),
     };
 

@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Darts.Infrastructure.Modules;
 
@@ -30,7 +29,7 @@ public sealed class DartsModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Дартс",
             ["cmd.darts"] = "Поставить на дартс",
             ["usage"] = "🎯 <b>Дартс</b>\n"

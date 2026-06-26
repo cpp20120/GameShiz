@@ -40,7 +40,7 @@ public static class ShTransitions
         if (chancellorPosition == president.Position) return ShValidation.InvalidTarget;
 
         var target = players.FirstOrDefault(p => p.Position == chancellorPosition);
-        if (target == null || !target.IsAlive) return ShValidation.InvalidTarget;
+        if (target?.IsAlive != true) return ShValidation.InvalidTarget;
 
         var alivePlayers = players.Count(p => p.IsAlive);
         if (alivePlayers > 5)
@@ -77,7 +77,7 @@ public static class ShTransitions
         voter.LastVote = vote;
 
         var alive = players.Where(p => p.IsAlive).ToList();
-        if (alive.Any(p => p.LastVote == ShVote.None))
+        if (alive.Exists(p => p.LastVote == ShVote.None))
             return null;
 
         int ja = alive.Count(p => p.LastVote == ShVote.Ja);

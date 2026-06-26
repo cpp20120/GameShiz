@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Pick.Infrastructure.Modules;
 
@@ -45,7 +44,7 @@ public sealed class PickModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Выбор",
             ["cmd.pick"] = "Сделай ставку на вариант — бот крутит",
             ["cmd.picklottery"] = "Открыть/просмотреть быструю лотерею в чате",

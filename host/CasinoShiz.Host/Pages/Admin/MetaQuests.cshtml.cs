@@ -1,8 +1,7 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using BotFramework.Host;
 using Dapper;
-using Games.Meta;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -40,7 +39,7 @@ public sealed class MetaQuestsModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
-        var init = await InitAsync(null, ct);
+        var init = await InitAsync(rawJsonOverride: null, ct);
         return init ?? Page();
     }
 
@@ -73,7 +72,7 @@ public sealed class MetaQuestsModel(
 
         await SaveCatalogAsync(formatted, validation, "meta.quests.save", ct);
 
-        TempData["Flash"] = $"Quest catalog saved and reloaded: {validation.QuestCount} generated quests, {validation.SlotCount} slots.";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Quest catalog saved and reloaded: {validation.QuestCount} generated quests, {validation.SlotCount} slots.");
         return RedirectToPreview();
     }
 
@@ -88,14 +87,14 @@ public sealed class MetaQuestsModel(
         try
         {
             var document = ReadEditorDocument();
-            document.Slots = Slots.Select(x => x.ToDocument()).ToList();
-            document.Definitions = Definitions.Select(x => x.ToDocument()).ToList();
+            document.Slots = Slots.ConvertAll(x => x.ToDocument());
+            document.Definitions = Definitions.ConvertAll(x => x.ToDocument());
             formatted = JsonSerializer.Serialize(document, PrettyJson);
             validation = JsonQuestCatalog.ValidateJson(formatted);
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
         {
-            var init = await InitAsync(null, ct);
+            var init = await InitAsync(rawJsonOverride: null, ct);
             FlashError = true;
             Flash = $"Structured quest settings rejected: {ex.Message}";
             return init ?? Page();
@@ -159,7 +158,7 @@ public sealed class MetaQuestsModel(
         ActivePreview = questCatalog.ActiveFor(season, PreviewChatId, PreviewUserId, now, progress);
         ActivePreviewGroups = ActivePreview
             .GroupBy(x => x.Period, StringComparer.Ordinal)
-            .OrderBy(x => x.Key == "daily" ? 0 : 1)
+            .OrderBy(x => string.Equals(x.Key, "daily", StringComparison.Ordinal) ? 0 : 1)
             .ToArray();
         return null;
     }
@@ -189,7 +188,7 @@ public sealed class MetaQuestsModel(
 
         var selected = PreviewSeasonId > 0
             ? rows.FirstOrDefault(x => x.Id == PreviewSeasonId)
-            : rows.FirstOrDefault(x => x.Status == "active") ?? rows.FirstOrDefault();
+            : rows.FirstOrDefault(x => string.Equals(x.Status, "active", StringComparison.Ordinal)) ?? rows.FirstOrDefault();
 
         if (selected is null)
         {
@@ -247,7 +246,7 @@ public sealed class MetaQuestsModel(
         });
     }
 
-    private QuestPoolEditorDocument ReadEditorDocument()
+    private static QuestPoolEditorDocument ReadEditorDocument()
     {
         var raw = JsonQuestCatalog.ReadEffectiveJson();
         return JsonSerializer.Deserialize<QuestPoolEditorDocument>(raw, new JsonSerializerOptions
@@ -267,22 +266,22 @@ public sealed class MetaQuestsModel(
             AllowTrailingCommas = true,
         }) ?? new QuestPoolEditorDocument();
 
-        Slots = document.Slots.Select(QuestSlotEditor.FromDocument).ToList();
-        Definitions = document.Definitions.Select(QuestDefinitionEditor.FromDocument).ToList();
+        Slots = document.Slots.ConvertAll(QuestSlotEditor.FromDocument);
+        Definitions = document.Definitions.ConvertAll(QuestDefinitionEditor.FromDocument);
     }
 
     private DateTimeOffset ParsePreviewAt()
     {
-        if (DateTimeOffset.TryParse(PreviewAt, out var parsed))
+        if (DateTimeOffset.TryParse(PreviewAt, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
             return parsed;
 
         var now = DateTimeOffset.UtcNow;
-        PreviewAt = now.ToString("yyyy-MM-ddTHH:mm:sszzz");
+        PreviewAt = now.ToString("yyyy-MM-ddTHH:mm:sszzz", System.Globalization.CultureInfo.InvariantCulture);
         return now;
     }
 
     private static string JoinCsv<T>(IEnumerable<T> values) => string.Join(", ", values);
-    private static string JoinLines(IEnumerable<string> values) => string.Join("\n", values);
+    private static string JoinLines(IEnumerable<string> values) => string.Join('\n', values);
 
     private static List<string> SplitCsv(string? value)
     {
@@ -300,10 +299,10 @@ public sealed class MetaQuestsModel(
             .ToList();
     }
 
-    private static List<int> SplitIntCsv(string? value) => SplitCsv(value).Select(int.Parse).ToList();
-    private static List<long> SplitLongCsv(string? value) => SplitCsv(value).Select(long.Parse).ToList();
+    private static List<int> SplitIntCsv(string? value) => SplitCsv(value).ConvertAll(int.Parse);
+    private static List<long> SplitLongCsv(string? value) => SplitCsv(value).ConvertAll(long.Parse);
     private static List<decimal> SplitDecimalCsv(string? value) =>
-        SplitCsv(value).Select(x => decimal.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        SplitCsv(value).ConvertAll(x => decimal.Parse(x, System.Globalization.CultureInfo.InvariantCulture));
 
     public sealed class QuestSlotEditor
     {

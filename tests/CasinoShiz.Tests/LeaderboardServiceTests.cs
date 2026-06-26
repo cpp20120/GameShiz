@@ -1,4 +1,4 @@
-using Games.Leaderboard;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -9,7 +9,7 @@ public class LeaderboardServiceTests
     private const long ChatScope = 100;
     private static readonly long NowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     private static readonly long RecentMs = NowMs - 1_000;           // 1 second ago — active
-    private static readonly long StaleMs = NowMs - 10 * 24 * 3600 * 1_000L; // 10 days ago — inactive (> 7 day default)
+    private static readonly long StaleMs = NowMs - (10 * 24 * 3600 * 1_000L); // 10 days ago — inactive (> 7 day default)
 
     private static LeaderboardService MakeService(
         InMemoryLeaderboardStore? store = null,
@@ -57,7 +57,7 @@ public class LeaderboardServiceTests
         var lb = await svc.GetTopAsync(10, ChatScope, default);
 
         var allUsers = lb.Places.SelectMany(p => p.Users).ToList();
-        Assert.DoesNotContain(allUsers, u => u.DisplayName == "Inactive");
+        Assert.DoesNotContain(allUsers, u => string.Equals(u.DisplayName, "Inactive", StringComparison.Ordinal));
         Assert.Single(allUsers);
     }
 
@@ -124,7 +124,7 @@ public class LeaderboardServiceTests
     {
         var store = new InMemoryLeaderboardStore();
         for (var i = 0; i < 20; i++)
-            store.Seed(i, ChatScope, $"U{i}", 100 - i, RecentMs);
+            store.Seed(i, ChatScope, string.Create(CultureInfo.InvariantCulture, $"U{i}"), 100 - i, RecentMs);
         var svc = MakeService(store);
 
         var lb = await svc.GetTopAsync(limit: 0, ChatScope, default);
@@ -138,7 +138,7 @@ public class LeaderboardServiceTests
     {
         var store = new InMemoryLeaderboardStore();
         // User active 2 days ago — hidden with daysToHide=1, visible with daysToHide=3
-        var twoDaysAgoMs = NowMs - 2 * 24 * 3600 * 1_000L;
+        var twoDaysAgoMs = NowMs - (2 * 24 * 3600 * 1_000L);
         store.Seed(1, ChatScope, "U1", 500, twoDaysAgoMs);
         var svc1 = MakeService(store, daysToHide: 1);
         var svc3 = MakeService(store, daysToHide: 3);

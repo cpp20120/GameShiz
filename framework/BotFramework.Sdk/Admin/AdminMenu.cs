@@ -34,7 +34,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Admin;
+/// <summary>
 /// Optional menu entry surfaced in the Host's top-level admin nav. A module
 /// with multiple pages registers one AdminMenu per section (e.g. "Secret
 /// Hitler › Active rooms", "Secret Hitler › Event log").
+/// </summary>
 public sealed record AdminMenu(string ModuleId, string Title, string DefaultRoute);

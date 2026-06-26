@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 
 namespace Games.Redeem.Application.Services;
@@ -29,6 +27,7 @@ public sealed partial class RedeemService(
         await store.InsertAsync(code, ct);
 
         analytics.Track("redeem", "issued", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["code"] = code.Code.ToString(),
@@ -46,6 +45,7 @@ public sealed partial class RedeemService(
         if (string.IsNullOrEmpty(codeText) || !Guid.TryParse(codeText, out var codeGuid))
         {
             analytics.Track("redeem", "invalid_code", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["code_text"] = codeText,
@@ -54,9 +54,10 @@ public sealed partial class RedeemService(
         }
 
         var code = await store.FindAsync(codeGuid, ct);
-        if (code == null || !code.Active)
+        if (code?.Active != true)
         {
             analytics.Track("redeem", "already_redeemed", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["code"] = codeGuid.ToString(),
@@ -67,6 +68,7 @@ public sealed partial class RedeemService(
         if (code.IssuedBy == userId)
         {
             analytics.Track("redeem", "self_redeem", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["code"] = codeGuid.ToString(),
@@ -84,7 +86,7 @@ public sealed partial class RedeemService(
         long userId, long balanceScopeId, Guid codeGuid, CancellationToken ct)
     {
         var code = await store.FindAsync(codeGuid, ct);
-        if (code == null || !code.Active)
+        if (code?.Active != true)
             return new CompleteRedeemResult(RedeemError.AlreadyRedeemed);
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -94,6 +96,7 @@ public sealed partial class RedeemService(
         await telegramDiceRolls.GrantExtraRollAsync(userId, balanceScopeId, code.FreeSpinGameId, ct);
 
         analytics.Track("redeem", "success", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["code"] = codeGuid.ToString(),
@@ -109,6 +112,7 @@ public sealed partial class RedeemService(
     public void ReportCaptcha(long userId, string codeText, string pattern, bool passed)
     {
         analytics.Track("redeem", passed ? "captcha_succeed" : "captcha_failed", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["code_text"] = codeText,

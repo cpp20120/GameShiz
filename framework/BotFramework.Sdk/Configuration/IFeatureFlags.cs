@@ -17,10 +17,14 @@
 namespace BotFramework.Sdk.Configuration;
 public interface IFeatureFlags
 {
+    /// <summary>
     /// Boolean gate. "poker.enabled", "sh.experimental-veto-rule".
+    /// </summary>
     bool IsEnabled(string flag, FeatureFlagContext? context = null);
 
+    /// <summary>
     /// Variant (bucket) selection for A/B. Returns one of the variant names
     /// you configured, or the default if the flag is off / unknown.
+    /// </summary>
     string Variant(string flag, string defaultVariant, FeatureFlagContext? context = null);
 }

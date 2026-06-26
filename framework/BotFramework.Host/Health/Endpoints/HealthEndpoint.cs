@@ -15,7 +15,6 @@
 // modules are expected to keep their checks under ~1s.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Health.Endpoints;
 

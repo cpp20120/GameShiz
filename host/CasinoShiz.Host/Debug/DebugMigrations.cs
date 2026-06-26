@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace CasinoShiz.Host.Debug;
 
@@ -15,6 +14,6 @@ public sealed class DebugMigrations : IModuleMigrations
                 stream_version  BIGINT      NOT NULL,
                 updated_at_ms   BIGINT      NOT NULL
             );
-            """)
+            """),
     ];
 }

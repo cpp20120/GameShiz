@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-
 namespace Games.Meta.Domain.Achievements;
 
 public static class AchievementRegistry
@@ -10,31 +8,31 @@ public static class AchievementRegistry
         long highRollerTotalStaked,
         long bigPayoutMinimum = 1_000) =>
     [
-        new("first_game", "Первый заход", "Сыграть первую игру в сезоне.", "season", true, false),
-        new("first_win", "Первая победа", "Выиграть первую игру в сезоне.", "season", true, false),
-        new("ten_games", "Разогрев", "Сыграть 10 игр в сезоне.", "season", true, false),
-        new("fifty_games", "Гриндер", "Сыграть 50 игр в сезоне.", "season", true, false),
-        new("ten_wins", "Победная серия", "Выиграть 10 игр в сезоне.", "season", true, false),
+        new("first_game", "Первый заход", "Сыграть первую игру в сезоне.", "season", IsSeasonal: true, IsSecret: false),
+        new("first_win", "Первая победа", "Выиграть первую игру в сезоне.", "season", IsSeasonal: true, IsSecret: false),
+        new("ten_games", "Разогрев", "Сыграть 10 игр в сезоне.", "season", IsSeasonal: true, IsSecret: false),
+        new("fifty_games", "Гриндер", "Сыграть 50 игр в сезоне.", "season", IsSeasonal: true, IsSecret: false),
+        new("ten_wins", "Победная серия", "Выиграть 10 игр в сезоне.", "season", IsSeasonal: true, IsSecret: false),
         new(
             "high_roller",
             "High Roller",
             $"Поставить суммарно {FormatCoins(highRollerTotalStaked)} монет за сезон.",
             "economy",
-            true,
-            false),
+IsSeasonal: true,
+IsSecret: false),
         new(
             "big_payout",
             "Большой занос",
             $"Получить выплату от {FormatCoins(bigPayoutMinimum)} монет за одну игру.",
             "economy",
-            true,
-            false),
-        new("dice_player", "Слоты крутятся", "Сыграть в слот-машину /slots.", "games", true, false),
-        new("cube_player", "Кубовод", "Сыграть в /dice.", "games", true, false),
-        new("darts_player", "В яблочко", "Сыграть в /darts.", "games", true, false),
-        new("football_player", "Гол-машина", "Сыграть в /football.", "games", true, false),
-        new("basketball_player", "Бросок сезона", "Сыграть в /basketball.", "games", true, false),
-        new("bowling_player", "Страйк рядом", "Сыграть в /bowling.", "games", true, false),
+IsSeasonal: true,
+IsSecret: false),
+        new("dice_player", "Слоты крутятся", "Сыграть в слот-машину /slots.", "games", IsSeasonal: true, IsSecret: false),
+        new("cube_player", "Кубовод", "Сыграть в /dice.", "games", IsSeasonal: true, IsSecret: false),
+        new("darts_player", "В яблочко", "Сыграть в /darts.", "games", IsSeasonal: true, IsSecret: false),
+        new("football_player", "Гол-машина", "Сыграть в /football.", "games", IsSeasonal: true, IsSecret: false),
+        new("basketball_player", "Бросок сезона", "Сыграть в /basketball.", "games", IsSeasonal: true, IsSecret: false),
+        new("bowling_player", "Страйк рядом", "Сыграть в /bowling.", "games", IsSeasonal: true, IsSecret: false),
         .. GameStreakRegistry.GetAchievements(),
     ];
 
@@ -55,12 +53,12 @@ public static class AchievementRegistry
         AddIf(definitions, unlocked, "high_roller", player.TotalStaked >= Math.Max(1, highRollerTotalStaked));
         AddIf(definitions, unlocked, "big_payout", ev.Payout >= Math.Max(1, bigPayoutMinimum));
 
-        AddIf(definitions, unlocked, "dice_player", ev.GameKey == MiniGameIds.Dice);
-        AddIf(definitions, unlocked, "cube_player", ev.GameKey == MiniGameIds.DiceCube);
-        AddIf(definitions, unlocked, "darts_player", ev.GameKey == MiniGameIds.Darts);
-        AddIf(definitions, unlocked, "football_player", ev.GameKey == MiniGameIds.Football);
-        AddIf(definitions, unlocked, "basketball_player", ev.GameKey == MiniGameIds.Basketball);
-        AddIf(definitions, unlocked, "bowling_player", ev.GameKey == MiniGameIds.Bowling);
+        AddIf(definitions, unlocked, "dice_player", string.Equals(ev.GameKey, MiniGameIds.Dice, StringComparison.Ordinal));
+        AddIf(definitions, unlocked, "cube_player", string.Equals(ev.GameKey, MiniGameIds.DiceCube, StringComparison.Ordinal));
+        AddIf(definitions, unlocked, "darts_player", string.Equals(ev.GameKey, MiniGameIds.Darts, StringComparison.Ordinal));
+        AddIf(definitions, unlocked, "football_player", string.Equals(ev.GameKey, MiniGameIds.Football, StringComparison.Ordinal));
+        AddIf(definitions, unlocked, "basketball_player", string.Equals(ev.GameKey, MiniGameIds.Basketball, StringComparison.Ordinal));
+        AddIf(definitions, unlocked, "bowling_player", string.Equals(ev.GameKey, MiniGameIds.Bowling, StringComparison.Ordinal));
 
         return unlocked;
     }
@@ -72,7 +70,7 @@ public static class AchievementRegistry
         bool condition)
     {
         if (!condition) return;
-        var achievement = definitions.First(x => x.Id == id);
+        var achievement = definitions.First(x => string.Equals(x.Id, id, StringComparison.Ordinal));
         result.Add(achievement);
     }
 

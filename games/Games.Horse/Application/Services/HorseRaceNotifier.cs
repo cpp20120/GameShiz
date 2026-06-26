@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -61,7 +59,7 @@ public sealed partial class HorseRaceNotifier(
     {
         var targetChatIds = outcome.BetScopeIds;
         var transactions = outcome.Transactions;
-        var delayMs = _opts.HorseCount == 2 ? _opts.AnnounceDelay1v1Ms : _opts.AnnounceDelayMs;
+        var delayMs = _opts.HorseCount == 2 ? _opts.AnnounceDelay1V1Ms : _opts.AnnounceDelayMs;
         var announceCt = lifetime.ApplicationStopping;
 
         _ = Task.Run(async () =>
@@ -75,7 +73,10 @@ public sealed partial class HorseRaceNotifier(
                     await bot.SendMessage(targetChatId, text, parseMode: ParseMode.Html, cancellationToken: announceCt);
                 }
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+                // Telegram notifications may be canceled during shutdown.
+            }
             catch (Exception ex) { LogHorseRunAnnounceFailed(ex); }
         }, announceCt);
     }
@@ -87,9 +88,9 @@ public sealed partial class HorseRaceNotifier(
             .ToList();
 
         return chatTransactions.Count > 0
-            ? string.Join("\n", new[] { Loc("run.winners_header") + "\n" }
+            ? string.Join('\n', new[] { Loc("run.winners_header") + "\n" }
                 .Concat(chatTransactions.Select((tx, i) =>
-                    string.Format(Loc("run.winner_line"), i + 1, tx.UserId, tx.Amount))))
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("run.winner_line"), i + 1, tx.UserId, tx.Amount))))
             : Loc("run.no_winners");
     }
 

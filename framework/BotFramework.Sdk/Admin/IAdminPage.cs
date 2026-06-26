@@ -36,14 +36,20 @@
 namespace BotFramework.Sdk.Admin;
 public interface IAdminPage
 {
+    /// <summary>
     /// Path under the module's admin root. "" = index, "rooms" → /admin/sh/rooms.
+    /// </summary>
     string Route { get; }
 
+    /// <summary>
     /// Shown in the module's admin nav bar.
+    /// </summary>
     string Title { get; }
 
+    /// <summary>
     /// Called per-request. Receives parsed query params + the module's services
     /// (resolved from the current scope) and returns the rendered HTML body.
     /// Host wraps it in the shared admin chrome and sets Content-Type.
+    /// </summary>
     Task<AdminResponse> RenderAsync(AdminRequest request, CancellationToken ct);
 }

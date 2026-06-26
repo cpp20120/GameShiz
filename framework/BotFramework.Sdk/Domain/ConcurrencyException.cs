@@ -7,6 +7,26 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
+
 namespace BotFramework.Sdk.Domain;
-public sealed class ConcurrencyException(string streamId, long expected, long actual)
-    : Exception($"Stream {streamId} expected version {expected}, was {actual}");
+
+public sealed class ConcurrencyException : Exception
+{
+    public ConcurrencyException()
+    {
+    }
+
+    public ConcurrencyException(string? message) : base(message)
+    {
+    }
+
+    public ConcurrencyException(string? message, Exception? innerException) : base(message, innerException)
+    {
+    }
+
+    public ConcurrencyException(string streamId, long expected, long actual)
+        : base(string.Create(CultureInfo.InvariantCulture, $"Stream {streamId} expected version {expected}, was {actual}"))
+    {
+    }
+}

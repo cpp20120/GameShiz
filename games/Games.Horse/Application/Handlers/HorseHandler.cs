@@ -10,8 +10,7 @@
 // cancels cleanly on shutdown.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -37,7 +36,7 @@ public sealed partial class HorseHandler(
         var userId = msg.From?.Id ?? 0;
         if (userId == 0) return;
 
-        if (msg.Text.StartsWith("/horserun"))
+        if (msg.Text.StartsWith("/horserun", StringComparison.OrdinalIgnoreCase))
         {
             await HandleRunAsync(ctx, msg, userId);
             return;
@@ -55,7 +54,7 @@ public sealed partial class HorseHandler(
             case "":
             case "help":
                 await ctx.Bot.SendMessage(msg.Chat.Id,
-                    string.Format(Loc("help"), _opts.HorseCount, _opts.MinBetsToRun),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("help"), _opts.HorseCount, _opts.MinBetsToRun),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
             default:
@@ -70,27 +69,27 @@ public sealed partial class HorseHandler(
         var chatId = msg.Chat.Id;
         var reply = new ReplyParameters { MessageId = msg.MessageId };
 
-        if (parts.Length < 2 || !int.TryParse(parts[1], out int horseId))
+        if (parts.Length < 2 || !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out int horseId))
         {
-            await ctx.Bot.SendMessage(chatId, string.Format(Loc("bet.no_horse"), _opts.HorseCount),
+            await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.no_horse"), _opts.HorseCount),
                 replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
-        if (parts.Length < 3 || !int.TryParse(parts[2], out int amount))
+        if (parts.Length < 3 || !int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out int amount))
         {
             await ctx.Bot.SendMessage(chatId, Loc("bet.no_amount"),
                 replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
 
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
         var r = await service.PlaceBetAsync(userId, displayName, chatId, horseId, amount, msg.MessageId, ctx.Ct);
 
         var text = r.Error switch
         {
-            HorseError.None => string.Format(Loc("bet.accepted"), r.Amount, r.HorseId),
-            HorseError.InvalidHorseId => string.Format(Loc("bet.invalid_horse"), _opts.HorseCount),
-            HorseError.InvalidAmount => string.Format(Loc("bet.invalid_amount"), r.RemainingCoins),
+            HorseError.None => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.accepted"), r.Amount, r.HorseId),
+            HorseError.InvalidHorseId => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.invalid_horse"), _opts.HorseCount),
+            HorseError.InvalidAmount => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.invalid_amount"), r.RemainingCoins),
             _ => Loc("bet.failed"),
         };
         await ctx.Bot.SendMessage(chatId, text, replyParameters: reply, cancellationToken: ctx.Ct);
@@ -127,7 +126,7 @@ public sealed partial class HorseHandler(
         if (outcome.Error == HorseError.NotAdmin) return;
         if (outcome.Error == HorseError.NotEnoughBets)
         {
-            await ctx.Bot.SendMessage(chatId, string.Format(Loc("run.not_enough_bets"), _opts.MinBetsToRun),
+            await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("run.not_enough_bets"), _opts.MinBetsToRun),
                 replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
@@ -148,7 +147,7 @@ public sealed partial class HorseHandler(
         if (r.Winner.HasValue && r.FileId != null)
         {
             await ctx.Bot.SendAnimation(msg.Chat.Id, InputFile.FromFileId(r.FileId),
-                caption: string.Format(Loc("result.winner"), r.Winner.Value + 1),
+                caption: string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.winner"), r.Winner.Value + 1),
                 replyParameters: reply, cancellationToken: ctx.Ct);
         }
         else
@@ -161,12 +160,12 @@ public sealed partial class HorseHandler(
     private async Task HandleInfoAsync(UpdateContext ctx, Message msg)
     {
         var info = await service.GetTodayInfoAsync(msg.Chat.Id, ctx.Ct);
-        var parts = new List<string> { string.Format(Loc("info.stakes_count"), info.BetsCount) };
+        var parts = new List<string> { string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("info.stakes_count"), info.BetsCount) };
         if (info.BetsCount > 0)
         {
-            var koefs = string.Join("\n",
+            var koefs = string.Join('\n',
                 info.Koefs.OrderBy(kv => kv.Key).Select(kv =>
-                    string.Format(Loc("info.koef_line"), kv.Key + 1, kv.Value.ToString("F3"))));
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("info.koef_line"), kv.Key + 1, kv.Value.ToString("F3", System.Globalization.CultureInfo.InvariantCulture))));
             parts.Add(Loc("info.koefs_header") + "\n" + koefs);
         }
 
@@ -174,7 +173,7 @@ public sealed partial class HorseHandler(
             replyParameters: new ReplyParameters { MessageId = msg.MessageId }, cancellationToken: ctx.Ct);
     }
 
-    private static string StripFirst(string str)
+    private string StripFirst(string str)
     {
         var parts = str.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 1 ? parts[1].Trim() : "";

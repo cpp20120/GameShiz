@@ -1,7 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using BotFramework.Host.Composition;
-using Games.PixelBattle;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -60,7 +58,7 @@ public sealed class PixelBattleAuthTests
     {
         var parameters = new SortedDictionary<string, string>(StringComparer.Ordinal)
         {
-            ["auth_date"] = authDate.ToUnixTimeSeconds().ToString(),
+            ["auth_date"] = authDate.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["query_id"] = "AAHdF6IQAAAAAN0XohDhrOrc",
             ["user"] = userJson,
         };

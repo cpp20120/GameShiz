@@ -1,6 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -22,8 +20,7 @@ public sealed class DebugDispatchFailuresHandler(
 
         var rows = await failures.ListUnresolvedAsync(10, ctx.Ct);
         var lines = new List<string> { $"unresolved dispatch failures: {rows.Count}" };
-        foreach (var row in rows)
-            lines.Add($"#{row.Id} {row.EventType} {row.StreamId}@{row.StreamVersion} retries={row.RetryCount}");
+        lines.AddRange(rows.Select(row => string.Create(CultureInfo.InvariantCulture, $"#{row.Id} {row.EventType} {row.StreamId}@{row.StreamVersion} retries={row.RetryCount}")));
 
         await ctx.Bot.SendMessage(
             msg.Chat.Id,

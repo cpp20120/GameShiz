@@ -1,4 +1,3 @@
-using Games.Horse;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -88,7 +87,7 @@ public class HorseServiceTests
         // Both values should be a multiple of 0.001
         foreach (var k in koefs.Values)
         {
-            var rounded = Math.Round(k, 3);
+            var rounded = Math.Round(k, 3, MidpointRounding.ToEven);
             Assert.Equal(rounded, k);
         }
     }
@@ -197,7 +196,7 @@ public class HorseServiceTests
     public async Task GetTodayInfoAsync_NoBets_ReturnsBetsCount0()
     {
         var svc = MakeService();
-        var info = await svc.GetTodayInfoAsync(null, default);
+        var info = await svc.GetTodayInfoAsync(balanceScopeIdOnly: null, default);
         Assert.Equal(0, info.BetsCount);
     }
 
@@ -205,7 +204,7 @@ public class HorseServiceTests
     public async Task GetTodayInfoAsync_NoBets_KoefsAllOne()
     {
         var svc = MakeService(horseCount: 4);
-        var info = await svc.GetTodayInfoAsync(null, default);
+        var info = await svc.GetTodayInfoAsync(balanceScopeIdOnly: null, default);
         Assert.All(info.Koefs.Values, k => Assert.Equal(1.0, k));
     }
 
@@ -217,7 +216,7 @@ public class HorseServiceTests
         await svc.PlaceBetAsync(1, "u", Scope, 1, 100, default);
         await svc.PlaceBetAsync(2, "u", Scope, 2, 50, default);
 
-        var info = await svc.GetTodayInfoAsync(null, default);
+        var info = await svc.GetTodayInfoAsync(balanceScopeIdOnly: null, default);
         Assert.Equal(2, info.BetsCount);
     }
 
@@ -230,7 +229,7 @@ public class HorseServiceTests
         await svc.PlaceBetAsync(1, "u", Scope, 1, 300, default);
         await svc.PlaceBetAsync(2, "u", Scope, 2, 100, default);
 
-        var info = await svc.GetTodayInfoAsync(null, default);
+        var info = await svc.GetTodayInfoAsync(balanceScopeIdOnly: null, default);
         // horseId 1 → stored as index 0; horseId 2 → stored as index 1
         Assert.True(info.Koefs[0] < info.Koefs[1]);
     }
@@ -245,7 +244,7 @@ public class HorseServiceTests
 
         Assert.Equal(1, (await svc.GetTodayInfoAsync(Scope, default)).BetsCount);
         Assert.Equal(1, (await svc.GetTodayInfoAsync(2000L, default)).BetsCount);
-        Assert.Equal(2, (await svc.GetTodayInfoAsync(null, default)).BetsCount);
+        Assert.Equal(2, (await svc.GetTodayInfoAsync(balanceScopeIdOnly: null, default)).BetsCount);
     }
 
     // ── RunRaceAsync ──────────────────────────────────────────────────────────

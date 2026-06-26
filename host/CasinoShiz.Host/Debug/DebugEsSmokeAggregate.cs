@@ -1,22 +1,15 @@
-using BotFramework.Sdk;
 
 namespace CasinoShiz.Host.Debug;
 
-public sealed class DebugEsSmokeAggregate : IEventSourcedAggregate
+public sealed class DebugEsSmokeAggregate(string id) : IEventSourcedAggregate
 {
     private readonly List<IDomainEvent> _pending = [];
 
-    public DebugEsSmokeAggregate()
+    public DebugEsSmokeAggregate() : this(string.Empty)
     {
-        Id = string.Empty;
     }
 
-    public DebugEsSmokeAggregate(string id)
-    {
-        Id = id;
-    }
-
-    public string Id { get; private set; }
+    public string Id { get; private set; } = id;
     public long Version { get; private set; }
     public int Count { get; private set; }
     public IReadOnlyList<IDomainEvent> PendingEvents => _pending;

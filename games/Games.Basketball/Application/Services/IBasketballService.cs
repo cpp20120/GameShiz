@@ -5,8 +5,6 @@
 // Payout: 4→x2, 5→x2. Uniform 1..5 die ⇒ EV 0.8 of stake.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
 
 namespace Games.Basketball.Application.Services;
 

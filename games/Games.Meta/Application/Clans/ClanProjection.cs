@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-
 namespace Games.Meta.Application.Clans;
 
 public sealed class ClanProjection(IClanService clans, ILogger<ClanProjection> logger)

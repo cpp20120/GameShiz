@@ -10,9 +10,7 @@
 // Environment.Exit after the stop timeout anyway.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
-using BotFramework.Host.Composition;
 
 namespace BotFramework.Host.Runtime.Jobs;
 
@@ -51,7 +49,10 @@ public sealed partial class BackgroundJobRunner(
 
         if (_jobTasks.Count == 0) return;
         try { await Task.WhenAll(_jobTasks).WaitAsync(cancellationToken); }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            // The host stop token expired while waiting for jobs to observe cancellation.
+        }
         catch (Exception ex) { LogStopFailed(ex); }
     }
 

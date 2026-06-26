@@ -14,7 +14,7 @@ public static class TaxService
     private const double GasDefault = 0.0285;
     private static readonly double GasModifier = Math.Sqrt(2);
 
-    private static int RoundValue(double x) => (int)Math.Round(x);
+    private static int RoundValue(double x) => (int)Math.Round(x, MidpointRounding.ToEven);
 
     private static double GasFunction(double x) =>
         Math.Max(1, (Math.Pow(x + 1, Math.Log10(x + 1)) - 1) / 39.15);

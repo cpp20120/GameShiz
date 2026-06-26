@@ -1,5 +1,3 @@
-using Games.SecretHitler;
-using Games.SecretHitler.Domain;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -180,7 +178,7 @@ public class ShTransitionsTests
         var r = ShTransitions.ApplyVote(game, players[4], ShVote.Ja, players);
 
         Assert.NotNull(r);
-        Assert.Equal(ShAfterVoteKind.ElectionPassed, r!.Kind);
+        Assert.Equal(ShAfterVoteKind.ElectionPassed, r.Kind);
         Assert.Equal(3, r.JaVotes);
         Assert.Equal(2, r.NeinVotes);
         Assert.Equal(ShPhase.LegislativePresident, game.Phase);
@@ -206,7 +204,7 @@ public class ShTransitionsTests
         var r = ShTransitions.ApplyVote(game, players[5], ShVote.Nein, players);
 
         Assert.NotNull(r);
-        Assert.Equal(ShAfterVoteKind.ElectionFailed, r!.Kind);
+        Assert.Equal(ShAfterVoteKind.ElectionFailed, r.Kind);
         Assert.Equal(ShPhase.Nomination, game.Phase);
         Assert.Equal(1, game.ElectionTracker);
         Assert.Equal(1, game.CurrentPresidentPosition);
@@ -228,7 +226,7 @@ public class ShTransitionsTests
         var r = ShTransitions.ApplyVote(game, players[4], ShVote.Nein, players);
 
         Assert.NotNull(r);
-        Assert.Equal(ShAfterVoteKind.HitlerElectedWin, r!.Kind);
+        Assert.Equal(ShAfterVoteKind.HitlerElectedWin, r.Kind);
         Assert.Equal(ShPhase.GameEnd, game.Phase);
         Assert.Equal(ShStatus.Completed, game.Status);
         Assert.Equal(ShWinner.Fascists, game.Winner);

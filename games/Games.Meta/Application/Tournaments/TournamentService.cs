@@ -1,4 +1,5 @@
-using BotFramework.Host;
+
+using System.Globalization;
 
 namespace Games.Meta.Application.Tournaments;
 
@@ -14,7 +15,7 @@ public sealed class TournamentService(
         var result = await tournaments.CreateAsync(season, chatId, userId, gameKey, entryFee, maxPlayers, ct);
         if (result.Created && result.Tournament is not null)
         {
-            await history.AppendAsync("tournament.created", "tournament", result.Tournament.Id.ToString(), season.Id, chatId, userId, new
+            await history.AppendAsync("tournament.created", "tournament", result.Tournament.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), season.Id, chatId, userId, new
             {
                 result.Tournament.Id,
                 result.Tournament.GameKey,
@@ -29,8 +30,8 @@ public sealed class TournamentService(
     public async Task<TournamentJoinResult> JoinAsync(long tournamentId, long userId, long chatId, string displayName, CancellationToken ct)
     {
         var tournament = await tournaments.GetAsync(tournamentId, ct);
-        if (tournament is null) return new TournamentJoinResult(false, "Турнир не найден.");
-        if (tournament.ChatId != chatId) return new TournamentJoinResult(false, "Этот турнир создан в другом чате.");
+        if (tournament is null) return new TournamentJoinResult(Joined: false, "Турнир не найден.");
+        if (tournament.ChatId != chatId) return new TournamentJoinResult(Joined: false, "Этот турнир создан в другом чате.");
 
         await economics.EnsureUserAsync(userId, chatId, displayName, ct);
         if (tournament.EntryFee > 0)
@@ -40,16 +41,16 @@ public sealed class TournamentService(
                 chatId,
                 tournament.EntryFee,
                 "tournament.entry_fee",
-                $"tournament:entry:{tournament.Id}:{chatId}:{userId}",
+                string.Create(CultureInfo.InvariantCulture, $"tournament:entry:{tournament.Id}:{chatId}:{userId}"),
                 ct);
             if (debit.Rejected)
-                return new TournamentJoinResult(false, "Недостаточно монет для entry fee.", tournament);
+                return new TournamentJoinResult(Joined: false, "Недостаточно монет для entry fee.", tournament);
         }
 
         var joined = await tournaments.JoinAsync(tournamentId, userId, displayName, ct);
         if (joined.Joined)
         {
-            await history.AppendAsync("tournament.joined", "tournament", tournamentId.ToString(), tournament.SeasonId, chatId, userId, new
+            await history.AppendAsync("tournament.joined", "tournament", tournamentId.ToString(System.Globalization.CultureInfo.InvariantCulture), tournament.SeasonId, chatId, userId, new
             {
                 tournamentId,
                 displayName,
@@ -94,15 +95,15 @@ public sealed class TournamentService(
         if (started && before is not null)
         {
             var matches = await tournaments.GetMatchesAsync(tournamentId, ct);
-            await history.AppendAsync("tournament.started", "tournament", tournamentId.ToString(), before.SeasonId, before.ChatId, userId, new
+            await history.AppendAsync("tournament.started", "tournament", tournamentId.ToString(System.Globalization.CultureInfo.InvariantCulture), before.SeasonId, before.ChatId, userId, new
             {
                 tournamentId,
                 before.GameKey,
                 before.PlayerCount,
                 before.MaxPlayers,
                 matchCount = matches.Count,
-                readyMatches = matches.Count(x => x.Status == "ready"),
-                byes = matches.Count(x => x.Status == "byed"),
+                readyMatches = matches.Count(x => string.Equals(x.Status, "ready", StringComparison.Ordinal)),
+                byes = matches.Count(x => string.Equals(x.Status, "byed", StringComparison.Ordinal)),
             }, ct);
         }
         return started;
@@ -116,7 +117,7 @@ public sealed class TournamentService(
         var tournament = await tournaments.GetAsync(result.Match.TournamentId, ct);
         if (tournament is not null)
         {
-            await history.AppendAsync("tournament.match_reported", "tournament", tournament.Id.ToString(), tournament.SeasonId, tournament.ChatId, victorUserId, new
+            await history.AppendAsync("tournament.match_reported", "tournament", tournament.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), tournament.SeasonId, tournament.ChatId, victorUserId, new
             {
                 matchId,
                 result.Match.Round,
@@ -142,7 +143,7 @@ public sealed class TournamentService(
                 ct);
         }
 
-        await history.AppendAsync("tournament.finished", "tournament", tournament.Id.ToString(), tournament.SeasonId, tournament.ChatId, result.Victor.UserId, new
+        await history.AppendAsync("tournament.finished", "tournament", tournament.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), tournament.SeasonId, tournament.ChatId, result.Victor.UserId, new
         {
             tournament.Id,
             victorUserId = result.Victor.UserId,
@@ -174,7 +175,7 @@ public sealed class TournamentService(
                 ct);
         }
 
-        await history.AppendAsync("tournament.finished", "tournament", before.Id.ToString(), before.SeasonId, before.ChatId, victor.UserId, new
+        await history.AppendAsync("tournament.finished", "tournament", before.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), before.SeasonId, before.ChatId, victor.UserId, new
         {
             before.Id,
             victorUserId = victor.UserId,
@@ -208,7 +209,7 @@ public sealed class TournamentService(
             }
         }
 
-        await history.AppendAsync("tournament.cancelled", "tournament", before.Id.ToString(), before.SeasonId, before.ChatId, actorUserId, new
+        await history.AppendAsync("tournament.cancelled", "tournament", before.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), before.SeasonId, before.ChatId, actorUserId, new
         {
             before.Id,
             before.EntryFee,

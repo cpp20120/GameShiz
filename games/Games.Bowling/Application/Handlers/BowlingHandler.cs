@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -22,7 +21,7 @@ public sealed partial class BowlingHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (diceMsg?.Dice?.Emoji == DiceEmoji)
+        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
         {
             if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMsg, out var uid, out var dname))
                 return;
@@ -50,7 +49,7 @@ public sealed partial class BowlingHandler(
 
         var chatId = msg.Chat.Id;
         var reply = new ReplyParameters { MessageId = msg.MessageId };
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var parts = msg.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var action = parts.Length > 1 ? parts[1] : "";
@@ -59,7 +58,7 @@ public sealed partial class BowlingHandler(
         {
             case "help":
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
             case "bet":
@@ -68,7 +67,7 @@ public sealed partial class BowlingHandler(
                 break;
             default:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
         }
@@ -79,26 +78,27 @@ public sealed partial class BowlingHandler(
     {
         int amount;
         if (parts.Length == 1)
+        {
             amount = tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet;
+        }
         else if (parts.Length == 2)
         {
             if (!parts[1].Equals("bet", StringComparison.OrdinalIgnoreCase))
             {
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("bet.usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             }
 
             amount = tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet;
         }
-        else if (parts.Length >= 3
-            && parts[1].Equals("bet", StringComparison.OrdinalIgnoreCase)
-            && int.TryParse(parts[2], out amount)) { }
-        else
+        else if (parts.Length < 3
+            || !parts[1].Equals("bet", StringComparison.OrdinalIgnoreCase)
+            || !int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out amount))
         {
             await ctx.Bot.SendMessage(chatId,
-                string.Format(Loc("bet.usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
+                string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.usage"), tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).DefaultBet),
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
@@ -106,12 +106,12 @@ public sealed partial class BowlingHandler(
         var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId, ctx.Ct);
         var text = r.Error switch
         {
-            BowlingBetError.None => string.Format(Loc("bet.accepted"), r.Amount),
+            BowlingBetError.None => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.accepted"), r.Amount),
             BowlingBetError.InvalidAmount => Loc("bet.invalid"),
-            BowlingBetError.NotEnoughCoins => string.Format(Loc("bet.not_enough"), r.Balance),
-            BowlingBetError.AlreadyPending => string.Format(Loc("bet.already_pending"), r.PendingAmount),
-            BowlingBetError.BusyOtherGame => string.Format(Loc("bet.busy_other"), MiniGameLabels.Ru(r.BlockingGameId!)),
-            BowlingBetError.DailyRollLimit => string.Format(Loc("bet.daily_roll_limit"), r.DailyRollUsed, r.DailyRollLimit),
+            BowlingBetError.NotEnoughCoins => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.not_enough"), r.Balance),
+            BowlingBetError.AlreadyPending => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.already_pending"), r.PendingAmount),
+            BowlingBetError.BusyOtherGame => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.busy_other"), MiniGameLabels.Ru(r.BlockingGameId!)),
+            BowlingBetError.DailyRollLimit => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.daily_roll_limit"), r.DailyRollUsed, r.DailyRollLimit),
             _ => Loc("bet.failed"),
         };
         try
@@ -150,7 +150,9 @@ public sealed partial class BowlingHandler(
                     await HandleRollAsync(ctx, diceSent, userId, displayName, chatId, diceReply);
                 }
                 else
+                {
                     BotMiniGameDiceOwner.Bind(chatId, diceSent.MessageId, userId, displayName);
+                }
             }
             catch (Exception ex)
             {
@@ -193,10 +195,10 @@ public sealed partial class BowlingHandler(
                     var errText = betR.Error switch
                     {
                         BowlingBetError.InvalidAmount  => Loc("bet.invalid"),
-                        BowlingBetError.NotEnoughCoins => string.Format(Loc("bet.not_enough"), betR.Balance),
-                        BowlingBetError.AlreadyPending => string.Format(Loc("bet.already_pending"), betR.PendingAmount),
-                        BowlingBetError.BusyOtherGame  => string.Format(Loc("bet.busy_other"), MiniGameLabels.Ru(betR.BlockingGameId!)),
-                        BowlingBetError.DailyRollLimit => string.Format(Loc("bet.daily_roll_limit"), betR.DailyRollUsed, betR.DailyRollLimit),
+                        BowlingBetError.NotEnoughCoins => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.not_enough"), betR.Balance),
+                        BowlingBetError.AlreadyPending => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.already_pending"), betR.PendingAmount),
+                        BowlingBetError.BusyOtherGame  => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.busy_other"), MiniGameLabels.Ru(betR.BlockingGameId!)),
+                        BowlingBetError.DailyRollLimit => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.daily_roll_limit"), betR.DailyRollUsed, betR.DailyRollLimit),
                         _                              => Loc("bet.failed"),
                     };
                     await ctx.Bot.SendMessage(chatId, errText, parseMode: ParseMode.Html,
@@ -213,8 +215,7 @@ public sealed partial class BowlingHandler(
             var net = r.Payout - r.Bet;
             var text = AppendRemainingAttempts(
                 r.Payout > 0
-                    ? string.Format(Loc("roll.win"), r.Face, r.Multiplier, r.Bet, r.Payout, net, r.Balance)
-                    : string.Format(Loc("roll.lose"), r.Face, r.Bet, r.Balance),
+                    ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("roll.win"), r.Face, r.Multiplier, r.Bet, r.Payout, net, r.Balance) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("roll.lose"), r.Face, r.Bet, r.Balance),
                 r.DailyRollUsed,
                 r.DailyRollLimit);
             try
@@ -240,8 +241,7 @@ public sealed partial class BowlingHandler(
 
     private string AppendRemainingAttempts(string text, int used, int limit) =>
         limit > 0
-            ? text + "\n" + string.Format(Loc("roll.daily_roll_remaining"), Math.Max(0, limit - used), limit)
-            : text;
+            ? text + "\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("roll.daily_roll_remaining"), Math.Max(0, limit - used), limit) : text;
 
     [LoggerMessage(EventId = 2401, Level = LogLevel.Error, Message = "bowling.reply.failed user={UserId}")]
     partial void LogReplyFailed(long userId, Exception exception);

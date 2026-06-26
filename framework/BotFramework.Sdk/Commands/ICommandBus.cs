@@ -25,10 +25,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Commands;
+/// <summary>
 /// Entry point for modules. A handler that wants to dispatch a command
 /// resolves ICommandBus from DI and calls Send. Every middleware in the
 /// configured pipeline runs around the handler — logs, metrics, auth,
 /// rate-limit — before and after the terminal handler executes.
+/// </summary>
 public interface ICommandBus
 {
     Task SendAsync(ICommand command, CancellationToken ct);

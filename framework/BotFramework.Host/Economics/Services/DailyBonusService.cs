@@ -1,4 +1,4 @@
-using BotFramework.Host.Composition;
+using System.Globalization;
 using Dapper;
 
 namespace BotFramework.Host.Economics.Services;
@@ -92,12 +92,13 @@ public sealed partial class DailyBonusService(
         CancellationToken ct)
     {
         var opt = tuning.DailyBonus;
-        var dayDb = bonusDay.ToDateTime(TimeOnly.MinValue);
         var markDb = markDay.ToDateTime(TimeOnly.MinValue);
-        var operationId = $"daily.bonus:{balanceScopeId}:{userId}:{bonusDay:yyyy-MM-dd}";
+        var operationId = string.Create(CultureInfo.InvariantCulture, $"daily.bonus:{balanceScopeId}:{userId}:{bonusDay:yyyy-MM-dd}");
 
         const string selectSql = """
-            SELECT u.coins, u.version, u.last_daily_bonus_on
+            SELECT u.coins AS Coins,
+                   u.version AS Version,
+                   u.last_daily_bonus_on AS LastDailyBonusOn
             FROM users u
             WHERE u.telegram_user_id = @userId AND u.balance_scope_id = @balanceScopeId
             FOR UPDATE
@@ -143,10 +144,10 @@ public sealed partial class DailyBonusService(
             return new DailyBonusClaimResult(DailyBonusClaimStatus.IneligibleEmptyBalance);
         }
 
-        var coins = row.coins;
-        var version = row.version;
-        var lastDay = row.last_daily_bonus_on;
-        if (lastDay.HasValue && lastDay.Value >= bonusDay)
+        var coins = row.Coins;
+        var version = row.Version;
+        var lastDay = row.LastDailyBonusOn;
+        if (lastDay >= bonusDay)
         {
             await tx.RollbackAsync(ct);
             return new DailyBonusClaimResult(DailyBonusClaimStatus.AlreadyClaimedToday, 0, coins);
@@ -187,12 +188,12 @@ public sealed partial class DailyBonusService(
                 transaction: tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
 
-        analytics.Track("framework", "daily_bonus", new Dictionary<string, object?>
+        analytics.Track("framework", "daily_bonus", new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["chat_id"] = balanceScopeId,
             ["bonus"] = bonus,
-            ["bonus_day"] = bonusDay.ToString("yyyy-MM-dd"),
+            ["bonus_day"] = bonusDay.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
         });
         LogClaim(userId, balanceScopeId, bonus, newCoins);
         return new DailyBonusClaimResult(DailyBonusClaimStatus.Claimed, bonus, newCoins);
@@ -205,19 +206,9 @@ public sealed partial class DailyBonusService(
         return DateOnly.FromDateTime(shifted.DateTime);
     }
 
-    private sealed class WalletForDailyRow
-    {
-        public int coins { get; init; }
-        public long version { get; init; }
-        public DateOnly? last_daily_bonus_on { get; init; }
-    }
+    private sealed record WalletForDailyRow(int Coins, long Version, DateOnly? LastDailyBonusOn);
 
-    private sealed class CatchUpWalletRow
-    {
-        public long UserId { get; init; }
-        public long BalanceScopeId { get; init; }
-        public DateOnly? LastDailyBonusOn { get; init; }
-    }
+    private sealed record CatchUpWalletRow(long UserId, long BalanceScopeId, DateOnly? LastDailyBonusOn);
 
     [LoggerMessage(LogLevel.Information, "daily_bonus.credited user={UserId} scope={Scope} bonus={Bonus} balance={Balance}")]
     partial void LogClaim(long userId, long scope, int bonus, int balance);

@@ -1,6 +1,6 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
-using BotFramework.Sdk;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -24,22 +24,38 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         if (msg?.Text is null) return;
 
         if (msg.Text.StartsWith("/season", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleSeasonAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/profile", StringComparison.OrdinalIgnoreCase) ||
-                 msg.Text.StartsWith("/rank", StringComparison.OrdinalIgnoreCase))
+                         msg.Text.StartsWith("/rank", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleProfileAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/topseason", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleTopSeasonAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/achievements", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleAchievementsAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/streaks", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleStreaksAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/quests", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleQuestsAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/quest", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleQuestAsync(ctx, msg);
+        }
         else if (msg.Text.StartsWith("/clan", StringComparison.OrdinalIgnoreCase))
+        {
             await HandleClanAsync(ctx, msg);
+        }
     }
 
     private async Task HandleSeasonAsync(UpdateContext ctx, Message msg)
@@ -48,8 +64,8 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         var (text, entities) = BuildSeasonMessage(season);
 
         await ctx.Bot.SendMessage(msg.Chat.Id, text,
-            entities: entities,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
+            entities: entities,
             cancellationToken: ctx.Ct);
     }
 
@@ -116,11 +132,11 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
             "👤 <b>Профиль сезона</b>",
             $"Игрок: <b>{Html(player.DisplayName)}</b>",
             $"Сезон: <b>{Html(profile.Season.Name)}</b>",
-            $"Уровень: <b>{player.Level}</b> · XP: <b>{player.Xp}</b>",
+            string.Create(CultureInfo.InvariantCulture, $"Уровень: <b>{player.Level}</b> · XP: <b>{player.Xp}</b>"),
             $"Прогресс уровня: <code>{xpInLevel}/{xpForNext}</code>",
             $"Рейтинг: <b>{player.Rating}</b> · Дивизион: <b>{Html(profile.Division)}</b>",
             $"Игры: <b>{player.GamesPlayed}</b> · Победы: <b>{player.Wins}</b> · Поражения: <b>{player.Losses}</b>",
-            $"Оборот: ставка <b>{player.TotalStaked}</b> · выплата <b>{player.TotalPayout}</b>"
+            $"Оборот: ставка <b>{player.TotalStaked}</b> · выплата <b>{player.TotalPayout}</b>",
         ]);
 
         await ctx.Bot.SendMessage(msg.Chat.Id, text,
@@ -147,7 +163,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
             lines.Add($"{entry.Place}. <b>{Html(entry.DisplayName)}</b> — XP <b>{entry.Xp}</b>, lvl <b>{entry.Level}</b>, rating <b>{entry.Rating}</b>");
         }
 
-        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join("\n", lines),
+        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join('\n', lines),
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
             cancellationToken: ctx.Ct);
@@ -170,7 +186,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
             lines.Add($"{mark} <b>{Html(achievement.Title)}</b> — {Html(achievement.Description)}{suffix}");
         }
 
-        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join("\n", lines),
+        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join('\n', lines),
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
             cancellationToken: ctx.Ct);
@@ -197,7 +213,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
                 $"рекорд <b>{streak.BestStreak}</b>{lastPlayed}");
         }
 
-        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join("\n", lines),
+        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join('\n', lines),
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
             cancellationToken: ctx.Ct);
@@ -212,12 +228,12 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         var lines = new List<string> { "📜 <b>Квесты</b>", "Забрать награду: <code>/quest claim &lt;id&gt;</code>", "" };
         foreach (var q in rows)
         {
-            var mark = q.Claimed ? "💰" : q.Completed ? "✅" : "⬜";
+            var mark = q is { Claimed: true } ? "💰" : q.Completed ? "✅" : "⬜";
             lines.Add($"{mark} <code>{Html(q.Id)}</code> <b>{Html(q.Title)}</b> [{Html(q.Period)}]");
             lines.Add($"   {Html(q.Description)} — <code>{q.Progress}/{q.Target}</code>, reward: <b>{q.RewardXp} XP</b> + <b>{q.RewardCoins}</b> coins");
         }
 
-        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join("\n", lines),
+        await ctx.Bot.SendMessage(msg.Chat.Id, string.Join('\n', lines),
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
             cancellationToken: ctx.Ct);
@@ -244,7 +260,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         {
             null => "❌ Квест не найден.",
             { Claimed: false } => "⏳ Квест ещё не выполнен или награда уже забрана.",
-            _ => $"🎁 Забрана награда за <b>{Html(result.Title)}</b>: <b>{result.RewardXp} XP</b> + <b>{result.RewardCoins}</b> coins"
+            _ => $"🎁 Забрана награда за <b>{Html(result.Title)}</b>: <b>{result.RewardXp} XP</b> + <b>{result.RewardCoins}</b> coins",
         };
 
         await ctx.Bot.SendMessage(msg.Chat.Id, text,
@@ -354,7 +370,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         foreach (var member in members.Take(30))
             lines.Add($"• <b>{Html(member.DisplayName)}</b> — <code>{Html(member.Role)}</code>");
         if (members.Count > 30) lines.Add($"…и ещё {members.Count - 30} участников.");
-        await SendHtmlAsync(ctx, msg, string.Join("\n", lines));
+        await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
     private async Task HandleClanTopAsync(UpdateContext ctx, Message msg)
@@ -369,10 +385,10 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         var lines = new List<string> { "🏰 <b>Топ кланов сезона</b>" };
         foreach (var entry in top)
             lines.Add($"{entry.Place}. <b>[{Html(entry.Tag)}] {Html(entry.Name)}</b> — XP <b>{entry.Xp}</b>, rating <b>{entry.Rating}</b>, members <b>{entry.Members}</b>");
-        await SendHtmlAsync(ctx, msg, string.Join("\n", lines));
+        await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
-    private Task ReplyClanHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n", [
+    private static Task ReplyClanHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n", [
         "🏰 <b>Кланы</b>",
         "<code>/clan create &lt;TAG&gt; &lt;name&gt;</code>",
         "<code>/clan join &lt;TAG&gt;</code>",
@@ -381,7 +397,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         "<code>/clan top</code>",
     ]));
 
-    private Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text,
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },
@@ -390,11 +406,11 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
     private static string DisplayName(User user)
     {
         if (!string.IsNullOrWhiteSpace(user.Username)) return "@" + user.Username;
-        var name = string.Join(" ", new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
-        return string.IsNullOrWhiteSpace(name) ? user.Id.ToString() : name;
+        var name = string.Join(' ', new[] { user.FirstName, user.LastName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        return string.IsNullOrWhiteSpace(name) ? user.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) : name;
     }
 
     private static string Html(string value) => WebUtility.HtmlEncode(value);
 
-    private static string FormatDate(DateTimeOffset value) => value.ToString("yyyy-MM-dd HH:mm 'UTC'");
+    private static string FormatDate(DateTimeOffset value) => value.ToString("yyyy-MM-dd HH:mm 'UTC'", System.Globalization.CultureInfo.InvariantCulture);
 }

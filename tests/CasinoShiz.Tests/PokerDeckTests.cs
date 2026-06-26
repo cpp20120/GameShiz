@@ -18,7 +18,7 @@ public class PokerDeckTests
     {
         var deck = Deck.BuildShuffled();
         var cards = deck.Split(' ');
-        Assert.Equal(52, cards.Distinct().Count());
+        Assert.Equal(52, cards.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
@@ -29,8 +29,10 @@ public class PokerDeckTests
         var suits = new[] { "S", "H", "D", "C" };
         var ranks = new[] { "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A" };
         foreach (var s in suits)
+        {
             foreach (var r in ranks)
                 Assert.Contains(r + s, cards);
+        }
     }
 
     [Fact]
@@ -74,6 +76,6 @@ public class PokerDeckTests
         var deck = Deck.BuildShuffled();
         var hand1 = Deck.Draw(ref deck, 2);
         var hand2 = Deck.Draw(ref deck, 2);
-        Assert.Empty(hand1.Intersect(hand2));
+        Assert.Empty(hand1.Intersect(hand2, StringComparer.Ordinal));
     }
 }

@@ -21,17 +21,18 @@
 // module_snapshots, and __module_migrations.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 
 namespace BotFramework.Host.Composition.Modules;
 
-public sealed class ModuleLoader
+public static class ModuleLoader
 {
+    /// <summary>
     /// Convenience overload for the composition root. Creates the adapter +
     /// registrations bag, registers both as singletons on the real service
     /// collection, invokes ConfigureServices on each module, and returns the
     /// aggregated LoadedModules view.
+    /// </summary>
     public static LoadedModules LoadAll(
         IEnumerable<IModule> modules,
         IServiceCollection services,
@@ -52,7 +53,7 @@ public sealed class ModuleLoader
         IModuleServiceCollection services)
     {
         var loaded = new List<IModule>();
-        var localesByCulture = new Dictionary<string, Dictionary<string, string>>();
+        var localesByCulture = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
         var botCommands = new List<BotCommand>();
         var migrations = new List<IModuleMigrations>();
 
@@ -66,7 +67,7 @@ public sealed class ModuleLoader
             foreach (var bundle in module.GetLocales())
             {
                 if (!localesByCulture.TryGetValue(bundle.CultureCode, out var dict))
-                    localesByCulture[bundle.CultureCode] = dict = new();
+                    localesByCulture[bundle.CultureCode] = dict = new(StringComparer.Ordinal);
 
                 foreach (var (key, value) in bundle.Strings)
                     dict[$"{module.Id}.{key}"] = value;

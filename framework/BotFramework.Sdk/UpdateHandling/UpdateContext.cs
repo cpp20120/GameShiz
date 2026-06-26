@@ -24,8 +24,10 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.UpdateHandling;
+/// <summary>
 /// Request-scoped context carrying the Telegram update, the bot client, and
 /// the scoped service provider. Handlers read whatever they need from here.
+/// </summary>
 public sealed class UpdateContext(
     ITelegramBotClient bot,
     Update update,
@@ -37,8 +39,10 @@ public sealed class UpdateContext(
     public IServiceProvider Services { get; } = services;
     public CancellationToken Ct { get; } = ct;
 
+    /// <summary>
     /// Per-request bag for middleware to pass data down the chain.
-    public Dictionary<string, object> Items { get; } = new();
+    /// </summary>
+    public Dictionary<string, object> Items { get; } = new(StringComparer.Ordinal);
 
     public long UserId =>
         Update.Message?.From?.Id

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Games.SecretHitler.Domain.Commands;
 
 public static class SecretHitlerCommandParser
@@ -23,7 +25,7 @@ public static class SecretHitlerCommandParser
 
     public static SecretHitlerCommand? ParseCallback(string? data)
     {
-        if (string.IsNullOrEmpty(data) || !data.StartsWith("sh:")) return null;
+        if (string.IsNullOrEmpty(data) || !data.StartsWith("sh:", StringComparison.Ordinal)) return null;
         var tokens = data.Split(':');
         var verb = tokens.Length > 1 ? tokens[1] : "";
 
@@ -31,17 +33,17 @@ public static class SecretHitlerCommandParser
         {
             "join" when tokens.Length > 2 => new SecretHitlerCommand.Join(tokens[2].ToUpperInvariant()),
             "start" => new SecretHitlerCommand.Start(),
-            "nominate" when tokens.Length > 2 && int.TryParse(tokens[2], out int pos)
+            "nominate" when tokens.Length > 2 && int.TryParse(tokens[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int pos)
                 => new SecretHitlerCommand.Nominate(pos),
             "vote" when tokens.Length > 2 => tokens[2] switch
             {
-                "ja" => new SecretHitlerCommand.Vote(true),
-                "nein" => new SecretHitlerCommand.Vote(false),
+                "ja" => new SecretHitlerCommand.Vote(Ja: true),
+                "nein" => new SecretHitlerCommand.Vote(Ja: false),
                 _ => null,
             },
-            "discard" when tokens.Length > 2 && int.TryParse(tokens[2], out int idx)
+            "discard" when tokens.Length > 2 && int.TryParse(tokens[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int idx)
                 => new SecretHitlerCommand.PresidentDiscard(idx),
-            "enact" when tokens.Length > 2 && int.TryParse(tokens[2], out int idx)
+            "enact" when tokens.Length > 2 && int.TryParse(tokens[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int idx)
                 => new SecretHitlerCommand.ChancellorEnact(idx),
             _ => null,
         };

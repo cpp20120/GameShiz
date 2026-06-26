@@ -7,8 +7,7 @@
 // successful mutation appends a row to economics_ledger in the same transaction.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
+using System.Globalization;
 using Dapper;
 using Microsoft.Extensions.Options;
 
@@ -53,7 +52,7 @@ public sealed partial class EconomicsService(
     public async Task<bool> TryDebitAsync(
         long userId, long balanceScopeId, int amount, string reason, CancellationToken ct)
     {
-        if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
         if (amount == 0) return true;
 
         var result = await ApplyAsync(userId, balanceScopeId, delta: -amount, allowNegative: false, reason, ct);
@@ -74,8 +73,8 @@ public sealed partial class EconomicsService(
         string operationId,
         CancellationToken ct)
     {
-        if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
-        if (amount == 0) return new EconomicsMutationResult(false, false, await GetBalanceAsync(userId, balanceScopeId, ct));
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
+        if (amount == 0) return new EconomicsMutationResult(Applied: false, Rejected: false, await GetBalanceAsync(userId, balanceScopeId, ct));
 
         var result = await ApplyOnceAsync(userId, balanceScopeId, delta: -amount, allowNegative: false, reason, operationId, ct);
         if (result.Applied)
@@ -98,7 +97,7 @@ public sealed partial class EconomicsService(
     public async Task CreditAsync(
         long userId, long balanceScopeId, int amount, string reason, CancellationToken ct)
     {
-        if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
         if (amount == 0) return;
 
         var result = await ApplyAsync(userId, balanceScopeId, delta: amount, allowNegative: true, reason, ct);
@@ -113,8 +112,8 @@ public sealed partial class EconomicsService(
         string operationId,
         CancellationToken ct)
     {
-        if (amount < 0) throw new ArgumentOutOfRangeException(nameof(amount));
-        if (amount == 0) return new EconomicsMutationResult(false, false, await GetBalanceAsync(userId, balanceScopeId, ct));
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
+        if (amount == 0) return new EconomicsMutationResult(Applied: false, Rejected: false, await GetBalanceAsync(userId, balanceScopeId, ct));
 
         var result = await ApplyOnceAsync(userId, balanceScopeId, delta: amount, allowNegative: true, reason, operationId, ct);
         if (result.Applied)
@@ -142,7 +141,7 @@ public sealed partial class EconomicsService(
             FROM economics_ledger
             WHERE id = @id
             """;
-        var revReason = $"ledger.revert#{economicsLedgerId}";
+        var revReason = string.Create(CultureInfo.InvariantCulture, $"ledger.revert#{economicsLedgerId}");
         await using var conn = await connections.OpenAsync(ct);
         var row = await conn.QueryFirstOrDefaultAsync<LedgerLineRead?>(
             new CommandDefinition(select, new { id = economicsLedgerId }, cancellationToken: ct));
@@ -240,11 +239,11 @@ public sealed partial class EconomicsService(
         CancellationToken ct)
     {
         if (fromUserId == toUserId)
-            return new PeerTransferResult(false, PeerTransferFailure.SameUser, 0, 0);
+            return new PeerTransferResult(Ok: false, PeerTransferFailure.SameUser, 0, 0);
         if (debitFromSender <= 0 || creditToRecipient <= 0)
             throw new ArgumentOutOfRangeException(nameof(debitFromSender));
         if (debitFromSender < creditToRecipient)
-            throw new ArgumentException("Debit must be >= credit (fee cannot be negative).");
+            throw new ArgumentException("Debit must be >= credit (fee cannot be negative).", nameof(debitFromSender));
 
         var firstUser = Math.Min(fromUserId, toUserId);
         var secondUser = Math.Max(fromUserId, toUserId);
@@ -290,7 +289,7 @@ public sealed partial class EconomicsService(
             if (existingSender.HasValue && existingRecipient.HasValue)
             {
                 await tx.CommitAsync(ct);
-                return new PeerTransferResult(true, null, existingSender.Value, existingRecipient.Value);
+                return new PeerTransferResult(Ok: true, Failure: null, existingSender.Value, existingRecipient.Value);
             }
         }
 
@@ -305,14 +304,14 @@ public sealed partial class EconomicsService(
         {
             var missing = firstUser == fromUserId ? PeerTransferFailure.SenderMissing : PeerTransferFailure.RecipientMissing;
             await tx.RollbackAsync(ct);
-            return new PeerTransferResult(false, missing, 0, 0);
+            return new PeerTransferResult(Ok: false, missing, 0, 0);
         }
 
         if (row2 is null)
         {
             var missing = secondUser == fromUserId ? PeerTransferFailure.SenderMissing : PeerTransferFailure.RecipientMissing;
             await tx.RollbackAsync(ct);
-            return new PeerTransferResult(false, missing, 0, 0);
+            return new PeerTransferResult(Ok: false, missing, 0, 0);
         }
 
         var fromCoins = fromUserId == firstUser ? row1.Coins : row2.Coins;
@@ -325,7 +324,7 @@ public sealed partial class EconomicsService(
         {
             await tx.RollbackAsync(ct);
             LogDebitRejected(fromUserId, balanceScopeId, debitFromSender, fromCoins, senderReason);
-            return new PeerTransferResult(false, PeerTransferFailure.InsufficientFunds, 0, 0);
+            return new PeerTransferResult(Ok: false, PeerTransferFailure.InsufficientFunds, 0, 0);
         }
 
         var recipientNew = toCoins + creditToRecipient;
@@ -369,22 +368,18 @@ public sealed partial class EconomicsService(
         LogDebit(fromUserId, balanceScopeId, debitFromSender, senderNew, senderReason);
         LogCredit(toUserId, balanceScopeId, creditToRecipient, recipientNew, recipientReason);
         LogPeerTransfer(fromUserId, toUserId, balanceScopeId, debitFromSender, creditToRecipient);
-        return new PeerTransferResult(true, null, senderNew, recipientNew);
+        return new PeerTransferResult(Ok: true, Failure: null, senderNew, recipientNew);
     }
 
     private sealed record LedgerLineRead(long Id, long TelegramUserId, long BalanceScopeId, int Delta, string Reason);
 
-    private sealed class LockedWallet
-    {
-        public int Coins { get; set; }
-        public long Version { get; set; }
-    }
+    private sealed record LockedWallet(int Coins, long Version);
 
     private async Task<(bool Applied, int NewBalance)> ApplyAsync(
         long userId, long balanceScopeId, int delta, bool allowNegative, string reason, CancellationToken ct)
     {
         const string selectSql = """
-            SELECT coins, version FROM users
+            SELECT coins AS Coins, version AS Version FROM users
             WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
             FOR UPDATE
             """;
@@ -409,7 +404,7 @@ public sealed partial class EconomicsService(
         {
             await tx.RollbackAsync(ct);
             throw new InvalidOperationException(
-                $"User {userId} scope {balanceScopeId} not found. Call EnsureUserAsync before any balance mutation.");
+                string.Create(CultureInfo.InvariantCulture, $"User {userId} scope {balanceScopeId} not found. Call EnsureUserAsync before any balance mutation."));
         }
 
         var newCoins = row.coins + delta;
@@ -451,7 +446,7 @@ public sealed partial class EconomicsService(
             WHERE operation_id = @operationId
             """;
         const string selectSql = """
-            SELECT coins, version FROM users
+            SELECT coins AS Coins, version AS Version FROM users
             WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
             FOR UPDATE
             """;

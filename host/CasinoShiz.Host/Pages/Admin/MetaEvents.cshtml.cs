@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using Games.Meta;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -13,7 +12,7 @@ public sealed class MetaEventsModel(
     public const string ConfirmToken = "META_CORE_REFRESH";
 
     public IReadOnlyList<MetaHistoryEvent> Events { get; private set; } = [];
-    public MetaHistoryStats Stats { get; private set; } = new(0, 0, 0, null, null);
+    public MetaHistoryStats Stats { get; private set; } = new(0, 0, 0, FirstEventAt: null, LastEventAt: null);
     public MetaReconstructionSummary Reconstruction { get; private set; } = new(0, 0, 0, 0, 0, 0);
     public AdminSession? Actor { get; private set; }
     public bool CanRefreshCore { get; private set; }
@@ -57,7 +56,7 @@ public sealed class MetaEventsModel(
             result.RebuiltAchievements,
         }, ct);
 
-        TempData["Flash"] = $"Meta core refreshed. Players {result.BeforePlayers} -> {result.RebuiltPlayers}; achievements {result.BeforeAchievements} -> {result.RebuiltAchievements}.";
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Meta core refreshed. Players {result.BeforePlayers} -> {result.RebuiltPlayers}; achievements {result.BeforeAchievements} -> {result.RebuiltAchievements}.");
         return RedirectToPage();
     }
 
@@ -70,8 +69,8 @@ public sealed class MetaEventsModel(
         Flash = TempData["Flash"] as string;
         FlashError = TempData["FlashError"] is not null;
 
-        long? chatId = long.TryParse(ChatId, out var cid) ? cid : null;
-        long? userId = long.TryParse(UserId, out var uid) ? uid : null;
+        long? chatId = long.TryParse(ChatId, System.Globalization.CultureInfo.InvariantCulture, out var cid) ? cid : null;
+        long? userId = long.TryParse(UserId, System.Globalization.CultureInfo.InvariantCulture, out var uid) ? uid : null;
         Limit = Math.Clamp(Limit, 1, 1000);
 
         Stats = await history.GetStatsAsync(ct);

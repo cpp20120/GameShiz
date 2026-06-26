@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -83,7 +82,7 @@ public sealed class MetaEconomyModel(INpgsqlConnectionFactory connections) : Pag
     {
         var totalGames = Players * Days * GamesPerPlayerPerDay;
         var totalStake = totalGames * AverageStake;
-        var gameSink = totalStake * (1m - AverageRtpPercent / 100m);
+        var gameSink = totalStake * (1m - (AverageRtpPercent / 100m));
         var dailyBonus = Players * Days * DailyBonusPerPlayer;
         var questCoins = Players * Days * QuestCoinsPerPlayerPerDay;
         var transferFees = TransferFeesPerDay * Days;

@@ -1,13 +1,9 @@
 namespace Games.Pick.Domain.Configuration;
 
 /// <summary>
-/// Tunables for the <c>/pick</c> casino game.
-///
-/// Game shape: user supplies 2..N variants and (optionally) which one(s) they
-/// back. Bot rolls one variant uniformly at random. House takes
-/// <see cref="HouseEdge"/> off the gross win; remainder goes to the player.
-/// Streak bonus rewards consecutive wins; chain (double-or-nothing) lets the
-/// player re-stake their entire payout for another roll.
+/// Tunables for the per-chat <c>/dailylottery</c>: every chat gets one daily
+/// pool that opens lazily on the first ticket purchase and draws at the next
+/// configured local draw hour.
 /// </summary>
 public sealed class PickDailyLotteryOptions
 {

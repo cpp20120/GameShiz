@@ -7,7 +7,6 @@
 // "dice.*" or "*.roll_completed" without depending on Games.Dice types.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace Games.Dice.Domain.Events;
 

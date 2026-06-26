@@ -1,6 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Host.Pipeline;
-using BotFramework.Sdk;
+using System.Globalization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -27,7 +25,7 @@ public class FrameworkMiddlewareTests
                     Id = "1",
                     Data = cbData,
                     From = new User { Id = userId, IsBot = false, FirstName = "T" },
-                }
+                },
             };
         }
         else
@@ -42,7 +40,7 @@ public class FrameworkMiddlewareTests
                     From = new User { Id = userId, IsBot = false, FirstName = "T" },
                     Chat = new Chat { Id = 1, Type = ChatType.Private },
                     Date = DateTime.UtcNow,
-                }
+                },
             };
         }
         return new UpdateContext(null!, update, null!, default);
@@ -153,7 +151,7 @@ public class FrameworkMiddlewareTests
     public async Task RateLimit_BurstWithinCapacity_AllPassThrough()
     {
         var mw = new RateLimitMiddleware(NullLogger<RateLimitMiddleware>.Instance);
-        var userId = 9_000_002L;
+        const long userId = 9_000_002L;
         var callCount = 0;
         // Capacity is 10 — first 10 requests should all pass
         for (var i = 0; i < 10; i++)
@@ -167,14 +165,14 @@ public class FrameworkMiddlewareTests
     public async Task RateLimit_ExceedCapacity_DropsRequests()
     {
         var mw = new RateLimitMiddleware(NullLogger<RateLimitMiddleware>.Instance);
-        var userId = 9_000_003L;
+        const long userId = 9_000_003L;
         var callCount = 0;
         // Send 15 requests — capacity is 10, so at least some should be dropped
         for (var i = 0; i < 15; i++)
         {
             await mw.InvokeAsync(MakeCtx(userId: userId), _ => { callCount++; return Task.CompletedTask; });
         }
-        Assert.True(callCount < 15, $"Expected some drops but got {callCount}/15 calls");
+        Assert.True(callCount < 15, string.Create(CultureInfo.InvariantCulture, $"Expected some drops but got {callCount}/15 calls"));
     }
 
     // ── UpdatePipeline ────────────────────────────────────────────────────────

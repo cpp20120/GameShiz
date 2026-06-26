@@ -1,26 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Host.Configuration.RuntimeTuning;
 using Dapper;
-using Games.Basketball;
-using Games.Blackjack;
-using Games.Bowling;
-using Games.Challenges;
-using Games.Darts;
-using Games.Dice;
-using Games.DiceCube;
-using Games.Football;
-using Games.Horse;
-using Games.Leaderboard;
-using Games.Meta;
-using Games.Pick;
-using Games.PixelBattle;
-using Games.Poker;
-using Games.Redeem;
-using Games.SecretHitler;
-using Games.Transfer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -761,11 +741,13 @@ public sealed class SettingsModel(
 
             if (sanitized["Bot"] is JsonObject bot)
             {
-                if (bot["DailyBonus"] is JsonNode n)
+                if (bot["DailyBonus"] is { } n)
                     RuntimeTuningMerge.MergeSection<DailyBonusOptions>(configuration, DailyBonusOptions.SectionName, n);
-                if (bot["TelegramDiceDailyLimit"] is JsonNode n2)
+                if (bot["TelegramDiceDailyLimit"] is { } n2)
+                {
                     RuntimeTuningMerge.MergeSection<TelegramDiceDailyLimitOptions>(
                         configuration, TelegramDiceDailyLimitOptions.SectionName, n2);
+                }
             }
 
             if (sanitized["Games"] is JsonObject games)
@@ -810,7 +792,7 @@ public sealed class SettingsModel(
         }
     }
 
-    private string FormatJson(JsonObject obj) =>
+    private static string FormatJson(JsonObject obj) =>
         obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 
     public sealed class StickerGameSettingsInput
@@ -899,15 +881,13 @@ public sealed class SettingsModel(
         public long BigPayoutMinimum { get; set; } = 1_000;
     }
 
-    private sealed class RedeemDropStatsRow
-    {
-        public string GameId { get; init; } = "";
-        public int Issued { get; init; }
-        public int BotDrops { get; init; }
-        public int Active { get; init; }
-        public int Redeemed { get; init; }
-        public long LastIssuedAt { get; init; }
-    }
+    private sealed record RedeemDropStatsRow(
+        string GameId,
+        int Issued,
+        int BotDrops,
+        int Active,
+        int Redeemed,
+        long LastIssuedAt);
 
     public sealed record RedeemDropStats(
         string GameId,

@@ -1,4 +1,3 @@
-using Games.Horse;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -25,8 +24,8 @@ public class HorseTimeHelperTests
     {
         var date = HorseTimeHelper.GetRaceDate();
         var parts = date.Split('-');
-        var month = int.Parse(parts[0]);
-        var day = int.Parse(parts[1]);
+        var month = int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture);
+        var day = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
         Assert.InRange(month, 1, 12);
         Assert.InRange(day, 1, 31);
     }
@@ -36,7 +35,7 @@ public class HorseTimeHelperTests
     {
         var date = HorseTimeHelper.GetRaceDate();
         var parts = date.Split('-');
-        var year = int.Parse(parts[2]);
+        var year = int.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
         Assert.InRange(year, 2020, 2100);
     }
 }

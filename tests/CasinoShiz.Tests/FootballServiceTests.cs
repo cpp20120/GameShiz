@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-using Games.Football;
 using Xunit;
 
 namespace CasinoShiz.Tests;

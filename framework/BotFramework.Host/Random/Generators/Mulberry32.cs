@@ -8,8 +8,7 @@ public sealed class Mulberry32(int seed)
     {
         unchecked
         {
-            _seed |= 0;
-            _seed = (_seed + 0x6D2B79F5) | 0;
+            _seed = (_seed + 0x6D2B79F5);
             var t = Imul(_seed ^ (_seed >>> 15), 1 | _seed);
             t = (t + Imul(t ^ (t >>> 7), 61 | t)) ^ t;
             return ((uint)(t ^ (t >>> 14))) / 4294967296.0;
@@ -26,7 +25,7 @@ public sealed class Mulberry32(int seed)
 
     public static long UuidToSeed(string uuid)
     {
-        var hex = uuid.Replace("-", "")[..12];
-        return long.Parse(hex, System.Globalization.NumberStyles.HexNumber);
+        var hex = uuid.Replace("-", "", StringComparison.Ordinal)[..12];
+        return long.Parse(hex, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
     }
 }

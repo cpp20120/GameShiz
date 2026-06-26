@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Dapper;
 
 namespace BotFramework.Host.Economics.Stores;
@@ -37,7 +36,7 @@ internal sealed class PostgresMiniGameSessionStore(INpgsqlConnectionFactory conn
         if (inserted == 1)
         {
             await tx.CommitAsync(ct);
-            return new MiniGameSessionBeginResult(true, null);
+            return new MiniGameSessionBeginResult(Ok: true, BlockingGameId: null);
         }
 
         var blocker = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
@@ -52,9 +51,9 @@ internal sealed class PostgresMiniGameSessionStore(INpgsqlConnectionFactory conn
             cancellationToken: ct));
 
         await tx.CommitAsync(ct);
-        return blocker == gameId
-            ? new MiniGameSessionBeginResult(true, null)
-            : new MiniGameSessionBeginResult(false, blocker);
+        return string.Equals(blocker, gameId
+, StringComparison.Ordinal) ? new MiniGameSessionBeginResult(Ok: true, BlockingGameId: null)
+            : new MiniGameSessionBeginResult(Ok: false, blocker);
     }
 
     public async Task RegisterPlacedBetAsync(long userId, long chatId, string gameId, CancellationToken ct)

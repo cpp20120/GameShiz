@@ -36,15 +36,19 @@
 namespace BotFramework.Sdk.Modules.Migrations;
 public interface IModuleMigrations
 {
+    /// <summary>
     /// Stable migration id prefix for this module. The Host prefixes each
     /// migration ID with this to avoid cross-module collisions ("poker:001",
     /// "sh:0042"). In practice the module's IModule.Id is a fine value.
+    /// </summary>
     string ModuleId { get; }
 
+    /// <summary>
     /// Ordered list of migrations. MUST be append-only: editing a migration
     /// that's already been applied in production is the usual way people
     /// break their schema history. The runner refuses to apply migrations
     /// whose content hash differs from a previously-applied row with the
     /// same id.
+    /// </summary>
     IReadOnlyList<Migration> Migrations { get; }
 }

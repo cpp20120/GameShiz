@@ -23,7 +23,10 @@
 namespace BotFramework.Sdk.Health;
 public interface IHealthCheck
 {
-    /// Stable id used in the aggregated report. Typically "<moduleId>.<check>"
+    /// <summary>
+    /// 
+    /// </summary>
+    /// Stable id used in the aggregated report. Typically <c>&lt;moduleId&gt;.&lt;check&gt;</c>
     /// — e.g. "poker.deck-rng-seed", "sh.event-store-reachable".
     string Name { get; }
 

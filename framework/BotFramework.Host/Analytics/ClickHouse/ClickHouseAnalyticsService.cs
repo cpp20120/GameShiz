@@ -24,9 +24,9 @@
 // driven flush loop so game handlers never wait for ClickHouse.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
 using System.Reflection;
 using System.Text.Json;
-using BotFramework.Sdk;
 using ClickHouse.Client.ADO;
 using ClickHouse.Client.Copy;
 using Microsoft.Extensions.Options;
@@ -57,8 +57,10 @@ public sealed partial class ClickHouseAnalyticsService(
         }
 
         if (string.IsNullOrWhiteSpace(_options.Host))
+        {
             throw new InvalidOperationException(
                 "ClickHouse:Enabled is true but ClickHouse:Host is not set.");
+        }
 
         try
         {
@@ -85,7 +87,10 @@ public sealed partial class ClickHouseAnalyticsService(
         if (_flushLoop != null)
         {
             try { await _flushLoop; }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+                // The flush loop exits through cancellation during service shutdown.
+            }
         }
 
         await FlushBufferAsync();
@@ -114,12 +119,14 @@ public sealed partial class ClickHouseAnalyticsService(
 
         foreach (var p in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (p.Name == nameof(IDomainEvent.EventType)) continue;
+            if (string.Equals(p.Name, nameof(IDomainEvent.EventType), StringComparison.Ordinal)) continue;
             var v = p.GetValue(ev);
             tags[p.Name] = v;
             if (userId == 0 && v is long l &&
                 (p.Name is "UserId" or "HostUserId" or "IssuedBy" or "RedeemedBy"))
+            {
                 userId = l;
+            }
         }
 
         var module = SplitModule(ev.EventType);
@@ -136,7 +143,7 @@ public sealed partial class ClickHouseAnalyticsService(
             _buffer.Add(evt);
             if (_buffer.Count >= _options.BufferSize) shouldFlush = true;
         }
-        if (shouldFlush) _ = Task.Run(FlushBufferAsync);
+        if (shouldFlush) _ = Task.Run(FlushBufferAsync, _loopCts?.Token ?? CancellationToken.None);
     }
 
     private static long ExtractUserId(IReadOnlyDictionary<string, object?> tags)
@@ -147,7 +154,7 @@ public sealed partial class ClickHouseAnalyticsService(
             {
                 if (v is long l) return l;
                 if (v is int i) return i;
-                if (long.TryParse(v.ToString(), out var parsed)) return parsed;
+                if (long.TryParse(v.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
             }
         }
         return 0;
@@ -155,7 +162,7 @@ public sealed partial class ClickHouseAnalyticsService(
 
     private static Dictionary<string, string> ToParamsMap(IReadOnlyDictionary<string, object?> tags)
     {
-        var map = new Dictionary<string, string>(tags.Count);
+        var map = new Dictionary<string, string>(tags.Count, StringComparer.Ordinal);
         foreach (var (k, v) in tags)
         {
             if (v is null) continue;
@@ -166,7 +173,7 @@ public sealed partial class ClickHouseAnalyticsService(
 
     private static string SplitModule(string eventType)
     {
-        var dot = eventType.IndexOf('.');
+        var dot = eventType.IndexOf('.', StringComparison.Ordinal);
         return dot < 0 ? eventType : eventType[..dot];
     }
 
@@ -196,15 +203,15 @@ public sealed partial class ClickHouseAnalyticsService(
             {
                 DestinationTableName = $"{_options.Database}.{_options.Table}",
                 ColumnNames = ["event_type", "module", "project", "user_id", "params", "payload", "created_at"],
-                BatchSize = Math.Max(_options.BufferSize, 100),
             };
+            bulk.BatchSize = Math.Max(_options.BufferSize, 100);
             await bulk.InitAsync();
 
             var rows = eventsToSend.Select(e => new object[]
             {
                 e.EventType, e.Module, _options.Project, e.UserId, e.Params, e.Payload, e.CreatedAt,
             });
-            await bulk.WriteToServerAsync(rows);
+            if (_loopCts != null) await bulk.WriteToServerAsync(rows, _loopCts.Token);
         }
         catch (Exception ex)
         {
@@ -248,7 +255,7 @@ public sealed partial class ClickHouseAnalyticsService(
         if (Uri.TryCreate(o.Host, UriKind.Absolute, out var uri))
         {
             parts.Add($"Host={uri.Host}");
-            if (!uri.IsDefaultPort) parts.Add($"Port={uri.Port}");
+            if (!uri.IsDefaultPort) parts.Add(string.Create(CultureInfo.InvariantCulture, $"Port={uri.Port}"));
             parts.Add($"Protocol={uri.Scheme}");
         }
         else
@@ -258,7 +265,7 @@ public sealed partial class ClickHouseAnalyticsService(
         parts.Add($"Username={o.User}");
         parts.Add($"Password={o.Password}");
         parts.Add($"Database={o.Database}");
-        return string.Join(";", parts);
+        return string.Join(';', parts);
     }
 
     public async ValueTask DisposeAsync()

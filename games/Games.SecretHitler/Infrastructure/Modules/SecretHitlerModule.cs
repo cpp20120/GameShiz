@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.SecretHitler.Infrastructure.Modules;
 
@@ -29,7 +28,7 @@ public sealed class SecretHitlerModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Secret Hitler",
             ["cmd.sh"] = "Сыграть в Secret Hitler",
 

@@ -8,7 +8,6 @@
 // poking at tables.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 
@@ -23,14 +22,16 @@ public sealed partial class PokerTurnTimeoutJob(
 
     public async Task RunAsync(CancellationToken stoppingToken)
     {
-        try { await Task.Delay(5_000, stoppingToken); } catch { return; }
+        try { await Task.Delay(5_000, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try { await SweepAsync(stoppingToken); }
             catch (Exception ex) { LogPokerTimeoutSweepFailed(ex); }
 
-            try { await Task.Delay(10_000, stoppingToken); } catch { return; }
+            try { await Task.Delay(10_000, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
@@ -52,11 +53,9 @@ public sealed partial class PokerTurnTimeoutJob(
             try
             {
                 var result = await service.RunAutoActionAsync(code, ct);
-                if (result != null)
-                {
-                    LogPokerTimeoutFired(code, result.Transition);
-                    await handler.BroadcastAutoActionAsync(bot, result, ct);
-                }
+                if (result == null) continue;
+                LogPokerTimeoutFired(code, result.Transition);
+                await handler.BroadcastAutoActionAsync(bot, result, ct);
             }
             catch (Exception ex)
             {
@@ -68,8 +67,8 @@ public sealed partial class PokerTurnTimeoutJob(
     [LoggerMessage(LogLevel.Error, "poker.timeout.sweep failed")]
     partial void LogPokerTimeoutSweepFailed(Exception exception);
 
-    [LoggerMessage(LogLevel.Information, "poker.timeout.fired code={Code} transition={T}")]
-    partial void LogPokerTimeoutFired(string code, HandTransition T);
+    [LoggerMessage(LogLevel.Information, "poker.timeout.fired code={Code} transition={t}")]
+    partial void LogPokerTimeoutFired(string code, HandTransition t);
 
     [LoggerMessage(LogLevel.Warning, "poker.timeout.action_failed code={Code}")]
     partial void LogPokerTimeoutActionFailed(string code, Exception exception);

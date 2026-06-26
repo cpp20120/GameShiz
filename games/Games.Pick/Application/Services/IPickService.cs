@@ -17,7 +17,6 @@
 // Balance scope = chat id (matches every other casino game in the host).
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Application.Services;

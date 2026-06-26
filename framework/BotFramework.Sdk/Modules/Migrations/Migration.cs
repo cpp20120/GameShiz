@@ -34,16 +34,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Modules.Migrations;
+/// <summary>
 /// A single forward migration. Id is the stable ordering key ("001_initial",
 /// "002_add_stack_column"). Sql is executed verbatim — the runner does not
 /// try to parse it. For cases where SQL won't do (data migrations, etc.),
 /// add a ContentProvider with a Run(IDbConnection) callback — not included
 /// in this sketch to keep the surface small.
+/// </summary>
 public sealed record Migration(string Id, string Sql)
 {
+    /// <summary>
     /// Used by the runner to detect tampering: if someone edits an applied
     /// migration's SQL, the hash mismatch surfaces at startup before any
     /// damage is done. Override only if you have a good reason.
+    /// </summary>
     public string ContentHash => ComputeHash(Sql);
 
     private static string ComputeHash(string sql) =>

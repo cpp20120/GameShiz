@@ -9,7 +9,7 @@ public sealed class HorseImageModel(HorseGifCache gifCache) : PageModel
     {
         if (string.IsNullOrEmpty(date)) return NotFound();
 
-        if (kind == "gif")
+        if (string.Equals(kind, "gif", StringComparison.Ordinal))
         {
             var bytes = await gifCache.GetAsync(date, ct);
             if (bytes is null) return NotFound();

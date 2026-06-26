@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Leaderboard.Infrastructure.Persistence;
@@ -88,7 +87,7 @@ public sealed class LeaderboardStore(INpgsqlConnectionFactory connections) : ILe
     {
         // Per-chat top using ROW_NUMBER over balance_scope_id; LEFT JOIN known_chats
         // for human-readable title.
-        var sql = $"""
+        var sql = """
             WITH ranked AS (
                 SELECT u.telegram_user_id,
                        u.balance_scope_id,

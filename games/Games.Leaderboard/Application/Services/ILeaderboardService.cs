@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using Games.Leaderboard.Domain.Models;
 using Microsoft.Extensions.Options;
 using LeaderboardModel = Games.Leaderboard.Domain.Models.Leaderboard;
 

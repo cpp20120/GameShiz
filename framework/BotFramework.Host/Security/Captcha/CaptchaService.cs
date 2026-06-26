@@ -12,8 +12,6 @@
 // expected target id without storing it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host.Random;
-
 namespace BotFramework.Host.Security.Captcha;
 
 public static class CaptchaService
@@ -109,7 +107,7 @@ public static class CaptchaService
     {
         var chars = word.ToCharArray();
         var len = chars.Length;
-        var replacementsCount = (int)Math.Round(len / 4.0);
+        var replacementsCount = (int)Math.Round(len / 4.0, MidpointRounding.ToEven);
 
         var targetIndices = new HashSet<int>();
         while (targetIndices.Count < replacementsCount)

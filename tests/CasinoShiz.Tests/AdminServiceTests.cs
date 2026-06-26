@@ -1,5 +1,3 @@
-using Games.Admin;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 

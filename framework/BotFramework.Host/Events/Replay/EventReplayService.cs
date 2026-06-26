@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Dapper;
 
 namespace BotFramework.Host.Events.Replay;
@@ -50,12 +49,14 @@ public sealed class EventReplayService(
         foreach (var row in rows)
         {
             seen++;
-            var ev = serializer.Deserialize(row.event_type, row.payload_text);
+            var ev = serializer.Deserialize(row.EventType, row.PayloadText);
             if (ev is null)
+            {
                 throw new InvalidOperationException(
-                    $"Cannot deserialize event '{row.event_type}' while replaying projection '{projection.GetType().Name}'.");
+                    $"Cannot deserialize event '{row.EventType}' while replaying projection '{projection.GetType().Name}'.");
+            }
 
-            var ctx = new ProjectionContext(row.stream_id, row.version, row.occurred_at_ms, Transaction: null);
+            var ctx = new ProjectionContext(row.StreamId, row.Version, row.OccurredAtMs, Transaction: null);
             await projection.ApplyAsync(ev, ctx, ct);
             applied++;
         }
@@ -83,9 +84,9 @@ public sealed class EventReplayService(
     }
 
     private sealed record EventRow(
-        string stream_id,
-        long version,
-        string event_type,
-        string payload_text,
-        long occurred_at_ms);
+        string StreamId,
+        long Version,
+        string EventType,
+        string PayloadText,
+        long OccurredAtMs);
 }

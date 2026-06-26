@@ -15,8 +15,7 @@
 // without risking a duplicate append from the original command.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
-using Microsoft.Extensions.DependencyInjection;
+using System.Globalization;
 
 namespace BotFramework.Host.Events.Stores;
 
@@ -40,8 +39,10 @@ public sealed partial class EventSourcedRepository<TAggregate>(
         {
             var ev = serializer.Deserialize(row.EventType, row.PayloadJson);
             if (ev is null)
+            {
                 throw new InvalidOperationException(
                     $"Cannot deserialize event '{row.EventType}' while loading stream '{id}'.");
+            }
 
             events.Add(ev);
         }
@@ -60,9 +61,11 @@ public sealed partial class EventSourcedRepository<TAggregate>(
 
         var expectedVersion = aggregate.Version - pending.Length;
         if (expectedVersion < 0)
+        {
             throw new InvalidOperationException(
-                $"Aggregate {typeof(TAggregate).FullName} has version {aggregate.Version} " +
+                string.Create(CultureInfo.InvariantCulture, $"Aggregate {typeof(TAggregate).FullName} has version {aggregate.Version} ") +
                 $"but {pending.Length} pending events. Version must include already-applied pending events.");
+        }
 
         await eventStore.AppendAsync(aggregate.Id, expectedVersion, pending, ct);
 

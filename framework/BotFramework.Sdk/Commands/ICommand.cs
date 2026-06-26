@@ -25,14 +25,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Commands;
+/// <summary>
 /// Marker for anything dispatched through the bus. Carries no behavior —
 /// execution is in the handler. Commands are plain records: immutable,
 /// serializable, easy to log.
+/// </summary>
 public interface ICommand
 {
+    /// <summary>
     /// The owning module id. Set once when the command is constructed; used
     /// by middleware (metrics naming, per-module rate-limit buckets). Not a
     /// runtime guard — modules can name each other's commands; the bus
     /// doesn't care.
+    /// </summary>
     string ModuleId { get; }
 }

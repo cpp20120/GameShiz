@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
@@ -36,7 +34,9 @@ public sealed partial class DartsBotDiceSender(
                 return;
 
             if (sent.Dice is { Value: > 0 })
+            {
                 await CompleteImmediatelyAsync(job, sent.MessageId, sent.Dice.Value, ct);
+            }
             else
             {
                 DartsDiceRoundBinding.Bind(job.ChatId, sent.MessageId, job.RoundId);
@@ -95,14 +95,12 @@ public sealed partial class DartsBotDiceSender(
 
         var net = result.Payout - result.Bet;
         var text = result.Payout > 0
-            ? string.Format(localizer.Get("darts", "throw.win"),
-                result.Face, result.Multiplier, result.Bet, result.Payout, net, result.Balance)
-            : string.Format(localizer.Get("darts", "throw.lose"),
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("darts", "throw.win"),
+                result.Face, result.Multiplier, result.Bet, result.Payout, net, result.Balance) : string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("darts", "throw.lose"),
                 result.Face, result.Bet, result.Balance);
         if (result.DailyRollLimit > 0)
         {
-            text += "\n" + string.Format(
-                localizer.Get("darts", "throw.daily_roll_remaining"),
+            text += "\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("darts", "throw.daily_roll_remaining"),
                 Math.Max(0, result.DailyRollLimit - result.DailyRollUsed),
                 result.DailyRollLimit);
         }

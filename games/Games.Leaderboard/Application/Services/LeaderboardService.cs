@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using Games.Leaderboard.Domain.Models;
 using Microsoft.Extensions.Options;
 using LeaderboardModel = Games.Leaderboard.Domain.Models.Leaderboard;
 
@@ -106,7 +104,7 @@ public sealed class LeaderboardService(
     private long ActiveSinceUnixMs()
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        return now - (long)_opts.DaysOfInactivityToHide * 24 * 60 * 60 * 1000;
+        return now - ((long)_opts.DaysOfInactivityToHide * 24 * 60 * 60 * 1000);
     }
 
     private static List<LeaderboardPlace> BuildPlaces(IReadOnlyList<LeaderboardUser> sortedDesc)

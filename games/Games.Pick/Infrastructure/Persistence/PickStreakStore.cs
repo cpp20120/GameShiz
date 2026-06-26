@@ -3,11 +3,12 @@ using System.Collections.Concurrent;
 namespace Games.Pick.Infrastructure.Persistence;
 
 /// <summary>
-/// In-memory consecutive-win counter, keyed by <c>(userId, chatId)</c>. Singleton.
-///
+/// <para>In-memory consecutive-win counter, keyed by <c>(userId, chatId)</c>. Singleton.</para>
+/// <para>
 /// We accept that streaks reset on bot restart — that's a fair price to avoid a
 /// dedicated table for what's essentially flavour state. Chains do not touch
 /// this store; only top-level <c>/pick</c> bets do.
+/// </para>
 /// </summary>
 public sealed class PickStreakStore
 {

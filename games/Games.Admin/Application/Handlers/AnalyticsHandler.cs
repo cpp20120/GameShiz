@@ -15,9 +15,6 @@
 
 using System.Net;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -61,14 +58,14 @@ public sealed class AnalyticsHandler(
         var status = await analytics.GetStatusAsync(ctx.Ct);
         if (!status.Configured)
         {
-            var text = string.Format(Loc("disabled"), HtmlEnc(status.Error ?? ""));
+            var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("disabled"), HtmlEnc(status.Error ?? ""));
             await ctx.Bot.SendMessage(msg.Chat.Id, text,
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
         if (!status.Reachable)
         {
-            var text = string.Format(Loc("unreachable"), HtmlEnc(status.Error ?? ""));
+            var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("unreachable"), HtmlEnc(status.Error ?? ""));
             await ctx.Bot.SendMessage(msg.Chat.Id, text,
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
@@ -82,7 +79,7 @@ public sealed class AnalyticsHandler(
         catch (Exception ex)
         {
             logger.LogError(ex, "analytics command failed user={UserId}", userId);
-            var text = string.Format(Loc("query_failed"), HtmlEnc(ex.Message));
+            var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("query_failed"), HtmlEnc(ex.Message));
             await ctx.Bot.SendMessage(msg.Chat.Id, text,
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
@@ -92,7 +89,7 @@ public sealed class AnalyticsHandler(
         await SendChunkedAsync(ctx, msg.Chat.Id, rendered, reply);
     }
 
-    private static (int topN, int timelineDays) ParseArgs(string text)
+    private (int topN, int timelineDays) ParseArgs(string text)
     {
         const int defaultTop = 5;
         const int defaultDays = 14;
@@ -103,9 +100,15 @@ public sealed class AnalyticsHandler(
         for (var i = 1; i + 1 < parts.Length; i++)
         {
             if (parts[i].Equals("top", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(parts[i + 1], out var t)) top = t;
+                int.TryParse(parts[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var t))
+            {
+                top = t;
+            }
             else if (parts[i].Equals("days", StringComparison.OrdinalIgnoreCase) &&
-                int.TryParse(parts[i + 1], out var d)) days = d;
+                            int.TryParse(parts[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var d))
+            {
+                days = d;
+            }
         }
         return (top, days);
     }
@@ -113,37 +116,33 @@ public sealed class AnalyticsHandler(
     private string Render(AnalyticsReport r)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(string.Format(Loc("header"),
-            HtmlEnc(r.Project),
-            HtmlEnc(r.TableName),
-            r.TotalRowsAllTime,
-            r.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'")));
+        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("header"), HtmlEnc(r.Project), HtmlEnc(r.TableName), r.TotalRowsAllTime, r.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", System.Globalization.CultureInfo.InvariantCulture)).AppendLine();
         sb.AppendLine();
 
         foreach (var w in r.Windows)
         {
-            sb.AppendLine(string.Format(Loc("window.header"), HtmlEnc(w.Label)));
-            sb.AppendLine(string.Format(Loc("window.totals"), w.TotalEvents, w.DistinctUsers));
+            sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("window.header"), HtmlEnc(w.Label)).AppendLine();
+            sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("window.totals"), w.TotalEvents, w.DistinctUsers).AppendLine();
 
             if (w.TopEventTypes.Count > 0)
             {
                 sb.AppendLine(Loc("window.top_events"));
                 foreach (var e in w.TopEventTypes)
-                    sb.AppendLine($"  • <code>{HtmlEnc(e.Name)}</code> — {e.Count}");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  • <code>{HtmlEnc(e.Name)}</code> — {e.Count}");
             }
 
             if (w.TopModules.Count > 0)
             {
                 sb.AppendLine(Loc("window.top_modules"));
                 foreach (var m in w.TopModules)
-                    sb.AppendLine($"  • <code>{HtmlEnc(m.Name)}</code> — {m.Count}");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  • <code>{HtmlEnc(m.Name)}</code> — {m.Count}");
             }
 
             if (w.TopUsers.Count > 0)
             {
                 sb.AppendLine(Loc("window.top_users"));
                 foreach (var u in w.TopUsers)
-                    sb.AppendLine($"  • <code>{u.UserId}</code> — {u.Count}");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  • <code>{u.UserId}</code> — {u.Count}");
             }
 
             sb.AppendLine();
@@ -151,19 +150,19 @@ public sealed class AnalyticsHandler(
 
         if (r.Timeline.Count > 0)
         {
-            sb.AppendLine(string.Format(Loc("timeline.header"), r.Timeline.Count));
+            sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("timeline.header"), r.Timeline.Count).AppendLine();
             var max = r.Timeline.Max(b => b.Count);
             foreach (var b in r.Timeline)
             {
                 var bar = max == 0 ? "" : new string('▌', (int)Math.Min(20, b.Count * 20 / Math.Max(1, max)));
-                sb.AppendLine($"<code>{b.Day:yyyy-MM-dd}</code>  <code>{b.Count,6}</code>  {bar}");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"<code>{b.Day:yyyy-MM-dd}</code>  <code>{b.Count,6}</code>  {bar}");
             }
         }
 
         return sb.ToString().TrimEnd();
     }
 
-    private async Task SendChunkedAsync(UpdateContext ctx, long chatId, string text, ReplyParameters reply)
+    private static async Task SendChunkedAsync(UpdateContext ctx, long chatId, string text, ReplyParameters reply)
     {
         const int maxLen = 3800;
         if (text.Length <= maxLen)
@@ -197,7 +196,7 @@ public sealed class AnalyticsHandler(
         }
     }
 
-    private static string HtmlEnc(string s) => WebUtility.HtmlEncode(s ?? "");
+    private string HtmlEnc(string s) => WebUtility.HtmlEncode(s ?? "");
 
     private string Loc(string key) => localizer.Get("admin", $"analytics.{key}");
 }

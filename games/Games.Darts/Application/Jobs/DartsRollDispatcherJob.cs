@@ -1,6 +1,6 @@
-using BotFramework.Sdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using System.Globalization;
 
 namespace Games.Darts.Application.Jobs;
 
@@ -42,7 +42,7 @@ public sealed partial class DartsRollDispatcherJob(
                 round.Id,
                 round.ChatId,
                 round.UserId,
-                $"User ID: {round.UserId}",
+                string.Create(CultureInfo.InvariantCulture, $"User ID: {round.UserId}"),
                 round.ReplyToMessageId));
         }
 

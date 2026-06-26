@@ -28,15 +28,19 @@
 namespace BotFramework.Sdk.Events.Bus;
 public interface IDomainEventBus
 {
+    /// <summary>
     /// Called by the framework after the event-store append. Not called by
     /// modules directly — modules mutate their aggregate and the
     /// EventSourcedRepository drives publish. Exposed here for the rare case
     /// of synthesizing "integration events" that don't correspond to a
     /// stored domain event.
+    /// </summary>
     Task PublishAsync(IDomainEvent ev, CancellationToken ct);
 
+    /// <summary>
     /// Subscribe a handler to events matching the pattern. Patterns use the
     /// module-id prefix convention: "sh.game_ended" (exact), "sh.*" (module
     /// wildcard), "*.game_ended" (action wildcard), "*" (all).
+    /// </summary>
     void Subscribe(string eventTypePattern, IDomainEventSubscriber subscriber);
 }

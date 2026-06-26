@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-using Games.Meta;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
@@ -159,7 +157,7 @@ public sealed class MetaRegistryTests
         var unlocked = GameStreakRegistry.Evaluate(streak);
 
         Assert.Equal(expectedCount, unlocked.Count);
-        Assert.All(unlocked, x => Assert.StartsWith("streak_darts_", x.Id));
+        Assert.All(unlocked, x => Assert.StartsWith("streak_darts_", x.Id, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -286,7 +284,7 @@ public sealed class MetaRegistryTests
     [Fact]
     public void AchievementRegistry_Evaluate_SeasonThresholds_ReturnsExpectedAchievements()
     {
-        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Darts, 50, 0, false, 0, 1);
+        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Darts, 50, 0, IsWin: false, 0, 1);
         var player = new SeasonPlayer(
             SeasonId: 1,
             ChatId: 100,
@@ -321,7 +319,7 @@ public sealed class MetaRegistryTests
         long threshold,
         bool expected)
     {
-        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 10, 0, false, 0, 1);
+        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 10, 0, IsWin: false, 0, 1);
         var player = new SeasonPlayer(
             SeasonId: 1,
             ChatId: 100,
@@ -339,15 +337,15 @@ public sealed class MetaRegistryTests
 
         var unlocked = AchievementRegistry.Evaluate(ev, player, threshold);
 
-        Assert.Equal(expected, unlocked.Any(x => x.Id == "high_roller"));
+        Assert.Equal(expected, unlocked.Any(x => string.Equals(x.Id, "high_roller", StringComparison.Ordinal)));
     }
 
     [Fact]
     public void AchievementRegistry_GetAll_HighRollerDescriptionUsesConfiguredThreshold()
     {
-        var achievement = AchievementRegistry.GetAll(1_000).Single(x => x.Id == "high_roller");
+        var achievement = AchievementRegistry.GetAll(1_000).Single(x => string.Equals(x.Id, "high_roller", StringComparison.Ordinal));
 
-        Assert.Contains("1 000", achievement.Description);
+        Assert.Contains("1 000", achievement.Description, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -360,7 +358,7 @@ public sealed class MetaRegistryTests
         long threshold,
         bool expected)
     {
-        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 10, payout, true, 1, 1);
+        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 10, payout, IsWin: true, 1, 1);
         var player = new SeasonPlayer(
             SeasonId: 1,
             ChatId: 100,
@@ -378,15 +376,15 @@ public sealed class MetaRegistryTests
 
         var unlocked = AchievementRegistry.Evaluate(ev, player, 10_000, threshold);
 
-        Assert.Equal(expected, unlocked.Any(x => x.Id == "big_payout"));
+        Assert.Equal(expected, unlocked.Any(x => string.Equals(x.Id, "big_payout", StringComparison.Ordinal)));
     }
 
     [Fact]
     public void AchievementRegistry_GetAll_BigPayoutDescriptionUsesConfiguredThreshold()
     {
-        var achievement = AchievementRegistry.GetAll(1_000, 5_000).Single(x => x.Id == "big_payout");
+        var achievement = AchievementRegistry.GetAll(1_000, 5_000).Single(x => string.Equals(x.Id, "big_payout", StringComparison.Ordinal));
 
-        Assert.Contains("5 000", achievement.Description);
+        Assert.Contains("5 000", achievement.Description, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -415,7 +413,7 @@ public sealed class MetaRegistryTests
     {
         var season = new MetaSeason(1, "S1", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddYears(1), "active", "{}");
         var now = new DateTimeOffset(2026, 5, 20, 12, 0, 0, TimeSpan.Zero);
-        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 250, 0, false, 0, now.ToUnixTimeMilliseconds());
+        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 250, 0, IsWin: false, 0, now.ToUnixTimeMilliseconds());
         var activeIds = QuestRegistry.ActiveFor(season, ev.ChatId, ev.UserId, now).Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
         var matching = QuestRegistry.Matching(season, ev.ChatId, ev.UserId, ev).ToArray();
 
@@ -428,13 +426,13 @@ public sealed class MetaRegistryTests
     [Fact]
     public void QuestRegistry_DeltaFor_UsesKindSpecificProgress()
     {
-        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 250, 600, true, 0, 1);
-        var volume = QuestRegistry.All.First(x => x.Kind == "volume");
-        var payout = QuestRegistry.All.First(x => x.Kind == "payout");
-        var profit = QuestRegistry.All.First(x => x.Kind == "profit");
-        var loss = QuestRegistry.All.First(x => x.Kind == "loss");
-        var multiplier = QuestRegistry.All.First(x => x.Kind == "multiplier");
-        var play = QuestRegistry.All.First(x => x.Kind == "play");
+        var ev = new GameCompletedMetaEvent(100, 42, "u", MiniGameIds.Dice, 250, 600, IsWin: true, 0, 1);
+        var volume = QuestRegistry.All.First(x => string.Equals(x.Kind, "volume", StringComparison.Ordinal));
+        var payout = QuestRegistry.All.First(x => string.Equals(x.Kind, "payout", StringComparison.Ordinal));
+        var profit = QuestRegistry.All.First(x => string.Equals(x.Kind, "profit", StringComparison.Ordinal));
+        var loss = QuestRegistry.All.First(x => string.Equals(x.Kind, "loss", StringComparison.Ordinal));
+        var multiplier = QuestRegistry.All.First(x => string.Equals(x.Kind, "multiplier", StringComparison.Ordinal));
+        var play = QuestRegistry.All.First(x => string.Equals(x.Kind, "play", StringComparison.Ordinal));
 
         Assert.Equal(250, QuestRegistry.DeltaFor(volume, ev));
         Assert.Equal(600, QuestRegistry.DeltaFor(payout, ev));
@@ -448,8 +446,8 @@ public sealed class MetaRegistryTests
     public void QuestRegistry_PeriodKey_DailyAndWeeklyAreStable()
     {
         var now = new DateTimeOffset(2026, 5, 20, 12, 0, 0, TimeSpan.Zero);
-        var daily = QuestRegistry.All.First(x => x.Period == "daily");
-        var weekly = QuestRegistry.All.First(x => x.Period == "weekly");
+        var daily = QuestRegistry.All.First(x => string.Equals(x.Period, "daily", StringComparison.Ordinal));
+        var weekly = QuestRegistry.All.First(x => string.Equals(x.Period, "weekly", StringComparison.Ordinal));
 
         Assert.Equal("2026-05-20", QuestRegistry.PeriodKey(daily, now));
         Assert.Equal("2026-W21", QuestRegistry.PeriodKey(weekly, now));

@@ -1,4 +1,4 @@
-using BotFramework.Sdk;
+using System.Globalization;
 
 namespace Games.Meta.Application.Meta;
 
@@ -26,7 +26,7 @@ public sealed class MetaXpProjection(
         await history.AppendAsync(
             "game.completed",
             "player",
-            $"{season.Id}:{ev.ChatId}:{ev.UserId}",
+            string.Create(CultureInfo.InvariantCulture, $"{season.Id}:{ev.ChatId}:{ev.UserId}"),
             season.Id,
             ev.ChatId,
             ev.UserId,

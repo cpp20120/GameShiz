@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.SecretHitler.Domain;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using static Games.SecretHitler.Domain.Rules.ShResultHelpers;
 
@@ -17,11 +15,11 @@ public sealed partial class SecretHitlerService(
     IOptions<SecretHitlerOptions> options,
     ILogger<SecretHitlerService> logger) : ISecretHitlerService
 {
-    private static readonly ConcurrentDictionary<string, Gate> _gates = new();
+    private static readonly ConcurrentDictionary<string, Gate> Gates = new(StringComparer.Ordinal);
 
     private static SemaphoreSlim GetGate(string key)
     {
-        var g = _gates.GetOrAdd(key, _ => new Gate());
+        var g = Gates.GetOrAdd(key, _ => new Gate());
         Volatile.Write(ref g.LastUsedTick, Environment.TickCount64);
         return g.Semaphore;
     }
@@ -29,9 +27,11 @@ public sealed partial class SecretHitlerService(
     internal static void PruneGates(long idleMs)
     {
         var cutoff = Environment.TickCount64 - idleMs;
-        foreach (var (key, g) in _gates)
+        foreach (var (key, g) in Gates)
+        {
             if (Volatile.Read(ref g.LastUsedTick) < cutoff && g.Semaphore.CurrentCount == 1)
-                _gates.TryRemove(key, out _);
+                Gates.TryRemove(key, out _);
+        }
     }
 
     private sealed class Gate
@@ -55,11 +55,11 @@ public sealed partial class SecretHitlerService(
     public async Task<ShCreateResult> CreateGameAsync(
         long userId, string displayName, long publicChatId, long playerChatId, CancellationToken ct)
     {
-        var gate = GetGate($"u:{userId}");
+        var gate = GetGate(string.Create(CultureInfo.InvariantCulture, $"u:{userId}"));
         await gate.WaitAsync(ct);
         try
         {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:u:{userId}", ct);
+            await using var distributedLock = await distributedLocks.AcquireAsync(string.Create(CultureInfo.InvariantCulture, $"sh:u:{userId}"), ct);
             var buyIn = _opts.BuyIn;
             await economics.EnsureUserAsync(userId, playerChatId, displayName, ct);
             var balance = await economics.GetBalanceAsync(userId, playerChatId, ct);
@@ -101,6 +101,7 @@ public sealed partial class SecretHitlerService(
 
             LogShCreated(code, userId, buyIn);
             analytics.Track("sh", "create", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["invite_code"] = code,
@@ -162,6 +163,7 @@ public sealed partial class SecretHitlerService(
             list.Add(newPlayer);
             LogShJoined(code, userId, position, list.Count);
             analytics.Track("sh", "join", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["invite_code"] = code,
@@ -204,6 +206,7 @@ public sealed partial class SecretHitlerService(
 
             LogShStarted(game.InviteCode, list.Count);
             analytics.Track("sh", "start", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = game.InviteCode,
                 ["players"] = list.Count,
@@ -243,6 +246,7 @@ public sealed partial class SecretHitlerService(
 
             LogShNominated(game.InviteCode, userId, chancellorPosition);
             analytics.Track("sh", "nominate", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = game.InviteCode,
                 ["president_id"] = userId,
@@ -285,6 +289,7 @@ public sealed partial class SecretHitlerService(
 
             LogShVoted(game.InviteCode, userId, vote, after?.Kind);
             analytics.Track("sh", "vote", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = game.InviteCode,
                 ["user_id"] = userId,
@@ -293,9 +298,11 @@ public sealed partial class SecretHitlerService(
             });
 
             if (game.Status == ShStatus.Completed)
+            {
                 await events.PublishAsync(
                     new SecretHitlerGameEnded(game.InviteCode, game.Winner, game.WinReason, payouts, game.LastActionAt),
                     ct);
+            }
 
             return new ShVoteResult(ShError.None, new ShGameSnapshot(game, list), after);
         }
@@ -329,6 +336,7 @@ public sealed partial class SecretHitlerService(
 
             LogShPresidentDiscard(game.InviteCode, userId, discardIndex);
             analytics.Track("sh", "president_discard", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = game.InviteCode,
                 ["president_id"] = userId,
@@ -371,6 +379,7 @@ public sealed partial class SecretHitlerService(
 
             LogShChancellorEnact(game.InviteCode, userId, enactIndex, after.Enacted);
             analytics.Track("sh", "chancellor_enact", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = game.InviteCode,
                 ["chancellor_id"] = userId,
@@ -380,9 +389,11 @@ public sealed partial class SecretHitlerService(
             });
 
             if (game.Status == ShStatus.Completed)
+            {
                 await events.PublishAsync(
                     new SecretHitlerGameEnded(game.InviteCode, game.Winner, game.WinReason, payouts, game.LastActionAt),
                     ct);
+            }
 
             return new ShEnactResult(ShError.None, new ShGameSnapshot(game, list), after);
         }
@@ -426,6 +437,7 @@ public sealed partial class SecretHitlerService(
 
             LogShLeft(game.InviteCode, userId, closed);
             analytics.Track("sh", "leave", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = game.InviteCode,
                 ["user_id"] = userId,
@@ -474,7 +486,7 @@ public sealed partial class SecretHitlerService(
         if (winners.Count == 0 || game.Pot == 0) return Array.Empty<(long, int)>();
 
         var share = game.Pot / winners.Count;
-        var remainder = game.Pot - share * winners.Count;
+        var remainder = game.Pot - (share * winners.Count);
         var payouts = new List<(long, int)>(winners.Count);
         foreach (var w in winners)
         {

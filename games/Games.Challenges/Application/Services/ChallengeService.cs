@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
 namespace Games.Challenges.Application.Services;
@@ -177,7 +176,7 @@ public sealed class ChallengeService(
         analytics.Track("challenges", "failed_refunded", Tags(challenge));
     }
 
-    private static Dictionary<string, object?> Tags(Challenge challenge) => new()
+    private static Dictionary<string, object?> Tags(Challenge challenge) => new(StringComparer.Ordinal)
     {
         ["challenge_id"] = challenge.Id,
         ["chat_id"] = challenge.ChatId,

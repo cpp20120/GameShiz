@@ -18,7 +18,6 @@
 
 using System.Collections.Concurrent;
 using System.Reflection;
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Commands.Dispatch;
 
@@ -26,7 +25,7 @@ public sealed class CommandBus(
     IServiceProvider services,
     IEnumerable<ICommandMiddleware> middleware) : ICommandBus
 {
-    private readonly IReadOnlyList<ICommandMiddleware> _middleware = middleware.ToList();
+    private readonly List<ICommandMiddleware> _middleware = middleware.ToList();
     private readonly ConcurrentDictionary<Type, MethodInfo> _handlerMethods = new();
 
     public Task SendAsync(ICommand command, CancellationToken ct) =>
@@ -72,7 +71,7 @@ public sealed class CommandBus(
         var handler = services.GetService(handlerInterface)
             ?? throw new InvalidOperationException($"No handler registered for {commandType.Name}");
 
-        var method = _handlerMethods.GetOrAdd(commandType, _ => handlerInterface.GetMethod("HandleAsync")!);
+        var method = _handlerMethods.GetOrAdd(commandType, (_, arg) => arg.GetMethod("HandleAsync")!, handlerInterface);
         var task = (Task)method.Invoke(handler, [ctx.Command, ctx.Cancellation])!;
         await task;
 

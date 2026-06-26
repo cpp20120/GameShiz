@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Admin.Infrastructure.Modules;
 
@@ -25,7 +24,7 @@ public sealed class AdminModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Admin",
 
             ["err.not_admin"] = "У вас нет прав, доступно только владельцу бота",

@@ -17,7 +17,6 @@
 // still resolved from DI at request time so Scoped lifetimes work correctly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -34,9 +33,11 @@ public sealed class ModuleServiceCollectionAdapter(
         return this;
     }
 
-    public IModuleServiceCollection AddScoped<TService, TImpl>() where TImpl : class, TService
+    public IModuleServiceCollection AddScoped<TService, TImpl>()
+        where TService : class
+        where TImpl : class, TService
     {
-        services.AddScoped(typeof(TService), typeof(TImpl));
+        services.AddScoped<TService, TImpl>();
         return this;
     }
 
@@ -55,26 +56,24 @@ public sealed class ModuleServiceCollectionAdapter(
     public IModuleServiceCollection RegisterAggregate<TAggregate>(PersistenceStrategy strategy)
         where TAggregate : IAggregateRoot
     {
-        registrations.Aggregates.Add(new AggregateRegistration(typeof(TAggregate), strategy));
+        registrations.AddAggregate(new AggregateRegistration(typeof(TAggregate), strategy));
 
-        if (strategy == PersistenceStrategy.EventSourced)
+        if (strategy != PersistenceStrategy.EventSourced) return this;
+        if (!typeof(IEventSourcedAggregate).IsAssignableFrom(typeof(TAggregate)))
         {
-            if (!typeof(IEventSourcedAggregate).IsAssignableFrom(typeof(TAggregate)))
-            {
-                throw new InvalidOperationException(
-                    $"Aggregate {typeof(TAggregate).FullName} is registered as EventSourced " +
-                    $"but does not implement {nameof(IEventSourcedAggregate)}.");
-            }
-
-            var aggregateType = typeof(TAggregate);
-            var repositoryServiceType = typeof(IRepository<>).MakeGenericType(aggregateType);
-            var repositoryImplementationType = typeof(EventSourcedRepository<>).MakeGenericType(aggregateType);
-            var factoryServiceType = typeof(IAggregateFactory<>).MakeGenericType(aggregateType);
-            var factoryImplementationType = typeof(DefaultAggregateFactory<>).MakeGenericType(aggregateType);
-
-            services.TryAddScoped(factoryServiceType, factoryImplementationType);
-            services.AddScoped(repositoryServiceType, repositoryImplementationType);
+            throw new InvalidOperationException(
+                $"Aggregate {typeof(TAggregate).FullName} is registered as EventSourced " +
+                $"but does not implement {nameof(IEventSourcedAggregate)}.");
         }
+
+        var aggregateType = typeof(TAggregate);
+        var repositoryServiceType = typeof(IRepository<>).MakeGenericType(aggregateType);
+        var repositoryImplementationType = typeof(EventSourcedRepository<>).MakeGenericType(aggregateType);
+        var factoryServiceType = typeof(IAggregateFactory<>).MakeGenericType(aggregateType);
+        var factoryImplementationType = typeof(DefaultAggregateFactory<>).MakeGenericType(aggregateType);
+
+        services.TryAddScoped(factoryServiceType, factoryImplementationType);
+        services.AddScoped(repositoryServiceType, repositoryImplementationType);
 
         return this;
     }
@@ -82,7 +81,7 @@ public sealed class ModuleServiceCollectionAdapter(
     public IModuleServiceCollection AddHandler<THandler>() where THandler : class
     {
         // Handlers are Scoped. UpdateRouter resolves by Type via reflection at dispatch.
-        services.AddScoped(typeof(THandler));
+        services.AddScoped<THandler>();
         return this;
     }
 
@@ -90,7 +89,7 @@ public sealed class ModuleServiceCollectionAdapter(
     {
         services.AddScoped<TProjection>();
         services.AddScoped<IProjection>(sp => sp.GetRequiredService<TProjection>());
-        registrations.Projections.Add(typeof(TProjection));
+        registrations.AddProjection<TProjection>();
         return this;
     }
 
@@ -98,14 +97,14 @@ public sealed class ModuleServiceCollectionAdapter(
     {
         services.AddScoped<TPage>();
         services.AddScoped<IAdminPage>(sp => sp.GetRequiredService<TPage>());
-        registrations.AdminPages.Add(typeof(TPage));
+        registrations.AddAdminPage<TPage>();
         return this;
     }
 
     public IModuleServiceCollection AddBackgroundJob<TJob>() where TJob : class, IBackgroundJob
     {
         services.AddSingleton<TJob>();
-        registrations.BackgroundJobs.Add(typeof(TJob));
+        registrations.AddBackgroundJob<TJob>();
         return this;
     }
 
@@ -114,7 +113,7 @@ public sealed class ModuleServiceCollectionAdapter(
         where THandler : class, ICommandHandler<TCommand>
     {
         services.AddScoped<ICommandHandler<TCommand>, THandler>();
-        registrations.CommandHandlers[typeof(TCommand)] = typeof(THandler);
+        registrations.AddCommandHandler<TCommand, THandler>();
         return this;
     }
 
@@ -123,7 +122,7 @@ public sealed class ModuleServiceCollectionAdapter(
     {
         services.AddSingleton<TMiddleware>();
         services.AddSingleton<ICommandMiddleware>(sp => sp.GetRequiredService<TMiddleware>());
-        registrations.CommandMiddleware.Add(typeof(TMiddleware));
+        registrations.AddCommandMiddleware<TMiddleware>();
         return this;
     }
 
@@ -135,7 +134,7 @@ public sealed class ModuleServiceCollectionAdapter(
         // state, it takes IServiceProvider and creates its own scope inside
         // HandleAsync.
         services.AddSingleton<TSubscriber>();
-        registrations.EventSubscriptions.Add(new EventSubscription(eventTypePattern, typeof(TSubscriber)));
+        registrations.AddEventSubscription(new EventSubscription(eventTypePattern, typeof(TSubscriber)));
         return this;
     }
 
@@ -143,7 +142,7 @@ public sealed class ModuleServiceCollectionAdapter(
     {
         services.AddSingleton<TCheck>();
         services.AddSingleton<IHealthCheck>(sp => sp.GetRequiredService<TCheck>());
-        registrations.HealthChecks.Add(typeof(TCheck));
+        registrations.AddHealthCheck<TCheck>();
         return this;
     }
 }

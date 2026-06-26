@@ -1,6 +1,3 @@
-using BotFramework.Sdk;
-using Games.DiceCube;
-using Games.Darts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -311,7 +308,7 @@ public class DartsServiceTests
     {
         var rounds = new InMemoryDartsRoundStore();
         var roundId = await rounds.InsertQueuedAsync(
-            new DartsRound(0, 42, 100, 25, DateTimeOffset.UtcNow, DartsRoundStatus.Queued, null, CmdMsg),
+            new DartsRound(0, 42, 100, 25, DateTimeOffset.UtcNow, DartsRoundStatus.Queued, BotMessageId: null, CmdMsg),
             default);
         var queue = new RecordingDartsRollQueue();
         var services = new ServiceCollection()

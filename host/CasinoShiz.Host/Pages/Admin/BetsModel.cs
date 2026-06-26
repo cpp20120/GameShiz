@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -9,7 +8,7 @@ public sealed class BetsModel(INpgsqlConnectionFactory connections) : PageModel
 {
     public IReadOnlyList<BetRow> Rows { get; private set; } = [];
     public IReadOnlyDictionary<string, int> Counts { get; private set; } =
-        new Dictionary<string, int>();
+        new Dictionary<string, int>(StringComparer.Ordinal);
     public long TotalAmount { get; private set; }
 
     [BindProperty(SupportsGet = true)]
@@ -60,7 +59,7 @@ public sealed class BetsModel(INpgsqlConnectionFactory connections) : PageModel
             SELECT 'horse',      COUNT(*)::int,               COALESCE(SUM(amount),0)::bigint     FROM horse_bets
             """, cancellationToken: ct));
         var list = counts.ToList();
-        Counts = list.ToDictionary(x => x.Game, x => x.Cnt);
+        Counts = list.ToDictionary(x => x.Game, x => x.Cnt, StringComparer.Ordinal);
         TotalAmount = list.Sum(x => x.Sum);
     }
 }

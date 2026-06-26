@@ -29,9 +29,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Projections;
+/// <summary>
 /// Context passed by the Host on each Apply — carries stream metadata plus an
 /// optional provider-specific transaction object. Transaction is null in the
 /// current post-commit dispatch mode.
+/// </summary>
 public sealed record ProjectionContext(
     string StreamId,
     long StreamVersion,

@@ -11,35 +11,13 @@
 // leaks here — modules own their own ConfigureServices.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using CasinoShiz.Host;
-using CasinoShiz.Host.Debug;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
-using Games.Admin;
-using Games.Basketball;
-using Games.Blackjack;
-using Games.Bowling;
-using Games.Challenges;
-using Games.Darts;
-using Games.Dice;
-using Games.Football;
-using Games.DiceCube;
-using Games.Horse;
-using Games.Leaderboard;
-using Games.Meta;
-using Games.Pick;
-using Games.PixelBattle;
-using Games.Poker;
-using Games.Redeem;
-using Games.SecretHitler;
-using Games.Transfer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Builder;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
-builder.Services.AddSingleton<CasinoShiz.Host.Pages.Admin.HorseGifCache>();
+builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 
 builder.AddBotFramework()
@@ -85,4 +63,4 @@ app.UseStaticFiles();
 app.MapRazorPages();
 app.MapPixelBattle();
 
-app.Run();
+await app.RunAsync();

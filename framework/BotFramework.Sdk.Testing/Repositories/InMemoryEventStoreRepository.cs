@@ -14,14 +14,18 @@
 // spin up Postgres via Testcontainers; no framework feature for that here.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
+
 namespace BotFramework.Sdk.Testing.Repositories;
+/// <summary>
 /// Event-store-aggregate repository backed by in-memory streams. Preserves
 /// optimistic-concurrency semantics — if SaveAsync is called twice with the
 /// same expectedVersion, the second throws, same as production.
+/// </summary>
 public sealed class InMemoryEventStoreRepository<TAggregate> : IRepository<TAggregate>
     where TAggregate : class, IEventSourcedAggregate, new()
 {
-    private readonly Dictionary<string, List<IDomainEvent>> _streams = new();
+    private readonly Dictionary<string, List<IDomainEvent>> _streams = new(StringComparer.Ordinal);
 
     public Task<TAggregate?> FindAsync(string id, CancellationToken ct)
     {
@@ -42,8 +46,10 @@ public sealed class InMemoryEventStoreRepository<TAggregate> : IRepository<TAggr
 
         var expectedVersion = aggregate.Version - aggregate.PendingEvents.Count;
         if (stream.Count != expectedVersion)
+        {
             throw new InvalidOperationException(
-                $"concurrency: stream at {stream.Count}, expected {expectedVersion}");
+                string.Create(CultureInfo.InvariantCulture, $"concurrency: stream at {stream.Count}, expected {expectedVersion}"));
+        }
 
         stream.AddRange(aggregate.PendingEvents);
         aggregate.MarkEventsCommitted();

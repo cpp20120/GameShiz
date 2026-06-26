@@ -1,7 +1,4 @@
 using System.Collections.Concurrent;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.SecretHitler.Domain;
 using Microsoft.Extensions.Options;
 using static Games.SecretHitler.Domain.Rules.ShResultHelpers;
 

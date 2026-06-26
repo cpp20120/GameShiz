@@ -56,7 +56,7 @@ public sealed class MetaModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Мета",
             ["cmd.menu"] = "Интерактивное меню и профиль",
             ["cmd.season"] = "Текущий сезон",

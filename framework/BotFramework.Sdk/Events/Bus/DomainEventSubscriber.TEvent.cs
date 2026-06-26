@@ -26,9 +26,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Events.Bus;
+/// <summary>
 /// Convenience base for type-safe subscribers that only care about one event
 /// shape. Module authors typically inherit from this rather than implementing
 /// the raw interface.
+/// </summary>
 public abstract class DomainEventSubscriber<TEvent> : IDomainEventSubscriber where TEvent : IDomainEvent
 {
     public Task HandleAsync(IDomainEvent ev, CancellationToken ct) =>

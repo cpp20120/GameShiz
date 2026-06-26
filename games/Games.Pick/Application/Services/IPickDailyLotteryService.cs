@@ -23,8 +23,6 @@
 //     pot − fee to winner, MarkSettled.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Host.Composition;
 using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Application.Services;

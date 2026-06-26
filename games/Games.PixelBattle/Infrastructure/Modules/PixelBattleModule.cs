@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.PixelBattle.Infrastructure.Modules;
 
@@ -28,7 +27,7 @@ public sealed class PixelBattleModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "PixelBattle",
             ["cmd.pixelbattle"] = "Открыть PixelBattle",
             ["open.text"] = "Открой PixelBattle через кнопку ниже. Рисовать могут только пользователи, уже известные боту.",

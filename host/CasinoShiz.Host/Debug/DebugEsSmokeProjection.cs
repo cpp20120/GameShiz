@@ -1,5 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Dapper;
 
 namespace CasinoShiz.Host.Debug;
@@ -8,7 +6,7 @@ public sealed class DebugEsSmokeProjection(
     INpgsqlConnectionFactory connections) : IRebuildableProjection
 {
     public IReadOnlySet<string> SubscribedEventTypes { get; } =
-        new HashSet<string> { "debug.es_smoke_incremented" };
+        new HashSet<string>(StringComparer.Ordinal) { "debug.es_smoke_incremented" };
 
     public async Task ApplyAsync(IDomainEvent ev, ProjectionContext ctx, CancellationToken ct)
     {

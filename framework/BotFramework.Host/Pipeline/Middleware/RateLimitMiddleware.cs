@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using BotFramework.Sdk;
+using System.Globalization;
 using StackExchange.Redis;
 
 namespace BotFramework.Host.Pipeline.Middleware;
@@ -30,7 +30,7 @@ public sealed partial class RateLimitMiddleware(
         if (redis is not null)
         {
             var db = redis.GetDatabase();
-            var key = $"ratelimit:update:{userId}:{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 10}";
+            var key = string.Create(CultureInfo.InvariantCulture, $"ratelimit:update:{userId}:{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 10}");
             var count = await db.StringIncrementAsync(key);
             if (count == 1)
                 await db.KeyExpireAsync(key, RedisWindow + TimeSpan.FromSeconds(2));
@@ -64,17 +64,17 @@ public sealed partial class RateLimitMiddleware(
     {
         private double _tokens = tokens;
         private DateTime _lastRefill = lastRefill;
-        private readonly object _lock = new();
+        private readonly Lock _lock = new();
 
         public bool TryConsume(DateTime now)
         {
             lock (_lock)
             {
                 var elapsed = (now - _lastRefill).TotalSeconds;
-                _tokens = Math.Min(Capacity, _tokens + elapsed * RefillPerSecond);
+                _tokens = Math.Min(Capacity, _tokens + (elapsed * RefillPerSecond));
                 _lastRefill = now;
                 if (_tokens < 1.0) return false;
-                _tokens -= 1.0;
+                _tokens--;
                 return true;
             }
         }

@@ -15,11 +15,9 @@
 //   /chats <type> full     — combine
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
 using System.Net;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -74,7 +72,7 @@ public sealed class ChatsHandler(
         await SendChunkedAsync(ctx, msg.Chat.Id, rendered, reply);
     }
 
-    private static (string? typeFilter, bool full) ParseArgs(string text)
+    private (string? typeFilter, bool full) ParseArgs(string text)
     {
         var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string? typeFilter = null;
@@ -114,18 +112,17 @@ public sealed class ChatsHandler(
             "channel" => "chats.header.channel",
             _ => "chats.header.all",
         };
-        sb.AppendLine(string.Format(Loc(headerKey), totalMatching));
+        sb.AppendFormat(CultureInfo.InvariantCulture, Loc(headerKey), totalMatching).AppendLine();
         sb.AppendLine();
 
         var grouped = rows
-            .GroupBy(r => r.ChatType)
+            .GroupBy(r => r.ChatType, StringComparer.Ordinal)
             .OrderBy(g => TypeOrder(g.Key))
-            .ThenBy(g => g.Key);
+            .ThenBy(g => g.Key, StringComparer.Ordinal);
 
         foreach (var group in grouped)
         {
-            sb.AppendLine(string.Format(Loc("chats.section_header"),
-                HtmlEnc(group.Key), group.Count()));
+            sb.AppendFormat(CultureInfo.InvariantCulture, Loc("chats.section_header"), HtmlEnc(group.Key), group.Count()).AppendLine();
             foreach (var row in group)
             {
                 sb.AppendLine(FormatRow(row, nowUtc));
@@ -134,7 +131,7 @@ public sealed class ChatsHandler(
         }
 
         if (!full && rows.Count < totalMatching)
-            sb.AppendLine(string.Format(Loc("chats.truncated"), rows.Count, totalMatching));
+            sb.AppendFormat(CultureInfo.InvariantCulture, Loc("chats.truncated"), rows.Count, totalMatching).AppendLine();
 
         return sb.ToString().TrimEnd();
     }
@@ -144,18 +141,17 @@ public sealed class ChatsHandler(
         var title = !string.IsNullOrWhiteSpace(row.Title)
             ? row.Title!
             : row.ChatType.Equals("private", StringComparison.OrdinalIgnoreCase)
-                ? string.Format(Loc("chats.private_label"), row.ChatId)
-                : string.Format(Loc("chats.unknown_label"), row.ChatId);
+                ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.private_label"), row.ChatId) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.unknown_label"), row.ChatId);
 
         var titleHtml = HtmlEnc(title);
         var usernameHtml = string.IsNullOrWhiteSpace(row.Username)
             ? ""
-            : $" · @{HtmlEnc(row.Username!)}";
+            : $" · @{HtmlEnc(row.Username)}";
         var lastSeen = HumanizeAge(nowUtc - row.LastSeenAt.ToUniversalTime());
-        var firstSeen = row.FirstSeenAt.ToUniversalTime().ToString("yyyy-MM-dd");
+        var firstSeen = row.FirstSeenAt.ToUniversalTime().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
         return $"• <b>{titleHtml}</b>{usernameHtml}\n" +
-               $"  <code>{row.ChatId}</code> · users <b>{row.UserCount}</b> · coins <b>{row.TotalCoins}</b>\n" +
+               string.Create(CultureInfo.InvariantCulture, $"  <code>{row.ChatId}</code> · users <b>{row.UserCount}</b> · coins <b>{row.TotalCoins}</b>\n") +
                $"  seen {lastSeen} · since {firstSeen}";
     }
 
@@ -163,10 +159,10 @@ public sealed class ChatsHandler(
     {
         if (delta.TotalSeconds < 0) delta = TimeSpan.Zero;
         if (delta.TotalMinutes < 1) return Loc("chats.ago.now");
-        if (delta.TotalMinutes < 60) return string.Format(Loc("chats.ago.minutes"), (int)delta.TotalMinutes);
-        if (delta.TotalHours < 24) return string.Format(Loc("chats.ago.hours"), (int)delta.TotalHours);
-        if (delta.TotalDays < 30) return string.Format(Loc("chats.ago.days"), (int)delta.TotalDays);
-        return string.Format(Loc("chats.ago.months"), (int)(delta.TotalDays / 30));
+        if (delta.TotalMinutes < 60) return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.ago.minutes"), (int)delta.TotalMinutes);
+        if (delta.TotalHours < 24) return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.ago.hours"), (int)delta.TotalHours);
+        if (delta.TotalDays < 30) return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.ago.days"), (int)delta.TotalDays);
+        return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.ago.months"), (int)(delta.TotalDays / 30));
     }
 
     private static int TypeOrder(string chatType) => chatType.ToLowerInvariant() switch
@@ -178,7 +174,7 @@ public sealed class ChatsHandler(
         _ => 4,
     };
 
-    private async Task SendChunkedAsync(UpdateContext ctx, long chatId, string text, ReplyParameters reply)
+    private static async Task SendChunkedAsync(UpdateContext ctx, long chatId, string text, ReplyParameters reply)
     {
         const int maxLen = 3800;
         if (text.Length <= maxLen)
@@ -212,7 +208,7 @@ public sealed class ChatsHandler(
         }
     }
 
-    private static string HtmlEnc(string? s) => WebUtility.HtmlEncode(s ?? "");
+    private string HtmlEnc(string? s) => WebUtility.HtmlEncode(s ?? "");
 
     private string Loc(string key) => localizer.Get("admin", key);
 }

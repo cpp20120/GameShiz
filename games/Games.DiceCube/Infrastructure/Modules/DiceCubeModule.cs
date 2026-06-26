@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.DiceCube.Infrastructure.Modules;
 
@@ -27,7 +26,7 @@ public sealed class DiceCubeModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Куб",
             ["cmd.dice"] = "Поставить на кубик",
             ["usage"] = "🎲 <b>Куб</b>\n"

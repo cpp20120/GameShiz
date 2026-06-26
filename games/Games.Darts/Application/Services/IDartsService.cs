@@ -4,8 +4,6 @@
 // <see cref="DartsRollDispatcherJob"/> + <see cref="DartsBotDiceSender"/>.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
 
 namespace Games.Darts.Application.Services;
 

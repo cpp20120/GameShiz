@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Meta.Infrastructure.Persistence;
@@ -355,8 +354,8 @@ public sealed class MetaStore(
                 map.ContainsKey(x.Id),
                 map.GetValueOrDefault(x.Id)))
             .OrderByDescending(x => x.IsUnlocked)
-            .ThenBy(x => x.Category)
-            .ThenBy(x => x.Id)
+            .ThenBy(x => x.Category, StringComparer.Ordinal)
+            .ThenBy(x => x.Id, StringComparer.Ordinal)
             .ToList();
     }
 
@@ -550,7 +549,7 @@ public sealed class MetaStore(
         return rows.ToList();
     }
 
-    private async Task<SeasonPlayer> CorrectLevelAsync(
+    private static async Task<SeasonPlayer> CorrectLevelAsync(
         System.Data.Common.DbConnection conn,
         long seasonId,
         long chatId,
@@ -673,6 +672,6 @@ public sealed class MetaStore(
         < 1300 => "Gold",
         < 1500 => "Platinum",
         < 1800 => "Diamond",
-        _ => "Shizoid"
+        _ => "Shizoid",
     };
 }

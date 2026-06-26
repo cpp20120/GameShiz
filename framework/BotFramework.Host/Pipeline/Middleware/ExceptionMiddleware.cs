@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace BotFramework.Host.Pipeline.Middleware;
 
@@ -20,6 +19,7 @@ public sealed partial class ExceptionMiddleware(
         {
             LogUpdateError(ctx.Update.Id, ctx.UserId, ex);
             analytics.Track("_framework", "error", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["exception_type"] = ex.GetType().FullName,
                 ["message"] = ex.Message,

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace Games.Meta.Application.Risk;
@@ -14,7 +15,7 @@ public sealed class RiskService(
         if (ev.Multiplier >= 20m && ev.Payout > 0)
         {
             var severity = ev.Multiplier >= 50m ? "high" : "medium";
-            var reason = $"Large multiplier: x{ev.Multiplier:0.##}";
+            var reason = string.Create(CultureInfo.InvariantCulture, $"Large multiplier: x{ev.Multiplier:0.##}");
             var evidence = Evidence(ev, player);
             await risks.UpsertOpenAsync(
                 season,
@@ -32,7 +33,7 @@ public sealed class RiskService(
         if (ev.Payout >= 1_000)
         {
             var severity = ev.Payout >= 10_000 ? "critical" : "high";
-            var reason = $"Large payout: {ev.Payout}";
+            var reason = string.Create(CultureInfo.InvariantCulture, $"Large payout: {ev.Payout}");
             var evidence = Evidence(ev, player);
             await risks.UpsertOpenAsync(
                 season,
@@ -80,10 +81,10 @@ public sealed class RiskService(
             await history.AppendAsync(
                 "risk.status_updated",
                 "risk_flag",
-                flagId.ToString(),
-                null,
-                null,
-                null,
+                flagId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+seasonId: null,
+chatId: null,
+userId: null,
                 new { flagId, status, result.Message },
                 ct);
         }

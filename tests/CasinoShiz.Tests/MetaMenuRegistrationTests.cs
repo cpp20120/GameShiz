@@ -1,5 +1,3 @@
-using BotFramework.Sdk;
-using Games.Meta;
 using Telegram.Bot.Types;
 using Xunit;
 
@@ -12,12 +10,12 @@ public sealed class MetaMenuRegistrationTests
     {
         var module = new MetaModule();
 
-        var menu = Assert.Single(module.GetBotCommands(), x => x.Command == "/menu");
+        var menu = Assert.Single(module.GetBotCommands(), x => string.Equals(x.Command, "/menu", StringComparison.Ordinal));
 
         Assert.Equal("meta.cmd.menu", menu.DescriptionKey);
         Assert.Contains(
-            module.GetLocales().Single(x => x.CultureCode == "ru").Strings,
-            x => x.Key == "cmd.menu" && !string.IsNullOrWhiteSpace(x.Value));
+            module.GetLocales().Single(x => string.Equals(x.CultureCode, "ru", StringComparison.Ordinal)).Strings,
+            x => string.Equals(x.Key, "cmd.menu", StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(x.Value));
     }
 
     [Fact]

@@ -1,6 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Dapper;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -16,10 +13,20 @@ public sealed class IndexModel(
     public long TotalCoins { get; private set; }
     public int EventCount { get; private set; }
     public int PendingBets { get; private set; }
-    public IReadOnlyList<IModule> Modules { get; private set; } = modules.ToList();
+    public IReadOnlyList<IModule> Modules { get; } = modules.ToList();
     public IReadOnlyList<ModuleCount> EventsByModule { get; private set; } = [];
     public IReadOnlyList<MiniGameStickerTracking> StickerGames { get; private set; } = [];
     public IReadOnlyList<BackgroundJobStatusSnapshot> BackgroundJobs { get; private set; } = [];
+
+    private static readonly string[] value = new[]
+        {
+            "(SELECT count(*) FROM darts_rounds)",
+            "(SELECT count(*) FROM dicecube_bets)",
+            "(SELECT count(*) FROM basketball_bets)",
+            "(SELECT count(*) FROM bowling_bets)",
+            "(SELECT count(*) FROM blackjack_hands)",
+            "(SELECT count(*) FROM horse_bets)",
+        };
 
     public async Task OnGetAsync(CancellationToken ct)
     {
@@ -34,15 +41,7 @@ public sealed class IndexModel(
         EventCount = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT count(*)::int FROM event_log", cancellationToken: ct));
 
-        var pendingSql = string.Join(" + ", new[]
-        {
-            "(SELECT count(*) FROM darts_rounds)",
-            "(SELECT count(*) FROM dicecube_bets)",
-            "(SELECT count(*) FROM basketball_bets)",
-            "(SELECT count(*) FROM bowling_bets)",
-            "(SELECT count(*) FROM blackjack_hands)",
-            "(SELECT count(*) FROM horse_bets)",
-        });
+        var pendingSql = string.Join(" + ", value);
         PendingBets = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             $"SELECT ({pendingSql})::int", cancellationToken: ct));
 

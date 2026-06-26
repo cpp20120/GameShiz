@@ -4,7 +4,6 @@
 // in multiple group chats.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.DiceCube.Infrastructure.Models;

@@ -9,7 +9,6 @@
 // scope for this port.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Poker.Infrastructure.Persistence;
@@ -29,7 +28,7 @@ public sealed class PokerTableStore(INpgsqlConnectionFactory connections) : IPok
             $"SELECT {SelectColumns} FROM poker_tables WHERE invite_code = @inviteCode",
             new { inviteCode },
             cancellationToken: ct));
-        return row == null ? null : row.ToEntity();
+        return row?.ToEntity();
     }
 
     public async Task<PokerTable?> FindOpenByChatAsync(long chatId, CancellationToken ct)
@@ -57,7 +56,7 @@ public sealed class PokerTableStore(INpgsqlConnectionFactory connections) : IPok
             cancellationToken: ct));
     }
 
-    public async Task InsertAsync(PokerTable t, CancellationToken ct)
+    public async Task InsertAsync(PokerTable table, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("""
@@ -71,14 +70,14 @@ public sealed class PokerTableStore(INpgsqlConnectionFactory connections) : IPok
                  @MinRaise, @StateMessageId, @LastActionAt, @CreatedAt)
             """,
             new TableRow(
-                t.InviteCode, t.ChatId, t.HostUserId, (int)t.Status, (int)t.Phase,
-                t.SmallBlind, t.BigBlind, t.Pot, t.CommunityCards, t.DeckState,
-                t.ButtonSeat, t.CurrentSeat, t.CurrentBet, t.MinRaise,
-                t.StateMessageId, t.LastActionAt, t.CreatedAt),
+                table.InviteCode, table.ChatId, table.HostUserId, (int)table.Status, (int)table.Phase,
+                table.SmallBlind, table.BigBlind, table.Pot, table.CommunityCards, table.DeckState,
+                table.ButtonSeat, table.CurrentSeat, table.CurrentBet, table.MinRaise,
+                table.StateMessageId, table.LastActionAt, table.CreatedAt),
             cancellationToken: ct));
     }
 
-    public async Task UpdateAsync(PokerTable t, CancellationToken ct)
+    public async Task UpdateAsync(PokerTable table, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition("""
@@ -101,10 +100,10 @@ public sealed class PokerTableStore(INpgsqlConnectionFactory connections) : IPok
             WHERE invite_code = @InviteCode
             """,
             new TableRow(
-                t.InviteCode, t.ChatId, t.HostUserId, (int)t.Status, (int)t.Phase,
-                t.SmallBlind, t.BigBlind, t.Pot, t.CommunityCards, t.DeckState,
-                t.ButtonSeat, t.CurrentSeat, t.CurrentBet, t.MinRaise,
-                t.StateMessageId, t.LastActionAt, t.CreatedAt),
+                table.InviteCode, table.ChatId, table.HostUserId, (int)table.Status, (int)table.Phase,
+                table.SmallBlind, table.BigBlind, table.Pot, table.CommunityCards, table.DeckState,
+                table.ButtonSeat, table.CurrentSeat, table.CurrentBet, table.MinRaise,
+                table.StateMessageId, table.LastActionAt, table.CreatedAt),
             cancellationToken: ct));
     }
 

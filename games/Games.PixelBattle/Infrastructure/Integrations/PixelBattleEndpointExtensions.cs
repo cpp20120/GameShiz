@@ -64,7 +64,9 @@ public static class PixelBattleEndpointExtensions
         if (indexElement.ValueKind != JsonValueKind.Number ||
             !indexElement.TryGetInt32(out index) ||
             colorElement.ValueKind != JsonValueKind.String)
+        {
             return false;
+        }
 
         color = colorElement.GetString() ?? "";
         return true;

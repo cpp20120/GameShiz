@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Meta.Infrastructure.Persistence;
@@ -16,8 +15,8 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
     {
         tag = NormalizeTag(tag);
         name = name.Trim();
-        if (!IsValidTag(tag)) return new ClanCreateResult(false, "Тег должен быть от 2 до 12 символов: буквы, цифры, _, -.");
-        if (name.Length is < 2 or > 64) return new ClanCreateResult(false, "Название клана должно быть от 2 до 64 символов.");
+        if (!IsValidTag(tag)) return new ClanCreateResult(Created: false, "Тег должен быть от 2 до 12 символов: буквы, цифры, _, -.");
+        if (name.Length is < 2 or > 64) return new ClanCreateResult(Created: false, "Название клана должно быть от 2 до 64 символов.");
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
@@ -30,7 +29,7 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
         if (existingMembership is not null)
         {
             await tx.CommitAsync(ct);
-            return new ClanCreateResult(false, "Ты уже состоишь в клане этого чата.");
+            return new ClanCreateResult(Created: false, "Ты уже состоишь в клане этого чата.");
         }
 
         var tagExists = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
@@ -41,7 +40,7 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
         if (tagExists > 0)
         {
             await tx.CommitAsync(ct);
-            return new ClanCreateResult(false, "Клан с таким тегом уже существует.");
+            return new ClanCreateResult(Created: false, "Клан с таким тегом уже существует.");
         }
 
         const string insertClanSql = """
@@ -69,7 +68,7 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
         await tx.CommitAsync(ct);
 
         var clan = await GetClanByTagAsync(season, chatId, tag, ct);
-        return new ClanCreateResult(true, "Клан создан.", clan);
+        return new ClanCreateResult(Created: true, "Клан создан.", clan);
     }
 
     public async Task<ClanJoinResult> JoinAsync(
@@ -92,7 +91,7 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
         if (existingMembership is not null)
         {
             await tx.CommitAsync(ct);
-            return new ClanJoinResult(false, "Ты уже состоишь в клане этого чата.");
+            return new ClanJoinResult(Joined: false, "Ты уже состоишь в клане этого чата.");
         }
 
         var clanId = await conn.ExecuteScalarAsync<long?>(new CommandDefinition(
@@ -103,7 +102,7 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
         if (clanId is null)
         {
             await tx.CommitAsync(ct);
-            return new ClanJoinResult(false, "Клан с таким тегом не найден.");
+            return new ClanJoinResult(Joined: false, "Клан с таким тегом не найден.");
         }
 
         await conn.ExecuteAsync(new CommandDefinition(
@@ -116,7 +115,7 @@ public sealed class ClanStore(INpgsqlConnectionFactory connections) : IClanStore
         await tx.CommitAsync(ct);
 
         var clan = await GetClanByTagAsync(season, chatId, tag, ct);
-        return new ClanJoinResult(true, "Ты вступил в клан.", clan);
+        return new ClanJoinResult(Joined: true, "Ты вступил в клан.", clan);
     }
 
     public async Task<ClanInfo?> GetUserClanAsync(MetaSeason season, long chatId, long userId, CancellationToken ct)

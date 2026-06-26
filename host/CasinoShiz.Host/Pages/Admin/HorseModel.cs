@@ -1,7 +1,5 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
+using System.Globalization;
 using Dapper;
-using Games.Horse;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
@@ -55,7 +53,7 @@ public sealed partial class HorseModel(
 
         await notifier.SendResultGifsAsync(outcome, TodayRaceDate, ct);
         notifier.ScheduleWinnerAnnouncements(outcome);
-        var flash = $"Race done. Winner: horse {outcome.Winner + 1}. " +
+        var flash = string.Create(CultureInfo.InvariantCulture, $"Race done. Winner: horse {outcome.Winner + 1}. ") +
             $"Payouts: {outcome.Transactions.Count}. " +
             $"Chats: {outcome.BetScopeIds.Count}.";
         TempData["Flash"] = flash;

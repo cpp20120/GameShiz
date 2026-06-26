@@ -8,7 +8,6 @@
 // for `known_chats` itself ship inside the framework.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Admin.Infrastructure.Persistence;

@@ -1,4 +1,4 @@
-using BotFramework.Host;
+using System.Globalization;
 using Dapper;
 
 namespace Games.Meta.Application.Seasons;
@@ -50,7 +50,7 @@ public sealed class SeasonRewardService(
                 winner.ChatId,
                 amount,
                 "season.reward",
-                $"season:reward:{seasonId}:{winner.Place}:{winner.ChatId}:{winner.UserId}",
+                string.Create(CultureInfo.InvariantCulture, $"season:reward:{seasonId}:{winner.Place}:{winner.ChatId}:{winner.UserId}"),
                 ct);
             paid++;
             rows.Add(new SeasonRewardPaidRow(winner.Place, winner.ChatId, winner.UserId, winner.DisplayName, amount));

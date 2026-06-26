@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -22,7 +21,7 @@ public sealed partial class DartsHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (diceMsg?.Dice?.Emoji == DiceEmoji)
+        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
         {
             var hasBoundRound = DartsDiceRoundBinding.TryGetRoundId(diceMsg.Chat.Id, diceMsg.MessageId, out var roundId);
 
@@ -31,7 +30,7 @@ public sealed partial class DartsHandler(
             {
                 var userQuickId   = userFrom.Id;
                 if (userQuickId == 0) return;
-                var userQuickName = userFrom.Username ?? userFrom.FirstName ?? $"User ID: {userQuickId}";
+                var userQuickName = userFrom.Username ?? userFrom.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userQuickId}");
                 var quickReply    = new ReplyParameters { MessageId = diceMsg.MessageId };
                 await HandleQuickPlayAsync(ctx, diceMsg, userQuickId, userQuickName, diceMsg.Chat.Id, quickReply);
                 return;
@@ -64,7 +63,7 @@ public sealed partial class DartsHandler(
 
         var chatId = msg.Chat.Id;
         var reply = new ReplyParameters { MessageId = msg.MessageId };
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var parts = msg.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var action = parts.Length > 1 ? parts[1] : "";
@@ -73,7 +72,7 @@ public sealed partial class DartsHandler(
         {
             case "help":
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
             case "bet":
@@ -82,7 +81,7 @@ public sealed partial class DartsHandler(
                 break;
             default:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
         }
@@ -93,26 +92,27 @@ public sealed partial class DartsHandler(
     {
         int amount;
         if (parts.Length == 1)
+        {
             amount = tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet;
+        }
         else if (parts.Length == 2)
         {
             if (!parts[1].Equals("bet", StringComparison.OrdinalIgnoreCase))
             {
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("bet.usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             }
 
             amount = tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet;
         }
-        else if (parts.Length >= 3
-            && parts[1].Equals("bet", StringComparison.OrdinalIgnoreCase)
-            && int.TryParse(parts[2], out amount)) { }
-        else
+        else if (parts.Length < 3
+            || !parts[1].Equals("bet", StringComparison.OrdinalIgnoreCase)
+            || !int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out amount))
         {
             await ctx.Bot.SendMessage(chatId,
-                string.Format(Loc("bet.usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
+                string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.usage"), tuning.GetSection<DartsOptions>(DartsOptions.SectionName).DefaultBet),
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
@@ -122,9 +122,9 @@ public sealed partial class DartsHandler(
         {
             DartsBetError.None => FormatBetAccepted(r),
             DartsBetError.InvalidAmount => Loc("bet.invalid"),
-            DartsBetError.NotEnoughCoins => string.Format(Loc("bet.not_enough"), r.Balance),
-            DartsBetError.BusyOtherGame => string.Format(Loc("bet.busy_other"), MiniGameLabels.Ru(r.BlockingGameId!)),
-            DartsBetError.DailyRollLimit => string.Format(Loc("bet.daily_roll_limit"), r.DailyRollUsed, r.DailyRollLimit),
+            DartsBetError.NotEnoughCoins => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.not_enough"), r.Balance),
+            DartsBetError.BusyOtherGame => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.busy_other"), MiniGameLabels.Ru(r.BlockingGameId!)),
+            DartsBetError.DailyRollLimit => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.daily_roll_limit"), r.DailyRollUsed, r.DailyRollLimit),
             _ => Loc("bet.failed"),
         };
         try
@@ -158,9 +158,9 @@ public sealed partial class DartsHandler(
 
     private string FormatBetAccepted(DartsBetResult r)
     {
-        var main = string.Format(Loc("bet.accepted"), r.Amount);
+        var main = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.accepted"), r.Amount);
         if (r.QueuedAhead <= 0) return main;
-        return main + "\n" + string.Format(Loc("bet.queue_ahead"), r.QueuedAhead);
+        return main + "\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.queue_ahead"), r.QueuedAhead);
     }
 
     private async Task HandleThrowAsync(UpdateContext ctx, Message msg, long roundId, long userId, string displayName,
@@ -193,8 +193,7 @@ public sealed partial class DartsHandler(
             var net = r.Payout - r.Bet;
             var text = AppendRemainingAttempts(
                 r.Payout > 0
-                    ? string.Format(Loc("throw.win"), r.Face, r.Multiplier, r.Bet, r.Payout, net, r.Balance)
-                    : string.Format(Loc("throw.lose"), r.Face, r.Bet, r.Balance),
+                    ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("throw.win"), r.Face, r.Multiplier, r.Bet, r.Payout, net, r.Balance) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("throw.lose"), r.Face, r.Bet, r.Balance),
                 r.DailyRollUsed,
                 r.DailyRollLimit);
             try
@@ -241,17 +240,16 @@ public sealed partial class DartsHandler(
             case DartsThrowOutcome.BetInvalid:
                 text = Loc("bet.invalid"); break;
             case DartsThrowOutcome.BetNotEnoughCoins:
-                text = string.Format(Loc("bet.not_enough"), r.Balance); break;
+                text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.not_enough"), r.Balance); break;
             case DartsThrowOutcome.BetBusyOtherGame:
-                text = string.Format(Loc("bet.busy_other"), MiniGameLabels.Ru(r.BlockingGameId!)); break;
+                text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.busy_other"), MiniGameLabels.Ru(r.BlockingGameId!)); break;
             case DartsThrowOutcome.BetDailyLimit:
-                text = string.Format(Loc("bet.daily_roll_limit"), r.DailyRollUsed, r.DailyRollLimit); break;
+                text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.daily_roll_limit"), r.DailyRollUsed, r.DailyRollLimit); break;
             case DartsThrowOutcome.Thrown:
                 var net = r.Payout - r.Bet;
                 text = AppendRemainingAttempts(
                     r.Payout > 0
-                        ? string.Format(Loc("throw.win"), r.Face, r.Multiplier, r.Bet, r.Payout, net, r.Balance)
-                        : string.Format(Loc("throw.lose"), r.Face, r.Bet, r.Balance),
+                        ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("throw.win"), r.Face, r.Multiplier, r.Bet, r.Payout, net, r.Balance) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("throw.lose"), r.Face, r.Bet, r.Balance),
                     r.DailyRollUsed,
                     r.DailyRollLimit);
                 break;
@@ -270,8 +268,7 @@ public sealed partial class DartsHandler(
 
     private string AppendRemainingAttempts(string text, int used, int limit) =>
         limit > 0
-            ? text + "\n" + string.Format(Loc("throw.daily_roll_remaining"), Math.Max(0, limit - used), limit)
-            : text;
+            ? text + "\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("throw.daily_roll_remaining"), Math.Max(0, limit - used), limit) : text;
 
     [LoggerMessage(EventId = 2201, Level = LogLevel.Error, Message = "darts.reply.failed user={UserId}")]
     partial void LogReplyFailed(long userId, Exception exception);

@@ -10,5 +10,5 @@ public sealed record BowlingBetResult(
     int DailyRollLimit = 0)
 {
     public static BowlingBetResult Fail(BowlingBetError err, int balance = 0, int pendingAmount = 0) =>
-        new(err, 0, balance, pendingAmount, null, 0, 0);
+        new(err, 0, balance, pendingAmount, BlockingGameId: null, 0, 0);
 }

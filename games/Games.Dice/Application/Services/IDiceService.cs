@@ -11,8 +11,6 @@
 // debit or credit twice.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
 
 namespace Games.Dice.Application.Services;
 

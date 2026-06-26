@@ -29,13 +29,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Projections;
+/// <summary>
 /// A projection reacts to one or more event types by mutating its own state
 /// store. The framework invokes Apply once per event, in stream order.
+/// </summary>
 public interface IProjection
 {
+    /// <summary>
     /// The event types this projection cares about. Host uses the list to skip
     /// projections that don't subscribe to a given event, so a no-op projection
     /// doesn't get called for every unrelated event in the store.
+    /// </summary>
     IReadOnlySet<string> SubscribedEventTypes { get; }
 
     Task ApplyAsync(IDomainEvent ev, ProjectionContext ctx, CancellationToken ct);

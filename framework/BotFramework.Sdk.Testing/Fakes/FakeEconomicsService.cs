@@ -15,8 +15,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Testing.Fakes;
+/// <summary>
 /// Tracks debits/credits so tests can assert the balance ledger is right
 /// without a real economics service. Starts every user at 1_000 by default.
+/// </summary>
 public sealed class FakeEconomicsService
 {
     private readonly Dictionary<long, long> _balances = new();

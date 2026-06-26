@@ -11,8 +11,7 @@
 
 using System.Text;
 using System.Net;
-using BotFramework.Host;
-using Games.Poker.Domain;
+using System.Globalization;
 
 namespace Games.Poker.Infrastructure.Rendering;
 
@@ -43,7 +42,7 @@ public static class PokerStateRenderer
         var rendered = parts.Select(RenderCard).ToList();
         while (rendered.Count < padToCount)
             rendered.Add("🂠");
-        return rendered.Count == 0 ? "—" : string.Join(" ", rendered);
+        return rendered.Count == 0 ? "—" : string.Join(' ', rendered);
     }
 
     public static string RenderTable(PokerTable table, IList<PokerSeat> seats, long? viewerUserId, ILocalizer localizer)
@@ -58,8 +57,8 @@ public static class PokerStateRenderer
             PokerPhase.Turn => RenderCards(table.CommunityCards, 4),
             _ => RenderCards(table.CommunityCards, 5),
         };
-        sb.AppendLine(string.Format(localizer.Get("poker", "state.community"), community));
-        sb.AppendLine(string.Format(localizer.Get("poker", "state.pot_bet"), table.Pot, table.CurrentBet));
+        sb.AppendFormat(localizer.Get("poker", "state.community"), community).AppendLine();
+        sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.pot_bet"), table.Pot, table.CurrentBet).AppendLine();
         if (table.Status is PokerTableStatus.Seating or PokerTableStatus.HandComplete)
             sb.AppendLine($"<i>{localizer.Get("poker", "state.waiting_for_start")}</i>");
         sb.AppendLine();
@@ -77,21 +76,21 @@ public static class PokerStateRenderer
                 PokerSeatStatus.SittingOut => $" <i>({localizer.Get("poker", "seat.sitting_out")})</i>",
                 _ => "",
             };
-            var bet = s.CurrentBet > 0 ? $" · {string.Format(localizer.Get("poker", "seat.bet"), s.CurrentBet)}" : "";
+            var bet = s.CurrentBet > 0 ? $" · {string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("poker", "seat.bet"), s.CurrentBet)}" : "";
             var you = viewerUserId.HasValue && s.UserId == viewerUserId.Value ? $" ({localizer.Get("poker", "seat.you")})" : "";
-            sb.AppendLine($"{marker} {WebUtility.HtmlEncode(s.DisplayName)}{you} — {s.Stack}{bet}{status}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{marker} {WebUtility.HtmlEncode(s.DisplayName)}{you} — {s.Stack}{bet}{status}");
         }
 
         if (!viewerUserId.HasValue) return sb.ToString().TrimEnd();
         var me = sorted.FirstOrDefault(s => s.UserId == viewerUserId.Value);
         if (me == null || string.IsNullOrEmpty(me.HoleCards)) return sb.ToString().TrimEnd();
         sb.AppendLine();
-        sb.AppendLine(string.Format(localizer.Get("poker", "state.your_cards"), RenderCards(me.HoleCards)));
+        sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.your_cards"), RenderCards(me.HoleCards)).AppendLine();
         if (table.Status != PokerTableStatus.HandActive || me.Position != table.CurrentSeat)
             return sb.ToString().TrimEnd();
         var toCall = Math.Max(0, table.CurrentBet - me.CurrentBet);
         if (toCall > 0)
-            sb.AppendLine(string.Format(localizer.Get("poker", "state.to_call"), toCall));
+            sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.to_call"), toCall).AppendLine();
         else
             sb.AppendLine(localizer.Get("poker", "state.can_check"));
 
@@ -105,7 +104,7 @@ public static class PokerStateRenderer
     {
         var sb = new StringBuilder();
         sb.AppendLine($"🃏 <b>{localizer.Get("poker", "showdown.header")}</b>");
-        sb.AppendLine(string.Format(localizer.Get("poker", "state.community"), RenderCards(table.CommunityCards, 5)));
+        sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.community"), RenderCards(table.CommunityCards, 5)).AppendLine();
         sb.AppendLine();
 
         foreach (var (seat, rank, won, holeCards) in results)
@@ -113,7 +112,7 @@ public static class PokerStateRenderer
             var cards = string.IsNullOrEmpty(holeCards) ? "—" : RenderCards(holeCards);
             var line = $"{WebUtility.HtmlEncode(seat.DisplayName)} — <b>{cards}</b>";
             if (rank.HasValue) line += $" · {HandEvaluator.CategoryNameRu(rank.Value.Category)}";
-            if (won > 0) line += $" · <b>+{won}</b>";
+            if (won > 0) line += string.Create(CultureInfo.InvariantCulture, $" · <b>+{won}</b>");
             sb.AppendLine(line);
         }
         return sb.ToString().TrimEnd();

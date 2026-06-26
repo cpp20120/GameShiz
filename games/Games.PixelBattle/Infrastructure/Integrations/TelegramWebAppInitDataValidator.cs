@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using BotFramework.Host.Composition;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
@@ -78,7 +77,7 @@ public sealed class TelegramWebAppInitDataValidator(
 
     private static string BuildDataCheckString(Dictionary<string, StringValues> parameters) =>
         string.Join('\n', parameters
-            .Where(pair => pair.Key != "hash")
+            .Where(pair => !string.Equals(pair.Key, "hash", StringComparison.Ordinal))
             .OrderBy(pair => pair.Key, StringComparer.Ordinal)
             .Select(pair => $"{pair.Key}={pair.Value}"));
 
@@ -88,8 +87,7 @@ public sealed class TelegramWebAppInitDataValidator(
         if (!parameters.TryGetValue("auth_date", out var authDateValues))
             return false;
 
-        return long.TryParse(authDateValues.ToString(), out var unixSeconds)
-            && unixSeconds > 0
+        return long.TryParse(authDateValues.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var unixSeconds) && unixSeconds > 0
             && TryFromUnixTimeSeconds(unixSeconds, out authDate);
     }
 

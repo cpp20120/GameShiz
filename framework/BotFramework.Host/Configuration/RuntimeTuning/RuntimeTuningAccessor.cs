@@ -1,13 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 
 namespace BotFramework.Host.Configuration.RuntimeTuning;
 
-public sealed class RuntimeTuningAccessor : IRuntimeTuningAccessor, IHostedService
+public sealed partial class RuntimeTuningAccessor : IRuntimeTuningAccessor, IHostedService
 {
     private readonly IConfiguration _configuration;
     private readonly INpgsqlConnectionFactory _connections;
@@ -52,7 +50,7 @@ public sealed class RuntimeTuningAccessor : IRuntimeTuningAccessor, IHostedServi
             }
             catch (JsonException ex)
             {
-                _logger.LogWarning(ex, "runtime_tuning.payload is invalid JSON; ignoring DB overrides");
+                LogRuntimeTuningPayloadInvalid(_logger, ex);
             }
         }
 
@@ -84,4 +82,8 @@ public sealed class RuntimeTuningAccessor : IRuntimeTuningAccessor, IHostedServi
         await ReloadFromDatabaseAsync(cancellationToken).ConfigureAwait(false);
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    [LoggerMessage(EventId = 1200, Level = LogLevel.Warning,
+        Message = "runtime_tuning.payload is invalid JSON; ignoring DB overrides")]
+    private static partial void LogRuntimeTuningPayloadInvalid(ILogger logger, Exception exception);
 }

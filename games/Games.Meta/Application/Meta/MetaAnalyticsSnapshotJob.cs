@@ -1,5 +1,4 @@
 using System.Globalization;
-using BotFramework.Host;
 using Dapper;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -280,7 +279,7 @@ public sealed partial class MetaAnalyticsSnapshotJob(
         if (value is null or string)
             return value;
         return value is IFormattable formattable
-            ? formattable.ToString(null, CultureInfo.InvariantCulture)
+            ? formattable.ToString(format: null, CultureInfo.InvariantCulture)
             : value;
     }
 

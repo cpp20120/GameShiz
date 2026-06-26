@@ -5,7 +5,6 @@
 // bets in different group chats.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 
 namespace Games.DiceCube.Infrastructure.Migrations;
 

@@ -1,5 +1,4 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -60,12 +59,12 @@ public sealed class MetaAlertsModel(
         if (changed > 0)
         {
             await audit.LogAsync(actor.UserId, actor.Name, "meta_alert.update", new { flagId, targetStatus }, ct);
-            TempData["Flash"] = $"Alert #{flagId} marked as {targetStatus}.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Alert #{flagId} marked as {targetStatus}.");
         }
         else
         {
             TempData["FlashError"] = true;
-            TempData["Flash"] = $"Open alert #{flagId} not found.";
+            TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Open alert #{flagId} not found.");
         }
 
         return RedirectToPage(new { ChatId, Status, UserId });
@@ -73,8 +72,8 @@ public sealed class MetaAlertsModel(
 
     private async Task LoadAsync(CancellationToken ct)
     {
-        long? chatId = long.TryParse(ChatId, out var cid) ? cid : null;
-        long? userId = long.TryParse(UserId, out var uid) ? uid : null;
+        long? chatId = long.TryParse(ChatId, System.Globalization.CultureInfo.InvariantCulture, out var cid) ? cid : null;
+        long? userId = long.TryParse(UserId, System.Globalization.CultureInfo.InvariantCulture, out var uid) ? uid : null;
         var status = NormalizeStatus(Status);
         if (status is not ("open" or "resolved" or "ignored" or "all")) status = "open";
         Status = status;

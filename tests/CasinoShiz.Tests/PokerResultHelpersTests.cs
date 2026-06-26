@@ -1,6 +1,3 @@
-using Games.Poker;
-using Games.SecretHitler;
-using Games.SecretHitler.Domain;
 using Xunit;
 
 namespace CasinoShiz.Tests;

@@ -1,5 +1,3 @@
-using Games.Poker;
-using Games.Poker.Domain;
 using Xunit;
 
 namespace CasinoShiz.Tests;

@@ -8,7 +8,6 @@
 // delay survives so we don't sweep on boot before the DB has even opened.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -25,20 +24,22 @@ public sealed partial class BlackjackHandTimeoutJob(
 
     public async Task RunAsync(CancellationToken stoppingToken)
     {
-        try { await Task.Delay(5_000, stoppingToken); } catch { return; }
+        try { await Task.Delay(5_000, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try { await SweepAsync(stoppingToken); }
             catch (Exception ex) { LogSweepFailed(ex); }
 
-            try { await Task.Delay(30_000, stoppingToken); } catch { return; }
+            try { await Task.Delay(30_000, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
     private async Task SweepAsync(CancellationToken ct)
     {
-        BlackjackService.PruneGates((long)_opts.HandTimeoutMs);
+        BlackjackService.PruneGates(_opts.HandTimeoutMs);
 
         using var scope = services.CreateScope();
         var store = scope.ServiceProvider.GetRequiredService<IBlackjackHandStore>();

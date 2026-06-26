@@ -12,11 +12,15 @@ namespace BotFramework.Sdk.Domain;
 
 public interface IRepository<TAggregate> where TAggregate : IAggregateRoot
 {
+    /// <summary>
     /// Load current state of the aggregate, or null if it doesn't exist.
+    /// </summary>
     Task<TAggregate?> FindAsync(string id, CancellationToken ct);
 
+    /// <summary>
     /// Persist the aggregate. For classical aggregates this is an upsert.
     /// For event-sourced aggregates this appends PendingEvents at the given
     /// ExpectedVersion (optimistic concurrency) and clears the pending list.
+    /// </summary>
     Task SaveAsync(TAggregate aggregate, CancellationToken ct);
 }

@@ -27,7 +27,7 @@ public static class BotMiniGameSession
         PruneKey(key);
         if (!Map.TryGetValue(key, out var row))
             return true;
-        if (row.GameId == gameId)
+        if (string.Equals(row.GameId, gameId, StringComparison.Ordinal))
             return true;
         if (Environment.TickCount64 > row.ExpiresTicks)
         {
@@ -45,7 +45,7 @@ public static class BotMiniGameSession
     public static void ClearCompletedRound(long userId, long chatId, string gameId)
     {
         var key = (userId, chatId);
-        if (Map.TryGetValue(key, out var row) && row.GameId == gameId)
+        if (Map.TryGetValue(key, out var row) && string.Equals(row.GameId, gameId, StringComparison.Ordinal))
             Map.TryRemove(key, out _);
     }
 

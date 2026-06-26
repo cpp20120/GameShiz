@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Transfer.Infrastructure.Modules;
 
@@ -26,7 +25,7 @@ public sealed class TransferModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Перевод",
             ["cmd.transfer"] = "Перевести монеты игроку",
 

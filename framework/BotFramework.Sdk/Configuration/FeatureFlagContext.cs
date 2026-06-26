@@ -15,9 +15,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Configuration;
+/// <summary>
 /// Context used for per-user / per-culture rollouts. All fields optional —
 /// the provider picks what it needs. Keeping this narrow keeps the flag
 /// backend pluggable.
+/// </summary>
 public sealed record FeatureFlagContext(
     long? UserId = null,
     string? CultureCode = null,

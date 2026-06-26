@@ -1,13 +1,9 @@
 namespace Games.Pick.Domain.Configuration;
 
 /// <summary>
-/// Tunables for the <c>/pick</c> casino game.
-///
-/// Game shape: user supplies 2..N variants and (optionally) which one(s) they
-/// back. Bot rolls one variant uniformly at random. House takes
-/// <see cref="HouseEdge"/> off the gross win; remainder goes to the player.
-/// Streak bonus rewards consecutive wins; chain (double-or-nothing) lets the
-/// player re-stake their entire payout for another roll.
+/// Tunables for <c>/picklottery</c> + <c>/pickjoin</c>. A lottery is a fixed-
+/// stake pool in one chat that fills for a time window then draws a single
+/// random entrant. Rake goes to the house; below quorum, all stakes refund.
 /// </summary>
 public sealed class PickLotteryOptions
 {

@@ -18,7 +18,6 @@
 // sweeper job) can post the right message to the chat.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Application.Services;
@@ -37,7 +36,7 @@ public sealed partial class PickLotteryService(
     {
         var o = Opts;
         if (stake < Math.Max(1, o.MinStake) || (o.MaxStake > 0 && stake > o.MaxStake))
-            return new LotteryOpenResult(LotteryOpenStatus.InvalidStake, null, 0);
+            return new LotteryOpenResult(LotteryOpenStatus.InvalidStake, Row: null, 0);
 
         // Cheap pre-check; the unique-index race is still handled below.
         var existing = await store.FindOpenByChatAsync(chatId, ct);
@@ -47,12 +46,12 @@ public sealed partial class PickLotteryService(
         await economics.EnsureUserAsync(userId, chatId, displayName, ct);
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
         if (stake > balance)
-            return new LotteryOpenResult(LotteryOpenStatus.NotEnoughCoins, null, balance);
+            return new LotteryOpenResult(LotteryOpenStatus.NotEnoughCoins, Row: null, balance);
 
         if (!await economics.TryDebitAsync(userId, chatId, stake, "pick.lottery.open", ct))
         {
             balance = await economics.GetBalanceAsync(userId, chatId, ct);
-            return new LotteryOpenResult(LotteryOpenStatus.NotEnoughCoins, null, balance);
+            return new LotteryOpenResult(LotteryOpenStatus.NotEnoughCoins, Row: null, balance);
         }
 
         var id = Guid.NewGuid();
@@ -70,6 +69,7 @@ public sealed partial class PickLotteryService(
 
         balance = await economics.GetBalanceAsync(userId, chatId, ct);
         analytics.Track("pick", "lottery.open", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["stake"] = stake,
             ["lottery_id"] = id.ToString(),
@@ -83,7 +83,7 @@ public sealed partial class PickLotteryService(
     {
         var lottery = await store.FindOpenByChatAsync(chatId, ct);
         if (lottery is null)
-            return new LotteryJoinResult(LotteryJoinStatus.NoOpenLottery, null, 0, 0, 0);
+            return new LotteryJoinResult(LotteryJoinStatus.NoOpenLottery, Row: null, 0, 0, 0);
 
         await economics.EnsureUserAsync(userId, chatId, displayName, ct);
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
@@ -107,7 +107,7 @@ public sealed partial class PickLotteryService(
         {
             await economics.CreditAsync(userId, chatId, lottery.Stake, "pick.lottery.join.refund", ct);
             balance = await economics.GetBalanceAsync(userId, chatId, ct);
-            return new LotteryJoinResult(LotteryJoinStatus.NoOpenLottery, null, 0, 0, balance);
+            return new LotteryJoinResult(LotteryJoinStatus.NoOpenLottery, Row: null, 0, 0, balance);
         }
 
         balance = await economics.GetBalanceAsync(userId, chatId, ct);
@@ -115,6 +115,7 @@ public sealed partial class PickLotteryService(
         var pot = entries.Sum(e => e.StakePaid);
 
         analytics.Track("pick", "lottery.join", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId, ["chat_id"] = chatId, ["stake"] = row.Stake,
             ["lottery_id"] = row.Id.ToString(), ["entrants"] = entries.Count,
@@ -167,6 +168,7 @@ public sealed partial class PickLotteryService(
             if (moved)
             {
                 analytics.Track("pick", "lottery.cancelled", new Dictionary<string, object?>
+(StringComparer.Ordinal)
                 {
                     ["chat_id"] = row.ChatId,
                     ["lottery_id"] = row.Id.ToString(),
@@ -176,7 +178,7 @@ public sealed partial class PickLotteryService(
                 });
                 LogLotteryCancelled(row.Id, row.ChatId, entries.Count, forceCancel);
             }
-            return new LotterySettleResult(LotterySettleKind.Cancelled, row, entries, null, null, pot, 0, 0);
+            return new LotterySettleResult(LotterySettleKind.Cancelled, row, entries, WinnerId: null, WinnerName: null, pot, 0, 0);
         }
 
         // Draw
@@ -195,10 +197,11 @@ public sealed partial class PickLotteryService(
             // Something else (manual cancel?) won — undo our credit.
             if (payout > 0)
                 await economics.DebitAsync(winner.UserId, row.ChatId, payout, "pick.lottery.win.rollback", ct);
-            return new LotterySettleResult(LotterySettleKind.Cancelled, row, entries, null, null, pot, 0, 0);
+            return new LotterySettleResult(LotterySettleKind.Cancelled, row, entries, WinnerId: null, WinnerName: null, pot, 0, 0);
         }
 
         analytics.Track("pick", "lottery.settled", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["chat_id"] = row.ChatId,
             ["lottery_id"] = row.Id.ToString(),

@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.Poker.Infrastructure.Modules;
 
@@ -29,7 +28,7 @@ public sealed class PokerModule : IModule
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>
-        {
+(StringComparer.Ordinal) {
             ["display_name"] = "Покер",
             ["cmd.poker"] = "Сыграть в Техасский Холдем",
 

@@ -14,9 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Concurrent;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Poker.Domain;
+using System.Globalization;
 using static Games.Poker.Domain.Rules.PokerResultHelpers;
 
 namespace Games.Poker.Application.Services;
@@ -30,11 +28,11 @@ public sealed partial class PokerService(
     IRuntimeTuningAccessor tuning,
     ILogger<PokerService> logger) : IPokerService
 {
-    private static readonly ConcurrentDictionary<string, Gate> _gates = new();
+    private static readonly ConcurrentDictionary<string, Gate> Gates = new(StringComparer.Ordinal);
 
     private static SemaphoreSlim GetGate(string key)
     {
-        var g = _gates.GetOrAdd(key, _ => new Gate());
+        var g = Gates.GetOrAdd(key, _ => new Gate());
         Volatile.Write(ref g.LastUsedTick, Environment.TickCount64);
         return g.Semaphore;
     }
@@ -42,15 +40,22 @@ public sealed partial class PokerService(
     internal static void PruneGates(long idleMs)
     {
         var cutoff = Environment.TickCount64 - idleMs;
-        foreach (var (key, g) in _gates)
+        foreach (var (key, g) in Gates)
+        {
             if (Volatile.Read(ref g.LastUsedTick) < cutoff && g.Semaphore.CurrentCount == 1)
-                _gates.TryRemove(key, out _);
+                Gates.TryRemove(key, out _);
+        }
     }
 
-    private sealed class Gate
+    private sealed class Gate : IDisposable
     {
         public readonly SemaphoreSlim Semaphore = new(1, 1);
         public long LastUsedTick = Environment.TickCount64;
+
+        public void Dispose()
+        {
+            Semaphore.Release();
+        }
     }
 
     private PokerOptions CurrentOptions() => tuning.GetSection<PokerOptions>(PokerOptions.SectionName);
@@ -71,7 +76,7 @@ public sealed partial class PokerService(
 
     public async Task<CreateResult> CreateTableAsync(long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct)
     {
-        var lockKey = $"chat:{chatId}";
+        var lockKey = string.Create(CultureInfo.InvariantCulture, $"chat:{chatId}");
         var gate = GetGate(lockKey);
         await gate.WaitAsync(ct);
         try
@@ -89,7 +94,7 @@ public sealed partial class PokerService(
                 return Fail(PokerError.NotEnoughCoins);
             }
 
-            string code = await GenerateUniqueCodeAsync(ct);
+            var code = await GenerateUniqueCodeAsync(ct);
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             var table = new PokerTable
@@ -115,8 +120,8 @@ public sealed partial class PokerService(
                 JoinedAt = now,
             };
 
-            var createOperationSource = sourceMessageId > 0 ? sourceMessageId.ToString() : code;
-            var operationId = $"poker:create:{chatId}:{createOperationSource}:{userId}";
+            var createOperationSource = sourceMessageId > 0 ? sourceMessageId.ToString(System.Globalization.CultureInfo.InvariantCulture) : code;
+            var operationId = string.Create(CultureInfo.InvariantCulture, $"poker:create:{chatId}:{createOperationSource}:{userId}");
             var debit = await economics.TryDebitOnceAsync(userId, chatId, buyIn, "poker.create", operationId, ct);
             if (debit.Rejected)
                 return Fail(PokerError.NotEnoughCoins);
@@ -134,6 +139,7 @@ public sealed partial class PokerService(
 
             LogPokerCreated(code, userId, buyIn);
             analytics.Track("poker", "create", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["invite_code"] = code,
@@ -181,7 +187,7 @@ public sealed partial class PokerService(
             var list = await seats.ListByTableAsync(code, ct);
             if (list.Count >= opts.MaxPlayers) return JoinFail(PokerError.TableFull);
 
-            int position = 0;
+            var position = 0;
             var used = list.Select(s => s.Position).ToHashSet();
             while (used.Contains(position)) position++;
 
@@ -196,7 +202,7 @@ public sealed partial class PokerService(
                 ChatId = chatId,
                 JoinedAt = now,
             };
-            var joinOperationSource = sourceMessageId > 0 ? sourceMessageId.ToString() : now.ToString();
+            var joinOperationSource = sourceMessageId > 0 ? sourceMessageId.ToString(System.Globalization.CultureInfo.InvariantCulture) : now.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var operationId = $"poker:join:{chatId}:{joinOperationSource}:{userId}:{code}";
             var debit = await economics.TryDebitOnceAsync(userId, chatId, buyIn, "poker.join", operationId, ct);
             if (debit.Rejected)
@@ -214,6 +220,7 @@ public sealed partial class PokerService(
             list.Add(seat);
             LogPokerJoined(code, userId, position, list.Count);
             analytics.Track("poker", "join", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["invite_code"] = code,
@@ -245,7 +252,7 @@ public sealed partial class PokerService(
             if (table.Status == PokerTableStatus.HandActive) return StartFail(PokerError.HandInProgress);
 
             var list = await seats.ListByTableAsync(table.InviteCode, ct);
-            if (list.Count(s => s.Stack > 0) < 2) return StartFail(PokerError.NeedTwo);
+            if (!list.Where(s => s.Stack > 0).Skip(1).Any()) return StartFail(PokerError.NeedTwo);
 
             PokerDomain.StartHand(table, list);
             await tables.UpdateAsync(table, ct);
@@ -254,6 +261,7 @@ public sealed partial class PokerService(
             var activeSeats = list.Count(s => s.Status == PokerSeatStatus.Seated || s.Status == PokerSeatStatus.AllIn);
             LogPokerHandStarted(table.InviteCode, table.ButtonSeat, table.CurrentSeat, table.Pot);
             analytics.Track("poker", "hand_start", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = table.InviteCode,
                 ["seats"] = activeSeats,
@@ -299,6 +307,7 @@ public sealed partial class PokerService(
 
             LogPokerAction(table.InviteCode, userId, verb, amount, table.Pot);
             analytics.Track("poker", "action", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = table.InviteCode,
                 ["user_id"] = userId,
@@ -333,6 +342,7 @@ public sealed partial class PokerService(
             var autoKind = decision.Kind == PokerActionKind.Check ? AutoAction.Check : AutoAction.Fold;
             LogPokerAutoAction(inviteCode, current.UserId, autoKind);
             analytics.Track("poker", "auto", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = inviteCode,
                 ["user_id"] = current.UserId,
@@ -362,19 +372,20 @@ public sealed partial class PokerService(
             if (seat.Stack > 0)
                 await TryRefundSeatStackAsync(seat, "poker.leave", ct);
 
-            if (table != null && table.Status == PokerTableStatus.HandActive && seat.Status == PokerSeatStatus.Seated)
+            if (table.Status == PokerTableStatus.HandActive && seat.Status == PokerSeatStatus.Seated)
             {
                 seat.Status = PokerSeatStatus.Folded;
                 seat.Stack = 0;
                 await seats.UpdateAsync(seat, ct);
 
                 var allSeats = await seats.ListByTableAsync(table.InviteCode, ct);
-                var after = await ResolveAfterActionAsync(table, allSeats, ct);
+                await ResolveAfterActionAsync(table, allSeats, ct);
 
                 await seats.DeleteAsync(seat.InviteCode, seat.Position, ct);
 
                 LogPokerLeaveMidhand(table.InviteCode, userId);
                 analytics.Track("poker", "leave", new Dictionary<string, object?>
+(StringComparer.Ordinal)
                 {
                     ["invite_code"] = table.InviteCode,
                     ["user_id"] = userId,
@@ -382,7 +393,7 @@ public sealed partial class PokerService(
                     ["mid_hand"] = true,
                 });
                 var remaining = allSeats.Where(s => s.UserId != userId).ToList();
-                return new LeaveResult(PokerError.None, new TableSnapshot(table, remaining), false);
+                return new LeaveResult(PokerError.None, new TableSnapshot(table, remaining), TableClosed: false);
             }
 
             await seats.DeleteAsync(seat.InviteCode, seat.Position, ct);
@@ -407,6 +418,7 @@ public sealed partial class PokerService(
 
             LogPokerLeft(table?.InviteCode ?? "-", userId, closed);
             analytics.Track("poker", "leave", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["invite_code"] = table?.InviteCode,
                 ["user_id"] = userId,
@@ -529,6 +541,7 @@ public sealed partial class PokerService(
                 };
                 LogPokerHandEnded(table.InviteCode, reason, showdown.Sum(e => e.Won));
                 analytics.Track("poker", "hand_end", new Dictionary<string, object?>
+(StringComparer.Ordinal)
                 {
                     ["invite_code"] = table.InviteCode,
                     ["reason"] = reason,
@@ -542,15 +555,15 @@ public sealed partial class PokerService(
                     new PokerHandEnded(table.InviteCode, reason, winners, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),
                     ct);
 
-                return new ActionResult(PokerError.None, new TableSnapshot(table, list), HandTransition.HandEnded, showdown, null, null);
+                return new ActionResult(PokerError.None, new TableSnapshot(table, list), HandTransition.HandEnded, showdown, AutoActorName: null, AutoKind: null);
             }
 
             case TransitionKind.PhaseAdvanced:
                 LogPokerPhase(table.InviteCode, transition.FromPhase, transition.ToPhase);
-                return new ActionResult(PokerError.None, new TableSnapshot(table, list), HandTransition.PhaseAdvanced, null, null, null);
+                return new ActionResult(PokerError.None, new TableSnapshot(table, list), HandTransition.PhaseAdvanced, Showdown: null, AutoActorName: null, AutoKind: null);
 
             default:
-                return new ActionResult(PokerError.None, new TableSnapshot(table, list), HandTransition.TurnAdvanced, null, null, null);
+                return new ActionResult(PokerError.None, new TableSnapshot(table, list), HandTransition.TurnAdvanced, Showdown: null, AutoActorName: null, AutoKind: null);
         }
     }
 

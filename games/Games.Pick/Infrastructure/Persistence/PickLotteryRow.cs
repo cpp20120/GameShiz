@@ -9,7 +9,6 @@
 //     the DB level, no application-side locking required.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Pick.Infrastructure.Persistence;

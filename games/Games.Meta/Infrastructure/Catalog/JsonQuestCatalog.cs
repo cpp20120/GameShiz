@@ -7,7 +7,7 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
 {
     private const string FileName = "quest-pool.json";
 
-    private QuestCatalogState _state = new([], [], []);
+    private QuestCatalogState _state;
 
     private JsonQuestCatalog()
         : this(LoadDocument())
@@ -36,8 +36,8 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
             state.All.Count,
             state.Slots.Count,
             document.Definitions.Count,
-            state.All.Count(x => x.Period == "daily"),
-            state.All.Count(x => x.Period == "weekly"));
+            state.All.Count(x => string.Equals(x.Period, "daily", StringComparison.Ordinal)),
+            state.All.Count(x => string.Equals(x.Period, "weekly", StringComparison.Ordinal)));
     }
 
     public static string EditablePath()
@@ -85,8 +85,7 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
         foreach (var slot in state.Slots)
         {
             var candidates = state.Candidates
-                .Where(x => x.Template.Period == slot.Period && HasTags(x, slot.PoolTags))
-                .Where(x => IsUnlocked(x.Template, progress))
+                .Where(x => string.Equals(x.Template.Period, slot.Period, StringComparison.Ordinal) && HasTags(x, slot.PoolTags) && IsUnlocked(x.Template, progress))
                 .OrderBy(x => x.Template.Id, StringComparer.Ordinal)
                 .ToArray();
 
@@ -97,7 +96,7 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
             {
                 var softBlocked = PreviousRawPicks(season, chatId, userId, now, slot, index, candidates, rotation)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var seed = $"{season.Id}:{chatId}:{userId}:{PeriodKey(slot.Period, now)}:{slot.Id}:{index}";
+                var seed = string.Create(CultureInfo.InvariantCulture, $"{season.Id}:{chatId}:{userId}:{PeriodKey(slot.Period, now)}:{slot.Id}:{index}");
                 var picked = Pick(candidates, seed, selectedIds, selectedRepeatKeys, softBlocked, rotation);
                 if (picked is null)
                     continue;
@@ -158,7 +157,7 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
     {
         return NormalizePeriod(period) switch
         {
-            "weekly" => $"{ISOWeek.GetYear(now.DateTime)}-W{ISOWeek.GetWeekOfYear(now.DateTime):00}",
+            "weekly" => string.Create(CultureInfo.InvariantCulture, $"{ISOWeek.GetYear(now.DateTime)}-W{ISOWeek.GetWeekOfYear(now.DateTime):00}"),
             _ => now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
         };
     }

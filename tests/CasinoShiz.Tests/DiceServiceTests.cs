@@ -1,7 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Basketball;
-using Games.Dice;
 using Xunit;
 
 namespace CasinoShiz.Tests;

@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 
 namespace Games.SecretHitler.Application.Jobs;
 
@@ -10,13 +9,15 @@ public sealed partial class SecretHitlerGateCleanupJob : IBackgroundJob
 
     public async Task RunAsync(CancellationToken stoppingToken)
     {
-        try { await Task.Delay(5_000, stoppingToken); } catch { return; }
+        try { await Task.Delay(5_000, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             SecretHitlerService.PruneGates(IdleMs);
 
-            try { await Task.Delay(10 * 60 * 1_000, stoppingToken); } catch { return; }
+            try { await Task.Delay(10 * 60 * 1_000, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 }

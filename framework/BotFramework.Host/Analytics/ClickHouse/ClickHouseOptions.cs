@@ -4,7 +4,7 @@ public sealed class ClickHouseOptions
 {
     public const string SectionName = "ClickHouse";
 
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; }
     public string Host { get; set; } = "";
     public string User { get; set; } = "default";
     public string Password { get; set; } = "";

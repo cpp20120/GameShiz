@@ -8,9 +8,7 @@
 //       aggregate     TEXT         NOT NULL,
 //       version       BIGINT       NOT NULL,
 //       state         JSONB        NOT NULL,
-//       taken_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
-//   );
-//
+//       taken_at      TIMESTAMPTZ  NOT NULL DEFAULT now()//
 // Why one row per stream (instead of append-only snapshot history):
 //   snapshots are a cache. If operators want "state at event N" they replay
 //   the stream up to N — that's what event sourcing is for. Keeping only the
@@ -18,7 +16,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Text.Json;
-using BotFramework.Sdk;
 using Dapper;
 
 namespace BotFramework.Host.Events.Stores;
@@ -42,7 +39,7 @@ public sealed class PostgresSnapshotStore<TAggregate>(
         var row = await conn.QueryFirstOrDefaultAsync<SnapshotRow>(
             new CommandDefinition(sql, new { streamId, aggregate = AggregateName }, cancellationToken: ct));
 
-        return row is null ? null : new StoredSnapshot(row.version, row.state_json, row.taken_at_ms);
+        return row is null ? null : new StoredSnapshot(row.Version, row.StateJson, row.TakenAtMs);
     }
 
     public async Task SaveAsync(string streamId, long version, object state, CancellationToken ct)
@@ -66,5 +63,5 @@ public sealed class PostgresSnapshotStore<TAggregate>(
         }, cancellationToken: ct));
     }
 
-    private sealed record SnapshotRow(long version, string state_json, long taken_at_ms);
+    private sealed record SnapshotRow(long Version, string StateJson, long TakenAtMs);
 }

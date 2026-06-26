@@ -12,7 +12,6 @@
 //     can't double-settle.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Pick.Infrastructure.Models;

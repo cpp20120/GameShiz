@@ -17,7 +17,7 @@ public sealed class AdminAuditLog(INpgsqlConnectionFactory connections) : IAdmin
                 actorId,
                 actorName,
                 action,
-                details = details is null ? "{}" : JsonSerializer.Serialize(details)
+                details = details is null ? "{}" : JsonSerializer.Serialize(details),
             },
             cancellationToken: ct));
     }

@@ -17,7 +17,6 @@
 // Balance scope = chat id (matches every other casino game in the host).
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
 using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Application.Services;
@@ -103,13 +102,12 @@ public sealed partial class PickService(
         var streakAfter = streakBefore;
 
         var reason = depth == 0 ? "pick" : "pick.chain";
-        var grossPayout = 0;
         var streakBonus = 0;
         var totalCredit = 0;
 
         if (won)
         {
-            grossPayout = ComputePayout(stake, variants.Count, backedIndices.Count);
+            var grossPayout = ComputePayout(stake, variants.Count, backedIndices.Count);
             if (applyStreak)
             {
                 streakAfter = streaks.Increment(userId, chatId);
@@ -152,6 +150,7 @@ public sealed partial class PickService(
         }
 
         analytics.Track("pick", "roll", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["chat_id"] = chatId,
@@ -229,11 +228,11 @@ public sealed partial class PickService(
 
     private static PickResult Fail(
         PickError err, int amount, IReadOnlyList<string> variants, IReadOnlyList<int> backed) =>
-        new(err, amount, 0, 0, 0, 0, 0, 0, -1, false, 0, null, variants, backed);
+        new(err, amount, 0, 0, 0, 0, 0, 0, -1, Won: false, 0, ChainGuid: null, variants, backed);
 
     private static PickResult BalanceFail(
         int amount, int balance, IReadOnlyList<string> variants, IReadOnlyList<int> backed) =>
-        new(PickError.NotEnoughCoins, amount, balance, 0, 0, 0, 0, 0, -1, false, 0, null, variants, backed);
+        new(PickError.NotEnoughCoins, amount, balance, 0, 0, 0, 0, 0, -1, Won: false, 0, ChainGuid: null, variants, backed);
 
     [LoggerMessage(EventId = 5910, Level = LogLevel.Information,
         Message = "pick.roll user={UserId} chat={ChatId} bet={Bet} N={Variants} k={Backed} idx={Picked} won={Won} payout={Payout} depth={Depth}")]

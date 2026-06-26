@@ -1,4 +1,3 @@
-using BotFramework.Host;
 using Dapper;
 
 namespace Games.Meta.Infrastructure.Persistence;
@@ -54,9 +53,9 @@ public sealed class RiskStore(INpgsqlConnectionFactory connections) : IRiskStore
             "ignored" => "ignored",
             "resolve" => "resolved",
             "resolved" => "resolved",
-            _ => ""
+            _ => "",
         };
-        if (string.IsNullOrWhiteSpace(status)) return new RiskResolveResult(false, "Статус должен быть ignored/resolved.");
+        if (string.IsNullOrWhiteSpace(status)) return new RiskResolveResult(Updated: false, "Статус должен быть ignored/resolved.");
 
         const string sql = """
             UPDATE meta_risk_flags
@@ -69,7 +68,7 @@ public sealed class RiskStore(INpgsqlConnectionFactory connections) : IRiskStore
         await using var conn = await connections.OpenAsync(ct);
         var changed = await conn.ExecuteAsync(new CommandDefinition(sql, new { flagId, status }, cancellationToken: ct));
         return changed > 0
-            ? new RiskResolveResult(true, "Risk flag обновлён.")
-            : new RiskResolveResult(false, "Открытый risk flag не найден.");
+            ? new RiskResolveResult(Updated: true, "Risk flag обновлён.")
+            : new RiskResolveResult(Updated: false, "Открытый risk flag не найден.");
     }
 }

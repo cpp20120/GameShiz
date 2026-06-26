@@ -8,9 +8,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Domain;
+/// <summary>
 /// Creates aggregate instances during repository load. Modules may register a
 /// custom factory when an aggregate needs construction policy beyond a public
 /// parameterless or string-id constructor.
+/// </summary>
 public interface IAggregateFactory<out TAggregate>
     where TAggregate : IAggregateRoot
 {

@@ -24,6 +24,7 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.UpdateHandling.Routes;
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
 public sealed class TextCommandAttribute(string token) : RouteAttribute
 {
     public string Token { get; } = token;

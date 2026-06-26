@@ -1,4 +1,3 @@
-using BotFramework.Sdk;
 using Dapper;
 
 namespace BotFramework.Host.Pipeline.Middleware;
@@ -29,7 +28,7 @@ public sealed partial class UpdateDeduplicationMiddleware(
         }
         catch (Exception ex)
         {
-            await MarkFailedAsync(updateId, ex, ctx.Ct);
+            await MarkFailedAsync(updateId, ex);
             throw;
         }
     }
@@ -72,7 +71,7 @@ public sealed partial class UpdateDeduplicationMiddleware(
             cancellationToken: ct));
     }
 
-    private async Task MarkFailedAsync(long updateId, Exception ex, CancellationToken ct)
+    private async Task MarkFailedAsync(long updateId, Exception ex)
     {
         try
         {

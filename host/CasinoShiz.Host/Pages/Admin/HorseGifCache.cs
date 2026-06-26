@@ -7,14 +7,14 @@ namespace CasinoShiz.Host.Pages.Admin;
 // frame (PNG), not the full animation. Ephemeral; survives until restart.
 public sealed class HorseGifCache
 {
-    private readonly ConcurrentDictionary<string, byte[]> _byDate = new();
+    private readonly ConcurrentDictionary<string, byte[]> _byDate = new(StringComparer.Ordinal);
 
     public void Put(string raceDate, byte[] gif) => _byDate[raceDate] = gif;
 
     public byte[]? Get(string raceDate) => _byDate.TryGetValue(raceDate, out var v) ? v : null;
 
     public IEnumerable<string> Dates => _byDate.Keys;
-    
+
     public async Task<byte[]?> GetAsync(string raceDate, CancellationToken ct = default)
     {
         return await Task.FromResult(Get(raceDate));

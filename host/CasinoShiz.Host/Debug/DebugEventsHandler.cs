@@ -1,7 +1,5 @@
+using System.Globalization;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -50,8 +48,8 @@ public sealed class DebugEventsHandler(
 
         if (resolved.Count > 1)
         {
-            var candidates = string.Join("\n", resolved.Select(x =>
-                $"• <code>{x.UserId}</code> — {Enc(x.DisplayName)}"));
+            var candidates = string.Join('\n', resolved.Select(x =>
+                string.Create(CultureInfo.InvariantCulture, $"• <code>{x.UserId}</code> — {Enc(x.DisplayName)}")));
             await ReplyAsync(
                 ctx,
                 msg,
@@ -97,7 +95,7 @@ public sealed class DebugEventsHandler(
         CancellationToken ct)
     {
         var normalized = query.Trim().TrimStart('@');
-        if (long.TryParse(normalized, out var userId))
+        if (long.TryParse(normalized, System.Globalization.CultureInfo.InvariantCulture, out var userId))
         {
             var row = await conn.QuerySingleOrDefaultAsync<DebugUserRow>(new CommandDefinition(
                 """
@@ -113,7 +111,7 @@ public sealed class DebugEventsHandler(
                            @fallback
                        ) AS DisplayName
                 """,
-                new { userId, fallback = $"User ID: {userId}" },
+                new { userId, fallback = string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}") },
                 cancellationToken: ct));
             return row is null ? [] : [row];
         }
@@ -137,7 +135,7 @@ public sealed class DebugEventsHandler(
     {
         var sb = new StringBuilder();
         sb.AppendLine("<b>Last events</b>");
-        sb.AppendLine($"user: <b>{Enc(user.DisplayName)}</b> · <code>{user.UserId}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"user: <b>{Enc(user.DisplayName)}</b> · <code>{user.UserId}</code>");
         sb.AppendLine();
 
         if (events.Count == 0)

@@ -18,46 +18,65 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 
 namespace Games.Redeem.Application.Jobs;
 
-public sealed class RedeemCaptchaTimeouts
+public sealed partial class RedeemCaptchaTimeouts(ILogger<RedeemCaptchaTimeouts> logger)
 {
     private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _pending = new();
 
+    /// <summary>
     /// Registers a CTS for `codeGuid` linked to the host's stopping token.
     /// If a CTS is already registered for this code (user retried), the prior
     /// one is cancelled so its timeout task no-ops.
+    /// </summary>
     public CancellationTokenSource Schedule(Guid codeGuid, CancellationToken applicationStopping)
     {
         var cts = CancellationTokenSource.CreateLinkedTokenSource(applicationStopping);
         if (_pending.TryRemove(codeGuid, out var prior))
         {
-            try { prior.Cancel(); } catch { }
+            Cancel(prior, codeGuid);
         }
         _pending[codeGuid] = cts;
         return cts;
     }
 
+    /// <summary>
     /// Cancels (and removes) the pending timeout for `codeGuid` if any. Called
     /// from the callback handler when the user has picked an answer.
+    /// </summary>
     public bool TryCancel(Guid codeGuid)
     {
-        if (_pending.TryRemove(codeGuid, out var cts))
-        {
-            try { cts.Cancel(); } catch { }
-            return true;
-        }
-        return false;
+        if (!_pending.TryRemove(codeGuid, out var cts)) return false;
+        Cancel(cts, codeGuid);
+        return true;
     }
 
+    /// <summary>
     /// Atomically removes the entry but only if it still points at the
     /// supplied CTS. Returns true when the caller still owned the slot at
     /// removal time — used by the timeout task to decide whether it's safe to
     /// proceed with the "took too long" message, or whether a concurrent
     /// callback already claimed the slot first.
+    /// </summary>
     public bool Forget(Guid codeGuid, CancellationTokenSource owner)
     {
         return _pending.TryRemove(new KeyValuePair<Guid, CancellationTokenSource>(codeGuid, owner));
     }
+
+    private void Cancel(CancellationTokenSource cts, Guid codeGuid)
+    {
+        try
+        {
+            cts.Cancel();
+        }
+        catch (Exception ex)
+        {
+            LogCancelFailed(ex, codeGuid);
+        }
+    }
+
+    [LoggerMessage(LogLevel.Warning, "redeem.captcha_timeout_cancel_failed code_guid={CodeGuid}")]
+    partial void LogCancelFailed(Exception ex, Guid codeGuid);
 }

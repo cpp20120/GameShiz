@@ -24,7 +24,6 @@
 // leaves no phantom tracking row.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk;
 using Dapper;
 
 namespace BotFramework.Host.Composition.Migrations;
@@ -69,11 +68,14 @@ public sealed partial class ModuleMigrationRunner(
         {
             if (applied.TryGetValue(migration.Id, out var appliedHash))
             {
-                if (appliedHash != migration.ContentHash)
+                if (!string.Equals(appliedHash, migration.ContentHash, StringComparison.Ordinal))
+                {
                     throw new InvalidOperationException(
                         $"migration {module.ModuleId}:{migration.Id} was edited after apply " +
                         $"(hash {appliedHash} → {migration.ContentHash}). " +
                         "Write a new forward migration instead of editing an applied one.");
+                }
+
                 continue;
             }
 
@@ -106,7 +108,7 @@ public sealed partial class ModuleMigrationRunner(
                 "SELECT migration_id, content_hash FROM __module_migrations WHERE module_id = @moduleId",
                 new { moduleId },
                 cancellationToken: ct));
-        return rows.ToDictionary(r => r.migration_id, r => r.content_hash);
+        return rows.ToDictionary(r => r.migration_id, r => r.content_hash, StringComparer.Ordinal);
     }
 
     [LoggerMessage(EventId = 1500, Level = LogLevel.Information, Message = "migration.applying module={ModuleId} id={MigrationId}")]

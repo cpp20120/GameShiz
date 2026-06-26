@@ -20,10 +20,9 @@
 // result by editing the original offer message in place.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
 using System.Net;
 using System.Text;
-using BotFramework.Host;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -63,7 +62,7 @@ public sealed partial class PickHandler(
         var reply = new ReplyParameters { MessageId = msg.MessageId };
         var displayName = msg.From?.Username is { Length: > 0 } un
             ? $"@{un}"
-            : msg.From?.FirstName ?? $"User ID: {userId}";
+            : msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var argText = StripCommandPrefix(text);
         if (string.IsNullOrWhiteSpace(argText)
@@ -102,7 +101,7 @@ public sealed partial class PickHandler(
 
     private async Task HandleChainCallbackAsync(UpdateContext ctx, CallbackQuery cbq)
     {
-        if (cbq.Data is not { Length: > 0 } data || !data.StartsWith(ChainCallbackPrefix)) return;
+        if (cbq.Data is not { Length: > 0 } data || !data.StartsWith(ChainCallbackPrefix, StringComparison.Ordinal)) return;
         var payload = data[ChainCallbackPrefix.Length..];
         if (!Guid.TryParse(payload, out var chainId)) return;
 
@@ -235,7 +234,7 @@ public sealed partial class PickHandler(
         }
 
         await ctx.Bot.SendMessage(chatId, finalText,
-            parseMode: ParseMode.Html, replyMarkup: markup, replyParameters: reply,
+            parseMode: ParseMode.Html, replyParameters: reply, replyMarkup: markup,
             cancellationToken: ctx.Ct);
     }
 
@@ -334,7 +333,7 @@ public sealed partial class PickHandler(
     {
         var sb = new StringBuilder();
         var headerKey = isChainHop ? "reveal.header_chain" : "reveal.header";
-        sb.Append(string.Format(Loc(headerKey), result.Bet, result.Variants.Count, result.BackedIndices.Count));
+        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc(headerKey), result.Bet, result.Variants.Count, result.BackedIndices.Count);
         sb.Append("\n\n");
 
         for (var i = 0; i < result.Variants.Count; i++)
@@ -370,27 +369,27 @@ public sealed partial class PickHandler(
         var n = result.Variants.Count;
         var k = result.BackedIndices.Count;
         var backedNames = string.Join(", ",
-            result.BackedIndices.OrderBy(i => i)
+            result.BackedIndices.Order()
                 .Select(i => "<b>" + WebUtility.HtmlEncode(result.Variants[i]) + "</b>"));
 
         if (result.Won)
         {
             var lines = new List<string>(8);
             var headerKey = isChainHop ? "ok.win.chain_header" : "ok.win.header";
-            lines.Add(string.Format(Loc(headerKey), picked, result.ChainDepth + (isChainHop ? 0 : 0)));
-            lines.Add(string.Format(Loc("ok.win.payout"), result.Bet, n, k, result.Payout, result.Net));
+            lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(headerKey), picked, result.ChainDepth + (isChainHop ? 0 : 0)));
+            lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.win.payout"), result.Bet, n, k, result.Payout, result.Net));
 
             if (result.StreakBonus > 0)
-                lines.Add(string.Format(Loc("ok.win.streak"), result.StreakAfter, result.StreakBonus));
+                lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.win.streak"), result.StreakAfter, result.StreakBonus));
             else if (result.StreakAfter > 1 && !isChainHop)
-                lines.Add(string.Format(Loc("ok.win.streak_no_bonus"), result.StreakAfter));
+                lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.win.streak_no_bonus"), result.StreakAfter));
 
-            lines.Add(string.Format(Loc("ok.win.balance"), result.Balance));
+            lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.win.balance"), result.Balance));
 
             if (result.ChainGuid is not null)
             {
                 var hopsLeft = Math.Max(0, _opts.ChainMaxDepth - (result.ChainDepth + 1) + 1);
-                lines.Add(string.Format(Loc("ok.win.chain_offer"), result.Payout, hopsLeft));
+                lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.win.chain_offer"), result.Payout, hopsLeft));
             }
 
             return string.Join('\n', lines);
@@ -399,16 +398,16 @@ public sealed partial class PickHandler(
         // loss
         var lossKey = isChainHop ? "ok.lose.chain" : "ok.lose";
         var streakBroken = result.StreakBefore > 1 && !isChainHop;
-        var loseText = string.Format(Loc(lossKey), picked, result.Bet, result.Balance, backedNames);
+        var loseText = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(lossKey), picked, result.Bet, result.Balance, backedNames);
         if (streakBroken)
-            loseText += "\n" + string.Format(Loc("ok.lose.streak_broken"), result.StreakBefore);
+            loseText += "\n" + string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.lose.streak_broken"), result.StreakBefore);
         return loseText;
     }
 
     private InlineKeyboardMarkup? BuildChainMarkupOrNull(PickResult result)
     {
         if (result.ChainGuid is not { } id) return null;
-        var label = string.Format(Loc("chain.button"), result.Payout);
+        var label = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chain.button"), result.Payout);
         return new InlineKeyboardMarkup(new[]
         {
             new[] { InlineKeyboardButton.WithCallbackData(label, ChainCallbackPrefix + id) },
@@ -421,15 +420,13 @@ public sealed partial class PickHandler(
     {
         var text = result.Error switch
         {
-            PickError.NotEnoughVariants => string.Format(Loc("err.too_few"), _opts.MinVariants),
-            PickError.TooManyVariants   => string.Format(Loc("err.too_many"), _opts.MaxVariants),
+            PickError.NotEnoughVariants => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.too_few"), _opts.MinVariants),
+            PickError.TooManyVariants   => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.too_many"), _opts.MaxVariants),
             PickError.InvalidAmount     => _opts.MaxBet > 0
-                                              ? string.Format(Loc("err.invalid_bet_capped"), _opts.MaxBet)
-                                              : Loc("err.invalid_bet"),
+                                              ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.invalid_bet_capped"), _opts.MaxBet) : Loc("err.invalid_bet"),
             PickError.InvalidChoice     => Loc("err.invalid_choice"),
             PickError.NotEnoughCoins    => depth > 0
-                                              ? string.Format(Loc("err.no_coins_chain"), result.Balance)
-                                              : string.Format(Loc("err.no_coins"), result.Balance),
+                                              ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.no_coins_chain"), result.Balance) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.no_coins"), result.Balance),
             _                           => Loc("err.generic"),
         };
         await ctx.Bot.SendMessage(chatId, text,
@@ -438,24 +435,26 @@ public sealed partial class PickHandler(
 
     private async Task SendUsageAsync(UpdateContext ctx, long chatId, ReplyParameters reply, string? extraNote = null)
     {
-        var usage = string.Format(
-            Loc("usage"),
+        var usage = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("usage"),
             _opts.DefaultBet,
             _opts.MinVariants,
             _opts.MaxVariants,
             _opts.MaxBet,
-            (int)Math.Round(_opts.HouseEdge * 100));
+            (int)Math.Round(_opts.HouseEdge * 100, MidpointRounding.ToEven));
         if (!string.IsNullOrEmpty(extraNote))
             usage = "<i>" + WebUtility.HtmlEncode(extraNote) + "</i>\n\n" + usage;
         await ctx.Bot.SendMessage(chatId, usage,
             parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
     }
 
-    private static async Task TryAnswerCallbackAsync(ITelegramBotClient bot, string id, string text, CancellationToken ct)
+    private async Task TryAnswerCallbackAsync(ITelegramBotClient bot, string id, string text, CancellationToken ct)
     {
         try { await bot.AnswerCallbackQuery(id, text, cancellationToken: ct); }
-        catch { /* nothing actionable */ }
+        catch (ApiRequestException ex) { LogCallbackAnswerFailed(id, ex); }
     }
+
+    [LoggerMessage(LogLevel.Debug, "pick.callback.answer_failed id={CallbackQueryId}")]
+    partial void LogCallbackAnswerFailed(string callbackQueryId, Exception exception);
 
     // ── parser ────────────────────────────────────────────────────────────────
 
@@ -466,7 +465,7 @@ public sealed partial class PickHandler(
         if (trimmed.Length == 0 || trimmed[0] != '/')
             return string.Empty;
 
-        var firstSpace = trimmed.IndexOf(' ');
+        var firstSpace = trimmed.IndexOf(' ', StringComparison.Ordinal);
         return firstSpace < 0 ? string.Empty : trimmed[(firstSpace + 1)..].Trim();
     }
 
@@ -493,7 +492,7 @@ public sealed partial class PickHandler(
         // Split optional "choice | variants" form vs "variants" form.
         string choiceSpec;
         string variantSpec;
-        var pipeIdx = args.IndexOf('|');
+        var pipeIdx = args.IndexOf('|', StringComparison.Ordinal);
         if (pipeIdx >= 0)
         {
             choiceSpec = args[..pipeIdx].Trim();
@@ -553,7 +552,9 @@ public sealed partial class PickHandler(
         foreach (var tok in rawChoices)
         {
             if (TryResolveChoice(tok, variantList, out var idx))
+            {
                 seen.Add(idx);
+            }
             else
             {
                 error = $"Не нашёл вариант «{tok}» в списке.";
@@ -561,7 +562,7 @@ public sealed partial class PickHandler(
             }
         }
         if (seen.Count == 0) return false;
-        backedIndices = seen.OrderBy(i => i).ToArray();
+        backedIndices = seen.Order().ToArray();
         return true;
     }
 
@@ -575,21 +576,21 @@ public sealed partial class PickHandler(
         if (working.StartsWith("bet ", StringComparison.OrdinalIgnoreCase))
             working = working[4..].TrimStart();
 
-        var firstSpace = working.IndexOf(' ');
+        var firstSpace = working.IndexOf(' ', StringComparison.Ordinal);
         if (firstSpace <= 0) return false;
         var head = working[..firstSpace];
-        if (!int.TryParse(head, out amount)) return false;
+        if (!int.TryParse(head, System.Globalization.CultureInfo.InvariantCulture, out amount)) return false;
 
         remainder = working[(firstSpace + 1)..].TrimStart();
         return true;
     }
 
-    private static bool TryResolveChoice(string token, List<string> variants, out int index)
+    private bool TryResolveChoice(string token, List<string> variants, out int index)
     {
         index = -1;
         if (string.IsNullOrWhiteSpace(token)) return false;
 
-        if (int.TryParse(token, out var pos) && pos >= 1 && pos <= variants.Count)
+        if (int.TryParse(token, System.Globalization.CultureInfo.InvariantCulture, out var pos) && pos >= 1 && pos <= variants.Count)
         {
             index = pos - 1;
             return true;

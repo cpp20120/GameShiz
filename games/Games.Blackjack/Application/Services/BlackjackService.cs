@@ -12,9 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Concurrent;
-using BotFramework.Host;
-using BotFramework.Sdk;
-using Games.Blackjack.Domain;
+using System.Globalization;
 using Microsoft.Extensions.Options;
 
 namespace Games.Blackjack.Application.Services;
@@ -26,11 +24,11 @@ public sealed class BlackjackService(
     IDomainEventBus events,
     IOptions<BlackjackOptions> options) : IBlackjackService
 {
-    private static readonly ConcurrentDictionary<long, Gate> _gates = new();
+    private static readonly ConcurrentDictionary<long, Gate> Gates = new();
 
     private static SemaphoreSlim GetGate(long userId)
     {
-        var g = _gates.GetOrAdd(userId, _ => new Gate());
+        var g = Gates.GetOrAdd(userId, _ => new Gate());
         Volatile.Write(ref g.LastUsedTick, Environment.TickCount64);
         return g.Semaphore;
     }
@@ -38,9 +36,11 @@ public sealed class BlackjackService(
     internal static void PruneGates(long idleMs)
     {
         var cutoff = Environment.TickCount64 - idleMs;
-        foreach (var (key, g) in _gates)
+        foreach (var (key, g) in Gates)
+        {
             if (Volatile.Read(ref g.LastUsedTick) < cutoff && g.Semaphore.CurrentCount == 1)
-                _gates.TryRemove(key, out _);
+                Gates.TryRemove(key, out _);
+        }
     }
 
     private sealed class Gate
@@ -54,7 +54,7 @@ public sealed class BlackjackService(
     public async Task<BlackjackResult> StartAsync(long userId, string displayName, long chatId, int bet, string operationId, CancellationToken ct)
     {
         if (bet < _opts.MinBet || bet > _opts.MaxBet)
-            return new BlackjackResult(BlackjackError.InvalidBet, null);
+            return new BlackjackResult(BlackjackError.InvalidBet, Snapshot: null);
 
         var gate = GetGate(userId);
         await gate.WaitAsync(ct);
@@ -62,17 +62,18 @@ public sealed class BlackjackService(
         {
             var existing = await hands.FindAsync(userId, ct);
             if (existing != null)
-                return new BlackjackResult(BlackjackError.HandInProgress, null);
+                return new BlackjackResult(BlackjackError.HandInProgress, Snapshot: null);
 
             await economics.EnsureUserAsync(userId, chatId, displayName, ct);
             var debit = await economics.TryDebitOnceAsync(userId, chatId, bet, "blackjack.start", operationId, ct);
             if (debit.Rejected)
             {
                 analytics.Track("blackjack", "not_enough_coins", new Dictionary<string, object?>
+(StringComparer.Ordinal)
                 {
                     ["user_id"] = userId, ["chat_id"] = chatId, ["bet"] = bet,
                 });
-                return new BlackjackResult(BlackjackError.NotEnoughCoins, null);
+                return new BlackjackResult(BlackjackError.NotEnoughCoins, Snapshot: null);
             }
 
             var deck = Deck.BuildShuffled();
@@ -83,13 +84,14 @@ public sealed class BlackjackService(
                 UserId: userId,
                 ChatId: chatId,
                 Bet: bet,
-                PlayerCards: string.Join(" ", player),
-                DealerCards: string.Join(" ", dealer),
+                PlayerCards: string.Join(' ', player),
+                DealerCards: string.Join(' ', dealer),
                 DeckState: deck,
                 StateMessageId: null,
                 CreatedAt: DateTimeOffset.UtcNow);
 
             analytics.Track("blackjack", "start", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId, ["chat_id"] = chatId, ["bet"] = bet,
             });
@@ -100,7 +102,7 @@ public sealed class BlackjackService(
             if (!await hands.InsertAsync(hand, ct))
             {
                 await economics.CreditOnceAsync(userId, chatId, bet, "blackjack.start.refund", $"{operationId}:refund", ct);
-                return new BlackjackResult(BlackjackError.HandInProgress, null);
+                return new BlackjackResult(BlackjackError.HandInProgress, Snapshot: null);
             }
 
             var balance = await economics.GetBalanceAsync(userId, chatId, ct);
@@ -116,12 +118,12 @@ public sealed class BlackjackService(
         try
         {
             var hand = await hands.FindAsync(userId, ct);
-            if (hand == null) return new BlackjackResult(BlackjackError.NoActiveHand, null);
+            if (hand == null) return new BlackjackResult(BlackjackError.NoActiveHand, Snapshot: null);
 
             var deck = hand.DeckState;
             var drawn = Deck.Draw(ref deck, 1);
             var player = Deck.Parse(hand.PlayerCards).Append(drawn[0]).ToArray();
-            var updated = hand with { PlayerCards = string.Join(" ", player), DeckState = deck };
+            var updated = hand with { PlayerCards = string.Join(' ', player), DeckState = deck };
 
             if (BlackjackHandValue.Compute(player) > 21)
                 return await SettleAsync(updated, doubled: false, persisted: true, settleOperationId: BuildHandOperationId(updated, "settle"), ct);
@@ -140,7 +142,7 @@ public sealed class BlackjackService(
         try
         {
             var hand = await hands.FindAsync(userId, ct);
-            if (hand == null) return new BlackjackResult(BlackjackError.NoActiveHand, null);
+            if (hand == null) return new BlackjackResult(BlackjackError.NoActiveHand, Snapshot: null);
             return await SettleAsync(hand, doubled: false, persisted: true, settleOperationId: BuildHandOperationId(hand, "settle"), ct);
         }
         finally { gate.Release(); }
@@ -153,22 +155,22 @@ public sealed class BlackjackService(
         try
         {
             var hand = await hands.FindAsync(userId, ct);
-            if (hand == null) return new BlackjackResult(BlackjackError.NoActiveHand, null);
+            if (hand == null) return new BlackjackResult(BlackjackError.NoActiveHand, Snapshot: null);
 
             var player = Deck.Parse(hand.PlayerCards);
-            if (player.Length != 2) return new BlackjackResult(BlackjackError.CannotDouble, null);
+            if (player.Length != 2) return new BlackjackResult(BlackjackError.CannotDouble, Snapshot: null);
 
             var doubleDebit = await economics.TryDebitOnceAsync(
                 userId, hand.ChatId, hand.Bet, "blackjack.double", BuildHandOperationId(hand, "double"), ct);
             if (doubleDebit.Rejected)
-                return new BlackjackResult(BlackjackError.NotEnoughCoins, null);
+                return new BlackjackResult(BlackjackError.NotEnoughCoins, Snapshot: null);
 
             var deck = hand.DeckState;
             var drawn = Deck.Draw(ref deck, 1);
             var updated = hand with
             {
                 Bet = hand.Bet * 2,
-                PlayerCards = string.Join(" ", player.Append(drawn[0])),
+                PlayerCards = string.Join(' ', player.Append(drawn[0])),
                 DeckState = deck,
             };
 
@@ -223,11 +225,16 @@ public sealed class BlackjackService(
         var balance = await economics.GetBalanceAsync(hand.UserId, hand.ChatId, ct);
 
         analytics.Track("blackjack", "end", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
-            ["user_id"] = hand.UserId, ["chat_id"] = hand.ChatId,
-            ["bet"] = hand.Bet, ["payout"] = payout,
-            ["player_total"] = playerTotal, ["dealer_total"] = dealerTotal,
-            ["outcome"] = outcome.ToString(), ["doubled"] = doubled,
+            ["user_id"] = hand.UserId,
+            ["chat_id"] = hand.ChatId,
+            ["bet"] = hand.Bet,
+            ["payout"] = payout,
+            ["player_total"] = playerTotal,
+            ["dealer_total"] = dealerTotal,
+            ["outcome"] = outcome.ToString(),
+            ["doubled"] = doubled,
         });
 
         await events.PublishAsync(
@@ -245,7 +252,7 @@ public sealed class BlackjackService(
     }
 
     private static string BuildHandOperationId(BlackjackHandRow hand, string action) =>
-        $"blackjack:{action}:{hand.UserId}:{hand.ChatId}:{hand.CreatedAt.ToUnixTimeMilliseconds()}";
+        string.Create(CultureInfo.InvariantCulture, $"blackjack:{action}:{hand.UserId}:{hand.ChatId}:{hand.CreatedAt.ToUnixTimeMilliseconds()}");
 
     private static (BlackjackOutcome outcome, int payout) Resolve(
         int playerTotal, int dealerTotal, bool playerBj, bool dealerBj, int bet)

@@ -5,8 +5,7 @@
 // are still supported and use the same default slot cost/rules.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+using System.Globalization;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -29,7 +28,7 @@ public sealed partial class DiceHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (diceMsg?.Dice?.Emoji == DiceEmoji)
+        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
         {
             await HandleDiceAsync(ctx, diceMsg);
             return;
@@ -43,7 +42,7 @@ public sealed partial class DiceHandler(
 
         var chatId = msg.Chat.Id;
         var reply = new ReplyParameters { MessageId = msg.MessageId };
-        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? $"User ID: {userId}";
+        var displayName = msg.From?.Username ?? msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}");
 
         var parts = msg.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var action = parts.Length > 1 ? parts[1] : "";
@@ -110,14 +109,14 @@ public sealed partial class DiceHandler(
             case DiceOutcome.NotEnoughCoins:
                 await ctx.Bot.SendMessage(
                     chatId,
-                    string.Format(Loc("err.not_enough_coins"), result.Loss),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.not_enough_coins"), result.Loss),
                     replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
 
             case DiceOutcome.DailyRollLimitExceeded:
                 await ctx.Bot.SendMessage(
                     chatId,
-                    string.Format(Loc("err.daily_roll_limit"), result.DailyDiceUsed, result.DailyDiceLimit),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("err.daily_roll_limit"), result.DailyDiceUsed, result.DailyDiceLimit),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
         }
@@ -127,13 +126,12 @@ public sealed partial class DiceHandler(
         var lines = new[]
         {
             isWin
-                ? string.Format(Loc("result.win"), result.Prize, result.Loss, net)
-                : string.Format(Loc("result.lose"), result.Loss, result.Prize, -net),
-            string.Format(Loc("result.balance"), result.NewBalance),
-            result.Gas > 0 ? string.Format(Loc("result.gas"), result.Gas) : "",
+                ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.win"), result.Prize, result.Loss, net) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.lose"), result.Loss, result.Prize, -net),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.balance"), result.NewBalance),
+            result.Gas > 0 ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.gas"), result.Gas) : "",
             FormatRemainingAttempts(result.DailyDiceUsed, result.DailyDiceLimit),
         };
-        var text = string.Join("\n", lines.Where(x => !string.IsNullOrWhiteSpace(x)));
+        var text = string.Join('\n', lines.Where(x => !string.IsNullOrWhiteSpace(x)));
 
         try
         {
@@ -158,8 +156,7 @@ public sealed partial class DiceHandler(
 
     private string FormatRemainingAttempts(int used, int limit) =>
         limit > 0
-            ? string.Format(Loc("result.daily_roll_remaining"), Math.Max(0, limit - used), limit)
-            : "";
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.daily_roll_remaining"), Math.Max(0, limit - used), limit) : "";
 
     [LoggerMessage(EventId = 2001, Level = LogLevel.Error, Message = "dice.reply.failed user={UserId}")]
     partial void LogReplyFailed(long userId, Exception exception);

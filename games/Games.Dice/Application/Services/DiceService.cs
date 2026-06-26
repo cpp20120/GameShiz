@@ -11,8 +11,8 @@
 // debit or credit twice.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Host;
-using BotFramework.Sdk;
+
+using System.Globalization;
 
 namespace Games.Dice.Application.Services;
 
@@ -39,6 +39,7 @@ public sealed class DiceService(
         if (isForwarded)
         {
             analytics.Track("dice", "forwarded", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["chat_id"] = chatId,
@@ -51,21 +52,24 @@ public sealed class DiceService(
 
         var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Dice, ct);
         if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
+        {
             return new DicePlayResult(
                 DiceOutcome.DailyRollLimitExceeded,
                 DailyDiceUsed: gate.UsedToday,
                 DailyDiceLimit: gate.Limit);
+        }
 
         var diceOpts = tuning.GetSection<DiceOptions>(DiceOptions.SectionName);
         var gas = TaxService.GetGasTax(diceOpts.Cost);
         var loss = diceOpts.Cost + gas;
-        var operationPrefix = $"dice:roll:{chatId}:{sourceMessageId}:{userId}";
+        var operationPrefix = string.Create(CultureInfo.InvariantCulture, $"dice:roll:{chatId}:{sourceMessageId}:{userId}");
 
         var debit = await economics.TryDebitOnceAsync(userId, chatId, loss, reason: "dice.stake", $"{operationPrefix}:stake", ct);
         if (debit.Rejected)
         {
             await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Dice, ct);
             analytics.Track("dice", "not_enough_coins", new Dictionary<string, object?>
+(StringComparer.Ordinal)
             {
                 ["user_id"] = userId,
                 ["chat_id"] = chatId,
@@ -94,13 +98,14 @@ public sealed class DiceService(
             RolledAt: rolledAt), ct);
 
         analytics.Track("dice", "success", new Dictionary<string, object?>
+(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["chat_id"] = chatId,
             ["dice_value"] = diceValue,
             ["prize"] = prize,
             ["fixed_loss"] = loss,
-            ["is_win"] = prize - loss > 0,
+            ["is_win"] = prize > loss,
         });
 
         await events.PublishAsync(
@@ -120,7 +125,7 @@ public sealed class DiceService(
                 GameKey: MiniGameIds.Dice,
                 Stake: loss,
                 Payout: prize,
-                IsWin: prize - loss > 0,
+                IsWin: prize > loss,
                 Multiplier: loss > 0 ? decimal.Divide(prize, loss) : 0m,
                 OccurredAt: rolledAt.ToUnixTimeMilliseconds()),
             ct);

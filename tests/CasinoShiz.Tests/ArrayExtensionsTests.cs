@@ -1,4 +1,3 @@
-using BotFramework.Host.Random;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -20,7 +19,7 @@ public class ArrayExtensionsTests
     {
         var arr = new[] { 1, 2, 3, 4, 5 };
         var result = ArrayExtensions.Shuffle(arr, new Mulberry32(42).Next);
-        Assert.Equal(arr.OrderBy(x => x), result.OrderBy(x => x));
+        Assert.Equal(arr.Order(), result.Order());
     }
 
     [Fact]
@@ -48,10 +47,12 @@ public class ArrayExtensionsTests
         Assert.Empty(result);
     }
 
+    private static readonly int[] array = new[] { 42 };
+
     [Fact]
     public void Shuffle_SingleElement_ReturnsSameElement()
     {
-        var result = ArrayExtensions.Shuffle(new[] { 42 }, new Mulberry32(1).Next);
+        var result = ArrayExtensions.Shuffle(array, new Mulberry32(1).Next);
         Assert.Equal(42, result[0]);
     }
 
@@ -120,4 +121,3 @@ public class ArrayExtensionsTests
         Assert.Equal(r1, r2);
     }
 }
-

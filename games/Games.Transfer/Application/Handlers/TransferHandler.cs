@@ -1,7 +1,5 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -10,7 +8,7 @@ using Telegram.Bot.Types.Enums;
 namespace Games.Transfer.Application.Handlers;
 
 [Command("/transfer")]
-public sealed class TransferHandler(
+public sealed partial class TransferHandler(
     ITransferService transfers,
     ILocalizer localizer,
     ITelegramBotClient bot,
@@ -64,7 +62,7 @@ public sealed class TransferHandler(
 
         var senderName = msg.From?.Username is { Length: > 0 } su
             ? $"@{su}"
-            : msg.From?.FirstName ?? $"User ID: {fromId}";
+            : msg.From?.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {fromId}");
 
         var result = await transfers.TryTransferAsync(
             fromId, toId, chatId, senderName, recipientLabel, net, msg.MessageId, ctx.Ct);
@@ -73,12 +71,12 @@ public sealed class TransferHandler(
         {
             case TransferError.NetBelowMinimum:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("err.min_net"), tuning.GetSection<TransferOptions>(TransferOptions.SectionName).MinNetCoins),
+                    string.Format(CultureInfo.InvariantCulture, Loc("err.min_net"), tuning.GetSection<TransferOptions>(TransferOptions.SectionName).MinNetCoins),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             case TransferError.NetAboveMaximum:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("err.max_net"), tuning.GetSection<TransferOptions>(TransferOptions.SectionName).MaxNetCoins),
+                    string.Format(CultureInfo.InvariantCulture, Loc("err.max_net"), tuning.GetSection<TransferOptions>(TransferOptions.SectionName).MaxNetCoins),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             case TransferError.SameUser:
@@ -87,12 +85,12 @@ public sealed class TransferHandler(
                 return;
             case TransferError.InsufficientFunds:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("err.balance"), result.TotalDebited, result.SenderBalance),
+                    string.Format(CultureInfo.InvariantCulture, Loc("err.balance"), result.TotalDebited, result.SenderBalance),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             case TransferError.None:
                 await ctx.Bot.SendMessage(chatId,
-                    string.Format(Loc("ok"),
+                    string.Format(CultureInfo.InvariantCulture, Loc("ok"),
                         net,
                         result.FeeCoins,
                         result.TotalDebited,
@@ -113,15 +111,18 @@ public sealed class TransferHandler(
         net = 0;
         var parts = SplitArgs(msg.Text!);
         if (parts.Length < 2) return false;
-        return int.TryParse(parts[^1], out net) && net > 0;
+        return int.TryParse(parts[^1], System.Globalization.CultureInfo.InvariantCulture, out net) && net > 0;
     }
 
-    /// <summary>Telegram and clients may use NBSP / other Unicode space; <see cref="string.Split(char)"/> misses those.</summary>
+    /// <summary>Telegram and clients may use NBSP / other Unicode space; <see cref="Regex.Split(string, string)"/> misses those.</summary>
+    /// <exception cref="ArgumentException"></exception>
+    /// <exception cref="ArgumentNullException"></exception>
+    /// <exception cref="ArgumentOutOfRangeException"></exception>
+    /// <exception cref="RegexMatchTimeoutException"></exception>
     private static string[] SplitArgs(string text) =>
-        Regex.Split(text.Trim(), @"\s+", RegexOptions.None)
+        MyRegex().Split(text.Trim())
             .Where(static s => s.Length > 0)
             .ToArray();
-
     private async Task<(long userId, string display)?> TryResolveTargetAsync(Message msg, CancellationToken ct)
     {
         foreach (var e in msg.Entities ?? [])
@@ -143,7 +144,7 @@ public sealed class TransferHandler(
         }
 
         var parts = SplitArgs(msg.Text!);
-        if (parts.Length >= 3 && int.TryParse(parts[^1], out _))
+        if (parts.Length >= 3 && int.TryParse(parts[^1], System.Globalization.CultureInfo.InvariantCulture, out _))
         {
             var midCount = parts.Length - 2;
             var recipientToken = midCount == 1
@@ -151,8 +152,8 @@ public sealed class TransferHandler(
                 : string.Join(' ', parts.Skip(1).Take(midCount));
             if (recipientToken.Length > 0)
             {
-                if (long.TryParse(recipientToken, out var uid) && uid > 0)
-                    return (uid, $"User ID: {uid}");
+                if (long.TryParse(recipientToken, System.Globalization.CultureInfo.InvariantCulture, out var uid) && uid > 0)
+                    return (uid, string.Create(CultureInfo.InvariantCulture, $"User ID: {uid}"));
 
                 var h = recipientToken.TrimStart('@');
                 if (h.Length > 0)
@@ -186,9 +187,11 @@ public sealed class TransferHandler(
             if (chat.Username is { Length: > 0 } un &&
                 botName.Length > 0 &&
                 string.Equals(un, botName, StringComparison.OrdinalIgnoreCase))
+            {
                 return null;
+            }
 
-            var label = chat.Username is { Length: > 0 } u2 ? $"@{u2}" : chat.FirstName ?? $"User ID: {chat.Id}";
+            var label = chat.Username is { Length: > 0 } u2 ? $"@{u2}" : chat.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {chat.Id}");
             return (chat.Id, label);
         }
         catch
@@ -220,7 +223,9 @@ public sealed class TransferHandler(
     }
 
     private static string FormatUserLabel(User u) =>
-        u.Username is { Length: > 0 } name ? $"@{name}" : u.FirstName ?? $"User ID: {u.Id}";
+        u.Username is { Length: > 0 } name ? $"@{name}" : u.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {u.Id}");
 
     private string Loc(string key) => localizer.Get("transfer", key);
+    [GeneratedRegex(@"\s+", RegexOptions.None)]
+    private static partial Regex MyRegex();
 }

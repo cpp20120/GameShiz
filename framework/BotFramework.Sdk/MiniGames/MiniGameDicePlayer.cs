@@ -1,3 +1,4 @@
+using System.Globalization;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Sdk.MiniGames;
@@ -30,5 +31,5 @@ public static class MiniGameDicePlayer
     }
 
     private static string Format(User u) =>
-        u.Username ?? u.FirstName ?? $"User ID: {u.Id}";
+        u.Username ?? u.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {u.Id}");
 }
