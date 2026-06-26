@@ -1,19 +1,3 @@
-using BotFramework.Host;
-using BotFramework.Host.Composition;
-using BotFramework.Sdk;
-using Games.Admin;
-using Games.Blackjack;
-using Games.Basketball;
-using Games.Bowling;
-using Games.Darts;
-using Games.Football;
-using Games.DiceCube;
-using Games.Dice;
-using Games.Horse;
-using Games.Leaderboard;
-using Games.Poker;
-using Games.Redeem;
-using Games.Transfer;
 
 namespace CasinoShiz.Tests;
 
@@ -26,6 +10,9 @@ sealed class FakeEconomicsService : IEconomicsService
 
     public int GetCurrentBalance(long userId, long balanceScopeId) =>
         _balances.GetValueOrDefault((userId, balanceScopeId), StartingBalance);
+
+    public void SetBalance(long userId, long balanceScopeId, int balance) =>
+        _balances[(userId, balanceScopeId)] = balance;
 
     public Task EnsureUserAsync(long userId, long balanceScopeId, string displayName, CancellationToken ct) =>
         Task.CompletedTask;
@@ -81,13 +68,13 @@ sealed class FakeEconomicsService : IEconomicsService
         CancellationToken ct)
     {
         if (fromUserId == toUserId)
-            return Task.FromResult(new PeerTransferResult(false, PeerTransferFailure.SameUser, 0, 0));
+            return Task.FromResult(new PeerTransferResult(Ok: false, PeerTransferFailure.SameUser, 0, 0));
 
         var fromKey = (fromUserId, balanceScopeId);
         var toKey = (toUserId, balanceScopeId);
         var fromBal = _balances.GetValueOrDefault(fromKey, StartingBalance);
         if (fromBal < debitFromSender)
-            return Task.FromResult(new PeerTransferResult(false, PeerTransferFailure.InsufficientFunds, 0, 0));
+            return Task.FromResult(new PeerTransferResult(Ok: false, PeerTransferFailure.InsufficientFunds, 0, 0));
 
         var toBal = _balances.GetValueOrDefault(toKey, StartingBalance);
         var newFrom = fromBal - debitFromSender;
@@ -96,7 +83,7 @@ sealed class FakeEconomicsService : IEconomicsService
         _balances[toKey] = newTo;
         Debits.Add((fromUserId, balanceScopeId, debitFromSender, senderReason));
         Credits.Add((toUserId, balanceScopeId, creditToRecipient, recipientReason));
-        return Task.FromResult(new PeerTransferResult(true, null, newFrom, newTo));
+        return Task.FromResult(new PeerTransferResult(Ok: true, Failure: null, newFrom, newTo));
     }
 }
 
@@ -176,11 +163,13 @@ sealed class GameScopedTelegramDiceDailyRollLimiter(int maxRollsPerGame) : ITele
         var key = (userId, balanceScopeId, gameId);
         var count = _counts.GetValueOrDefault(key);
         if (count >= maxRollsPerGame)
+        {
             return Task.FromResult(
                 new TelegramDiceRollGateResult(
                     TelegramDiceRollGateStatus.LimitExceeded,
                     count,
                     maxRollsPerGame));
+        }
 
         count++;
         _counts[key] = count;
@@ -456,12 +445,12 @@ sealed class InMemoryHorseBetStore : IHorseBetStore
     private readonly List<HorseBetRow> _bets = [];
 
     public Task<IReadOnlyList<HorseBetRow>> ListByRaceDateAsync(string raceDate, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<HorseBetRow>>(_bets.Where(b => b.RaceDate == raceDate).ToList());
+        Task.FromResult<IReadOnlyList<HorseBetRow>>(_bets.Where(b => string.Equals(b.RaceDate, raceDate, StringComparison.Ordinal)).ToList());
 
     public Task<IReadOnlyList<HorseBetRow>> ListByRaceDateAndScopeAsync(
         string raceDate, long balanceScopeId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<HorseBetRow>>(_bets
-            .Where(b => b.RaceDate == raceDate && b.BalanceScopeId == balanceScopeId).ToList());
+            .Where(b => string.Equals(b.RaceDate, raceDate, StringComparison.Ordinal) && b.BalanceScopeId == balanceScopeId).ToList());
 
     public Task InsertAsync(HorseBetRow bet, CancellationToken ct)
     {
@@ -471,13 +460,13 @@ sealed class InMemoryHorseBetStore : IHorseBetStore
 
     public Task DeleteByRaceDateAsync(string raceDate, CancellationToken ct)
     {
-        _bets.RemoveAll(b => b.RaceDate == raceDate);
+        _bets.RemoveAll(b => string.Equals(b.RaceDate, raceDate, StringComparison.Ordinal));
         return Task.CompletedTask;
     }
 
     public Task DeleteByRaceDateAndScopeAsync(string raceDate, long balanceScopeId, CancellationToken ct)
     {
-        _bets.RemoveAll(b => b.RaceDate == raceDate && b.BalanceScopeId == balanceScopeId);
+        _bets.RemoveAll(b => string.Equals(b.RaceDate, raceDate, StringComparison.Ordinal) && b.BalanceScopeId == balanceScopeId);
         return Task.CompletedTask;
     }
 }
@@ -580,7 +569,7 @@ sealed class InMemoryLeaderboardStore : ILeaderboardStore
 sealed class InMemoryAdminStore(FakeEconomicsService? econ = null) : IAdminStore
 {
     private readonly Dictionary<(long UserId, long ScopeId), UserSummary> _users = new();
-    private readonly Dictionary<string, string> _overrides = new();
+    private readonly Dictionary<string, string> _overrides = new(StringComparer.Ordinal);
     private readonly List<PendingChatBet> _pendingMiniGameBets = [];
 
     public void Seed(UserSummary user) => _users[(user.TelegramUserId, user.BalanceScopeId)] = user;
