@@ -1,0 +1,59 @@
+root = true
+
+[*.cs]
+# Server-side code does not need explicit ConfigureAwait on every await.
+# ConfigureAwait(true) is the default, and ConfigureAwait(false) would add large churn here.
+dotnet_diagnostic.MA0004.severity = none
+
+# Keep methods reasonably compact without forcing noisy splits around admin handlers.
+MA0051.maximum_lines_per_method = 80
+
+[tests/**/*.cs]
+# Underscore-separated test names are intentional: Method_State_Result reads better in xUnit output.
+dotnet_diagnostic.CA1707.severity = none
+
+# Tests commonly keep local fakes, fixture helpers, and multiple related cases in one file.
+dotnet_diagnostic.MA0048.severity = none
+
+# DispatchProxy requires proxy classes to remain unsealed.
+dotnet_diagnostic.CA1852.severity = none
+
+[host/**/Pages/**/*.cshtml.cs]
+# Razor page model files follow Razor's page naming convention, not the contained model type name.
+dotnet_diagnostic.MA0048.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/MetaSeasonsModel.cs]
+# These helpers are called through the Razor Model instance from the .cshtml page.
+dotnet_diagnostic.S2325.severity = none
+dotnet_diagnostic.CA1822.severity = none
+
+[**/*Events.cs]
+# Domain event files intentionally group small event records by aggregate.
+dotnet_diagnostic.MA0048.severity = none
+
+[framework/BotFramework.Sdk/Pipeline/UpdateMiddleware.cs]
+# Pipeline abstractions are intentionally grouped with the delegate and middleware contract.
+dotnet_diagnostic.MA0048.severity = none
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1716.severity = none
+
+[framework/BotFramework.Sdk/Commands/ICommandMiddleware.cs]
+# Middleware conventionally names the continuation "next".
+dotnet_diagnostic.CA1716.severity = none
+
+[framework/BotFramework.Sdk/Metrics/Metrics.cs]
+# Metrics abstractions are intentionally grouped in one small framework file.
+dotnet_diagnostic.MA0048.severity = none
+
+[framework/BotFramework.Sdk/Modules/IModuleServiceCollection.cs]
+# Public framework names intentionally mirror .NET hosting/service-collection terminology.
+dotnet_diagnostic.CA1711.severity = none
+dotnet_diagnostic.CA1716.severity = none
+
+[framework/BotFramework.Host/Contracts/Localization/ILocalizer.cs]
+# Public localization API intentionally exposes Get/GetPlural-style lookup methods.
+dotnet_diagnostic.CA1716.severity = none
+
+[games/Games.Challenges/Infrastructure/Persistence/IChallengeStore.cs]
+# Status transitions use expected/next terminology throughout the challenge store.
+dotnet_diagnostic.CA1716.severity = none
