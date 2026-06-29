@@ -384,3 +384,27 @@ Expected port mapping example:
 ```text
 3000/tcp -> 127.0.0.1:4000
 ```
+
+## Weekly summaries and economy anomaly alerts
+
+`meta.operations_reporting` evaluates operations state every 15 minutes. It queues the previous completed ISO week's summary once per configured `Bot:Admins` recipient through `telegram_outbox`. It also alerts on:
+
+- wallets below zero;
+- a wallet balance differing from its latest ledger balance;
+- ledger mutations of at least 100,000 coins in the preceding 15 minutes.
+
+Identical anomaly signatures are deduplicated per UTC hour in `operations_report_checkpoint`. Useful checks:
+
+```sql
+SELECT * FROM operations_report_checkpoint ORDER BY updated_at DESC;
+SELECT status, count(*) FROM telegram_outbox GROUP BY status;
+SELECT * FROM telegram_outbox
+WHERE dedupe_key LIKE 'weekly-summary:%' OR dedupe_key LIKE 'economy-alert:%'
+ORDER BY id DESC LIMIT 20;
+```
+
+Player protections are stored in `player_protection`. Cooldowns and self-exclusion can be extended but cannot be shortened before expiry. A player's current state can be inspected without changing it:
+
+```sql
+SELECT * FROM player_protection WHERE telegram_user_id = <USER_ID>;
+```

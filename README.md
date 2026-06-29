@@ -27,6 +27,7 @@ The primary purpose of this project is educational, focusing on architecture pat
 - [Architecture diagrams](docs/arch.md) — Mermaid views of runtime flow, modules, events, persistence, tuning, and deployment.
 - [Operations runbook](docs/operations.md) — scheduled jobs, daily bonus recovery, diagnostics, SQL checks, and incident operations.
 - [Framework documentation](framework/README.md) — module contracts, routing, event sourcing, projections, and migrations.
+- [Secret Hitler strategy model](docs/secret_hitler.md) — probabilistic policy/deception analysis and model limitations.
 
 ## Features
 
@@ -42,13 +43,14 @@ The primary purpose of this project is educational, focusing on architecture pat
 | `/blackjack` | Single-player blackjack with hit, stand, double, timeout cleanup, and persisted in-progress hands. |
 | `/horse` | Horse-race betting with SkiaSharp GIF rendering, scheduled races, manual admin runs, and place labels in the animation. |
 | `/poker` | Texas Hold'em poker tables. |
-| `/sh` | Secret Hitler party game. |
+| `/sh` | Secret Hitler party game. See the [strategy model](docs/secret_hitler.md). |
 | `/challenge` | 1v1 PvP betting challenges between two Telegram users. |
 | `/pixelbattle` | Telegram WebApp mini app for shared pixel painting. |
 | `/picklottery` | Per chat pool lottery                               |
 | `/transfer` | Coin transfers between users, including transfer fees. |
 | `/redeem` | Freespin/redeem code activation. |
 | `/menu` | Interactive player hub. See the [seasonal meta documentation](docs/docs.md#seasonal-meta-gamesmeta). |
+| `/mystats` | Private player statistics, stake limit, cooldown, and self-exclusion controls. |
 | `/top`, `/balance`, `/daily`, `/help` | Leaderboard, wallet balance, daily bonus, and help. |
 
 ### Operations documentation
@@ -281,7 +283,13 @@ Important module tables include:
 
 ## Observability
 
-When enabled, analytics events are buffered to ClickHouse and visualized in Grafana. The Docker stack also includes Prometheus targets for Postgres, Redis, and container metrics.
+When enabled, analytics events are buffered to ClickHouse and visualized in Grafana. Every Telegram request receives a correlation ID and rolling 30-minute session ID; route and command completion events include outcome, error code, and duration. A five-minute product snapshot moves bounded PostgreSQL aggregates into `meta_analytics.*` ClickHouse events for economy and ledger reconciliation, engagement and retention inputs, delivery/reliability backlogs, live and stale game state, social activity, seasons, quests, risk, and snapshot-job health. ClickHouse writer health and native event-quality/funnel/cohort queries stay entirely in ClickHouse. The Docker stack also includes Prometheus targets for Postgres, Redis, and container metrics.
+
+Players can use private-chat `/mystats` for 7/30-day stake and payout totals, a global UTC daily stake limit, cooldowns, and fixed-term self-exclusion. Limits are enforced transactionally in the shared economics ledger for every game. Admins receive a deduplicated weekly product/economy summary and hourly-deduplicated alerts for negative wallets, ledger mismatches, and unusually large balance mutations.
+
+Persisted domain events are additionally written to the canonical `<events table>_es` table with deterministic IDs derived from `(stream_id, stream_version)`, aggregate/schema metadata, original occurrence time, and correlation/causation IDs. A checkpointed startup worker backfills `module_events` in batches without adding replay rows to the general product-event table.
+
+The complete event catalog, field dictionary, snapshot schemas, metric formulas, dashboard dependencies, and replay guarantees are documented in [docs/docs.md](docs/docs.md#analytics).
 
 If Grafana panels are empty, check Prometheus targets first, then verify Grafana data sources. Old cached Grafana state may require recreating the stack or removing the `grafana_data` volume.
 

@@ -15,9 +15,54 @@ public readonly struct HandRank(HandCategory category, int[] tiebreakers) : ICom
             c = Tiebreakers[i].CompareTo(other.Tiebreakers[i]);
             if (c != 0) return c;
         }
-        return 0;
+        return Tiebreakers.Length.CompareTo(other.Tiebreakers.Length);
     }
 
     public override string ToString() => $"{Category}[{string.Join(',', Tiebreakers)}]";
-    public bool Equals(HandRank other) => CompareTo(other) == 0;
+    public bool Equals(HandRank other) =>
+        Category == other.Category && Tiebreakers.AsSpan().SequenceEqual(other.Tiebreakers);
+
+    public override bool Equals(object? obj) => obj is HandRank other && Equals(other);
+
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Category);
+        foreach (var tiebreaker in Tiebreakers)
+        {
+            hash.Add(tiebreaker);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    public static bool operator ==(HandRank left, HandRank right)
+    {
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(HandRank left, HandRank right)
+    {
+        return !(left == right);
+    }
+
+    public static bool operator <(HandRank left, HandRank right)
+    {
+        return left.CompareTo(right) < 0;
+    }
+
+    public static bool operator <=(HandRank left, HandRank right)
+    {
+        return left.CompareTo(right) <= 0;
+    }
+
+    public static bool operator >(HandRank left, HandRank right)
+    {
+        return left.CompareTo(right) > 0;
+    }
+
+    public static bool operator >=(HandRank left, HandRank right)
+    {
+        return left.CompareTo(right) >= 0;
+    }
 }

@@ -6,6 +6,7 @@ namespace Games.Leaderboard.Application.Services;
 public sealed class LeaderboardService(
     ILeaderboardStore store,
     IEconomicsService economics,
+    IAnalyticsService analytics,
     IOptions<LeaderboardOptions> options) : ILeaderboardService
 {
     private readonly LeaderboardOptions _opts = options.Value;
@@ -15,7 +16,11 @@ public sealed class LeaderboardService(
         var since = ActiveSinceUnixMs();
 
         var active = await store.ListActiveAsync(since, balanceScopeId, ct);
-        if (active.Count == 0) return new LeaderboardModel([], Truncated: false);
+        if (active.Count == 0)
+        {
+            TrackQuery("chat_top", balanceScopeId, limit, 0, false);
+            return new LeaderboardModel([], Truncated: false);
+        }
 
         var places = new List<LeaderboardPlace>();
         var lastBalance = active[0].Coins + 1;
@@ -33,6 +38,7 @@ public sealed class LeaderboardService(
 
         var shown = places.Sum(p => p.Users.Count);
         var truncated = limit > 0 && places.Count >= limit && active.Count > shown;
+        TrackQuery("chat_top", balanceScopeId, limit, shown, truncated);
         return new LeaderboardModel(places, truncated);
     }
 
@@ -41,9 +47,14 @@ public sealed class LeaderboardService(
     {
         await economics.EnsureUserAsync(userId, balanceScopeId, displayName, ct);
         var row = await store.FindAsync(userId, balanceScopeId, ct);
-        if (row is not { } r) return new BalanceInfo(0, Visible: false);
+        if (row is not { } r)
+        {
+            TrackBalance(userId, balanceScopeId, visible: false, found: false);
+            return new BalanceInfo(0, Visible: false);
+        }
 
         var visible = r.UpdatedAtUnixMs >= ActiveSinceUnixMs();
+        TrackBalance(userId, balanceScopeId, visible, found: true);
         return new BalanceInfo(r.Coins, visible);
     }
 
@@ -53,7 +64,10 @@ public sealed class LeaderboardService(
         var (users, totalUsers) = await store.ListGlobalAggregateAsync(since, limit, ct);
 
         if (users.Count == 0)
+        {
+            TrackQuery("global_top", 0, limit, 0, false);
             return new GlobalLeaderboard([], Truncated: false, TotalUsers: 0);
+        }
 
         var places = new List<GlobalLeaderboardPlace>();
         var lastBalance = users[0].TotalCoins + 1;
@@ -69,6 +83,7 @@ public sealed class LeaderboardService(
         }
 
         var truncated = limit > 0 && totalUsers > users.Count;
+        TrackQuery("global_top", 0, limit, users.Count, truncated);
         return new GlobalLeaderboard(places, truncated, totalUsers);
     }
 
@@ -76,7 +91,11 @@ public sealed class LeaderboardService(
     {
         var since = ActiveSinceUnixMs();
         var rows = await store.ListGlobalSplitAsync(since, perChatLimit, ct);
-        if (rows.Count == 0) return new MultiChatLeaderboard([]);
+        if (rows.Count == 0)
+        {
+            TrackQuery("split_top", 0, perChatLimit, 0, false, chatCount: 0);
+            return new MultiChatLeaderboard([]);
+        }
 
         var grouped = rows
             .GroupBy(r => r.ChatId)
@@ -98,8 +117,35 @@ public sealed class LeaderboardService(
             .Select(x => x.Chat)
             .ToList();
 
+        TrackQuery("split_top", 0, perChatLimit, rows.Count, false, grouped.Count);
         return new MultiChatLeaderboard(grouped);
     }
+
+    private void TrackQuery(
+        string mode, long balanceScopeId, int limit, int usersReturned, bool truncated, int? chatCount = null)
+    {
+        var tags = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["mode"] = mode,
+            ["balance_scope_id"] = balanceScopeId,
+            ["limit"] = limit,
+            ["users_returned"] = usersReturned,
+            ["truncated"] = truncated,
+            ["outcome"] = usersReturned == 0 ? "empty" : "success",
+        };
+        if (chatCount is not null) tags["chat_count"] = chatCount.Value;
+        analytics.Track("leaderboard", "viewed", tags);
+    }
+
+    private void TrackBalance(long userId, long balanceScopeId, bool visible, bool found) =>
+        analytics.Track("leaderboard", "balance_viewed", new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["user_id"] = userId,
+            ["balance_scope_id"] = balanceScopeId,
+            ["visible"] = visible,
+            ["found"] = found,
+            ["outcome"] = found ? "success" : "not_found",
+        });
 
     private long ActiveSinceUnixMs()
     {

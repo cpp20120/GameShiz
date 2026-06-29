@@ -5,6 +5,7 @@ sealed class FakeEconomicsService : IEconomicsService
 {
     private readonly Dictionary<(long UserId, long ScopeId), int> _balances = new();
     public int StartingBalance { get; init; } = 1_000;
+    public PeerTransferFailure? ForcedPeerTransferFailure { get; set; }
     public List<(long UserId, long ScopeId, int Amount, string Reason)> Debits { get; } = [];
     public List<(long UserId, long ScopeId, int Amount, string Reason)> Credits { get; } = [];
 
@@ -67,6 +68,9 @@ sealed class FakeEconomicsService : IEconomicsService
         string recipientReason,
         CancellationToken ct)
     {
+        if (ForcedPeerTransferFailure is { } forced)
+            return Task.FromResult(new PeerTransferResult(Ok: false, forced, 0, 0));
+
         if (fromUserId == toUserId)
             return Task.FromResult(new PeerTransferResult(Ok: false, PeerTransferFailure.SameUser, 0, 0));
 
@@ -241,6 +245,14 @@ public sealed class FakeRuntimeTuning : IRuntimeTuningAccessor
 sealed class NullAnalyticsService : IAnalyticsService
 {
     public void Track(string moduleId, string eventName, IReadOnlyDictionary<string, object?> tags) { }
+}
+
+sealed class RecordingAnalyticsService : IAnalyticsService
+{
+    public List<(string ModuleId, string EventName, IReadOnlyDictionary<string, object?> Tags)> Events { get; } = [];
+
+    public void Track(string moduleId, string eventName, IReadOnlyDictionary<string, object?> tags) =>
+        Events.Add((moduleId, eventName, tags));
 }
 
 sealed class NullEventBus : IDomainEventBus

@@ -262,10 +262,10 @@ public sealed partial class PokerHandler(
     public async Task BroadcastAutoActionAsync(ITelegramBotClient bot, ActionResult r, CancellationToken ct)
     {
         if (r.Snapshot == null) return;
-        if (r.AutoActorName != null && r.AutoKind != null)
+        if (r is { AutoActorName: not null, AutoKind: not null })
         {
-            string key = r.AutoKind == AutoAction.Fold ? "auto.fold" : "auto.check";
-            string msg = string.Format(Loc(key), r.AutoActorName);
+            var key = r.AutoKind == AutoAction.Fold ? "auto.fold" : "auto.check";
+            var msg = string.Format(Loc(key), r.AutoActorName);
             try { await bot.SendMessage(r.Snapshot.Table.ChatId, msg, cancellationToken: ct); }
             catch (ApiRequestException ex) { LogPokerAutoActionNotifyFailed(r.Snapshot.Table.ChatId, ex); }
         }

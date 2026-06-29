@@ -86,7 +86,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "id": 7,
       "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
-      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, 'players' AS metric, toInt64OrZero(params['players']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) UNION ALL SELECT created_at AS time, 'games' AS metric, toInt64OrZero(params['games']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) UNION ALL SELECT created_at AS time, 'clans' AS metric, toInt64OrZero(params['clans']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) ORDER BY time", "refId": "A" } ],
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT time, metric, value FROM (SELECT created_at AS time, 'players' AS metric, toInt64OrZero(params['players']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) UNION ALL SELECT created_at AS time, 'games' AS metric, toInt64OrZero(params['games']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at) UNION ALL SELECT created_at AS time, 'clans' AS metric, toInt64OrZero(params['clans']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.season_snapshot' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC", "refId": "A" } ],
       "title": "Season health", "type": "timeseries"
     },
     {
@@ -95,7 +95,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "id": 8,
       "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
-      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, 'completed' AS metric, sum(toInt64OrZero(params['completed'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT created_at AS time, 'claimed' AS metric, sum(toInt64OrZero(params['claimed'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT created_at AS time, 'started' AS metric, sum(toInt64OrZero(params['started'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time ORDER BY time", "refId": "A" } ],
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT time, metric, value FROM (SELECT created_at AS time, 'completed' AS metric, sum(toInt64OrZero(params['completed'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT created_at AS time, 'claimed' AS metric, sum(toInt64OrZero(params['claimed'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT created_at AS time, 'started' AS metric, sum(toInt64OrZero(params['started'])) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.quest_period_snapshot' AND $__timeFilter(created_at) GROUP BY time) ORDER BY time ASC, metric ASC", "refId": "A" } ],
       "title": "Quest progress", "type": "timeseries"
     },
     {
@@ -104,7 +104,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "id": 9,
       "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
-      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT toStartOfDay(created_at) AS time, 'DAU' AS metric, uniqExact(user_id) AS value FROM cazinoshiz.events_v2 WHERE user_id > 0 AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT toStartOfDay(created_at) AS time, 'events' AS metric, count() AS value FROM cazinoshiz.events_v2 WHERE $__timeFilter(created_at) GROUP BY time ORDER BY time", "refId": "A" } ],
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT time, metric, value FROM (SELECT toStartOfDay(created_at) AS time, 'DAU' AS metric, uniqExact(user_id) AS value FROM cazinoshiz.events_v2 WHERE user_id > 0 AND $__timeFilter(created_at) GROUP BY time UNION ALL SELECT toStartOfDay(created_at) AS time, 'events' AS metric, count() AS value FROM cazinoshiz.events_v2 WHERE $__timeFilter(created_at) GROUP BY time) ORDER BY time ASC, metric ASC", "refId": "A" } ],
       "title": "Daily activity", "type": "timeseries"
     },
     {
@@ -151,6 +151,70 @@
       "options": { "cellHeight": "sm", "footer": { "countRows": false, "fields": "", "reducer": [ "sum" ], "show": false }, "showHeader": true },
       "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 1, "rawSql": "SELECT params['severity'] AS severity, params['status'] AS status, argMax(toInt64OrZero(params['rows']), created_at) AS rows FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.risk_flags' AND $__timeFilter(created_at) GROUP BY severity, status ORDER BY rows DESC", "refId": "A" } ],
       "title": "Risk flags", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 }, "id": 15,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'users' AS metric, toFloat64OrZero(params['users']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.engagement_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'active wallets 24h', toFloat64OrZero(params['activeWallets24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.engagement_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'transacting users 24h', toFloat64OrZero(params['transactingUsers24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.engagement_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "User engagement", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 }, "id": 16,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'active chats 24h' AS metric, toFloat64OrZero(params['activeChats24H']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.engagement_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'active scopes 24h', toFloat64OrZero(params['activeScopes24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.engagement_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'daily claimers', toFloat64OrZero(params['dailyClaimersToday']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.engagement_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Scope and chat engagement", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 52 }, "id": 17,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'started' AS metric, toFloat64OrZero(params['updatesStartedWindow']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'completed', toFloat64OrZero(params['updatesCompletedWindow']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'failed', toFloat64OrZero(params['updatesFailedWindow']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Update processing (5m)", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 52 }, "id": 18,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'average' AS metric, toFloat64OrZero(params['updateLatencyAvgMs']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'p95', toFloat64OrZero(params['updateLatencyP95Ms']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Update latency", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 }, "id": 19,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'pending' AS metric, toFloat64OrZero(params['outboxPending']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'sent 5m', toFloat64OrZero(params['outboxSentWindow']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'failed', toFloat64OrZero(params['outboxFailed']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Telegram outbox", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 }, "id": 20,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'mini-game sessions' AS metric, toFloat64OrZero(params['activeMiniGameSessions']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'challenges', toFloat64OrZero(params['openChallenges']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'lotteries', toFloat64OrZero(params['openLotteries']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'daily lotteries', toFloat64OrZero(params['openDailyLotteries']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Live game state", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 68 }, "id": 21,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'poker tables' AS metric, toFloat64OrZero(params['activePokerTables']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'poker seats', toFloat64OrZero(params['activePokerSeats']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'secret hitler games', toFloat64OrZero(params['activeSecretHitlerGames']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'secret hitler players', toFloat64OrZero(params['activeSecretHitlerPlayers']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_state_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Live multiplayer state", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "line", "fillOpacity": 8, "lineWidth": 1, "pointSize": 4, "showPoints": "auto", "spanNulls": false }, "mappings": [], "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 68 }, "id": 22,
+      "options": { "legend": { "calcs": [ "lastNotNull" ], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi" } },
+      "targets": [ { "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" }, "format": 0, "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'rows' AS metric, toFloat64OrZero(params['rowsWindow']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.ledger_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'credits', toFloat64OrZero(params['creditsWindow']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.ledger_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'debits', toFloat64OrZero(params['debitsWindow']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.ledger_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'net', toFloat64OrZero(params['netWindow']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.ledger_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time", "refId": "A" } ],
+      "title": "Ledger throughput and net flow (5m)", "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -162,6 +226,6 @@
   "timezone": "",
   "title": "CasinoShiz Product Analytics",
   "uid": "casino-product-analytics-clickhouse",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

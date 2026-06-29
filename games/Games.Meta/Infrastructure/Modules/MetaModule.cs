@@ -30,8 +30,10 @@ public sealed class MetaModule : IModule
             .AddHandler<MetaHandler>()
             .AddHandler<TournamentHandler>()
             .AddHandler<RiskHandler>()
+            .AddHandler<MyStatsHandler>()
             .AddBackgroundJob<MetaSeasonRolloverJob>()
-            .AddBackgroundJob<MetaAnalyticsSnapshotJob>();
+            .AddBackgroundJob<MetaAnalyticsSnapshotJob>()
+            .AddBackgroundJob<OperationsReportingJob>();
     }
 
     public IModuleMigrations GetMigrations() => new MetaMigrations();
@@ -51,6 +53,7 @@ public sealed class MetaModule : IModule
         new BotCommand("/tournament", "meta.cmd.tournament"),
         new BotCommand("/tour", "meta.cmd.tour"),
         new BotCommand("/risk", "meta.cmd.risk"),
+        new BotCommand("/mystats", "meta.cmd.mystats"),
     ];
 
     public IReadOnlyList<LocaleBundle> GetLocales() =>
@@ -71,6 +74,7 @@ public sealed class MetaModule : IModule
             ["cmd.tournament"] = "Турниры сезона",
             ["cmd.tour"] = "Турниры сезона",
             ["cmd.risk"] = "Risk control",
+            ["cmd.mystats"] = "Моя статистика и лимиты",
         }),
     ];
 }

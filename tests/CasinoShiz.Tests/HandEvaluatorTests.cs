@@ -149,4 +149,26 @@ public class HandEvaluatorTests
         var rank = HandEvaluator.EvaluateBest(["AS", "KH", "QD", "JC", "9S", "7H", "5D"]);
         Assert.Equal(HandCategory.HighCard, rank.Category);
     }
+
+    [Fact]
+    public void HandRank_EqualValues_AreEqualAndHaveSameHashCode()
+    {
+        var first = new HandRank(HandCategory.TwoPair, [14, 13, 12]);
+        var second = new HandRank(HandCategory.TwoPair, [14, 13, 12]);
+
+        Assert.Equal(first, second);
+        Assert.True(first == second);
+        Assert.Equal(first.GetHashCode(), second.GetHashCode());
+    }
+
+    [Fact]
+    public void HandRank_DifferentTiebreakers_AreNotEqual()
+    {
+        var first = new HandRank(HandCategory.Pair, [14, 13]);
+        var second = new HandRank(HandCategory.Pair, [14, 13, 12]);
+
+        Assert.NotEqual(first, second);
+        Assert.True(first != second);
+        Assert.NotEqual(0, first.CompareTo(second));
+    }
 }

@@ -20,12 +20,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Reflection;
+using System.Diagnostics;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace BotFramework.Host.Pipeline.Routing;
 
-public sealed partial class UpdateRouter(IEnumerable<IModule> modules, ILogger<UpdateRouter> logger)
+public sealed partial class UpdateRouter(
+    IEnumerable<IModule> modules,
+    ILogger<UpdateRouter> logger,
+    IAnalyticsService? analytics = null)
 {
     private readonly Route[] _routes = BuildRoutes(modules);
 
@@ -53,10 +57,40 @@ public sealed partial class UpdateRouter(IEnumerable<IModule> modules, ILogger<U
             LogRouterMatch(route.Attribute.Name, route.HandlerType.Name);
             var handler = (IUpdateHandler)scopedServices.GetRequiredService(route.HandlerType);
             var ctx = new UpdateContext(bot, update, scopedServices, ct);
-            await handler.HandleAsync(ctx);
+            var stopwatch = Stopwatch.StartNew();
+            var outcome = "ok";
+            string? errorCode = null;
+            try
+            {
+                await handler.HandleAsync(ctx);
+            }
+            catch (Exception ex)
+            {
+                outcome = "error";
+                errorCode = ex.GetType().Name;
+                throw;
+            }
+            finally
+            {
+                stopwatch.Stop();
+                analytics?.Track("telegram", "route_completed", new Dictionary<string, object?>(StringComparer.Ordinal)
+                {
+                    ["route"] = route.Attribute.Name,
+                    ["handler"] = route.HandlerType.Name,
+                    ["outcome"] = outcome,
+                    ["error_code"] = errorCode,
+                    ["duration_ms"] = stopwatch.Elapsed.TotalMilliseconds,
+                });
+            }
             return;
         }
         LogRouterMiss(update.Id);
+        analytics?.Track("telegram", "route_missed", new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["update_id"] = update.Id,
+            ["outcome"] = "unhandled",
+            ["error_code"] = "route_not_found",
+        });
     }
 
     public void LogRegisteredRoutes()

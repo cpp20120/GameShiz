@@ -74,10 +74,34 @@ public sealed class PickServiceTests
     }
 
     [Fact]
+    public async Task PickAsync_NoBackedVariants_ReturnsInvalidChoiceWithoutDebit()
+    {
+        var economics = new FakeEconomicsService();
+        var result = await MakeService(economics).PickAsync(1, "u", 100, 10, ["a", "b"], [], default);
+
+        Assert.Equal(PickError.InvalidChoice, result.Error);
+        Assert.Empty(economics.Debits);
+    }
+
+    [Fact]
     public async Task PickAsync_NotEnoughCoins_ReturnsBalanceWithoutDebit()
     {
         var economics = new FakeEconomicsService { StartingBalance = 9 };
         var result = await MakeService(economics).PickAsync(1, "u", 100, 10, ["a", "b"], [0], default);
+
+        Assert.Equal(PickError.NotEnoughCoins, result.Error);
+        Assert.Equal(9, result.Balance);
+        Assert.Empty(economics.Debits);
+    }
+
+    [Fact]
+    public async Task ContinueChainAsync_NotEnoughCoins_ReturnsBalanceWithoutDebit()
+    {
+        var economics = new FakeEconomicsService { StartingBalance = 9 };
+        var chain = new PickChainState(
+            Guid.NewGuid(), 1, 100, "u", 10, 1, ["a", "b"], [0], DateTimeOffset.UtcNow.AddMinutes(1));
+
+        var result = await MakeService(economics).ContinueChainAsync(chain, default);
 
         Assert.Equal(PickError.NotEnoughCoins, result.Error);
         Assert.Equal(9, result.Balance);

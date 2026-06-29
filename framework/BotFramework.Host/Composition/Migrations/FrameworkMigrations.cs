@@ -293,5 +293,35 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 ON telegram_outbox (status, next_attempt_at, id)
                 WHERE status = 'pending';
             """),
+
+        new Migration("016_event_analytics_checkpoint", """
+            CREATE TABLE IF NOT EXISTS event_analytics_checkpoint (
+                id              SMALLINT    PRIMARY KEY CHECK (id = 1),
+                last_event_id   BIGINT      NOT NULL DEFAULT 0,
+                updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+            INSERT INTO event_analytics_checkpoint (id, last_event_id)
+            VALUES (1, 0)
+            ON CONFLICT (id) DO NOTHING;
+            """),
+
+        new Migration("017_responsible_gaming_and_ops_reports", """
+            CREATE TABLE IF NOT EXISTS player_protection (
+                telegram_user_id    BIGINT       PRIMARY KEY,
+                daily_stake_limit   INTEGER,
+                cooldown_until      TIMESTAMPTZ,
+                self_excluded_until TIMESTAMPTZ,
+                updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                CHECK (daily_stake_limit IS NULL OR daily_stake_limit >= 0)
+            );
+            CREATE INDEX IF NOT EXISTS ix_player_protection_active
+                ON player_protection (cooldown_until, self_excluded_until);
+
+            CREATE TABLE IF NOT EXISTS operations_report_checkpoint (
+                report_key       TEXT         PRIMARY KEY,
+                period_key       TEXT         NOT NULL,
+                updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+            );
+            """),
     ];
 }

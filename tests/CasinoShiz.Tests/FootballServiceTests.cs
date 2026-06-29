@@ -107,4 +107,69 @@ public class FootballServiceTests
         for (var face = 1; face <= 5; face++)
             Assert.True(FootballService.Multipliers.ContainsKey(face));
     }
+
+    [Fact]
+    public async Task PlaceBetAsync_InsufficientBalance_ReturnsBalance()
+    {
+        var economics = new FakeEconomicsService { StartingBalance = 5 };
+        var result = await MakeService(economics).PlaceBetAsync(1, "u", 100, 6, default);
+        Assert.Equal(FootballBetError.NotEnoughCoins, result.Error);
+        Assert.Equal(5, result.Balance);
+    }
+
+    [Fact]
+    public async Task PlaceBetAsync_DailyLimit_ReturnsGateStatus()
+    {
+        var service = new FootballService(
+            new FakeEconomicsService(), new NullAnalyticsService(), new InMemoryFootballBetStore(),
+            new NullEventBus(), new FakeRuntimeTuning(), new NullMiniGameSessionGhostHeal(),
+            new RejectingTelegramDiceDailyRollLimiter());
+
+        var result = await service.PlaceBetAsync(1, "u", 100, 10, default);
+        Assert.Equal(FootballBetError.DailyRollLimit, result.Error);
+        Assert.Equal(3, result.DailyRollUsed);
+        Assert.Equal(10, result.DailyRollLimit);
+    }
+
+    [Fact]
+    public async Task ThrowAsync_WithoutBet_ReturnsNoBet()
+    {
+        var result = await MakeService().ThrowAsync(1, "u", 100, 5, default);
+        Assert.Equal(FootballThrowOutcome.NoBet, result.Outcome);
+    }
+
+    [Fact]
+    public async Task ThrowAsync_TracksStructuredAnalytics()
+    {
+        var analytics = new RecordingAnalyticsService();
+        var bets = new InMemoryFootballBetStore();
+        var service = new FootballService(
+            new FakeEconomicsService(), analytics, bets, new NullEventBus(), new FakeRuntimeTuning(),
+            new NullMiniGameSessionGhostHeal(), new NullTelegramDiceDailyRollLimiter());
+
+        await service.PlaceBetAsync(1, "u", 100, 20, default);
+        await service.ThrowAsync(1, "u", 100, 4, default);
+        Assert.Contains(analytics.Events, x => x.ModuleId == "football" && x.EventName == "bet");
+        Assert.Contains(analytics.Events, x => x.ModuleId == "football" && x.EventName == "throw");
+    }
+
+    [Fact]
+    public async Task AbortPendingBet_RefundsDeletesAndTracks()
+    {
+        var economics = new FakeEconomicsService();
+        var analytics = new RecordingAnalyticsService();
+        var bets = new InMemoryFootballBetStore();
+        var rolls = new RecordingTelegramDiceDailyRollLimiter();
+        var service = new FootballService(
+            economics, analytics, bets, new NullEventBus(), new FakeRuntimeTuning(),
+            new NullMiniGameSessionGhostHeal(), rolls);
+
+        await service.PlaceBetAsync(1, "u", 100, 20, default);
+        await service.AbortPendingBetAfterSendDiceFailedAsync(1, 100, default);
+
+        Assert.Contains(economics.Credits, x => x.Amount == 20 && x.Reason == "football.send_dice_failed");
+        Assert.Null(await bets.FindAsync(1, 100, default));
+        Assert.Equal(1, rolls.RefundCount);
+        Assert.Contains(analytics.Events, x => x.EventName == "bet_aborted");
+    }
 }

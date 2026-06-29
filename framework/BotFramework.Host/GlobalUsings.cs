@@ -10,3 +10,4 @@ global using BotFramework.Host.Persistence;
 global using BotFramework.Host.Random;
 global using BotFramework.Host.Runtime;
 global using BotFramework.Host.Security;
+global using BotFramework.Host.Contracts.ResponsibleGaming;

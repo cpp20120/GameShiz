@@ -122,6 +122,106 @@ public class FrameworkMiddlewareTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => mw.InvokeAsync(ctx, Next));
     }
 
+    // ── UpdateAnalyticsMiddleware ───────────────────────────────────────────
+
+    [Theory]
+    [InlineData("/Dice@CasinoBot 25", "dice", true)]
+    [InlineData("   /HELP", "help", false)]
+    public async Task UpdateAnalytics_Command_NormalizesCommandAndReportsArguments(
+        string text, string expectedCommand, bool expectedHasArgs)
+    {
+        var analytics = new TrackingAnalyticsService();
+        var middleware = new UpdateAnalyticsMiddleware(analytics);
+
+        await middleware.InvokeAsync(MakeCtx(userId: 42, text: text), _ => Task.CompletedTask);
+
+        var tracked = Assert.Single(analytics.Events, x => x.EventName == "command");
+        Assert.Equal(("telegram", "command"), (tracked.ModuleId, tracked.EventName));
+        Assert.Equal(expectedCommand, tracked.Tags["command"]);
+        Assert.Equal(expectedHasArgs, tracked.Tags["has_args"]);
+        Assert.Equal(42L, tracked.Tags["user_id"]);
+        Assert.Equal("private", tracked.Tags["chat_type"]);
+    }
+
+    [Fact]
+    public async Task UpdateAnalytics_Text_ReportsLengthAndCallsNext()
+    {
+        var analytics = new TrackingAnalyticsService();
+        var middleware = new UpdateAnalyticsMiddleware(analytics);
+        var nextCalled = false;
+
+        await middleware.InvokeAsync(MakeCtx(text: "hello"), _ =>
+        {
+            nextCalled = true;
+            return Task.CompletedTask;
+        });
+
+        var tracked = Assert.Single(analytics.Events, x => x.EventName == "message");
+        Assert.True(nextCalled);
+        Assert.Equal("message", tracked.EventName);
+        Assert.Equal(5, tracked.Tags["text_length"]);
+        Assert.Equal("text", tracked.Tags["kind"]);
+    }
+
+    [Theory]
+    [InlineData("poker:check:now", "poker")]
+    [InlineData("", "empty")]
+    [InlineData("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV")]
+    public async Task UpdateAnalytics_Callback_ReportsBoundedPrefix(string data, string expectedPrefix)
+    {
+        var analytics = new TrackingAnalyticsService();
+        var middleware = new UpdateAnalyticsMiddleware(analytics);
+
+        await middleware.InvokeAsync(MakeCtx(cbData: data), _ => Task.CompletedTask);
+
+        var tracked = Assert.Single(analytics.Events, x => x.EventName == "callback");
+        Assert.Equal("callback", tracked.EventName);
+        Assert.Equal(expectedPrefix, tracked.Tags["callback_prefix"]);
+        Assert.Equal(data.Length, tracked.Tags["callback_length"]);
+    }
+
+    [Fact]
+    public async Task UpdateAnalytics_Dice_ReportsEmojiAndValue()
+    {
+        var analytics = new TrackingAnalyticsService();
+        var middleware = new UpdateAnalyticsMiddleware(analytics);
+        var update = new Update
+        {
+            Id = 7,
+            Message = new Message
+            {
+                Id = 8,
+                From = new User { Id = 9, IsBot = false, FirstName = "T" },
+                Chat = new Chat { Id = 10, Type = ChatType.Group },
+                Date = DateTime.UtcNow,
+                Dice = new Dice { Emoji = "🎯", Value = 6 },
+            },
+        };
+
+        await middleware.InvokeAsync(new UpdateContext(null!, update, null!, default), _ => Task.CompletedTask);
+
+        var tracked = Assert.Single(analytics.Events, x => x.EventName == "dice");
+        Assert.Equal("dice", tracked.EventName);
+        Assert.Equal("🎯", tracked.Tags["emoji"]);
+        Assert.Equal(6, tracked.Tags["value"]);
+        Assert.Equal("group", tracked.Tags["chat_type"]);
+    }
+
+    [Fact]
+    public async Task UpdateAnalytics_UnknownUpdate_UsesGenericEvent()
+    {
+        var analytics = new TrackingAnalyticsService();
+        var middleware = new UpdateAnalyticsMiddleware(analytics);
+
+        await middleware.InvokeAsync(
+            new UpdateContext(null!, new Update { Id = 12 }, null!, default),
+            _ => Task.CompletedTask);
+
+        var tracked = Assert.Single(analytics.Events, x => x.EventName == "update");
+        Assert.Equal("update", tracked.EventName);
+        Assert.Null(tracked.Tags["chat_type"]);
+    }
+
     // ── RateLimitMiddleware ──────────────────────────────────────────────────
 
     [Fact]
@@ -245,7 +345,12 @@ public class FrameworkMiddlewareTests
 // Tracking analytics for ExceptionMiddleware test
 file sealed class TrackingAnalyticsService : IAnalyticsService
 {
-    public List<(string ModuleId, string EventName)> Events { get; } = [];
+    public List<TrackedAnalyticsEvent> Events { get; } = [];
     public void Track(string moduleId, string eventName, IReadOnlyDictionary<string, object?> tags)
-        => Events.Add((moduleId, eventName));
+        => Events.Add(new TrackedAnalyticsEvent(moduleId, eventName, tags));
 }
+
+file sealed record TrackedAnalyticsEvent(
+    string ModuleId,
+    string EventName,
+    IReadOnlyDictionary<string, object?> Tags);

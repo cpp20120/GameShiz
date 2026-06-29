@@ -227,7 +227,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         "<code>/tournament cancel &lt;id&gt;</code>",
     ]));
 
-    private static Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task<Message> SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text, parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId }, cancellationToken: ctx.Ct);
 

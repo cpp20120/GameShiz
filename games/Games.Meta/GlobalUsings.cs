@@ -5,3 +5,5 @@ global using BotFramework.Host.Economics;
 global using BotFramework.Host.Events;
 global using BotFramework.Host.Persistence;
 global using BotFramework.Host.Security;
+global using BotFramework.Host.Contracts.ResponsibleGaming;
+global using BotFramework.Host.Contracts.Telegram;

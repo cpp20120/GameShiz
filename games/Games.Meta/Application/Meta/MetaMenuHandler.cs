@@ -148,18 +148,7 @@ public sealed partial class MetaMenuHandler(
         var completedQuests = questRows.Count(x => x.Completed && !x.Claimed);
         var unlocked = achievementRows.Count(x => x.IsUnlocked);
 
-        var text = string.Join("\n", [
-            "🎰 <b>CasinoShiz</b>",
-            $"Игрок: <b>{Html(displayName)}</b>",
-            "",
-            string.Create(CultureInfo.InvariantCulture, $"💰 Баланс: <b>{balance}</b>"),
-            string.Create(CultureInfo.InvariantCulture, $"⭐ Уровень: <b>{profile.Player.Level}</b> · XP: <b>{profile.Player.Xp}</b>"),
-            $"🏅 Ранг: <b>{Html(profile.Division)}</b> · рейтинг <b>{profile.Player.Rating}</b>",
-            $"📜 Квесты: <b>{completedQuests}</b> наград ждут",
-            $"🏆 Ачивки: <b>{unlocked}/{achievementRows.Count}</b>",
-            "",
-            $"Сезон: <b>{Html(profile.Season.Name)}</b> · до <code>{profile.Season.EndsAt:dd.MM.yyyy}</code>",
-        ]);
+        var text = string.Join("\n", "🎰 <b>CasinoShiz</b>", $"Игрок: <b>{Html(displayName)}</b>", "", string.Create(CultureInfo.InvariantCulture, $"💰 Баланс: <b>{balance}</b>"), string.Create(CultureInfo.InvariantCulture, $"⭐ Уровень: <b>{profile.Player.Level}</b> · XP: <b>{profile.Player.Xp}</b>"), $"🏅 Ранг: <b>{Html(profile.Division)}</b> · рейтинг <b>{profile.Player.Rating}</b>", $"📜 Квесты: <b>{completedQuests}</b> наград ждут", $"🏆 Ачивки: <b>{unlocked}/{achievementRows.Count}</b>", "", $"Сезон: <b>{Html(profile.Season.Name)}</b> · до <code>{profile.Season.EndsAt:dd.MM.yyyy}</code>");
 
         return (text, HomeMarkup(user.Id, completedQuests > 0));
     }
@@ -174,19 +163,7 @@ public sealed partial class MetaMenuHandler(
             ? 0
             : (int)Math.Round(player.Wins * 100d / player.GamesPlayed, MidpointRounding.ToEven);
 
-        var text = string.Join("\n", [
-            "👤 <b>Профиль сезона</b>",
-            $"Игрок: <b>{Html(player.DisplayName)}</b>",
-            $"Дивизион: <b>{Html(profile.Division)}</b>",
-            $"Уровень: <b>{player.Level}</b> · XP <b>{player.Xp}</b>",
-            $"До следующего уровня: <code>{xpInLevel}/{xpForNext}</code>",
-            $"Рейтинг: <b>{player.Rating}</b>",
-            "",
-            $"Игры: <b>{player.GamesPlayed}</b>",
-            $"Победы: <b>{player.Wins}</b> · поражения: <b>{player.Losses}</b>",
-            $"Win rate: <b>{winsPercent}%</b>",
-            $"Поставлено: <b>{player.TotalStaked}</b> · получено: <b>{player.TotalPayout}</b>",
-        ]);
+        var text = string.Join("\n", "👤 <b>Профиль сезона</b>", $"Игрок: <b>{Html(player.DisplayName)}</b>", $"Дивизион: <b>{Html(profile.Division)}</b>", $"Уровень: <b>{player.Level}</b> · XP <b>{player.Xp}</b>", $"До следующего уровня: <code>{xpInLevel}/{xpForNext}</code>", $"Рейтинг: <b>{player.Rating}</b>", "", $"Игры: <b>{player.GamesPlayed}</b>", $"Победы: <b>{player.Wins}</b> · поражения: <b>{player.Losses}</b>", $"Win rate: <b>{winsPercent}%</b>", $"Поставлено: <b>{player.TotalStaked}</b> · получено: <b>{player.TotalPayout}</b>");
 
         await EditAsync(ctx, message, text, BackMarkup(user.Id));
     }
@@ -195,14 +172,11 @@ public sealed partial class MetaMenuHandler(
     {
         var rows = await quests.GetQuestsAsync(message.Chat.Id, user.Id, ctx.Ct);
         var lines = new List<string> { "📜 <b>Квесты</b>" };
-
-        foreach (var quest in rows)
-        {
-            var mark = quest.Claimed ? "💰" : quest.Completed ? "✅" : "⬜";
-            lines.Add(
-                $"{mark} <b>{Html(quest.Title)}</b> · <code>{quest.Progress}/{quest.Target}</code>\n" +
-                $"   {Html(quest.Description)} · <b>{quest.RewardXp} XP</b> + <b>{quest.RewardCoins}</b> монет");
-        }
+        lines.AddRange(rows
+            .Select(quest => new { quest, mark = quest.Claimed ? "💰" : quest is { Completed: true } ? "✅" : "⬜" })
+            .Select(@t =>
+                $"{@t.mark} <b>{Html(@t.quest.Title)}</b> · <code>{@t.quest.Progress}/{@t.quest.Target}</code>\n" +
+                $"   {Html(@t.quest.Description)} · <b>{@t.quest.RewardXp} XP</b> + <b>{@t.quest.RewardCoins}</b> монет"));
 
         if (rows.Count == 0)
             lines.Add("Активных квестов пока нет.");
@@ -215,12 +189,7 @@ public sealed partial class MetaMenuHandler(
         var rows = await meta.GetAchievementsAsync(message.Chat.Id, user.Id, ctx.Ct);
         var unlocked = rows.Count(x => x.IsUnlocked);
         var lines = new List<string> { $"🏆 <b>Ачивки</b> · <code>{unlocked}/{rows.Count}</code>" };
-
-        foreach (var achievement in rows.OrderByDescending(x => x.IsUnlocked))
-        {
-            var mark = achievement.IsUnlocked ? "✅" : "⬜";
-            lines.Add($"{mark} <b>{Html(achievement.Title)}</b> — {Html(achievement.Description)}");
-        }
+        lines.AddRange(from achievement in rows.OrderByDescending(x => x.IsUnlocked) let mark = achievement.IsUnlocked ? "✅" : "⬜" select $"{mark} <b>{Html(achievement.Title)}</b> — {Html(achievement.Description)}");
 
         await EditAsync(ctx, message, string.Join('\n', lines), BackMarkup(user.Id));
     }
@@ -244,9 +213,7 @@ public sealed partial class MetaMenuHandler(
     {
         var rows = await meta.GetTopAsync(message.Chat.Id, 15, ctx.Ct);
         var lines = new List<string> { "🏆 <b>Сезонный топ</b>" };
-
-        foreach (var row in rows)
-            lines.Add($"{row.Place}. <b>{Html(row.DisplayName)}</b> · lvl {row.Level} · XP {row.Xp} · rating {row.Rating}");
+        lines.AddRange(rows.Select(row => $"{row.Place}. <b>{Html(row.DisplayName)}</b> · lvl {row.Level} · XP {row.Xp} · rating {row.Rating}"));
 
         if (rows.Count == 0)
             lines.Add("Топ пока пуст.");
@@ -315,8 +282,7 @@ public sealed partial class MetaMenuHandler(
                 cancellationToken: ctx.Ct);
         }
         catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified", StringComparison.Ordinal))
-        {
-        }
+        { }
     }
 
     private static InlineKeyboardMarkup HomeMarkup(long ownerId, bool hasQuestRewards)

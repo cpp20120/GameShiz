@@ -173,7 +173,7 @@ public sealed partial class HorseHandler(
             replyParameters: new ReplyParameters { MessageId = msg.MessageId }, cancellationToken: ctx.Ct);
     }
 
-    private string StripFirst(string str)
+    private static string StripFirst(string str)
     {
         var parts = str.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         return parts.Length > 1 ? parts[1].Trim() : "";

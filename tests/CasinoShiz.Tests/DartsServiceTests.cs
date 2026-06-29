@@ -22,7 +22,8 @@ public class DartsServiceTests
         IMiniGameSessionGhostHeal? ghostHeal = null,
         IDartsRollQueue? queue = null,
         NullEventBus? bus = null,
-        FakeRuntimeTuning? tuning = null) =>
+        FakeRuntimeTuning? tuning = null,
+        ITelegramDiceDailyRollLimiter? limiter = null) =>
         new(
             economics ?? new FakeEconomicsService(),
             new NullAnalyticsService(),
@@ -31,7 +32,7 @@ public class DartsServiceTests
             bus ?? new NullEventBus(),
             queue ?? new DartsRollQueue(),
             tuning ?? new FakeRuntimeTuning(),
-            new NullTelegramDiceDailyRollLimiter());
+            limiter ?? new NullTelegramDiceDailyRollLimiter());
 
     private static async Task ArmAsync(
         InMemoryDartsRoundStore rounds, long roundId, long chatId, int botMessageId = BotMsg)
@@ -301,6 +302,62 @@ public class DartsServiceTests
     {
         for (var face = 1; face <= 6; face++)
             Assert.True(DartsService.Multipliers.ContainsKey(face));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(10_001)]
+    public async Task QuickThrowAsync_InvalidAmount_ReturnsBetInvalid(int amount)
+    {
+        var result = await MakeService().QuickThrowAsync(1, "u", 100, 10, 4, amount, default);
+
+        Assert.Equal(DartsThrowOutcome.BetInvalid, result.Outcome);
+    }
+
+    [Fact]
+    public async Task QuickThrowAsync_InsufficientBalance_ReturnsBalance()
+    {
+        var result = await MakeService(economics: new FakeEconomicsService { StartingBalance = 9 })
+            .QuickThrowAsync(1, "u", 100, 10, 4, 10, default);
+
+        Assert.Equal(DartsThrowOutcome.BetNotEnoughCoins, result.Outcome);
+        Assert.Equal(9, result.Balance);
+    }
+
+    [Fact]
+    public async Task QuickThrowAsync_DailyLimit_ReturnsUsage()
+    {
+        var result = await MakeService(limiter: new RejectingTelegramDiceDailyRollLimiter())
+            .QuickThrowAsync(1, "u", 100, 10, 4, 10, default);
+
+        Assert.Equal(DartsThrowOutcome.BetDailyLimit, result.Outcome);
+        Assert.Equal(3, result.DailyRollUsed);
+        Assert.Equal(10, result.DailyRollLimit);
+    }
+
+    [Theory]
+    [InlineData(1, 0, 0)]
+    [InlineData(4, 1, 10)]
+    [InlineData(5, 2, 20)]
+    [InlineData(6, 2, 20)]
+    [InlineData(99, 0, 0)]
+    public async Task QuickThrowAsync_SettlesImmediatelyAndPublishesEvents(
+        int face, int expectedMultiplier, int expectedPayout)
+    {
+        var economics = new FakeEconomicsService { StartingBalance = 100 };
+        var bus = new NullEventBus();
+        var result = await MakeService(economics: economics, bus: bus)
+            .QuickThrowAsync(1, "u", 100, 10, face, 10, default);
+
+        Assert.Equal(DartsThrowOutcome.Thrown, result.Outcome);
+        Assert.Equal(expectedMultiplier, result.Multiplier);
+        Assert.Equal(expectedPayout, result.Payout);
+        Assert.Equal(90 + expectedPayout, result.Balance);
+        Assert.Single(economics.Debits);
+        Assert.Equal(expectedPayout > 0 ? 1 : 0, economics.Credits.Count);
+        Assert.Single(bus.Published.OfType<DartsThrowCompleted>());
+        Assert.Single(bus.Published.OfType<GameCompletedMetaEvent>());
     }
 
     [Fact]

@@ -17,12 +17,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 
+using BotFramework.Host.Analytics;
+
 namespace BotFramework.Host.Events.Dispatch;
 
 public sealed class EventDispatcher(
     IEnumerable<IProjection> projections,
-    IDomainEventBus bus,
-    IAnalyticsService analytics)
+    IDomainEventBus bus)
 {
     private readonly Dictionary<string, List<IProjection>> _byEventType = BuildIndex(projections);
 
@@ -43,23 +44,34 @@ public sealed class EventDispatcher(
                 await proj.ApplyAsync(ev, ctx, ct);
         }
 
-        // 2. Cross-module subscribers — anyone who registered an IDomainEvent
-        //    subscriber for this event type (or a wildcard pattern matching it).
-        await bus.PublishAsync(ev, ct);
-
-        // 3. Analytics. Every domain event becomes an analytics event; module
-        //    prefix ("sh.*", "poker.*") is enough to bucket.
-        analytics.Track(
-            moduleId: ev.EventType.Split('.', 2)[0],
-            eventName: ev.EventType,
-            tags: new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["stream_id"] = streamId,
-                ["stream_version"] = streamVersion,
-                ["occurred_at"] = ev.OccurredAt,
-            });
+        // 2. Cross-module subscribers. The ClickHouse wildcard subscriber reads
+        //    this envelope so one full-payload analytics row carries stable ES
+        //    identity; the old second metadata-only Track call caused duplicates.
+        var previousEnvelope = EventAnalyticsEnvelopeAccessor.Current;
+        var analyticsContext = AnalyticsContextAccessor.Current;
+        var correlationId = GetContextValue(analyticsContext, "correlation_id");
+        EventAnalyticsEnvelopeAccessor.Current = new EventAnalyticsEnvelope(
+            streamId,
+            streamVersion,
+            AggregateType: ev.GetType().FullName ?? ev.GetType().Name,
+            SchemaVersion: 1,
+            CorrelationId: correlationId,
+            CausationId: GetContextValue(analyticsContext, "causation_id", correlationId));
+        try
+        {
+            await bus.PublishAsync(ev, ct);
+        }
+        finally
+        {
+            EventAnalyticsEnvelopeAccessor.Current = previousEnvelope;
+        }
     }
+
+    private static string GetContextValue(
+        IReadOnlyDictionary<string, object?>? context,
+        string key,
+        string fallback = "") =>
+        context?.TryGetValue(key, out var value) == true ? value?.ToString() ?? fallback : fallback;
 
     private static Dictionary<string, List<IProjection>> BuildIndex(IEnumerable<IProjection> projections)
     {

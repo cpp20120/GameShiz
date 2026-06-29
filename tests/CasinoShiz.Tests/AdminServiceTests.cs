@@ -7,12 +7,17 @@ public class AdminServiceTests
 {
     private static AdminService MakeService(
         InMemoryAdminStore? store = null,
-        FakeEconomicsService? economics = null) =>
+        FakeEconomicsService? economics = null,
+        IAnalyticsService? analytics = null,
+        IMiniGameSessionStore? sessions = null,
+        IMiniGameRollGateStore? rollGates = null) =>
         new(
             store ?? new InMemoryAdminStore(),
             economics ?? new FakeEconomicsService(),
-            new NullAnalyticsService(),
-            NullLogger<AdminService>.Instance);
+            analytics ?? new NullAnalyticsService(),
+            NullLogger<AdminService>.Instance,
+            sessions,
+            rollGates);
 
     private const long TestScope = 200;
 
@@ -190,6 +195,65 @@ public class AdminServiceTests
         Assert.True(BotMiniGameSession.TryBeginPlaceBet(10, TestScope, MiniGameIds.Basketball, out _));
     }
 
+    [Theory]
+    [InlineData(MiniGameIds.DiceCube, "dicecube")]
+    [InlineData(MiniGameIds.Football, "football")]
+    [InlineData(MiniGameIds.Basketball, "basketball")]
+    [InlineData(MiniGameIds.Bowling, "bowling")]
+    [InlineData(MiniGameIds.Darts, "darts")]
+    public async Task ClearChatBetsAsync_ClearsDistributedSessionAndExpectedRollGate(
+        string storedGameId, string gateGameId)
+    {
+        var store = new InMemoryAdminStore();
+        store.SeedPending(new PendingChatBet
+        {
+            GameId = storedGameId,
+            UserId = 10,
+            ChatId = TestScope,
+            Amount = 15,
+            BotMessageId = 123,
+        });
+        var sessions = new RecordingSessionStore();
+        var gates = new RecordingRollGateStore();
+
+        await MakeService(store, sessions: sessions, rollGates: gates)
+            .ClearChatBetsAsync(99, TestScope, default);
+
+        Assert.Equal((10L, TestScope, storedGameId), Assert.Single(sessions.Cleared));
+        Assert.Equal((gateGameId, 10L, TestScope), Assert.Single(gates.Cleared));
+    }
+
+    [Fact]
+    public async Task ClearChatBetsAsync_UnknownGame_ClearsSessionWithoutRollGate()
+    {
+        var store = new InMemoryAdminStore();
+        store.SeedPending(new PendingChatBet { GameId = "custom", UserId = 10, ChatId = TestScope, Amount = 15 });
+        var sessions = new RecordingSessionStore();
+        var gates = new RecordingRollGateStore();
+
+        await MakeService(store, sessions: sessions, rollGates: gates)
+            .ClearChatBetsAsync(99, TestScope, default);
+
+        Assert.Single(sessions.Cleared);
+        Assert.Empty(gates.Cleared);
+    }
+
+    [Fact]
+    public void ReportMethods_EmitStructuredAdminAnalytics()
+    {
+        var analytics = new RecordingAnalyticsService();
+        var service = MakeService(analytics: analytics);
+
+        service.ReportNotAdmin(42);
+        service.ReportUserInfo(42, "target");
+
+        Assert.Equal(2, analytics.Events.Count);
+        Assert.All(analytics.Events, entry => Assert.Equal(("admin", "command"), (entry.ModuleId, entry.EventName)));
+        Assert.Equal("not_admin", analytics.Events[0].Tags["command"]);
+        Assert.Equal("userinfo", analytics.Events[1].Tags["command"]);
+        Assert.Equal("target", analytics.Events[1].Tags["target_id"]);
+    }
+
     // ── RenameAsync ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -252,5 +316,30 @@ public class AdminServiceTests
 
         var stored = await store.GetOverrideAsync("OldName", default);
         Assert.Equal("SecondNew", stored);
+    }
+
+    private sealed class RecordingSessionStore : IMiniGameSessionStore
+    {
+        public List<(long UserId, long ChatId, string GameId)> Cleared { get; } = [];
+        public Task<MiniGameSessionBeginResult> TryBeginPlaceBetAsync(long userId, long chatId, string gameId, CancellationToken ct) =>
+            Task.FromResult(new MiniGameSessionBeginResult(true, null));
+        public Task RegisterPlacedBetAsync(long userId, long chatId, string gameId, CancellationToken ct) => Task.CompletedTask;
+        public Task ClearCompletedRoundAsync(long userId, long chatId, string gameId, CancellationToken ct)
+        {
+            Cleared.Add((userId, chatId, gameId));
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingRollGateStore : IMiniGameRollGateStore
+    {
+        public List<(string GameId, long UserId, long ChatId)> Cleared { get; } = [];
+        public Task ExpectBotRollAsync(string gameId, long userId, long chatId, CancellationToken ct) => Task.CompletedTask;
+        public Task<bool> ShouldIgnoreUserThrowAsync(string gameId, long userId, long chatId, CancellationToken ct) => Task.FromResult(false);
+        public Task ClearAsync(string gameId, long userId, long chatId, CancellationToken ct)
+        {
+            Cleared.Add((gameId, userId, chatId));
+            return Task.CompletedTask;
+        }
     }
 }

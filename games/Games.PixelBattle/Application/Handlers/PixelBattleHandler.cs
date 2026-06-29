@@ -8,6 +8,7 @@ namespace Games.PixelBattle.Application.Handlers;
 [Command("/pixelbattle")]
 public sealed class PixelBattleHandler(
     ILocalizer localizer,
+    IAnalyticsService analytics,
     IOptions<PixelBattleOptions> options) : IUpdateHandler
 {
     public async Task HandleAsync(UpdateContext ctx)
@@ -19,6 +20,7 @@ public sealed class PixelBattleHandler(
         var webAppUrl = options.Value.WebAppUrl;
         if (string.IsNullOrWhiteSpace(webAppUrl))
         {
+            TrackOpen(msg, "not_configured");
             await ctx.Bot.SendMessage(
                 msg.Chat.Id,
                 Loc("open.not_configured"),
@@ -31,6 +33,7 @@ public sealed class PixelBattleHandler(
             [InlineKeyboardButton.WithWebApp(Loc("open.button"), new WebAppInfo(webAppUrl))],
         ]);
 
+        TrackOpen(msg, "success");
         await ctx.Bot.SendMessage(
             msg.Chat.Id,
             Loc("open.text"),
@@ -38,6 +41,15 @@ public sealed class PixelBattleHandler(
             replyMarkup: markup,
             cancellationToken: ctx.Ct);
     }
+
+    private void TrackOpen(Message msg, string outcome) =>
+        analytics.Track("pixelbattle", "opened", new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["user_id"] = msg.From?.Id ?? 0,
+            ["chat_id"] = msg.Chat.Id,
+            ["chat_type"] = msg.Chat.Type.ToString().ToLowerInvariant(),
+            ["outcome"] = outcome,
+        });
 
     private string Loc(string key) => localizer.Get("pixelbattle", key);
 }

@@ -190,4 +190,51 @@ public class DiceServiceTests
 
         Assert.DoesNotContain(bus.Published, ev => ev is TelegramMiniGameRedeemCodeDropRequested);
     }
+
+    [Theory]
+    [InlineData(16, 17)] // seven, seven, bar
+    [InlineData(11, 11)] // lemon, lemon, bar
+    [InlineData(6, 7)]   // cherry, cherry, bar
+    [InlineData(37, 1)]  // bar, cherry, lemon
+    public async Task PlayAsync_CoversRemainingPayoutShapes(int diceValue, int expectedPrize)
+    {
+        var result = await MakeService().PlayAsync(
+            1, "u", diceValue, 100, sourceMessageId: diceValue, isForwarded: false, ct: default);
+        Assert.Equal(expectedPrize, result.Prize);
+    }
+
+    [Fact]
+    public async Task PlayAsync_PublishesDiceAndMetaEvents()
+    {
+        var bus = new NullEventBus();
+        var result = await MakeService(bus: bus).PlayAsync(
+            1, "player", 64, 100, sourceMessageId: 99, isForwarded: false, ct: default);
+
+        var dice = Assert.Single(bus.Published.OfType<DiceRollCompleted>());
+        Assert.Equal(result.Prize, dice.Prize);
+        var meta = Assert.Single(bus.Published.OfType<GameCompletedMetaEvent>());
+        Assert.Equal(MiniGameIds.Dice, meta.GameKey);
+        Assert.Equal("player", meta.DisplayName);
+    }
+
+    [Fact]
+    public async Task PlayAsync_TracksForwardedInsufficientAndSuccessAnalytics()
+    {
+        var analytics = new RecordingAnalyticsService();
+        var service = new DiceService(
+            new FakeEconomicsService(), analytics, new NullDiceHistoryStore(), new NullEventBus(),
+            new NullTelegramDiceDailyRollLimiter(), new FakeRuntimeTuning());
+        await service.PlayAsync(1, "u", 1, 100, 1, true, default);
+        await service.PlayAsync(1, "u", 64, 100, 2, false, default);
+
+        var poorAnalytics = new RecordingAnalyticsService();
+        var poorService = new DiceService(
+            new FakeEconomicsService { StartingBalance = 0 }, poorAnalytics, new NullDiceHistoryStore(),
+            new NullEventBus(), new NullTelegramDiceDailyRollLimiter(), new FakeRuntimeTuning());
+        await poorService.PlayAsync(2, "poor", 1, 100, 3, false, default);
+
+        Assert.Contains(analytics.Events, x => x.EventName == "forwarded");
+        Assert.Contains(analytics.Events, x => x.EventName == "success");
+        Assert.Contains(poorAnalytics.Events, x => x.EventName == "not_enough_coins");
+    }
 }

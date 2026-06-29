@@ -14,10 +14,12 @@ public class LeaderboardServiceTests
     private static LeaderboardService MakeService(
         InMemoryLeaderboardStore? store = null,
         FakeEconomicsService? economics = null,
+        IAnalyticsService? analytics = null,
         int daysToHide = 7) =>
         new(
             store ?? new InMemoryLeaderboardStore(),
             economics ?? new FakeEconomicsService(),
+            analytics ?? new NullAnalyticsService(),
             Options.Create(new LeaderboardOptions { DaysOfInactivityToHide = daysToHide }));
 
     // ── GetTopAsync ──────────────────────────────────────────────────────────
@@ -197,5 +199,110 @@ public class LeaderboardServiceTests
 
         Assert.Equal(0, info.Coins);
         Assert.False(info.Visible);
+    }
+
+    // ── Global leaderboards ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetGlobalTopAsync_Empty_ReturnsEmptyResult()
+    {
+        var result = await MakeService().GetGlobalTopAsync(10, default);
+
+        Assert.Empty(result.Places);
+        Assert.Equal(0, result.TotalUsers);
+        Assert.False(result.Truncated);
+    }
+
+    [Fact]
+    public async Task GetGlobalTopAsync_AggregatesBalancesAcrossChatsAndGroupsTies()
+    {
+        var store = new InMemoryLeaderboardStore();
+        store.Seed(1, 10, "Alice", 300, RecentMs);
+        store.Seed(1, 20, "Alice", 200, RecentMs);
+        store.Seed(2, 10, "Bob", 500, RecentMs);
+        store.Seed(3, 20, "Carol", 100, RecentMs);
+
+        var result = await MakeService(store).GetGlobalTopAsync(10, default);
+
+        Assert.Equal(3, result.TotalUsers);
+        Assert.Equal(2, result.Places.Count);
+        Assert.Equal(2, result.Places[0].Users.Count);
+        Assert.All(result.Places[0].Users, user => Assert.Equal(500, user.TotalCoins));
+        Assert.Equal(2, result.Places[0].Users.Single(user => user.TelegramUserId == 1).ChatCount);
+    }
+
+    [Fact]
+    public async Task GetGlobalTopAsync_LimitSetsTruncatedAndTotalCount()
+    {
+        var store = new InMemoryLeaderboardStore();
+        store.Seed(1, 10, "A", 300, RecentMs);
+        store.Seed(2, 10, "B", 200, RecentMs);
+        store.Seed(3, 10, "C", 100, RecentMs);
+
+        var result = await MakeService(store).GetGlobalTopAsync(2, default);
+
+        Assert.True(result.Truncated);
+        Assert.Equal(3, result.TotalUsers);
+        Assert.Equal(2, result.Places.Count);
+    }
+
+    [Fact]
+    public async Task GetTopByChatAsync_Empty_ReturnsNoChats()
+    {
+        var result = await MakeService().GetTopByChatAsync(10, default);
+
+        Assert.Empty(result.Chats);
+    }
+
+    [Fact]
+    public async Task GetTopByChatAsync_GroupsRanksAndOrdersChatsByTopBalance()
+    {
+        var store = new InMemoryLeaderboardStore();
+        store.Seed(1, 10, "A", 100, RecentMs);
+        store.Seed(2, 10, "B", 100, RecentMs);
+        store.Seed(3, 20, "C", 500, RecentMs);
+        store.Seed(4, 20, "D", 50, RecentMs);
+
+        var result = await MakeService(store).GetTopByChatAsync(10, default);
+
+        Assert.Equal([20L, 10L], result.Chats.Select(chat => chat.ChatId).ToArray());
+        Assert.Equal(2, result.Chats[0].Places.Count);
+        Assert.Single(result.Chats[1].Places);
+        Assert.Equal(2, result.Chats[1].Places[0].Users.Count);
+    }
+
+    [Fact]
+    public async Task GetTopByChatAsync_PerChatLimitRestrictsEachChat()
+    {
+        var store = new InMemoryLeaderboardStore();
+        store.Seed(1, 10, "A", 300, RecentMs);
+        store.Seed(2, 10, "B", 200, RecentMs);
+        store.Seed(3, 20, "C", 100, RecentMs);
+        store.Seed(4, 20, "D", 50, RecentMs);
+
+        var result = await MakeService(store).GetTopByChatAsync(1, default);
+
+        Assert.All(result.Chats, chat => Assert.Single(chat.Places.SelectMany(place => place.Users)));
+    }
+
+    [Fact]
+    public async Task Queries_EmitStructuredAnalytics()
+    {
+        var store = new InMemoryLeaderboardStore();
+        store.Seed(1, ChatScope, "Alice", 500, RecentMs);
+        var analytics = new RecordingAnalyticsService();
+        var svc = MakeService(store, analytics: analytics);
+
+        await svc.GetTopAsync(15, ChatScope, default);
+        await svc.GetBalanceAsync(1, ChatScope, "Alice", default);
+        await svc.GetGlobalTopAsync(30, default);
+        await svc.GetTopByChatAsync(5, default);
+
+        Assert.Equal(4, analytics.Events.Count);
+        Assert.Contains(analytics.Events, x => x.EventName == "viewed" && Equals(x.Tags["mode"], "chat_top"));
+        Assert.Contains(analytics.Events, x => x.EventName == "viewed" && Equals(x.Tags["mode"], "global_top"));
+        Assert.Contains(analytics.Events, x => x.EventName == "viewed" && Equals(x.Tags["mode"], "split_top"));
+        Assert.Contains(analytics.Events, x => x.EventName == "balance_viewed" && Equals(x.Tags["found"], true));
+        Assert.All(analytics.Events, x => Assert.Equal("leaderboard", x.ModuleId));
     }
 }

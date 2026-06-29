@@ -39,4 +39,8 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Update="Meziantou.Analyzer" Version="3.0.115" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
 </Project>

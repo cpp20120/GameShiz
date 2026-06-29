@@ -28,27 +28,59 @@ public static class PixelBattleEndpointExtensions
         JsonElement body,
         ITelegramWebAppInitDataValidator validator,
         IPixelBattleStore store,
-        PixelBattleBroadcaster broadcaster)
+        PixelBattleBroadcaster broadcaster,
+        IAnalyticsService analytics)
     {
         if (!validator.TryValidate(context.Request.Headers["X-Telegram-Init-Data"], out var auth))
+        {
+            TrackUpdate(analytics, 0, "invalid_auth");
             return Results.Json("invalid init data", statusCode: StatusCodes.Status401Unauthorized);
+        }
 
         if (!TryReadUpdateBody(body, out var index, out var color))
+        {
+            TrackUpdate(analytics, auth.User.Id, "invalid_body");
             return Results.Json("invalid update", statusCode: StatusCodes.Status400BadRequest);
+        }
 
         if (!PixelBattleConstants.IsValidIndex(index))
+        {
+            TrackUpdate(analytics, auth.User.Id, "invalid_index");
             return Results.Json("invalid index", statusCode: StatusCodes.Status400BadRequest);
+        }
 
         if (!PixelBattleConstants.IsValidColor(color))
+        {
+            TrackUpdate(analytics, auth.User.Id, "invalid_color");
             return Results.Json("invalid color", statusCode: StatusCodes.Status400BadRequest);
+        }
 
         if (!await store.IsKnownUserAsync(auth.User.Id, context.RequestAborted))
+        {
+            TrackUpdate(analytics, auth.User.Id, "unknown_user");
             return Results.Json("unknown user", statusCode: StatusCodes.Status403Forbidden);
+        }
 
         var update = await store.UpdateTileAsync(index, color, auth.User.Id, context.RequestAborted);
         broadcaster.Broadcast(update);
+        TrackUpdate(analytics, auth.User.Id, "success", index, color, update.Versionstamp);
 
         return Results.Json(update.Versionstamp, JsonOptions);
+    }
+
+    private static void TrackUpdate(
+        IAnalyticsService analytics, long userId, string outcome,
+        int? index = null, string? color = null, string? versionstamp = null)
+    {
+        var tags = new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["user_id"] = userId,
+            ["outcome"] = outcome,
+        };
+        if (index is not null) tags["index"] = index.Value;
+        if (color is not null) tags["color"] = color;
+        if (versionstamp is not null) tags["versionstamp"] = versionstamp;
+        analytics.Track("pixelbattle", "tile_updated", tags);
     }
 
     private static bool TryReadUpdateBody(JsonElement body, out int index, out string color)

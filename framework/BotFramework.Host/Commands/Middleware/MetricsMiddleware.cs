@@ -18,21 +18,23 @@ using System.Diagnostics;
 
 namespace BotFramework.Host.Commands.Middleware;
 
-public sealed class MetricsMiddleware(IMetrics metrics) : ICommandMiddleware
+public sealed class MetricsMiddleware(IMetrics metrics, IAnalyticsService? analytics = null) : ICommandMiddleware
 {
     public async Task InvokeAsync(CommandContext ctx, Func<Task> next)
     {
         var sw = Stopwatch.StartNew();
         var commandType = ctx.Command.GetType().Name;
         var outcome = "ok";
+        string? errorCode = null;
 
         try
         {
             await next();
         }
-        catch
+        catch (Exception ex)
         {
             outcome = "error";
+            errorCode = ex.GetType().Name;
             throw;
         }
         finally
@@ -49,6 +51,15 @@ public sealed class MetricsMiddleware(IMetrics metrics) : ICommandMiddleware
             {
                 ["module"] = ctx.Command.ModuleId,
                 ["command"] = commandType,
+            });
+            analytics?.Track(ctx.Command.ModuleId, "command_completed", new Dictionary<string, object?>(StringComparer.Ordinal)
+            {
+                ["command"] = commandType,
+                ["outcome"] = outcome,
+                ["error_code"] = errorCode,
+                ["duration_ms"] = sw.Elapsed.TotalMilliseconds,
+                ["user_id"] = ctx.Request.UserId,
+                ["correlation_id"] = ctx.Request.TraceId,
             });
         }
     }

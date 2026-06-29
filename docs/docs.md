@@ -18,7 +18,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Casino-style pick games | `/pick` · `/picklottery` + `/pickjoin` · `/dailylottery` | Random outcome with configurable house edge, double-or-nothing chain, streak bonus, multi-user pools |
 | PvP | `/challenge` | 1v1 stake duel layered on top of every other game |
 | Webapp | `/pixelbattle` | Telegram WebApp shared pixel canvas |
-| Economy | `/balance` · `/daily` · `/transfer` · `/redeem` · `/top` | Per-chat wallets, daily bonus drip, peer transfer with fee |
+| Economy | `/balance` · `/daily` · `/transfer` · `/redeem` · `/top` · `/mystats` | Per-chat wallets, daily bonus drip, peer transfer with fee, player statistics and global protection controls |
 | Seasonal meta | `/menu` · `/profile` · `/quests` · `/achievements` · `/clan` · `/tournament` | Levels, XP, rating, achievements, quests, clans, tournament brackets |
 | Admin Telegram commands | `/topall` · `/analytics` · `/chats` · `/codegen` · `/run …` · `/rename …` · `/horserun` | Restricted to `Bot:Admins` |
 
@@ -224,6 +224,7 @@ Stateful game writes are serialized with `SemaphoreSlim(1,1)` per game instance 
 - Secret Hitler: `SecretHitlerGateCleanupJob` runs every 10 min, prunes gates idle > 1 hour
 - Pick lottery: `PickLotterySweeperJob` polls `pick_lottery` for expired open pools
 - Daily lottery: `PickDailyLotterySweeperJob` polls `pick_daily_lottery` for pools whose draw deadline has passed
+- Operations reporting: `OperationsReportingJob` checks every 15 minutes for a completed weekly summary and economy anomalies
 
 Balance mutations acquire a Postgres row lock via `SELECT ... FOR UPDATE` inside `EconomicsService`.
 
@@ -487,6 +488,8 @@ Subcommands: `create`, `join`, `start`, `nominate <user>`, `vote yes/no`, `leave
 `SecretHitlerGateCleanupJob` (`IBackgroundJob`) prunes idle gates every 10 min.
 
 Config: `Games:sh:BuyIn`.
+
+For the policy/deception probability model, assumptions, recurrence, and numerical results, see [Secret Hitler strategy model](secret_hitler.md).
 
 ### Pick (`Games.Pick`, `/pick`)
 
@@ -996,6 +999,11 @@ Adding a migration = one new `Migration("name", "SQL")` entry in the module's `I
 | `010_runtime_tuning` | `runtime_tuning` — JSON patch merged over file/env for whitelisted `Bot` + `Games` keys; edited from `/admin/settings` |
 | `011_delivery_and_coordination` | `processed_updates`, `game_command_idempotency`, `mini_game_sessions`, `mini_game_roll_gates` |
 | `012_telegram_dice_daily_per_game` | `telegram_dice_daily_rolls` with `(telegram_user_id, balance_scope_id, game_id)` PK for per-game daily caps |
+| `013_event_dispatch_failures` | Retryable projection/subscriber failures with stream/version identity |
+| `014_economics_operation_id` | Idempotent ledger operation identifiers |
+| `015_telegram_outbox` | Durable Telegram delivery queue and retry state |
+| `016_event_analytics_checkpoint` | Singleton checkpoint for historical ES → ClickHouse backfill |
+| `017_responsible_gaming_and_ops_reports` | Global player stake limits/cooldowns/self-exclusion and deduplicated weekly/anomaly report checkpoints |
 
 ### Module migrations
 
@@ -1007,7 +1015,7 @@ Adding a migration = one new `Migration("name", "SQL")` entry in the module's `I
 | `pick` | `002_daily_lottery` | `pick_daily_lottery` (unique `(chat_id, day_local)`) + `pick_daily_lottery_tickets` (`BIGSERIAL` PK, one row per ticket) + sweeper / history indexes |
 | `meta` | `001`–`007` | Seasons/players, achievements, quests, clans, tournaments, risk flags, and tournament matches |
 
-ClickHouse migrations are not run by the bot — they live under `db/clickhouse/` and are applied manually (currently `001_rename_analytics_to_cazinoshiz.sql`, used during the `analytics` → `cazinoshiz` database rename).
+The bot creates and forward-evolves its active ClickHouse tables at startup with `CREATE TABLE IF NOT EXISTS` and `ALTER ... ADD COLUMN IF NOT EXISTS`. Files under `db/clickhouse/` are one-off operational migrations only; currently `001_rename_analytics_to_cazinoshiz.sql` handles the historical `analytics` → `cazinoshiz` database rename.
 
 ## Database schema
 
@@ -1402,6 +1410,9 @@ Compose also runs `postgres-exporter`, `redis-exporter`, `cadvisor`, and `dotnet
 Provisioned Grafana dashboards:
 
 - `overview.json` — ClickHouse event overview
+- `product-analytics-clickhouse.json` — product snapshots for economy, engagement, delivery latency/backlog, ledger health, live game state, seasons, quests, and risk
+- `growth-reliability-clickhouse.json` — D1/D7/D30 retention, new/returning users, game funnels, economy reconciliation, reliability, stale games, social activity, correlation/session depth, handler and delivery latency, snapshot freshness, ClickHouse storage/query health, writer health, ingestion throughput, and analytics data quality
+
 - `analytics-clickhouse.json` — product analytics from `events_v2`: overview stats, TOD/weekday, DAU, per-chat, stacked hourly users/events by game, pie mix, user intensity, per-user × game matrix, drill-down user (defaults to busiest in range), extended signals (distinct types/modules, chat-tagged rows, errors by `exception_type`, repeat-day users, event breadth, params keys, tail), **Economics & bot dynamics**, **Growth, quality & depth**, **Weekly leaderboards** (top 15 modules, users, tagged chats per ISO week UTC), **Retention, funnels & stake distribution** (cohort w0–w8, funnel conversion %, stake quantiles, histogram), plus **Chart views** (bottom row: bar / time series companions for most heavy **table** panels — event types, modules, users, errors, params keys, funnel steps, payouts, repeat users, house edge, step conversion %, weekly module stack, weekly actives & tagged-chat volume, cohort w1–w4 curves, daily median stake, multi-game bursts, daily rollup, top wagerers).
 - `infra-pg-redis.json` — PostgreSQL and Redis exporter metrics
 - `infra-services.json` — cAdvisor container CPU/memory + connection panels
@@ -1476,7 +1487,7 @@ https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://bot.example.com/<TOKE
 
 ## Analytics
 
-`ClickHouseAnalyticsService` (singleton) buffers events and flushes every `FlushIntervalMs`. Creates its table on startup. If ClickHouse is unreachable at startup the service logs and disables itself — the bot never blocks on analytics.
+`ClickHouseAnalyticsService` (singleton) buffers events and flushes every `FlushIntervalMs`. It creates and forward-evolves its tables on startup. If ClickHouse is unreachable at startup the service logs and keeps gameplay independent from analytics I/O.
 
 Validation: if `ClickHouse:Enabled = true` but `ClickHouse:Host` is empty, startup throws immediately.
 
@@ -1486,9 +1497,140 @@ Raw query: `curl 'http://localhost:8123/?query=SELECT+*+FROM+cazinoshiz.events_v
 
 The `/analytics` Telegram command (admin-only, private DM only) wraps `ClickHouseAnalyticsQueryService` with parameterised, safe SQL — event counts, distinct users, top event types/modules/users for 24h / 7d / 30d windows, plus a daily timeline.
 
+### Analytics tables and normalized fields
+
+The default product table is `cazinoshiz.events_v2`. The canonical event-sourcing table is `cazinoshiz.events_v2_es` (`<ClickHouse:Table>_es` when configured differently).
+
+| Column | Type | Meaning |
+|---|---|---|
+| `event_id` | UUID | Random for ordinary analytics; deterministic SHA-256-derived UUID for persisted ES `(stream_id, stream_version)` |
+| `event_type` | LowCardinality(String) | Stable dotted event name |
+| `module` | LowCardinality(String) | Prefix before the first dot |
+| `project` | LowCardinality(String) | Deployment/distribution identifier |
+| `user_id` | Int64 | Telegram user, or `0` when unavailable/not applicable |
+| `params` | Map(String,String) | Indexed/filterable string representation of event tags |
+| `payload` | String | Full JSON analytics tags or serialized domain event |
+| `created_at` | DateTime64(3) | Time the analytics row was produced |
+| `stream_id` | String | ES aggregate stream; empty for non-ES events |
+| `stream_version` | Int64 | Version within `stream_id`; `0` for non-ES events |
+| `aggregate_type` | LowCardinality(String) | CLR aggregate/domain-event type identity where available |
+| `schema_version` | UInt16 | Event payload contract version; currently `1` |
+| `correlation_id` | String | Telegram update trace (`telegram:<update_id>`) propagated through commands/events |
+| `causation_id` | String | Identifier of the operation/event that caused this event when available |
+| `is_replay` | UInt8 | `1` for historical backfill, `0` for live delivery |
+| `occurred_at` | DateTime64(3) | Original domain occurrence time; differs from `created_at` during replay/delay |
+
+All events emitted during a Telegram update also receive these `params` keys: `correlation_id`, rolling 30-minute `session_id`, `update_id`, `user_id`, `chat_id`, ISO-8601 `occurred_at`, and `source=telegram`. Outcome events add `outcome`, optional `error_code`, and `duration_ms`. `/start <parameter>` adds a bounded `acquisition_source` containing only ASCII letters, digits, `_`, and `-`.
+
+The ES table uses `ReplacingMergeTree(created_at)` ordered by `(project, event_id)`. Queries that require canonical uniqueness use `FINAL`. Live persisted events are written to both tables; historical replay is written only to `_es`, so product metrics are not double-counted.
+
+### Event catalog
+
+| Family | Event types | Important tags |
+|---|---|---|
+| Telegram ingress | `telegram.command`, `telegram.message`, `telegram.dice`, `telegram.callback`, `telegram.update` | update/user/chat IDs, kind, chat type, command, callback prefix, acquisition source |
+| Telegram completion | `telegram.update_completed`, `telegram.route_completed`, `telegram.route_missed` | session/correlation IDs, handler/route, outcome, error code, duration |
+| Framework | `_framework.error`, `framework.daily_bonus` | exception type/message/stack or bonus/user/chat/day |
+| Admin | `admin.command`, `admin.user_map` | command/type/caller or mapped user details |
+| Dice games | `basketball.bet`, `basketball.throw`, `basketball.bet_aborted`, `bowling.bet`, `bowling.roll`, `bowling.bet_aborted`, `darts.bet`, `darts.throw`, `darts.quickplay`, `dice.forwarded`, `dice.not_enough_coins`, `dice.success`, `dicecube.bet`, `dicecube.roll`, `football.bet`, `football.throw`, `football.bet_aborted` | user/chat, stake/bet, face/value, multiplier, payout/prize, outcome |
+| Blackjack | `blackjack.start`, `blackjack.end`, `blackjack.not_enough_coins` | user/chat, stake, result, payout |
+| Horse | `horse.bet`, `horse.run` | user/chat/race, horse, stake, payout/outcome |
+| Pick/lottery | `pick.roll`, `pick.lottery.open`, `pick.lottery.join`, `pick.lottery.cancelled`, `pick.lottery.settled`, `pick.daily.buy`, `pick.daily.cancelled_empty`, `pick.daily.settled` | user/chat, lottery, ticket/stake/pot, winner, payout/fee |
+| Poker | `poker.create`, `poker.join`, `poker.hand_start`, `poker.action`, `poker.auto`, `poker.leave`, `poker.hand_end` | invite/table, user/chat, action, stack/bet/pot, outcome |
+| Secret Hitler | `sh.create`, `sh.join`, `sh.start`, `sh.nominate`, `sh.vote`, `sh.president_discard`, `sh.chancellor_enact`, `sh.leave` | invite/game, user/chat, phase/action/outcome |
+| Challenges | `challenges.created`, `challenges.accepted`, `challenges.declined`, `challenges.tie`, `challenges.completed`, `challenges.failed_refunded` | duel/chat/users, game, amount, rolls, winner, payout/fee |
+| Transfers | `transfer.completed` | sender/recipient/chat, net, fee, total |
+| Redeem | `redeem.issued`, `redeem.invalid_code`, `redeem.already_redeemed`, `redeem.self_redeem`, `redeem.success`, `redeem.captcha_succeed`, `redeem.captcha_failed` | issuer/redeemer, code/game, outcome |
+| Leaderboard | `leaderboard.viewed`, `leaderboard.balance_viewed` | mode, scope, limit, returned users/chats, visibility, outcome |
+| PixelBattle | `pixelbattle.opened`, `pixelbattle.tile_updated` | user/chat, tile index/color/version, validation outcome |
+| Domain events | `basketball.throw_completed`, `bowling.roll_completed`, `darts.throw_completed`, `dice.roll_completed`, `dicecube.roll_completed`, `football.throw_completed`, `blackjack.hand_started`, `blackjack.hand_updated`, `blackjack.hand_completed`, `blackjack.hand_closed`, `blackjack.state_message_set`, `horse.bet_placed`, `horse.race_finished`, `poker.table_created`, `poker.player_joined`, `poker.hand_started`, `poker.hand_ended`, `sh.game_created`, `sh.player_joined`, `sh.game_started`, `sh.game_ended`, `redeem.issued`, `redeem.redeemed`, `telegram_dice.redeem_code_drop_requested`, `meta.game_completed`, `meta.game_streak_updated`, `meta.achievement_unlocked`, `meta.transfer_completed`, `meta.daily_claimed`, `debug.es_smoke_incremented` | full reflected domain properties plus canonical ES metadata |
+| Writer/backfill health | `meta_analytics.clickhouse_writer_health`, `meta_analytics.event_backfill_health` | batch/buffer/flush counters and duration; rows read/tracked/checkpoint |
+| Responsible gaming | `responsible_gaming.settings_viewed`, `responsible_gaming.wager_blocked` | user/action, block reason, limit usage and expiry |
+| Admin reporting | `meta_analytics.weekly_admin_summary`, `meta_analytics.economy_anomaly_alert` | weekly activity/economy totals or wallet/ledger anomaly counts |
+
+Domain-event rows use the contract's exact `EventType`; they are separate from service-level intent/outcome analytics. The canonical `_es` table is authoritative for persisted domain-event history.
+
+### Five-minute PostgreSQL snapshot events
+
+`MetaAnalyticsSnapshotJob` runs every five minutes. It performs bounded aggregate queries against PostgreSQL, writes the following events to ClickHouse, and records its own duration/failure/freshness. Grafana queries ClickHouse only.
+
+| Event type | Fields in `params` |
+|---|---|
+| `meta_analytics.economy_totals` | `coinSupply`, `wallets`, `nearZeroWallets`, `p50Coins`, `p90Coins`, `p99Coins`, `top1Coins`, `top5Coins`, `top10Coins` |
+| `meta_analytics.economy_integrity_snapshot` | `walletCoinSupply`, `latestLedgerSupply`, `mismatchedWallets`, `mismatchAbsoluteCoins`, `walletsWithoutLedger`, `balanceGini`, `topDecileCoinSharePercent` |
+| `meta_analytics.ledger_reason_window` | `reason`, `rows`, `credits`, `debits`, `net` |
+| `meta_analytics.ledger_health_snapshot` | `rowsWindow`, `creditsWindow`, `debitsWindow`, `netWindow`, `idempotentRows`, `negativeBalanceRows`, `zeroDeltaRows`, `lastLedgerAt`, `lastLedgerAgeSeconds` |
+| `meta_analytics.game_economy_window` | `module`, `rows`, `stake`, `payout`, `net`, `users` |
+| `meta_analytics.engagement_snapshot` | `wallets`, `users`, `balanceScopes`, `newWallets24H`, `newWallets7D`, `activeWallets24H`, `dailyClaimersToday`, `transactingUsers24H`, `activeScopes24H`, `activeChats24H` |
+| `meta_analytics.delivery_snapshot` | outbox pending/sent/failed/max attempts/oldest age; update counts and average/p95 latency; delivery average/p95 latency |
+| `meta_analytics.reliability_snapshot` | unresolved/retrying/new/resolved failures, max retry/oldest age, idempotency failures/stuck operations, due outbox rows |
+| `meta_analytics.game_state_snapshot` | live sessions/gates/challenges/lotteries, lottery pot, active poker/Secret Hitler games and players |
+| `meta_analytics.game_health_snapshot` | stale games/challenges, completed/cancelled challenges/lotteries, expired sessions/gates |
+| `meta_analytics.social_overview_snapshot` | new/active chats, transfers/coins, challenges created, social users (24h) |
+| `meta_analytics.chat_type_snapshot` | `chatType`, `chats`, `new24H`, `active24H` |
+| `meta_analytics.season_snapshot` | season identity/status, players/games/wins/losses/XP/stake/payout/level/clans |
+| `meta_analytics.quest_period_snapshot` | season/period, rows, started, completed, claimed |
+| `meta_analytics.quest_snapshot` | quest, rows, started/completed/claimed, average progress ratio |
+| `meta_analytics.whale_balance` | user/scope, coins, rank |
+| `meta_analytics.player_rtp` | season/chat/user/name, stake, payout, RTP |
+| `meta_analytics.risk_flags` | severity, status, rows |
+| `meta_analytics.ops_snapshot` | unresolved dispatch failures, known chats, processed updates, admin actions |
+| `meta_analytics.snapshot_job_health` | outcome/error, duration, window, completion time |
+
+### Metric definitions
+
+| Metric | Definition |
+|---|---|
+| DAU | Exact distinct non-zero `user_id` values active on a UTC calendar day |
+| D1/D7/D30 retention | Exact cohort users with activity 1/7/30 UTC days after their first observed day |
+| New/returning | New when activity day equals first observed day; returning when later |
+| Session | Same `(user_id, chat_id)` with less than 30 minutes inactivity; restart begins a new in-memory session |
+| Engaged session | Session containing at least one non-framework, non-Telegram product-module event |
+| Abandoned session | Session containing ingress events but no product-module event |
+| Funnel intent | Bet/create event; completion is a terminal game event; rejection is an insufficient-balance event |
+| RTP | `payout / stake`; dashboards display percentage and guard zero stake |
+| House edge | `(stake - payout) / stake`, displayed as a percentage |
+| Balance Gini | Standard ranked-wallet Gini coefficient over current wallet balances |
+| Top-decile share | Percentage of total coins owned by the highest wallet decile |
+| Economy mismatch | Current wallet balance differs from the latest ledger `balance_after`, or no ledger row exists |
+| Ingestion lag | `now() - max(created_at)`; ES source lag uses `now() - max(occurred_at)` |
+| Handler/update/delivery latency | Server elapsed time in milliseconds; percentile panels use exact p50/p95/p99 or p95 as labeled |
+| Stale multiplayer game | Active poker/Secret Hitler state with no action for 30 minutes |
+
+### Player protection and operations reports
+
+`/mystats` is private-chat only. It shows the caller's current private-wallet balance plus global 7/30-day game stakes and classified payouts. It supports `/mystats limit <coins|off>`, `/mystats cooldown <1h..30d>`, and `/mystats exclude <7d..3650d>`. Cooldowns and self-exclusion cannot be shortened before expiry. Protection is global per Telegram user across every wallet/chat; the daily limit resets at 00:00 UTC.
+
+All ordinary game debits pass the protection check inside the same PostgreSQL transaction as the wallet mutation. A per-user advisory transaction lock prevents concurrent bets from exceeding the daily limit. Admin corrections, transfers, and payout rollbacks bypass wagering controls.
+
+`meta.operations_reporting` runs every 15 minutes. It queues one summary per completed ISO week to every configured bot admin through the durable Telegram outbox. It also detects negative wallets, latest-ledger/current-wallet mismatches, and balance mutations of at least 100,000 coins; identical alerts are deduplicated per UTC hour.
+
+### Dashboard dependencies
+
+| Dashboard | Primary data |
+|---|---|
+| `overview.json`, `clickhouse-events-explorer.json` | Raw `events_v2` event inventory/tail |
+| `interactions-clickhouse.json` | `telegram.*` ingress and interaction tags |
+| `analytics-clickhouse.json` | Raw product events, users/chats, economy tags, retention/funnels |
+| `product-analytics-clickhouse.json` | `meta_analytics.*` five-minute snapshots |
+| `growth-reliability-clickhouse.json` | Raw product/Telegram events, snapshots, writer/backfill health, `system.*`, and canonical `events_v2_es FINAL` |
+| `infra-pg-redis.json`, `infra-services.json`, `dotnet-runtime.json` | Prometheus exporters/runtime metrics rather than ClickHouse |
+
+### ES replay and delivery guarantees
+
+- Live persisted events carry `(stream_id, stream_version)` through in-process and CAP/Redis delivery.
+- `event_id` is deterministic for persisted events, so retries have the same logical identity.
+- `events_v2_es` uses `ReplacingMergeTree`; canonical queries use `FINAL` to collapse duplicate physical deliveries.
+- `EventAnalyticsBackfillService` reads `module_events.id` in ascending batches of 500.
+- PostgreSQL `event_analytics_checkpoint.last_event_id` advances only after a successful ClickHouse flush.
+- Unreadable historical event types are logged and counted as skipped; the batch can advance instead of blocking forever.
+- Replay rows have `is_replay=1` and never enter the general product table.
+- Writer/backfill failures retain or retry buffered work; gameplay does not wait for analytics.
+- `created_at` is ingestion time; `occurred_at` is the source/domain time and must be used for historical ES timelines.
+
 ## Testing
 
-879 xUnit tests under `tests/CasinoShiz.Tests/`. No external database in CI — games use in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.). `DailyBonusMath` unit-tests the bonus coin formula.
+1,131 xUnit tests under `tests/CasinoShiz.Tests/`. No external database in CI — games use in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.). `DailyBonusMath` unit-tests the bonus coin formula.
 
 ```bash
 dotnet test
@@ -1528,6 +1670,10 @@ All UI in Russian. Command names are ASCII.
 | `/balance` | Current coin balance for this chat's wallet |
 | `/daily` | Once per local day after offset: small % of balance, capped — see `Bot:DailyBonus` |
 | `/top [full]` | Per-chat leaderboard |
+| `/mystats` | Private 7/30-day stake and payout statistics plus active protection settings |
+| `/mystats limit <coins\|off>` | Set or remove the global UTC daily stake limit |
+| `/mystats cooldown <1h..30d>` | Start a non-cancellable cooldown across all chats |
+| `/mystats exclude <7d..3650d>` | Start fixed-term self-exclusion across all chats |
 | `/menu` | Interactive wallet/profile hub with quests, achievements, season top, daily bonus, and game navigation |
 | `/season` | Active season information |
 | `/profile`, `/rank` | Seasonal XP, level, rating, division, and player statistics |

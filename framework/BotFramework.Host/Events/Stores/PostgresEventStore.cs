@@ -31,8 +31,11 @@ public sealed class PostgresEventStore(
     public async Task<IReadOnlyList<StoredEvent>> LoadAsync(string streamId, CancellationToken ct)
     {
         const string sql = """
-            SELECT stream_id, version, event_type, payload::text AS payload_text,
-                   (extract(epoch from occurred_at) * 1000)::bigint AS occurred_at_ms
+            SELECT stream_id AS "StreamId",
+                   version AS "Version",
+                   event_type AS "EventType",
+                   payload::text AS "PayloadText",
+                   (extract(epoch from occurred_at) * 1000)::bigint AS "OccurredAtMs"
             FROM module_events
             WHERE stream_id = @streamId
             ORDER BY version ASC

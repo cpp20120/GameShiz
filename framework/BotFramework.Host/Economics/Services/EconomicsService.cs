@@ -400,6 +400,9 @@ public sealed partial class EconomicsService(
             new CommandDefinition(
                 selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
 
+        if (delta < 0 && IsProtectedWager(reason))
+            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
+
         if (row.Equals(default((int, long))))
         {
             await tx.RollbackAsync(ct);
@@ -478,6 +481,9 @@ public sealed partial class EconomicsService(
             new CommandDefinition(
                 selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
 
+        if (delta < 0 && IsProtectedWager(reason))
+            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
+
         if (row.Equals(default((int, long))))
         {
             await tx.RollbackAsync(ct);
@@ -503,6 +509,57 @@ public sealed partial class EconomicsService(
         await tx.CommitAsync(ct);
         return new EconomicsMutationResult(Applied: true, Rejected: false, newCoins);
     }
+
+    internal static bool IsProtectedWager(string reason) =>
+        !reason.StartsWith("admin.", StringComparison.Ordinal) &&
+        !reason.StartsWith("transfer.", StringComparison.Ordinal) &&
+        !reason.EndsWith(".rollback", StringComparison.Ordinal);
+
+    private static async Task EnforcePlayerProtectionAsync(
+        Npgsql.NpgsqlConnection conn,
+        Npgsql.NpgsqlTransaction tx,
+        long userId,
+        int stake,
+        CancellationToken ct)
+    {
+        await conn.ExecuteAsync(new CommandDefinition(
+            "SELECT pg_advisory_xact_lock(@userId)", new { userId }, transaction: tx, cancellationToken: ct));
+
+        const string sql = """
+            SELECT p.daily_stake_limit AS DailyLimit,
+                   p.cooldown_until AS CooldownUntil,
+                   p.self_excluded_until AS SelfExcludedUntil,
+                   COALESCE((
+                       SELECT sum(-l.delta)
+                       FROM economics_ledger l
+                       WHERE l.telegram_user_id = @userId
+                         AND l.delta < 0
+                         AND l.created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+                         AND l.reason NOT LIKE 'admin.%'
+                         AND l.reason NOT LIKE 'transfer.%'
+                         AND l.reason NOT LIKE '%.rollback'
+                   ), 0)::bigint AS UsedToday
+            FROM player_protection p
+            WHERE p.telegram_user_id = @userId
+            """;
+        var protection = await conn.QuerySingleOrDefaultAsync<ProtectionRead>(new CommandDefinition(
+            sql, new { userId }, transaction: tx, cancellationToken: ct));
+        if (protection is null) return;
+
+        var now = DateTimeOffset.UtcNow;
+        if (protection.SelfExcludedUntil is { } excluded && excluded > now)
+            throw new PlayerProtectionException("self_excluded", excluded);
+        if (protection.CooldownUntil is { } cooldown && cooldown > now)
+            throw new PlayerProtectionException("cooldown", cooldown);
+        if (protection.DailyLimit is { } limit && protection.UsedToday + stake > limit)
+            throw new PlayerProtectionException("daily_limit", dailyLimit: limit, usedToday: protection.UsedToday);
+    }
+
+    private sealed record ProtectionRead(
+        int? DailyLimit,
+        DateTimeOffset? CooldownUntil,
+        DateTimeOffset? SelfExcludedUntil,
+        long UsedToday);
 
     [LoggerMessage(LogLevel.Information, "economics.credit user={UserId} scope={BalanceScopeId} amount={Amount} balance={Balance} reason={Reason}")]
     partial void LogCredit(

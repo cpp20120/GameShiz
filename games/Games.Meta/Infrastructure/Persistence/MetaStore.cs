@@ -431,14 +431,21 @@ public sealed class MetaStore(
             """;
 
         await using var conn = await connections.OpenAsync(ct);
-        var args = new { seasonId, chatId, userId, gameKey, playedOn };
+        var args = new
+        {
+            seasonId,
+            chatId,
+            userId,
+            gameKey,
+            playedOn = playedOn.ToDateTime(TimeOnly.MinValue),
+        };
         var row = await conn.QuerySingleOrDefaultAsync<GameStreakRecordRow>(new CommandDefinition(
             advanceSql,
             args,
             cancellationToken: ct));
         row ??= await conn.QuerySingleAsync<GameStreakRecordRow>(new CommandDefinition(
             currentSql,
-            new { seasonId, chatId, userId, gameKey, playedOn },
+            new { seasonId, chatId, userId, gameKey },
             cancellationToken: ct));
         return new GameStreakRecordResult(
             new GameStreak(

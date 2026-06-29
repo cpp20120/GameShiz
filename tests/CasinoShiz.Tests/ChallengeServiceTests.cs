@@ -12,11 +12,12 @@ public sealed class ChallengeServiceTests
     private static ChallengeService MakeService(
         InMemoryChallengeStore? store = null,
         FakeEconomicsService? economics = null,
-        ChallengeOptions? options = null) =>
+        ChallengeOptions? options = null,
+        IAnalyticsService? analytics = null) =>
         new(
             store ?? new InMemoryChallengeStore(),
             economics ?? new FakeEconomicsService(),
-            new NullAnalyticsService(),
+            analytics ?? new NullAnalyticsService(),
             Options.Create(options ?? new ChallengeOptions { MinBet = 10, MaxBet = 1_000 }),
             TimeProvider.System);
 
@@ -57,6 +58,128 @@ public sealed class ChallengeServiceTests
         Assert.Equal(ChallengeCreateError.NotEnoughCoins, result.Error);
         Assert.Equal(9, result.Balance);
         Assert.Empty(store.Challenges);
+    }
+
+    [Theory]
+    [InlineData(9)]
+    [InlineData(1_001)]
+    public async Task CreateAsync_OutsideBetLimits_ReturnsInvalidAmount(int amount)
+    {
+        var store = new InMemoryChallengeStore();
+
+        var result = await MakeService(store).CreateAsync(
+            1, "alice", new ChallengeUser(2, "bob"), 100, amount, ChallengeGame.Dice, default);
+
+        Assert.Equal(ChallengeCreateError.InvalidAmount, result.Error);
+        Assert.Empty(store.Challenges);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DuplicatePendingChallenge_IsRejected()
+    {
+        var store = new InMemoryChallengeStore();
+        var existing = NewChallenge();
+        store.Challenges[existing.Id] = existing;
+
+        var result = await MakeService(store).CreateAsync(
+            1, "alice", new ChallengeUser(2, "bob"), 100, 10, ChallengeGame.Dice, default);
+
+        Assert.Equal(ChallengeCreateError.AlreadyPending, result.Error);
+        Assert.Single(store.Challenges);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ValidChallenge_PersistsPendingChallenge()
+    {
+        var store = new InMemoryChallengeStore();
+
+        var result = await MakeService(store).CreateAsync(
+            1, "alice", new ChallengeUser(2, "bob"), 100, 25, ChallengeGame.Darts, default);
+
+        Assert.Equal(ChallengeCreateError.None, result.Error);
+        Assert.NotNull(result.Challenge);
+        Assert.Equal(ChallengeStatus.Pending, result.Challenge.Status);
+        Assert.Contains(result.Challenge.Id, store.Challenges.Keys);
+    }
+
+    [Theory]
+    [InlineData(999, ChallengeAcceptError.NotTarget)]
+    [InlineData(2, ChallengeAcceptError.AlreadyResolved)]
+    public async Task BeginAcceptAsync_RejectsWrongActorOrResolvedChallenge(
+        long actorId, ChallengeAcceptError expected)
+    {
+        var store = new InMemoryChallengeStore();
+        var challenge = NewChallenge(status: actorId == 2 ? ChallengeStatus.Declined : ChallengeStatus.Pending);
+        store.Challenges[challenge.Id] = challenge;
+
+        var result = await MakeService(store).BeginAcceptAsync(challenge.Id, actorId, default);
+
+        Assert.Equal(expected, result.Error);
+    }
+
+    [Fact]
+    public async Task DeclineAsync_TargetDeclinesPendingChallenge()
+    {
+        var store = new InMemoryChallengeStore();
+        var challenge = NewChallenge();
+        store.Challenges[challenge.Id] = challenge;
+
+        var result = await MakeService(store).DeclineAsync(challenge.Id, challenge.TargetId, default);
+
+        Assert.Equal(ChallengeAcceptError.None, result);
+        Assert.Equal(ChallengeStatus.Declined, store.Challenges[challenge.Id].Status);
+    }
+
+    [Fact]
+    public async Task DeclineAsync_MissingChallenge_ReturnsNotFound()
+    {
+        var result = await MakeService().DeclineAsync(Guid.NewGuid(), 2, default);
+
+        Assert.Equal(ChallengeAcceptError.NotFound, result);
+    }
+
+    [Fact]
+    public async Task DeclineAsync_NonTarget_ReturnsNotTargetWithoutMutation()
+    {
+        var store = new InMemoryChallengeStore();
+        var challenge = NewChallenge();
+        store.Challenges[challenge.Id] = challenge;
+
+        var result = await MakeService(store).DeclineAsync(challenge.Id, 999, default);
+
+        Assert.Equal(ChallengeAcceptError.NotTarget, result);
+        Assert.Equal(ChallengeStatus.Pending, store.Challenges[challenge.Id].Status);
+    }
+
+    [Fact]
+    public async Task DeclineAsync_ResolvedChallenge_ReturnsAlreadyResolved()
+    {
+        var store = new InMemoryChallengeStore();
+        var challenge = NewChallenge(status: ChallengeStatus.Completed);
+        store.Challenges[challenge.Id] = challenge;
+
+        var result = await MakeService(store).DeclineAsync(challenge.Id, challenge.TargetId, default);
+
+        Assert.Equal(ChallengeAcceptError.AlreadyResolved, result);
+    }
+
+    [Fact]
+    public async Task FailAcceptedAsync_RefundsBothPlayersAndMarksFailed()
+    {
+        var store = new InMemoryChallengeStore();
+        var economics = new FakeEconomicsService { StartingBalance = 0 };
+        var challenge = NewChallenge(amount: 25, status: ChallengeStatus.Accepted);
+        store.Challenges[challenge.Id] = challenge;
+
+        await MakeService(store, economics).FailAcceptedAsync(challenge, default);
+
+        Assert.Equal(ChallengeStatus.Failed, store.Challenges[challenge.Id].Status);
+        Assert.Equal(2, economics.Credits.Count);
+        Assert.All(economics.Credits, credit =>
+        {
+            Assert.Equal(25, credit.Amount);
+            Assert.Equal("challenge.refund", credit.Reason);
+        });
     }
 
     [Fact]
@@ -109,6 +232,105 @@ public sealed class ChallengeServiceTests
         Assert.Equal(ChallengeStatus.Completed, store.Challenges[challenge.Id].Status);
         Assert.Contains(economics.Credits, c => c.UserId == challenge.ChallengerId && c.Amount == 40 && string.Equals(c.Reason, "challenge.tie_refund", StringComparison.Ordinal));
         Assert.Contains(economics.Credits, c => c.UserId == challenge.TargetId && c.Amount == 40 && string.Equals(c.Reason, "challenge.tie_refund", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BeginAcceptAsync_MissingChallenge_ReturnsNotFound()
+    {
+        var result = await MakeService().BeginAcceptAsync(Guid.NewGuid(), 2, default);
+        Assert.Equal(ChallengeAcceptError.NotFound, result.Error);
+    }
+
+    [Fact]
+    public async Task BeginAcceptAsync_ExpiredChallenge_MarksFailed()
+    {
+        var store = new InMemoryChallengeStore();
+        var challenge = NewChallenge() with { ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        store.Challenges[challenge.Id] = challenge;
+
+        var result = await MakeService(store).BeginAcceptAsync(challenge.Id, challenge.TargetId, default);
+
+        Assert.Equal(ChallengeAcceptError.Expired, result.Error);
+        Assert.Equal(ChallengeStatus.Failed, store.Challenges[challenge.Id].Status);
+    }
+
+    [Fact]
+    public async Task BeginAcceptAsync_ChallengerWithoutCoins_MarksFailed()
+    {
+        var store = new InMemoryChallengeStore();
+        var economics = new FakeEconomicsService { StartingBalance = 100 };
+        var challenge = NewChallenge(amount: 25);
+        store.Challenges[challenge.Id] = challenge;
+        economics.SetBalance(challenge.ChallengerId, challenge.ChatId, 0);
+
+        var result = await MakeService(store, economics).BeginAcceptAsync(challenge.Id, challenge.TargetId, default);
+
+        Assert.Equal(ChallengeAcceptError.ChallengerNotEnoughCoins, result.Error);
+        Assert.Equal(ChallengeStatus.Failed, store.Challenges[challenge.Id].Status);
+        Assert.Empty(economics.Credits);
+    }
+
+    [Fact]
+    public async Task BeginAcceptAsync_SuccessDebitsBothAndTracksAcceptance()
+    {
+        var store = new InMemoryChallengeStore();
+        var economics = new FakeEconomicsService();
+        var analytics = new RecordingAnalyticsService();
+        var challenge = NewChallenge(amount: 25);
+        store.Challenges[challenge.Id] = challenge;
+
+        var result = await MakeService(store, economics, analytics: analytics)
+            .BeginAcceptAsync(challenge.Id, challenge.TargetId, default);
+
+        Assert.Equal(ChallengeAcceptError.None, result.Error);
+        Assert.Equal(ChallengeStatus.Accepted, store.Challenges[challenge.Id].Status);
+        Assert.Equal(2, economics.Debits.Count);
+        Assert.All(economics.Debits, x => Assert.Equal(25, x.Amount));
+        Assert.Contains(analytics.Events, x => x.EventName == "accepted");
+    }
+
+    [Fact]
+    public async Task CompleteAcceptedAsync_TargetWinsAndFeeIsClampedToPot()
+    {
+        var store = new InMemoryChallengeStore();
+        var economics = new FakeEconomicsService { StartingBalance = 0 };
+        var analytics = new RecordingAnalyticsService();
+        var challenge = NewChallenge(amount: 50, status: ChallengeStatus.Accepted);
+        store.Challenges[challenge.Id] = challenge;
+        var options = new ChallengeOptions { MinBet = 1, MaxBet = 1_000, HouseFeeBasisPoints = 20_000 };
+
+        var result = await MakeService(store, economics, options, analytics)
+            .CompleteAcceptedAsync(challenge, challengerRoll: 1, targetRoll: 6, default);
+
+        Assert.Equal(challenge.TargetId, result.WinnerId);
+        Assert.Equal(challenge.TargetName, result.WinnerName);
+        Assert.Equal(100, result.Fee);
+        Assert.Equal(0, result.Payout);
+        Assert.Contains(analytics.Events, x => x.EventName == "completed");
+    }
+
+    [Fact]
+    public async Task CreateDeclineTieAndFailure_TrackLifecycleAnalytics()
+    {
+        var store = new InMemoryChallengeStore();
+        var analytics = new RecordingAnalyticsService();
+        var service = MakeService(store, analytics: analytics);
+        var created = await service.CreateAsync(
+            1, "alice", new ChallengeUser(2, "bob"), 100, 20, ChallengeGame.Darts, default);
+        Assert.NotNull(created.Challenge);
+        await service.DeclineAsync(created.Challenge.Id, 2, default);
+
+        var tie = NewChallenge(status: ChallengeStatus.Accepted);
+        store.Challenges[tie.Id] = tie;
+        await service.CompleteAcceptedAsync(tie, 3, 3, default);
+        var failed = NewChallenge(status: ChallengeStatus.Accepted);
+        store.Challenges[failed.Id] = failed;
+        await service.FailAcceptedAsync(failed, default);
+
+        Assert.Contains(analytics.Events, x => x.EventName == "created");
+        Assert.Contains(analytics.Events, x => x.EventName == "declined");
+        Assert.Contains(analytics.Events, x => x.EventName == "tie");
+        Assert.Contains(analytics.Events, x => x.EventName == "failed_refunded");
     }
 
     private static Challenge NewChallenge(int amount = 10, ChallengeStatus status = ChallengeStatus.Pending) =>

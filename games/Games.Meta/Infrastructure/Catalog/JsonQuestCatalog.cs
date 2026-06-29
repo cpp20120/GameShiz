@@ -9,7 +9,7 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
 
     private QuestCatalogState _state;
 
-    private JsonQuestCatalog()
+    public JsonQuestCatalog()
         : this(LoadDocument())
     {
     }

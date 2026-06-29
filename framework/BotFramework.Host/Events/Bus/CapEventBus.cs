@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BotFramework.Host.Analytics;
 using DotNetCore.CAP;
 
 namespace BotFramework.Host.Events.Bus;
@@ -17,11 +18,18 @@ public sealed partial class CapEventBus(
 
     public async Task PublishAsync(IDomainEvent ev, CancellationToken ct)
     {
+        var metadata = EventAnalyticsEnvelopeAccessor.Current;
         var envelope = new DomainEventEnvelope(
             ev.EventType,
             ev.GetType().AssemblyQualifiedName!,
             JsonSerializer.Serialize(ev, ev.GetType(), JsonOpts),
-            ev.OccurredAt);
+            ev.OccurredAt,
+            metadata?.StreamId ?? "",
+            metadata?.StreamVersion ?? 0,
+            metadata?.AggregateType ?? "",
+            metadata?.SchemaVersion ?? 1,
+            metadata?.CorrelationId ?? "",
+            metadata?.CausationId ?? "");
 
         using var scope = scopeFactory.CreateScope();
         var cap = scope.ServiceProvider.GetRequiredService<ICapPublisher>();
@@ -39,17 +47,34 @@ public sealed partial class CapEventBus(
 
         var ev = (IDomainEvent)JsonSerializer.Deserialize(envelope.Payload, type, JsonOpts)!;
 
-        foreach (var sub in _subs)
+        var previousEnvelope = EventAnalyticsEnvelopeAccessor.Current;
+        EventAnalyticsEnvelopeAccessor.Current = string.IsNullOrEmpty(envelope.StreamId)
+            ? null
+            : new EventAnalyticsEnvelope(
+                envelope.StreamId,
+                envelope.StreamVersion,
+                envelope.AggregateType,
+                envelope.SchemaVersion,
+                envelope.CorrelationId,
+                envelope.CausationId);
+        try
         {
-            if (!Matches(sub.Pattern, ev.EventType)) continue;
-            try
+            foreach (var sub in _subs)
             {
-                await sub.Subscriber.HandleAsync(ev, ct);
+                if (!Matches(sub.Pattern, ev.EventType)) continue;
+                try
+                {
+                    await sub.Subscriber.HandleAsync(ev, ct);
+                }
+                catch (Exception ex)
+                {
+                    LogSubscriberFailed(ex, ev.EventType, sub.Subscriber.GetType().Name);
+                }
             }
-            catch (Exception ex)
-            {
-                LogSubscriberFailed(ex, ev.EventType, sub.Subscriber.GetType().Name);
-            }
+        }
+        finally
+        {
+            EventAnalyticsEnvelopeAccessor.Current = previousEnvelope;
         }
     }
 

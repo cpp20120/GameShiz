@@ -1,0 +1,212 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 }, "id": 1,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "WITH activity AS (SELECT user_id, toDate(created_at) AS d FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND user_id > 0 GROUP BY user_id, d), cohorts AS (SELECT user_id, min(d) AS cohort_date FROM activity GROUP BY user_id) SELECT cohort_date, uniqExact(c.user_id) AS cohort_users, uniqExactIf(c.user_id, a.d = cohort_date + 1) AS d1_users, round(100 * d1_users / greatest(cohort_users, 1), 2) AS d1_percent, uniqExactIf(c.user_id, a.d = cohort_date + 7) AS d7_users, round(100 * d7_users / greatest(cohort_users, 1), 2) AS d7_percent, uniqExactIf(c.user_id, a.d = cohort_date + 30) AS d30_users, round(100 * d30_users / greatest(cohort_users, 1), 2) AS d30_percent FROM cohorts c LEFT JOIN activity a ON a.user_id = c.user_id WHERE $__timeFilter(toDateTime(cohort_date)) GROUP BY cohort_date ORDER BY cohort_date DESC" }],
+      "title": "D1 / D7 / D30 retention cohorts", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 }, "id": 2,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "WITH first_seen AS (SELECT user_id, min(toDate(created_at)) AS first_day FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND user_id > 0 GROUP BY user_id), daily AS (SELECT toStartOfDay(created_at) AS time, user_id FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND user_id > 0 AND $__timeFilter(created_at) GROUP BY time, user_id) SELECT time, metric, value FROM (SELECT time, 'new' AS metric, uniqExactIf(d.user_id, f.first_day = toDate(time)) AS value FROM daily d INNER JOIN first_seen f ON f.user_id = d.user_id GROUP BY time UNION ALL SELECT time, 'returning' AS metric, uniqExactIf(d.user_id, f.first_day < toDate(time)) AS value FROM daily d INNER JOIN first_seen f ON f.user_id = d.user_id GROUP BY time) ORDER BY time ASC, metric ASC" }],
+      "title": "New vs returning users", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 }, "id": 3,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "WITH stages AS (SELECT multiIf(event_type = 'telegram.command', '1 command', endsWith(event_type, '.bet') OR endsWith(event_type, '.create'), '2 intent', event_type IN ('bowling.roll','basketball.throw','football.throw','darts.throw','dice.success','dicecube.roll','poker.hand_end','horse.run'), '3 completed', event_type IN ('dice.not_enough_coins','blackjack.not_enough_coins'), '4 rejected', '') AS stage, user_id FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND $__timeFilter(created_at)) SELECT stage, count() AS events, uniqExactIf(user_id, user_id > 0) AS users FROM stages WHERE stage != '' GROUP BY stage ORDER BY stage" }],
+      "title": "Game funnel", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 }, "id": 4,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT module, countIf(event_type IN ('dice.not_enough_coins','blackjack.not_enough_coins')) AS rejected, count() AS tracked_events, round(100 * rejected / greatest(tracked_events, 1), 2) AS rejection_percent FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND $__timeFilter(created_at) AND module NOT IN ('telegram','meta_analytics','_framework') GROUP BY module HAVING rejected > 0 ORDER BY rejection_percent DESC" }],
+      "title": "Insufficient-balance rejection rate", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 18 }, "id": 5,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'wallet supply' AS metric, toFloat64OrZero(params['walletCoinSupply']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_integrity_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'ledger supply', toFloat64OrZero(params['latestLedgerSupply']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_integrity_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'absolute mismatch', toFloat64OrZero(params['mismatchAbsoluteCoins']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_integrity_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Economy reconciliation", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 18 }, "id": 6,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'gini' AS metric, toFloat64OrZero(params['balanceGini']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_integrity_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'top decile %', toFloat64OrZero(params['topDecileCoinSharePercent']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_integrity_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'mismatched wallets', toFloat64OrZero(params['mismatchedWallets']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.economy_integrity_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Economy concentration and integrity", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 27 }, "id": 7,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'unresolved' AS metric, toFloat64OrZero(params['unresolvedFailures']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.reliability_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'retrying', toFloat64OrZero(params['retryingFailures']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.reliability_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'stuck operations', toFloat64OrZero(params['stuckIdempotencyOperations']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.reliability_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'due outbox', toFloat64OrZero(params['dueOutboxRows']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.reliability_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Reliability backlog", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 27 }, "id": 8,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT params['exception_type'] AS exception_type, count() AS failures, uniqExactIf(user_id, user_id > 0) AS affected_users, max(created_at) AS last_seen FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND event_type = '_framework.error' AND $__timeFilter(created_at) GROUP BY exception_type ORDER BY failures DESC LIMIT 50" }],
+      "title": "Application failures", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 36 }, "id": 9,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'stale challenges' AS metric, toFloat64OrZero(params['staleChallenges']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'stale poker', toFloat64OrZero(params['stalePokerTables']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'stale secret hitler', toFloat64OrZero(params['staleSecretHitlerGames']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'expired sessions', toFloat64OrZero(params['expiredMiniGameSessions']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Stale game state", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 36 }, "id": 10,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'challenges completed' AS metric, toFloat64OrZero(params['challengesCompleted24H']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'challenges cancelled', toFloat64OrZero(params['challengesCancelled24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'lotteries settled', toFloat64OrZero(params['lotteriesSettled24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'lotteries cancelled', toFloat64OrZero(params['lotteriesCancelled24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.game_health_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Game completion health (24h)", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 45 }, "id": 11,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'active chats' AS metric, toFloat64OrZero(params['activeChats24H']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.social_overview_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'new chats', toFloat64OrZero(params['newChats24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.social_overview_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'social users', toFloat64OrZero(params['socialUsers24H']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.social_overview_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Social reach (24h)", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 45 }, "id": 12,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT params['chatType'] AS chat_type, argMax(toInt64OrZero(params['chats']), created_at) AS chats, argMax(toInt64OrZero(params['new24H']), created_at) AS new_24h, argMax(toInt64OrZero(params['active24H']), created_at) AS active_24h FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.chat_type_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) GROUP BY chat_type ORDER BY active_24h DESC" }],
+      "title": "Chat types", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 54 }, "id": 13,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'flush ms' AS metric, toFloat64OrZero(params['flush_duration_ms']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.clickhouse_writer_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'batch rows', toFloat64OrZero(params['batch_size']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.clickhouse_writer_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'buffer depth', toFloat64OrZero(params['buffer_depth']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.clickhouse_writer_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'failed total', toFloat64OrZero(params['flush_failed_total']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.clickhouse_writer_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "ClickHouse writer health", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 54 }, "id": 14,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT count() AS events, uniqExact(event_id) AS unique_ids, events - unique_ids AS duplicate_ids, countIf(user_id = 0) AS missing_user_id, countIf(empty(payload)) AS empty_payload, countIf(length(params) = 0) AS empty_params, uniqExact(event_type) AS event_types, uniqExact(module) AS modules, dateDiff('second', max(created_at), now()) AS ingestion_lag_seconds FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND $__timeFilter(created_at)" }],
+      "title": "Analytics data quality", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 63 }, "id": 15,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT toStartOfInterval(created_at, INTERVAL 5 MINUTE) AS time, count() AS events FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND $__timeFilter(created_at) GROUP BY time ORDER BY time ASC" }],
+      "title": "Event ingestion throughput", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 63 }, "id": 16,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT event_type, module, count() AS events, countIf(user_id = 0) AS missing_user, countIf(length(params) = 0) AS empty_params, round(100 * missing_user / greatest(events, 1), 2) AS missing_user_percent, max(created_at) AS last_seen FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND $__timeFilter(created_at) GROUP BY event_type, module ORDER BY events DESC LIMIT 100" }],
+      "title": "Event type coverage and quality", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 72 }, "id": 17,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT toStartOfInterval(created_at, INTERVAL 5 MINUTE) AS time, metric, value FROM (SELECT created_at, 'p50' AS metric, quantileExact(0.50)(toFloat64OrZero(params['duration_ms'])) OVER (PARTITION BY toStartOfInterval(created_at, INTERVAL 5 MINUTE)) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'telegram.route_completed' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'p95', quantileExact(0.95)(toFloat64OrZero(params['duration_ms'])) OVER (PARTITION BY toStartOfInterval(created_at, INTERVAL 5 MINUTE)) FROM cazinoshiz.events_v2 WHERE event_type = 'telegram.route_completed' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'p99', quantileExact(0.99)(toFloat64OrZero(params['duration_ms'])) OVER (PARTITION BY toStartOfInterval(created_at, INTERVAL 5 MINUTE)) FROM cazinoshiz.events_v2 WHERE event_type = 'telegram.route_completed' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) GROUP BY time, metric, value ORDER BY time ASC, metric ASC" }],
+      "title": "Handler latency p50 / p95 / p99", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 72 }, "id": 18,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT params['handler'] AS handler, count() AS calls, round(quantileExact(0.50)(toFloat64OrZero(params['duration_ms'])), 2) AS p50_ms, round(quantileExact(0.95)(toFloat64OrZero(params['duration_ms'])), 2) AS p95_ms, round(quantileExact(0.99)(toFloat64OrZero(params['duration_ms'])), 2) AS p99_ms, countIf(params['outcome'] = 'error') AS errors, round(100 * errors / greatest(calls, 1), 2) AS error_percent FROM cazinoshiz.events_v2 WHERE event_type = 'telegram.route_completed' AND project = 'cazinoshiz' AND $__timeFilter(created_at) GROUP BY handler ORDER BY p95_ms DESC" }],
+      "title": "Handler latency and errors", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 81 }, "id": 19,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'update avg' AS metric, toFloat64OrZero(params['updateLatencyAvgMs']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'update p95', toFloat64OrZero(params['updateLatencyP95Ms']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'delivery avg', toFloat64OrZero(params['deliveryLatencyAvgMs']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'delivery p95', toFloat64OrZero(params['deliveryLatencyP95Ms']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.delivery_snapshot' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Update and outbox delivery latency", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 81 }, "id": 20,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT params['session_id'] AS session_id, any(user_id) AS user_id, min(created_at) AS started_at, max(created_at) AS ended_at, dateDiff('second', started_at, ended_at) AS duration_seconds, count() AS events, uniqExact(module) AS modules, countIf(params['outcome'] = 'error') AS errors, countIf(module NOT IN ('telegram','meta_analytics','_framework','framework')) AS product_events FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND notEmpty(params['session_id']) AND $__timeFilter(created_at) GROUP BY session_id ORDER BY ended_at DESC LIMIT 200" }],
+      "title": "Session duration and depth", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 90 }, "id": 21,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT toStartOfDay(started_at) AS time, metric, count() AS value FROM (SELECT params['session_id'] AS session_id, min(created_at) AS started_at, countIf(module NOT IN ('telegram','meta_analytics','_framework','framework')) AS product_events FROM cazinoshiz.events_v2 WHERE project = 'cazinoshiz' AND notEmpty(params['session_id']) AND $__timeFilter(created_at) GROUP BY session_id) AS sessions CROSS JOIN (SELECT arrayJoin(['engaged','abandoned']) AS metric) AS labels WHERE (metric = 'engaged' AND product_events > 0) OR (metric = 'abandoned' AND product_events = 0) GROUP BY time, metric ORDER BY time ASC, metric ASC" }],
+      "title": "Engaged vs abandoned sessions", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 90 }, "id": 22,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'duration ms' AS metric, toFloat64OrZero(params['duration_ms']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'failures', if(params['outcome'] = 'error', 1, 0) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'freshness seconds', dateDiff('second', created_at, now()) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "Snapshot job duration, failures and freshness", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 99 }, "id": 23,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT database, table, formatReadableSize(sum(bytes_on_disk)) AS disk_size, sum(rows) AS rows, count() AS active_parts, round(sum(bytes_on_disk) / greatest(sum(rows), 1), 2) AS bytes_per_row FROM system.parts WHERE active AND database NOT IN ('system','information_schema','INFORMATION_SCHEMA') GROUP BY database, table ORDER BY sum(bytes_on_disk) DESC" }],
+      "title": "ClickHouse storage and active parts", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 99 }, "id": 24,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT query_kind, count() AS queries, round(quantileExact(0.50)(query_duration_ms), 2) AS p50_ms, round(quantileExact(0.95)(query_duration_ms), 2) AS p95_ms, round(quantileExact(0.99)(query_duration_ms), 2) AS p99_ms, countIf(exception_code != 0) AS errors, formatReadableSize(sum(read_bytes)) AS bytes_read FROM system.query_log WHERE type IN ('QueryFinish','ExceptionBeforeStart','ExceptionWhileProcessing') AND event_time >= now() - INTERVAL 24 HOUR GROUP BY query_kind ORDER BY p95_ms DESC" }],
+      "title": "ClickHouse query performance (24h)", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 108 }, "id": 25,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT database, table, elapsed, round(progress * 100, 2) AS progress_percent, num_parts, formatReadableSize(memory_usage) AS memory, formatReadableSize(total_size_bytes_compressed) AS compressed_size FROM system.merges ORDER BY elapsed DESC" }],
+      "title": "ClickHouse active merges", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 108 }, "id": 26,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT database, table, mutation_id, command, create_time, parts_to_do, latest_failed_part, latest_fail_time, latest_fail_reason FROM system.mutations WHERE NOT is_done ORDER BY create_time ASC" }],
+      "title": "ClickHouse pending mutations", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 117 }, "id": 27,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT count() AS events, uniqExact(stream_id) AS streams, uniqExact(event_type) AS event_types, uniqExact(aggregate_type) AS aggregate_types, countIf(is_replay = 1) AS replayed_events, countIf(empty(correlation_id)) AS missing_correlation, dateDiff('second', max(occurred_at), now()) AS source_lag_seconds FROM cazinoshiz.events_v2_es FINAL WHERE project = 'cazinoshiz' AND $__timeFilter(occurred_at)" }],
+      "title": "Event store analytics summary", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 117 }, "id": 28,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT toStartOfInterval(occurred_at, INTERVAL 5 MINUTE) AS time, module, count() AS events FROM cazinoshiz.events_v2_es FINAL WHERE project = 'cazinoshiz' AND $__timeFilter(occurred_at) GROUP BY time, module ORDER BY time ASC, module ASC" }],
+      "title": "Canonical ES event throughput", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 126 }, "id": 29,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT aggregate_type, event_type, schema_version, count() AS events, uniqExact(stream_id) AS streams, min(occurred_at) AS first_seen, max(occurred_at) AS last_seen FROM cazinoshiz.events_v2_es FINAL WHERE project = 'cazinoshiz' AND $__timeFilter(occurred_at) GROUP BY aggregate_type, event_type, schema_version ORDER BY events DESC" }],
+      "title": "Aggregate and event schema inventory", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 126 }, "id": 30,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT stream_id, min(stream_version) AS min_version, max(stream_version) AS max_version, uniqExact(stream_version) AS versions, max_version - min_version + 1 - versions AS missing_versions, count() - versions AS duplicate_versions, max(occurred_at) AS last_event_at FROM cazinoshiz.events_v2_es FINAL WHERE project = 'cazinoshiz' AND $__timeFilter(occurred_at) GROUP BY stream_id HAVING missing_versions > 0 OR duplicate_versions > 0 ORDER BY missing_versions DESC, duplicate_versions DESC LIMIT 200" }],
+      "title": "Event stream integrity", "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 135 }, "id": 31,
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'rows read' AS metric, toFloat64OrZero(params['rows_read']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.event_backfill_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'rows tracked', toFloat64OrZero(params['rows_tracked']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.event_backfill_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'checkpoint', toFloat64OrZero(params['last_event_id']) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.event_backfill_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "title": "ES historical backfill", "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 135 }, "id": 32,
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT module, count() AS events, countIf(notEmpty(correlation_id)) AS correlated, countIf(notEmpty(causation_id)) AS caused, countIf(user_id != 0) AS user_tagged, round(100 * correlated / greatest(events, 1), 2) AS correlation_percent, round(100 * user_tagged / greatest(events, 1), 2) AS user_coverage_percent FROM cazinoshiz.events_v2_es FINAL WHERE project = 'cazinoshiz' AND $__timeFilter(occurred_at) GROUP BY module ORDER BY events DESC" }],
+      "title": "ES metadata coverage", "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["casino", "clickhouse", "growth", "retention", "reliability", "quality"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "CasinoShiz Growth & Reliability",
+  "uid": "casino-growth-reliability-clickhouse",
+  "version": 4,
+  "weekStart": ""
+}

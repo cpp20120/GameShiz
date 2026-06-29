@@ -17,20 +17,21 @@
     <PackageReference Include="DotNetCore.CAP" Version="10.0.1" />
     <PackageReference Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
     <PackageReference Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
-    <PackageReference Include="StackExchange.Redis" Version="2.12.14" />
-    <PackageReference Include="Telegram.Bot" Version="22.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0-*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0-*" />
-    <PackageReference Include="Npgsql" Version="10.0.0-*" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0-*" />
-    <PackageReference Include="Dapper" Version="2.1.*" />
-    <PackageReference Include="ClickHouse.Client" Version="7.*" />
-    <PackageReference Include="SkiaSharp" Version="3.*" />
-    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.*" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0-*" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-*" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0-*" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0-*" />
+    <PackageReference Include="StackExchange.Redis" Version="3.0.7" />
+    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="ClickHouse.Client" Version="7.14.0" />
+    <PackageReference Include="SkiaSharp" Version="4.148.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.148.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.9" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    <PackageReference Update="Meziantou.Analyzer" Version="3.0.115" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,6 +42,10 @@
     <Using Include="Microsoft.Extensions.Logging" />
     <Using Include="Microsoft.Extensions.DependencyInjection" />
     <Using Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CasinoShiz.Tests" />
   </ItemGroup>
 
 </Project>

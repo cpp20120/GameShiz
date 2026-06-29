@@ -52,9 +52,9 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<UpdateRouter>();
         services.AddSingleton<UpdatePipeline>();
 
+        services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();
         services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
         services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();
         services.AddSingleton<IUpdateMiddleware, Pipeline.Middleware.LoggingMiddleware>();
         services.AddSingleton<IUpdateMiddleware, Pipeline.Middleware.RateLimitMiddleware>();
         services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();
@@ -109,6 +109,7 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<IMiniGameRollGateStore, PostgresMiniGameRollGateStore>();
         services.Configure<DailyBonusOptions>(configuration.GetSection(DailyBonusOptions.SectionName));
         services.AddSingleton<IDailyBonusService, DailyBonusService>();
+        services.AddSingleton<IPlayerProtectionService, PlayerProtectionService>();
 
         services.Configure<TelegramDiceDailyLimitOptions>(
             configuration.GetSection(TelegramDiceDailyLimitOptions.SectionName));
@@ -136,6 +137,7 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<IBackgroundJobStatusService, BackgroundJobStatusService>();
 
         services.AddHostedService<ModuleMigrationRunner>();
+        services.AddHostedService<EventAnalyticsBackfillService>();
         services.AddHostedService<TelegramOutboxDispatcherService>();
         services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
         services.AddHostedService<DailyBonusCatchUpHostedService>();
