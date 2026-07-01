@@ -1,0 +1,42 @@
+@page "/admin/audit"
+@model CasinoShiz.Host.Pages.Admin.AuditModel
+@{ ViewData["Title"] = "Admin audit"; }
+
+<h2>Admin audit</h2>
+<p class="muted">Immutable record of administrative mutations. The page shows 200 rows; exports contain at most 1,000 rows using the same filters.</p>
+
+<div class="card">
+    <form method="get" class="inline">
+        <input name="actor" value="@Model.Actor" placeholder="Actor ID or name…" />
+        <input name="action" value="@Model.Action" placeholder="Action…" />
+        <input name="details" value="@Model.Details" placeholder="Record ID or details…" />
+        <label class="muted">From <input type="datetime-local" name="from" value="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" /></label>
+        <label class="muted">To <input type="datetime-local" name="to" value="@Model.To?.ToString("yyyy-MM-ddTHH:mm")" /></label>
+        <button type="submit">Filter</button>
+        <button type="submit" name="handler" value="Csv" class="ghost">Export CSV</button>
+        <button type="submit" name="handler" value="Json" class="ghost">Export JSON</button>
+        @if (!string.IsNullOrEmpty(Model.Actor) || !string.IsNullOrEmpty(Model.Action) || !string.IsNullOrEmpty(Model.Details) || Model.From is not null || Model.To is not null)
+        {
+            <a href="/admin/audit" class="muted">clear</a>
+        }
+    </form>
+</div>
+
+<div class="card">
+    <table>
+        <thead><tr><th>When</th><th>ID</th><th>Actor</th><th>Action</th><th>Details</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.Rows)
+        {
+            <tr>
+                <td class="muted">@row.OccurredAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</td>
+                <td><code>@row.Id</code></td>
+                <td>@row.ActorName<br /><code>@row.ActorId</code></td>
+                <td><code>@row.Action</code></td>
+                <td><pre>@row.DetailsJson</pre></td>
+            </tr>
+        }
+        @if (Model.Rows.Count == 0) { <tr><td colspan="5" class="muted">No matching audit records.</td></tr> }
+        </tbody>
+    </table>
+</div>

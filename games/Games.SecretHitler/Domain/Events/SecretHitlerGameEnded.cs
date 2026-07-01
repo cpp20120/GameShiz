@@ -5,7 +5,7 @@ public sealed record SecretHitlerGameEnded(
     string InviteCode,
     ShWinner Winner,
     ShWinReason Reason,
-    IReadOnlyList<(long UserId, int Amount)> Payouts,
+    IReadOnlyList<SecretHitlerPayout> Payouts,
     long OccurredAt) : IDomainEvent
 {
     public string EventType => "sh.game_ended";

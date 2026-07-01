@@ -92,6 +92,8 @@
             <a href="/admin/meta" class="@(Context.Request.Path.StartsWithSegments("/admin/meta") ? "active" : "")">Meta</a>
             <a href="/admin/horse" class="@(Context.Request.Path.StartsWithSegments("/admin/horse") ? "active" : "")">Horse</a>
             <a href="/admin/events" class="@(Context.Request.Path.StartsWithSegments("/admin/events") ? "active" : "")">Events</a>
+            <a href="/admin/recovery" class="@(Context.Request.Path.StartsWithSegments("/admin/recovery") ? "active" : "")">Recovery</a>
+            <a href="/admin/audit" class="@(Context.Request.Path.StartsWithSegments("/admin/audit") ? "active" : "")">Audit</a>
         </nav>
         @if (adminSession is not null)
         {

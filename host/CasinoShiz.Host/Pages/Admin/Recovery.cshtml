@@ -1,0 +1,111 @@
+@page "/admin/recovery"
+@model CasinoShiz.Host.Pages.Admin.RecoveryModel
+@{ ViewData["Title"] = "Failure recovery"; }
+
+<h2>Failure recovery</h2>
+<p class="muted">Inspect exact failed records and request safe, audited retries. Monitoring and charts remain in Grafana.</p>
+
+@if (!string.IsNullOrEmpty(Model.Flash))
+{
+    <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
+}
+
+<div class="card">
+    <h3>Event dispatch failures</h3>
+    <p class="muted">Retry redispatches the persisted event. Subscriber and projection idempotency rules still apply.</p>
+    <form method="get" class="inline">
+        <input type="text" name="eventType" value="@Model.EventType" placeholder="Filter event type…" />
+        <input type="hidden" name="outboxStatus" value="@Model.OutboxStatus" />
+        <button type="submit" class="ghost">Filter</button>
+    </form>
+    <table style="margin-top:12px">
+        <thead><tr><th>ID / event</th><th>Stage / handler</th><th>Error</th><th>Attempts / seen</th><th>Action</th></tr></thead>
+        <tbody>
+        @foreach (var failure in Model.EventFailures)
+        {
+            <tr>
+                <td><code>@failure.Id</code><br />@failure.EventType<br /><span class="muted">@failure.StreamId v@failure.StreamVersion</span></td>
+                <td>@failure.Stage<br /><span class="muted">@failure.HandlerName</span></td>
+                <td><pre>@failure.Error</pre>@if (!string.IsNullOrEmpty(failure.ErrorType)) { <span class="muted">@failure.ErrorType</span> }</td>
+                <td>@failure.RetryCount<br /><span class="muted">@failure.LastSeenAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</span></td>
+                <td>
+                @if (Model.CanRetry)
+                {
+                    <form method="post" asp-page-handler="RetryEvent" class="inline" onsubmit="return confirm('Redispatch persisted event failure @failure.Id?');">
+                        <input type="hidden" name="id" value="@failure.Id" />
+                        <input type="hidden" name="eventType" value="@Model.EventType" />
+                        <input type="hidden" name="outboxStatus" value="@Model.OutboxStatus" />
+                        <button type="submit" class="danger">Retry</button>
+                    </form>
+                }
+                else { <span class="muted">SuperAdmin required</span> }
+                </td>
+            </tr>
+        }
+        @if (Model.EventFailures.Count == 0) { <tr><td colspan="5" class="muted">No unresolved failures.</td></tr> }
+        </tbody>
+    </table>
+    <p class="muted">Showing at most 100 newest unresolved records.</p>
+</div>
+
+<div class="card">
+    <h3>Telegram outbox</h3>
+    <p class="muted">Reschedule makes an unsent record immediately eligible. It does not reset attempts, payload, deduplication data, or the previous error.</p>
+    <form method="get" class="inline">
+        <input type="hidden" name="eventType" value="@Model.EventType" />
+        <select name="outboxStatus">
+            <option value="" selected="@(string.IsNullOrEmpty(Model.OutboxStatus))">All unsent</option>
+            <option value="pending" selected="@(Model.OutboxStatus == "pending")">Pending</option>
+            <option value="sending" selected="@(Model.OutboxStatus == "sending")">Sending</option>
+        </select>
+        <button type="submit" class="ghost">Filter</button>
+    </form>
+    <table style="margin-top:12px">
+        <thead><tr><th>ID / chat</th><th>Status</th><th>Schedule / lease</th><th>Error</th><th>Message preview</th><th>Action</th></tr></thead>
+        <tbody>
+        @foreach (var row in Model.OutboxRecords)
+        {
+            <tr>
+                <td><code>@row.Id</code><br /><span class="muted">chat @row.ChatId</span></td>
+                <td><span class="pill @(row.Status == "pending" ? "warn" : "")">@row.Status</span><br /><span class="muted">@row.Attempts attempts</span></td>
+                <td>@row.NextAttemptAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC<br /><span class="muted">lease: @(row.LockedUntil?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</span></td>
+                <td><pre>@(row.LastError ?? "—")</pre></td>
+                <td><pre>@row.MessagePreview</pre><span class="muted">created @row.CreatedAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") UTC</span></td>
+                <td>
+                @if (Model.CanRetry)
+                {
+                    <form method="post" asp-page-handler="RescheduleOutbox" class="inline" onsubmit="return confirm('Reschedule outbox record @row.Id for immediate delivery?');">
+                        <input type="hidden" name="id" value="@row.Id" />
+                        <input type="hidden" name="eventType" value="@Model.EventType" />
+                        <input type="hidden" name="outboxStatus" value="@Model.OutboxStatus" />
+                        <button type="submit">Reschedule now</button>
+                    </form>
+                }
+                else { <span class="muted">SuperAdmin required</span> }
+                </td>
+            </tr>
+        }
+        @if (Model.OutboxRecords.Count == 0) { <tr><td colspan="6" class="muted">No matching unsent records.</td></tr> }
+        </tbody>
+    </table>
+    <p class="muted">Showing at most 100 newest pending or sending records. Message previews are plain text and truncated to 240 characters.</p>
+</div>
+
+<div class="card">
+    <h3>Background jobs <span class="pill">read-only</span></h3>
+    <table>
+        <thead><tr><th>Job</th><th>Kind</th><th>State</th><th>Last heartbeat</th><th>Next run</th><th>Failures</th><th>Last error / note</th></tr></thead>
+        <tbody>
+        @foreach (var job in Model.BackgroundJobs)
+        {
+            <tr>
+                <td>@job.Name</td><td>@job.Kind</td><td>@job.State</td>
+                <td>@(job.LastHeartbeatAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</td>
+                <td>@(job.NextRunAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</td>
+                <td>@job.CrashCount</td><td><pre>@(job.LastError ?? job.Note ?? "—")</pre></td>
+            </tr>
+        }
+        @if (Model.BackgroundJobs.Count == 0) { <tr><td colspan="7" class="muted">No jobs registered.</td></tr> }
+        </tbody>
+    </table>
+</div>

@@ -35,7 +35,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Analytics | ClickHouse 24.x via `ClickHouse.Client` 7.x (buffered, degrades gracefully) |
 | Dashboards | Grafana 11 with auto-provisioned ClickHouse + Prometheus datasources |
 | Graphics | SkiaSharp 3.x (horse race GIF renderer, offloaded to thread pool) |
-| Tests | xUnit, 879 tests covering domain + services + router + framework |
+| Tests | xUnit, 1,179 tests covering domain + services + router + framework |
 | Deploy | Docker Compose (bot + postgres + redis + clickhouse + prometheus + grafana) / Helm chart |
 
 ## Layout
@@ -105,7 +105,7 @@ CasinoShiz/
 │       ├── appsettings.json
 │       └── Pages/Admin/              — Razor pages for /admin UI
 └── tests/
-    └── CasinoShiz.Tests/             — 879 xUnit tests
+    └── CasinoShiz.Tests/             — 1,179 xUnit tests
 ```
 
 Each `Games.*` module uses the same layer layout:
@@ -135,6 +135,20 @@ Infrastructure/
 ```
 
 `Games.Meta` is additionally grouped by feature inside layers (`Achievements`, `Clans`, `Quests`, `Risk`, `Seasons`, `Streaks`, `Tournaments`, `Catalog`, `History`) because it owns several progression subsystems.
+
+## Player progression quick guide
+
+Casino coins are scoped to the current Telegram chat, while seasonal profile progression connects play to longer-lived RPG goals. Start with `/menu` for the interactive hub or use the direct commands below.
+
+| Goal | Commands | What it does |
+|---|---|---|
+| Check resources | `/balance`, `/daily`, `/mystats` | Shows the current chat wallet, claims the daily faucet, and opens private statistics/protection controls. |
+| Build a profile | `/profile`, `/achievements` | Shows level, XP, rating, seasonal progress, and unlocked achievement titles. |
+| Complete objectives | `/quests` | Shows rotating objectives and their progress/rewards. |
+| Play socially | `/clan`, `/challenge`, `/tournament` | Clan progression, direct 1v1 stakes, and tournament brackets. |
+| Compete | `/top`, `/picklottery`, `/dailylottery` | Wallet leaderboard and chat-scoped lottery pools. |
+
+Game stakes and payouts change the current chat wallet through the append-only economics ledger. Eligible completed game events also feed XP, rating, quest, achievement, and tournament projections. Use `/help` for the player command summary and the [full command reference](#bot-commands-full-reference) for syntax.
 
 ## Architecture
 
@@ -1075,11 +1089,11 @@ Per-game daily roll counter for the Telegram-dice family.
 
 #### Other framework tables
 
-`module_events`, `module_snapshots` (event-sourcing scaffolding), `event_log`, `processed_updates`, `game_command_idempotency`, `mini_game_sessions`, `mini_game_roll_gates`. See `FrameworkMigrations.cs` for full DDL.
+`module_events`, `module_snapshots` (event-sourcing scaffolding), `event_log`, `processed_updates`, `game_command_idempotency`, `mini_game_sessions`, `mini_game_roll_gates`, `event_dispatch_failures`, `telegram_outbox`, `event_analytics_checkpoint`, `player_protection`, and `operations_report_checkpoint`. See `FrameworkMigrations.cs` for full DDL.
 
 ### Game tables
 
-#### `dicecube_bets` / `darts_bets` / `basketball_bets` / `bowling_bets`
+#### `dicecube_bets` / `basketball_bets` / `bowling_bets` / `football_bets`
 
 Pending bet state for two-step dice games. Identical shape:
 
@@ -1091,6 +1105,10 @@ Pending bet state for two-step dice games. Identical shape:
 | `created_at` | TIMESTAMPTZ |
 
 `dicecube_bets` additionally snapshots `mult4`/`mult5`/`mult6` at bet time so a runtime tuning change does not change the payout for a roll already in flight.
+
+#### `darts_rounds`
+
+`darts_bets` was the original pending-bet table and was replaced by the durable `darts_rounds` queue. Each row contains `id`, `user_id`, `chat_id`, `amount`, `status`, optional `bot_message_id`, `reply_to_message_id`, and `created_at`. The `(chat_id, status, id)` index supports ordered dispatch and recovery.
 
 #### `blackjack_hands`
 
@@ -1261,7 +1279,7 @@ Every write action from the admin UI is recorded in `admin_audit`:
 
 ### Pages
 
-- `/admin` — dashboard: stats, user search
+- `/admin` — dashboard with the current economy snapshot, module/event totals, sticker-game activity, and background-job status
 - `/admin/users` — user list, balance set/adjust (SuperAdmin only, via `IEconomicsService.AdjustUncheckedAsync`)
 - `/admin/people` — merged person view across known chats/scopes
 - `/admin/groups` — known chat list
@@ -1272,7 +1290,30 @@ Every write action from the admin UI is recorded in `admin_audit`:
 - `/admin/challenges` — 1v1 PvP challenge tracking (read-only, both roles)
 - `/admin/history` — race history
 - `/admin/events` — event log
+- `/admin/recovery` — unresolved event-dispatch failures, unsent Telegram outbox records, confirmed single-record retries, and read-only background-job state
+- `/admin/audit` — filterable admin audit history with bounded CSV and JSON exports
+- `/admin/meta` — meta administration index
+- `/admin/meta-seasons`, `/admin/meta-quests`, `/admin/meta-tournaments`, `/admin/meta-tournament/{id}`, `/admin/meta-events`, `/admin/meta-economy`, `/admin/meta-alerts` — seasonal progression and operational meta views
 - `/admin/settings` — live runtime JSON patch editor + structured forms (SuperAdmin only)
+
+### Current economy snapshot
+
+The dashboard calculates this snapshot directly from PostgreSQL on every request and displays the database capture timestamp. **Refresh now** reloads the page and runs the query again.
+
+- **Wallet supply** — `sum(users.coins)` across all chat-scoped wallets.
+- **Pending stake** — unresolved stake currently held in `darts_rounds`, `dicecube_bets`, `basketball_bets`, `bowling_bets`, `football_bets`, `blackjack_hands`, and `horse_bets`. These coins have already been debited from wallets.
+- **Tracked coins** — wallet supply plus pending stake; useful for operational reconciliation, not a claim that every historical faucet or sink is conserved.
+- **Pending bets** — row count over those same unresolved-bet stores.
+- **Funded wallets, median wallet, richest wallet** — current distribution over `users`.
+- **24-hour credits/debits/net/active users** — rolling ledger activity from `economics_ledger`.
+
+### `/admin/recovery`
+
+All authenticated admins may inspect the page; only `SuperAdmin` may mutate records. Event retry redispatches the persisted event through `IEventDispatchRetryService`, so subscriber/projection idempotency remains authoritative. Outbox reschedule preserves payload, attempts, deduplication key, and previous error, makes an unsent record due now, clears only an expired lease, and refuses sent or actively leased rows. Every completed retry attempt is written to `admin_audit`. Operations are intentionally per-record and require browser confirmation; there is no bulk retry.
+
+### `/admin/audit`
+
+Filters support actor id/name, action, details/record id, and a time window. The page shows the newest 200 matching records. CSV and structured JSON exports apply the same filters and are capped at 1,000 records. CSV output is UTF-8 and neutralizes formula-leading cells before spreadsheet use; JSON emits `details` as an object rather than a quoted JSON string.
 
 ### `/admin/settings`
 

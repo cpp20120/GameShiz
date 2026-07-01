@@ -5,39 +5,30 @@ using Microsoft.Extensions.Configuration;
 
 namespace BotFramework.Host.Configuration.RuntimeTuning;
 
-public sealed partial class RuntimeTuningAccessor : IRuntimeTuningAccessor, IHostedService
+public sealed partial class RuntimeTuningAccessor(
+    IConfiguration configuration,
+    INpgsqlConnectionFactory connections,
+    ILogger<RuntimeTuningAccessor> logger)
+    : IRuntimeTuningAccessor, IHostedService
 {
-    private readonly IConfiguration _configuration;
-    private readonly INpgsqlConnectionFactory _connections;
-    private readonly ILogger<RuntimeTuningAccessor> _logger;
     private JsonObject? _patchRoot;
     private readonly Lock _reloadGate = new();
 
-    public RuntimeTuningAccessor(
-        IConfiguration configuration,
-        INpgsqlConnectionFactory connections,
-        ILogger<RuntimeTuningAccessor> logger)
-    {
-        _configuration = configuration;
-        _connections = connections;
-        _logger = logger;
-    }
-
     public DailyBonusOptions DailyBonus =>
         RuntimeTuningMerge.MergeSection<DailyBonusOptions>(
-            _configuration, DailyBonusOptions.SectionName, Navigate(DailyBonusOptions.SectionName));
+            configuration, DailyBonusOptions.SectionName, Navigate(DailyBonusOptions.SectionName));
 
     public TelegramDiceDailyLimitOptions TelegramDiceDailyLimit =>
         RuntimeTuningMerge.MergeSection<TelegramDiceDailyLimitOptions>(
-            _configuration, TelegramDiceDailyLimitOptions.SectionName, Navigate(TelegramDiceDailyLimitOptions.SectionName));
+            configuration, TelegramDiceDailyLimitOptions.SectionName, Navigate(TelegramDiceDailyLimitOptions.SectionName));
 
     public T GetSection<T>(string sectionPath) where T : class, new() =>
-        RuntimeTuningMerge.MergeSection<T>(_configuration, sectionPath, Navigate(sectionPath));
+        RuntimeTuningMerge.MergeSection<T>(configuration, sectionPath, Navigate(sectionPath));
 
     public async Task ReloadFromDatabaseAsync(CancellationToken ct)
     {
         JsonObject? nextPatch = null;
-        await using var conn = await _connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var conn = await connections.OpenAsync(ct).ConfigureAwait(false);
         var row = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
             "SELECT payload::text FROM runtime_tuning WHERE id = 1",
             cancellationToken: ct)).ConfigureAwait(false);
@@ -50,7 +41,7 @@ public sealed partial class RuntimeTuningAccessor : IRuntimeTuningAccessor, IHos
             }
             catch (JsonException ex)
             {
-                LogRuntimeTuningPayloadInvalid(_logger, ex);
+                LogRuntimeTuningPayloadInvalid(logger, ex);
             }
         }
 

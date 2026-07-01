@@ -280,7 +280,7 @@ public sealed partial class SecretHitlerService(
             var after = ShTransitions.ApplyVote(game, me, vote, list);
             game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            IReadOnlyList<(long UserId, int Amount)> payouts = Array.Empty<(long, int)>();
+            IReadOnlyList<SecretHitlerPayout> payouts = [];
             if (game.Status == ShStatus.Completed)
                 payouts = await SettlePotAsync(game, list, ct);
 
@@ -370,7 +370,7 @@ public sealed partial class SecretHitlerService(
             var after = ShTransitions.ApplyChancellorEnact(game, enactIndex, list);
             game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            IReadOnlyList<(long UserId, int Amount)> payouts = Array.Empty<(long, int)>();
+            IReadOnlyList<SecretHitlerPayout> payouts = [];
             if (game.Status == ShStatus.Completed)
                 payouts = await SettlePotAsync(game, list, ct);
 
@@ -473,7 +473,7 @@ public sealed partial class SecretHitlerService(
         finally { gate.Release(); }
     }
 
-    private async Task<IReadOnlyList<(long UserId, int Amount)>> SettlePotAsync(
+    private async Task<IReadOnlyList<SecretHitlerPayout>> SettlePotAsync(
         SecretHitlerGame game, List<SecretHitlerPlayer> list, CancellationToken ct)
     {
         var winners = game.Winner switch
@@ -483,17 +483,17 @@ public sealed partial class SecretHitlerService(
             _ => [],
         };
 
-        if (winners.Count == 0 || game.Pot == 0) return Array.Empty<(long, int)>();
+        if (winners.Count == 0 || game.Pot == 0) return [];
 
         var share = game.Pot / winners.Count;
         var remainder = game.Pot - (share * winners.Count);
-        var payouts = new List<(long, int)>(winners.Count);
+        var payouts = new List<SecretHitlerPayout>(winners.Count);
         foreach (var w in winners)
         {
             var payout = share + (remainder > 0 ? 1 : 0);
             if (remainder > 0) remainder--;
             await economics.CreditAsync(w.UserId, w.ChatId, payout, "sh.winnings", ct);
-            payouts.Add((w.UserId, payout));
+            payouts.Add(new SecretHitlerPayout(w.UserId, payout));
         }
         game.Pot = 0;
         return payouts;

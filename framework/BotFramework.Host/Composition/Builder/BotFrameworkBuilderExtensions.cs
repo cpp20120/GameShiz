@@ -34,6 +34,7 @@ public static class BotFrameworkBuilderExtensions
             return new TelegramLoginVerifier(opts.Token);
         });
         services.AddScoped<IAdminAuditLog, AdminAuditLog>();
+        services.AddScoped<IAdminAuditReader, AdminAuditReader>();
 
         services.Configure<BotFrameworkOptions>(configuration.GetSection(BotFrameworkOptions.SectionName));
 

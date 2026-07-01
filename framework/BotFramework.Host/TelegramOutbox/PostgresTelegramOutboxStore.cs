@@ -8,6 +8,92 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
 {
     private const int MaxTextLength = 4096;
     private const int MaxErrorLength = 8000;
+    private const int PreviewLength = 240;
+
+    public async Task<IReadOnlyList<TelegramOutboxAdminRow>> ListUnsentAsync(
+        int limit,
+        string? status,
+        CancellationToken ct)
+    {
+        var normalizedStatus = status is "pending" or "sending" ? status : null;
+        await using var conn = await connections.OpenAsync(ct);
+        var rows = await conn.QueryAsync<TelegramOutboxAdminRow>(new CommandDefinition(
+            """
+            SELECT id AS Id,
+                   chat_id AS ChatId,
+                   status AS Status,
+                   attempts AS Attempts,
+                   next_attempt_at AS NextAttemptAt,
+                   locked_until AS LockedUntil,
+                   last_error AS LastError,
+                   left(text, @previewLength) AS MessagePreview,
+                   created_at AS CreatedAt,
+                   updated_at AS UpdatedAt
+            FROM telegram_outbox
+            WHERE status IN ('pending', 'sending')
+              AND (@status IS NULL OR status = @status)
+            ORDER BY created_at DESC, id DESC
+            LIMIT @limit
+            """,
+            new
+            {
+                limit = Math.Clamp(limit, 1, 100),
+                status = normalizedStatus,
+                previewLength = PreviewLength,
+            },
+            cancellationToken: ct));
+        return rows.ToList();
+    }
+
+    public async Task<TelegramOutboxRescheduleResult> RescheduleNowAsync(long id, CancellationToken ct)
+    {
+        await using var conn = await connections.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        var row = await conn.QuerySingleOrDefaultAsync<RescheduleState>(new CommandDefinition(
+            """
+            SELECT status AS Status, locked_until AS LockedUntil
+            FROM telegram_outbox
+            WHERE id = @id
+            FOR UPDATE
+            """,
+            new { id },
+            transaction: tx,
+            cancellationToken: ct));
+
+        TelegramOutboxRescheduleResult result;
+        if (row is null)
+        {
+            result = new(TelegramOutboxRescheduleOutcome.NotFound, "outbox record not found");
+        }
+        else if (TelegramOutboxReschedulePolicy.Classify(row.Status, row.LockedUntil, DateTimeOffset.UtcNow)
+                 is var outcome and not TelegramOutboxRescheduleOutcome.Rescheduled)
+        {
+            var message = outcome == TelegramOutboxRescheduleOutcome.ActivelySending
+                ? "outbox record is currently leased by the dispatcher"
+                : $"outbox record has terminal status '{row.Status}'";
+            result = new(outcome, message);
+        }
+        else
+        {
+            await conn.ExecuteAsync(new CommandDefinition(
+                """
+                UPDATE telegram_outbox
+                SET status = 'pending',
+                    next_attempt_at = now(),
+                    locked_until = NULL,
+                    updated_at = now()
+                WHERE id = @id
+                """,
+                new { id },
+                transaction: tx,
+                cancellationToken: ct));
+            result = new(TelegramOutboxRescheduleOutcome.Rescheduled, "outbox record rescheduled for immediate delivery");
+        }
+
+        await tx.CommitAsync(ct);
+        return result;
+    }
 
     public async Task EnqueueAsync(TelegramOutboxMessage message, CancellationToken ct)
     {
@@ -154,4 +240,6 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
         string Text,
         string? ParseMode,
         int Attempts);
+
+    private sealed record RescheduleState(string Status, DateTimeOffset? LockedUntil);
 }

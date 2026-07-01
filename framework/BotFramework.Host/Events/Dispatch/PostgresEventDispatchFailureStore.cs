@@ -54,6 +54,12 @@ public sealed class PostgresEventDispatchFailureStore(
     }
 
     public async Task<IReadOnlyList<EventDispatchFailureRow>> ListUnresolvedAsync(int limit, CancellationToken ct)
+        => await ListUnresolvedAsync(limit, eventType: null, ct);
+
+    public async Task<IReadOnlyList<EventDispatchFailureRow>> ListUnresolvedAsync(
+        int limit,
+        string? eventType,
+        CancellationToken ct)
     {
         const string sql = """
             SELECT id,
@@ -69,6 +75,7 @@ public sealed class PostgresEventDispatchFailureStore(
                    last_seen_at AS LastSeenAt
             FROM event_dispatch_failures
             WHERE resolved_at IS NULL
+              AND (@eventType = '' OR event_type ILIKE '%' || @eventType || '%')
             ORDER BY last_seen_at DESC, id DESC
             LIMIT @limit
             """;
@@ -76,7 +83,7 @@ public sealed class PostgresEventDispatchFailureStore(
         await using var conn = await connections.OpenAsync(ct);
         var rows = await conn.QueryAsync<EventDispatchFailureRow>(new CommandDefinition(
             sql,
-            new { limit = Math.Clamp(limit, 1, 100) },
+            new { limit = Math.Clamp(limit, 1, 100), eventType = eventType?.Trim() ?? "" },
             cancellationToken: ct));
         return rows.ToList();
     }

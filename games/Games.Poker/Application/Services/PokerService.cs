@@ -549,7 +549,7 @@ public sealed partial class PokerService(
 
                 var winners = showdown
                     .Where(r => r.Won > 0)
-                    .Select(r => (r.Seat.UserId, r.Won))
+                    .Select(r => new PokerPayout(r.Seat.UserId, r.Won))
                     .ToList();
                 await events.PublishAsync(
                     new PokerHandEnded(table.InviteCode, reason, winners, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()),

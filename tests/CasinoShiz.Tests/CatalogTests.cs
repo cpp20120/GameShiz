@@ -325,6 +325,28 @@ public sealed class CatalogTests
         Assert.Equal(1, QuestRegistry.DeltaFor(play, ev));
     }
 
+    [Fact]
+    public void JsonQuestCatalog_DeltaFor_ClampsLargeVolumeAndPayoutToIntMax()
+    {
+        var volume = new QuestTemplate("v", "v", "v", "daily", "volume", null, 1, 0, 0);
+        var payout = new QuestTemplate("p", "p", "p", "daily", "payout", null, 1, 0, 0);
+        var ev = new GameCompletedMetaEvent(1, 2, "u", "dice", long.MaxValue, long.MaxValue, true, 1, 1);
+
+        Assert.Equal(int.MaxValue, JsonQuestCatalog.DeltaFor(volume, ev));
+        Assert.Equal(int.MaxValue, JsonQuestCatalog.DeltaFor(payout, ev));
+    }
+
+    [Fact]
+    public void JsonQuestCatalog_ReadEffectiveJson_LoadsValidCatalog()
+    {
+        var json = JsonQuestCatalog.ReadEffectiveJson();
+
+        var validation = JsonQuestCatalog.ValidateJson(json);
+        Assert.True(validation.QuestCount > 0);
+        Assert.True(validation.DefinitionCount > 0);
+        Assert.False(string.IsNullOrWhiteSpace(JsonQuestCatalog.EditablePath()));
+    }
+
     private static MetaSeason SeasonWithFocus(string focus, string rarityBias) =>
         new(
             7,

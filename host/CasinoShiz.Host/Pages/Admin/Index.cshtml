@@ -4,10 +4,31 @@
 
 <h2>Dashboard</h2>
 
+<div class="card">
+    <h3>Current economy <span class="pill ok">live database snapshot</span></h3>
+    <p class="muted">Captured @Model.Economy.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz"). Pending stakes have already been debited from wallets; tracked coins adds that unresolved stake back for operational reconciliation. <a href="/admin">refresh now</a></p>
+    <div class="cards">
+        <div class="stat"><div class="label">Wallet supply</div><div class="value">@Model.Economy.WalletSupply.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Pending stake</div><div class="value">@Model.Economy.PendingStake.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Tracked coins</div><div class="value">@Model.Economy.TrackedCoins.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Pending bets</div><div class="value">@Model.Economy.PendingBets.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Funded wallets</div><div class="value">@Model.Economy.FundedWallets.ToString("N0") / @Model.Economy.Wallets.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Median wallet</div><div class="value">@Model.Economy.MedianBalance.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Richest wallet</div><div class="value">@Model.Economy.RichestBalance.ToString("N0")</div></div>
+    </div>
+    <h4>Last 24 hours</h4>
+    <div class="cards">
+        <div class="stat"><div class="label">Credits</div><div class="value">+@Model.Economy.Credits24H.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Debits</div><div class="value">-@Model.Economy.Debits24H.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Net supply flow</div><div class="value">@(Model.Economy.Net24H >= 0 ? "+" : "")@Model.Economy.Net24H.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Economically active users</div><div class="value">@Model.Economy.ActiveUsers24H.ToString("N0")</div></div>
+    </div>
+</div>
+
 <div class="cards">
     <div class="stat"><div class="label">People (distinct)</div><div class="value">@Model.PeopleCount</div></div>
     <div class="stat"><div class="label">Wallet rows</div><div class="value">@Model.WalletRowCount</div></div>
-    <div class="stat"><div class="label">Total coins (sum)</div><div class="value">@Model.TotalCoins</div></div>
+    <div class="stat"><div class="label">Wallet coins</div><div class="value">@Model.TotalCoins</div></div>
     <div class="stat"><div class="label">Pending bets</div><div class="value">@Model.PendingBets</div></div>
     <div class="stat"><div class="label">Domain events</div><div class="value">@Model.EventCount</div></div>
 </div>

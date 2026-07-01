@@ -336,6 +336,36 @@ Expected healthy state:
 unresolved dispatch failures: 0
 ```
 
+The same records are available at `/admin/recovery`. Read-only admins may inspect them; `SuperAdmin` may retry one unresolved failure after explicit confirmation. A successful retry marks the failure resolved. Missing, already resolved, non-deserializable, or newly failing events remain failures and are not reported as successful. Retrying redispatches the persisted event, so existing subscriber and projection idempotency rules still apply.
+
+The recovery page also lists at most 100 newest `pending`/`sending` Telegram outbox records. **Reschedule now** only makes an unsent row immediately eligible; it preserves the payload, attempt count, deduplication key, and last error. An active dispatcher lease, sent row, missing row, or concurrently changed row is rejected safely. There are no bulk retry controls.
+
+Both recovery actions write their result and record id to `admin_audit`.
+
+## Admin audit inspection and export
+
+`/admin/audit` is available to authenticated admins and supports actor, action, details/record-id, and time-window filters. The HTML view is capped at 200 rows. CSV and JSON exports use the same filters and are capped at 1,000 rows; CSV is UTF-8 and hardened against spreadsheet formula injection.
+
+Direct SQL fallback:
+
+```sql
+SELECT id, actor_id, actor_name, action, details, occurred_at
+FROM admin_audit
+ORDER BY occurred_at DESC, id DESC
+LIMIT 200;
+```
+
+## Current economy reconciliation
+
+The top of `/admin` is calculated from PostgreSQL on every request. Use its capture timestamp to determine freshness and select **refresh now** for another snapshot.
+
+- `wallet supply = sum(users.coins)`;
+- `pending stake` is the unresolved amount in `darts_rounds`, `dicecube_bets`, `basketball_bets`, `bowling_bets`, `football_bets`, `blackjack_hands`, and `horse_bets`;
+- `tracked coins = wallet supply + pending stake`, because pending stakes have already left wallets;
+- rolling 24-hour credits, debits, net flow, and economically active users come from `economics_ledger`.
+
+For incident reconciliation, compare the dashboard timestamp and values with the latest ledger rows and the pending-bet page. A discrepancy does not automatically imply corruption: an in-flight transaction can commit immediately after the snapshot, and tracked coins intentionally do not reconstruct every historical faucet or sink.
+
 ## Event-sourced smoke projection
 
 Debug ES smoke events use:
