@@ -289,11 +289,20 @@ groups and in private chat.
 ```mermaid
 sequenceDiagram
     participant Game as Game service
+    participant Player as /mystats
+    participant Protect as PlayerProtectionService
     participant Econ as EconomicsService
     participant PG as PostgreSQL
 
+    Player->>Protect: inspect stats or configure protection
+    Protect->>PG: read/upsert player_protection
     Game->>Econ: TryDebitOnce(user, chat, amount, operationId)
     Econ->>PG: BEGIN
+    Econ->>PG: advisory lock + read player_protection
+    alt cooldown, exclusion, or daily limit blocks wager
+        Econ->>PG: ROLLBACK
+        Econ-->>Game: PlayerProtectionException
+    else wager allowed
     Econ->>PG: SELECT wallet FOR UPDATE
     Econ->>PG: check operation_id and balance
     alt valid and not previously applied
@@ -308,6 +317,7 @@ sequenceDiagram
         Econ->>PG: ROLLBACK
         Econ-->>Game: rejected
     end
+    end
 ```
 
 Important guarantees:
@@ -316,6 +326,10 @@ Important guarantees:
 - wallet update and ledger append happen in one transaction;
 - operation ids make critical debits, credits, transfers, refunds, and prizes idempotent;
 - the ledger is append-only; admin recovery writes compensating rows.
+- `PlayerProtectionService` reads player statistics and configures daily stake limits,
+  cooldowns, and self-exclusion through `/mystats`;
+- `EconomicsService` enforces those controls transactionally before protected wager
+  mutations, while administrative, transfer, and rollback reasons are exempt.
 
 ## Event-Sourced Aggregate Flow
 
@@ -491,10 +505,16 @@ flowchart TB
     adminGate["/admin session gate"]
     login["login/auth/logout"]
     pages["Razor admin pages"]
+    economy["Current economy snapshot"]
+    jobs["Read-only background-job status"]
+    recovery["/admin/recovery<br/>event + outbox records"]
+    auditPage["/admin/audit<br/>CSV / JSON downloads"]
 
     token["Token form or<br/>Telegram Login Widget"]
     session["AdminSession<br/>SuperAdmin / ReadOnly"]
     audit[("admin_audit")]
+    pg[("PostgreSQL operational state")]
+    jobState["In-process job status snapshots"]
 
     request --> path
     path --> health
@@ -505,12 +525,22 @@ flowchart TB
     login --> token
     token --> session
     adminGate -->|"authenticated"| pages
+    pages --> economy
+    pages --> jobs
+    pages --> recovery
+    pages --> auditPage
+    economy --> pg
+    jobs --> jobState
+    recovery --> pg
+    auditPage --> audit
     pages -->|"write actions"| audit
 ```
 
 Read-only admins can inspect operational pages but mutation handlers return `403`.
 SuperAdmin writes include balance changes, race actions, runtime tuning, and other
-administrative operations.
+administrative operations. The dashboard economy snapshot and background-job table
+are read-only operational views. `/admin/audit` returns browser downloads in CSV or
+JSON while keeping the same role boundary as the on-screen audit view.
 
 ## Deployment Topology
 
@@ -595,6 +625,10 @@ flowchart LR
     retry["Admin/debug retry"]
     replay["Event replay / projection rebuild"]
     telegramRetry["Outbox dispatcher retry"]
+    adminRecovery["/admin/recovery<br/>SuperAdmin confirmation"]
+    eventRetry["IEventDispatchRetryService"]
+    outboxNow["Reschedule unsent row now"]
+    audit[("admin_audit")]
     graceful["Log and continue<br/>core gameplay remains available"]
 
     updateFailure --> updateRetry
@@ -604,12 +638,24 @@ flowchart LR
     failureStore --> replay
     telegramFailure --> telegramOutbox
     telegramOutbox --> telegramRetry
+    failureStore --> adminRecovery
+    telegramOutbox --> adminRecovery
+    adminRecovery -->|"single confirmed event"| eventRetry
+    eventRetry --> failureStore
+    adminRecovery -->|"single pending/sending row"| outboxNow
+    outboxNow --> telegramOutbox
+    adminRecovery --> audit
     infraFailure --> graceful
 ```
 
 PostgreSQL is the primary consistency boundary. Redis improves coordination and
 distributed delivery. ClickHouse and dashboards are operationally useful but do not
-own game or wallet state.
+own game or wallet state. Recovery is deliberately record-by-record: authenticated
+admins may inspect up to 100 current failures, but only SuperAdmin may confirm a
+retry. Event retry redispatches the persisted event. Outbox recovery preserves the
+payload, attempt count, deduplication key, and previous error while making an unsent
+record immediately eligible; sent, missing, or concurrently changed records are not
+mutated. Successful mutation attempts are appended to `admin_audit`.
 
 ## Dependency Rules
 
