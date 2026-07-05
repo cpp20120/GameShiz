@@ -12,8 +12,7 @@ public sealed class BowlingModule : IModule
         services
             .BindOptions<BowlingOptions>(BowlingOptions.SectionName)
             .AddScoped<IBowlingService, BowlingService>()
-            .AddScoped<IBowlingBetStore, BowlingBetStore>()
-            .AddHandler<BowlingHandler>();
+            .AddScoped<IBowlingBetStore, BowlingBetStore>();
     }
 
     public IModuleMigrations GetMigrations() => new BowlingMigrations();

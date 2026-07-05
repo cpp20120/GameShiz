@@ -4,7 +4,6 @@ using Games.Redeem.Application.Services;
 using Games.Redeem.Domain.Results;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Telegram.Bot.Types.Enums;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -35,7 +34,7 @@ public sealed class RedeemDropSubscriberTests
         Assert.Equal("dice", redeem.FreeSpinGameIds.Single());
         var message = Assert.Single(outbox.Messages);
         Assert.Equal(-456, message.ChatId);
-        Assert.Equal(ParseMode.Html, message.ParseMode);
+        Assert.Equal(OutboundParseMode.Html, message.ParseMode);
         Assert.Equal("redeem-drop:123:-456:dice:987654321", message.DedupeKey);
         Assert.Contains(code.ToString(), message.Text, StringComparison.Ordinal);
     }

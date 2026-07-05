@@ -16,18 +16,17 @@ public sealed class PickModule : IModule
             .AddSingleton<PickStreakStore>()
             .AddSingleton<PickChainStore>()
             .AddScoped<IPickService, PickService>()
-            .AddHandler<PickHandler>()
+            .AddScoped<IPickAnnouncementPublisher, IntegrationEventPickAnnouncementPublisher>()
 
             // multi-user 5-min lottery
             .AddSingleton<IPickLotteryStore, PickLotteryStore>()
             .AddSingleton<IPickLotteryService, PickLotteryService>()
-            .AddHandler<PickLotteryHandler>()
             .AddBackgroundJob<PickLotterySweeperJob>()
 
             // per-chat daily lottery
             .AddSingleton<IPickDailyLotteryStore, PickDailyLotteryStore>()
             .AddSingleton<IPickDailyLotteryService, PickDailyLotteryService>()
-            .AddHandler<PickDailyLotteryHandler>()
+            .AddScoped<IPickClient, LocalPickClient>()
             .AddBackgroundJob<PickDailyLotterySweeperJob>();
     }
 

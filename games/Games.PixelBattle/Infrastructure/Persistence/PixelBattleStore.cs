@@ -3,7 +3,7 @@ using Dapper;
 
 namespace Games.PixelBattle.Infrastructure.Persistence;
 
-public sealed class PixelBattleStore(INpgsqlConnectionFactory connections) : IPixelBattleStore
+public sealed class PixelBattleStore(INpgsqlConnectionFactory connections, IWalletReadService wallets) : IPixelBattleStore
 {
     public async Task<PixelBattleGrid> GetGridAsync(CancellationToken ct)
     {
@@ -47,18 +47,7 @@ public sealed class PixelBattleStore(INpgsqlConnectionFactory connections) : IPi
         return new PixelBattleUpdate(index, color, FormatVersion(version));
     }
 
-    public async Task<bool> IsKnownUserAsync(long userId, CancellationToken ct)
-    {
-        await using var conn = await connections.OpenAsync(ct);
-        return await conn.ExecuteScalarAsync<bool>(new CommandDefinition("""
-            SELECT EXISTS (
-                SELECT 1
-                FROM users
-                WHERE telegram_user_id = @userId
-                LIMIT 1
-            )
-            """, new { userId }, cancellationToken: ct));
-    }
+    public Task<bool> IsKnownUserAsync(long userId, CancellationToken ct) => wallets.ExistsAsync(userId, ct);
 
     private static string FormatVersion(long version) => version.ToString("D20", CultureInfo.InvariantCulture);
 

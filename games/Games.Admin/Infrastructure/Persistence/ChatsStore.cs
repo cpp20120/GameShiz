@@ -12,7 +12,7 @@ using Dapper;
 
 namespace Games.Admin.Infrastructure.Persistence;
 
-public sealed class ChatsStore(INpgsqlConnectionFactory connections) : IChatsStore
+public sealed class ChatsStore(INpgsqlConnectionFactory connections, IWalletReadService wallets) : IChatsStore
 {
     public async Task<IReadOnlyList<KnownChatRow>> ListChatsAsync(
         string? typeFilter, int limit, CancellationToken ct)
@@ -31,16 +31,9 @@ public sealed class ChatsStore(INpgsqlConnectionFactory connections) : IChatsSto
                    kc.username       AS Username,
                    kc.first_seen_at  AS FirstSeenAt,
                    kc.last_seen_at   AS LastSeenAt,
-                   COALESCE(u.user_count, 0)  AS UserCount,
-                   COALESCE(u.total_coins, 0) AS TotalCoins
+                   0 AS UserCount,
+                   0 AS TotalCoins
             FROM known_chats kc
-            LEFT JOIN (
-                SELECT balance_scope_id,
-                       count(*)::INT  AS user_count,
-                       sum(coins)::BIGINT AS total_coins
-                FROM users
-                GROUP BY balance_scope_id
-            ) u ON u.balance_scope_id = kc.chat_id
             {typeClause}
             ORDER BY kc.last_seen_at DESC
             {limitClause}
@@ -49,7 +42,12 @@ public sealed class ChatsStore(INpgsqlConnectionFactory connections) : IChatsSto
         await using var conn = await connections.OpenAsync(ct);
         var rows = await conn.QueryAsync<KnownChatRow>(new CommandDefinition(
             sql, new { types = ResolveTypes(typeFilter), limit }, cancellationToken: ct));
-        return rows.ToList();
+        var aggregates = (await wallets.ListAsync(ct))
+            .GroupBy(x => x.BalanceScopeId)
+            .ToDictionary(x => x.Key, x => (Count: x.Count(), Coins: x.Sum(a => (long)a.Coins)));
+        return rows.Select(row => aggregates.TryGetValue(row.ChatId, out var value)
+            ? row with { UserCount = value.Count, TotalCoins = value.Coins }
+            : row).ToList();
     }
 
     public async Task<int> CountChatsAsync(string? typeFilter, CancellationToken ct)

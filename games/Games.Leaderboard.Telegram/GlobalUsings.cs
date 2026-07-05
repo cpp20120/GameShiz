@@ -1,0 +1,11 @@
+global using BotFramework.Host.Composition.Builder;
+global using BotFramework.Host.Contracts.Localization;
+global using BotFramework.Sdk.Modules;
+global using BotFramework.Sdk.Modules.Migrations;
+global using BotFramework.Sdk.UpdateHandling;
+global using BotFramework.Sdk.UpdateHandling.Routes;
+global using Games.Leaderboard.Contracts;
+global using Games.Leaderboard.Domain.Entities;
+global using Games.Leaderboard.Domain.Models;
+global using Games.Leaderboard.Domain.Results;
+global using Microsoft.Extensions.Logging;

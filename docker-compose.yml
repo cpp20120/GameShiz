@@ -133,11 +133,15 @@ services:
       - internal
 
   cazino-bot:
+    profiles: ["monolith"]
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.Host/CasinoShiz.Host.csproj
+        APP_DLL: CasinoShiz.Host.dll
     ports:
-      - "4000:3000"
+      - "4000:8080"
     extra_hosts:
       - "api.telegram.org:149.154.167.220"
     env_file:
@@ -163,6 +167,149 @@ services:
     restart: unless-stopped
     networks:
       - internal
+
+  backend:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.Backend/CasinoShiz.Backend.csproj
+        APP_DLL: CasinoShiz.Backend.dll
+    env_file: [.env]
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      Redis__Enabled: "false"
+      ClickHouse__Enabled: "false"
+      Bot__Enabled: "false"
+      Services__Identity__Mode: "Grpc"
+      Services__Identity__Address: "http://identity:8080"
+      Services__Wallet__Mode: "Grpc"
+      Services__Wallet__Address: "http://wallet:8080"
+      Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+    ports: ["5081:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks: [internal]
+
+  identity:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: services/CasinoShiz.IdentityService/CasinoShiz.IdentityService.csproj
+        APP_DLL: CasinoShiz.IdentityService.dll
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      Redis__Enabled: "false"
+      ClickHouse__Enabled: "false"
+      Bot__Enabled: "false"
+    ports: ["5082:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks: [internal]
+
+  wallet:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: services/CasinoShiz.WalletService/CasinoShiz.WalletService.csproj
+        APP_DLL: CasinoShiz.WalletService.dll
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      Redis__Enabled: "false"
+      ClickHouse__Enabled: "false"
+      Bot__Enabled: "false"
+    ports: ["5083:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks: [internal]
+
+  telegram-bff:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.TelegramBff/CasinoShiz.TelegramBff.csproj
+        APP_DLL: CasinoShiz.TelegramBff.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://backend:8080"
+      Services__Identity__Address: "http://identity:8080"
+      Services__Wallet__Address: "http://wallet:8080"
+      Bot__Enabled: "true"
+    ports: ["5084:8080"]
+    extra_hosts: ["api.telegram.org:149.154.167.220"]
+    depends_on:
+      backend: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  admin-bff:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.AdminBff/CasinoShiz.AdminBff.csproj
+        APP_DLL: CasinoShiz.AdminBff.dll
+    environment:
+      Services__Backend__Address: "http://backend:8080"
+      Services__Identity__Address: "http://identity:8080"
+      Services__Wallet__Address: "http://wallet:8080"
+      Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+      Admin__SuperAdminToken: "${ADMIN_SUPERADMIN_TOKEN}"
+      Admin__ReadOnlyToken: "${ADMIN_READONLY_TOKEN:-}"
+      Admin__ActorId: "${ADMIN_ACTOR_ID:-1}"
+      Admin__DisplayName: "${ADMIN_DISPLAY_NAME:-Admin}"
+    ports: ["5085:8080"]
+    depends_on:
+      backend: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
 
   grafana:
     image: grafana/grafana:11.2.0

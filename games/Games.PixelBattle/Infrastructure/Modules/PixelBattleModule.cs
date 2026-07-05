@@ -12,9 +12,9 @@ public sealed class PixelBattleModule : IModule
         services
             .BindOptions<PixelBattleOptions>(PixelBattleOptions.SectionName)
             .AddSingleton<IPixelBattleStore, PixelBattleStore>()
+            .AddSingleton<IPixelBattleService, PixelBattleService>()
             .AddSingleton<ITelegramWebAppInitDataValidator, TelegramWebAppInitDataValidator>()
-            .AddSingleton<PixelBattleBroadcaster>()
-            .AddHandler<PixelBattleHandler>();
+            .AddSingleton<PixelBattleBroadcaster>();
     }
 
     public IModuleMigrations GetMigrations() => new PixelBattleMigrations();

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
+    <PackageReference Include="SkiaSharp" Version="4.148.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\Games.Poker.Contracts\Games.Poker.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="PokerTelegramModule.cs" />
+    <Compile Include="..\Games.Poker\Application\Handlers\PokerHandler.cs" Link="PokerHandler.cs" />
+    <Compile Include="..\Games.Poker\Application\Jobs\PokerTurnTimeoutJob.cs" Link="PokerTurnTimeoutJob.cs" />
+    <Compile Include="..\Games.Poker\Infrastructure\Rendering\**\*.cs" Link="Rendering\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

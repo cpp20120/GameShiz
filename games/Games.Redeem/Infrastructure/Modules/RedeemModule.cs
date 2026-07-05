@@ -11,11 +11,10 @@ public sealed class RedeemModule : IModule
     {
         services
             .BindOptions<RedeemOptions>(RedeemOptions.SectionName)
-            .AddSingleton<RedeemCaptchaTimeouts>()
             .AddScoped<IRedeemService, RedeemService>()
+            .AddScoped<IRedeemClient, LocalRedeemClient>()
             .AddScoped<IRedeemStore, RedeemStore>()
-            .AddDomainEventSubscription<RedeemDropSubscriber>("telegram_dice.redeem_code_drop_requested")
-            .AddHandler<RedeemHandler>();
+            .AddDomainEventSubscription<RedeemDropSubscriber>("telegram_dice.redeem_code_drop_requested");
     }
 
     public IModuleMigrations GetMigrations() => new RedeemMigrations();

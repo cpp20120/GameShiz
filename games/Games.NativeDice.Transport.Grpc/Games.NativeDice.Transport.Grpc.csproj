@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.80.0" PrivateAssets="all" />
+    <PackageReference Include="Google.Protobuf" Version="3.34.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Games.DiceCube.Contracts\Games.DiceCube.Contracts.csproj" />
+    <ProjectReference Include="..\Games.Darts.Contracts\Games.Darts.Contracts.csproj" />
+    <ProjectReference Include="..\Games.Football.Contracts\Games.Football.Contracts.csproj" />
+    <ProjectReference Include="..\Games.Basketball.Contracts\Games.Basketball.Contracts.csproj" />
+    <ProjectReference Include="..\Games.Bowling.Contracts\Games.Bowling.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="Protos\native_dice.proto" GrpcServices="Both" />
+  </ItemGroup>
+</Project>

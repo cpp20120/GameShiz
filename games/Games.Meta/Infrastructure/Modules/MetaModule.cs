@@ -26,11 +26,6 @@ public sealed class MetaModule : IModule
             .AddDomainEventSubscription<MetaXpProjection>("meta.game_completed")
             .AddDomainEventSubscription<QuestProjection>("meta.game_completed")
             .AddDomainEventSubscription<ClanProjection>("meta.game_completed")
-            .AddHandler<MetaMenuHandler>()
-            .AddHandler<MetaHandler>()
-            .AddHandler<TournamentHandler>()
-            .AddHandler<RiskHandler>()
-            .AddHandler<MyStatsHandler>()
             .AddBackgroundJob<MetaSeasonRolloverJob>()
             .AddBackgroundJob<MetaAnalyticsSnapshotJob>()
             .AddBackgroundJob<OperationsReportingJob>();

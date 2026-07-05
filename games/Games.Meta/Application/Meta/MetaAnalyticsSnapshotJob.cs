@@ -39,6 +39,7 @@ public sealed partial class MetaAnalyticsSnapshotJob(
         using var scope = scopes.CreateScope();
         var connections = scope.ServiceProvider.GetRequiredService<INpgsqlConnectionFactory>();
         var analytics = scope.ServiceProvider.GetRequiredService<IAnalyticsService>();
+        var walletAnalytics = scope.ServiceProvider.GetRequiredService<IWalletAnalyticsService>();
 
         var stopwatch = Stopwatch.StartNew();
         var outcome = "ok";
@@ -47,21 +48,21 @@ public sealed partial class MetaAnalyticsSnapshotJob(
         {
             await using var conn = await connections.OpenAsync(ct);
 
-            await PublishEconomyTotalsAsync(conn, analytics, ct);
-            await PublishLedgerWindowsAsync(conn, analytics, ct);
-            await PublishGameEconomyAsync(conn, analytics, ct);
+            await PublishEconomyTotalsAsync(walletAnalytics, analytics, ct);
+            await PublishLedgerWindowsAsync(walletAnalytics, analytics, ct);
+            await PublishGameEconomyAsync(walletAnalytics, analytics, ct);
             await PublishSeasonSnapshotAsync(conn, analytics, ct);
             await PublishQuestSnapshotsAsync(conn, analytics, ct);
-            await PublishRiskAndWhalesAsync(conn, analytics, ct);
+            await PublishRiskAndWhalesAsync(conn, walletAnalytics, analytics, ct);
             await PublishOpsSnapshotAsync(conn, analytics, ct);
-            await PublishEngagementSnapshotAsync(conn, analytics, ct);
+            await PublishEngagementSnapshotAsync(conn, walletAnalytics, analytics, ct);
             await PublishDeliverySnapshotAsync(conn, analytics, ct);
             await PublishGameStateSnapshotAsync(conn, analytics, ct);
-            await PublishLedgerHealthSnapshotAsync(conn, analytics, ct);
-            await PublishEconomyIntegritySnapshotAsync(conn, analytics, ct);
+            await PublishLedgerHealthSnapshotAsync(walletAnalytics, analytics, ct);
+            await PublishEconomyIntegritySnapshotAsync(walletAnalytics, analytics, ct);
             await PublishReliabilitySnapshotAsync(conn, analytics, ct);
             await PublishGameHealthSnapshotAsync(conn, analytics, ct);
-            await PublishSocialSnapshotsAsync(conn, analytics, ct);
+            await PublishSocialSnapshotsAsync(conn, walletAnalytics, analytics, ct);
 
             LogPublished(WindowMinutes);
         }
@@ -86,83 +87,34 @@ public sealed partial class MetaAnalyticsSnapshotJob(
     }
 
     private static async Task PublishEconomyTotalsAsync(
-        System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string sql = """
-            WITH ranked AS (
-                SELECT coins,
-                       row_number() OVER (ORDER BY coins DESC) AS rn,
-                       sum(coins) OVER () AS total
-                FROM users
-            )
-            SELECT COALESCE(sum(coins), 0)::bigint AS CoinSupply,
-                   count(*)::bigint AS Wallets,
-                   count(*) FILTER (WHERE coins <= 10)::bigint AS NearZeroWallets,
-                   COALESCE(percentile_disc(0.50) WITHIN GROUP (ORDER BY coins), 0)::bigint AS P50Coins,
-                   COALESCE(percentile_disc(0.90) WITHIN GROUP (ORDER BY coins), 0)::bigint AS P90Coins,
-                   COALESCE(percentile_disc(0.99) WITHIN GROUP (ORDER BY coins), 0)::bigint AS P99Coins,
-                   COALESCE(sum(coins) FILTER (WHERE rn <= 1), 0)::bigint AS Top1Coins,
-                   COALESCE(sum(coins) FILTER (WHERE rn <= 5), 0)::bigint AS Top5Coins,
-                   COALESCE(sum(coins) FILTER (WHERE rn <= 10), 0)::bigint AS Top10Coins
-            FROM ranked
-            """;
-
-        var row = await conn.QuerySingleAsync<EconomyTotalsSnapshot>(
-            new CommandDefinition(sql, cancellationToken: ct));
+        var value = await wallets.GetTotalsAsync(ct);
+        var row = new EconomyTotalsSnapshot(value.CoinSupply, value.Wallets, value.NearZeroWallets,
+            value.P50Coins, value.P90Coins, value.P99Coins, value.Top1Coins, value.Top5Coins, value.Top10Coins);
         analytics.Track("meta_analytics", "economy_totals", Tags(row));
     }
 
     private static async Task PublishLedgerWindowsAsync(
-        System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string sql = """
-            SELECT reason AS Reason,
-                   count(*)::bigint AS Rows,
-                   COALESCE(sum(CASE WHEN delta > 0 THEN delta ELSE 0 END), 0)::bigint AS Credits,
-                   COALESCE(sum(CASE WHEN delta < 0 THEN -delta ELSE 0 END), 0)::bigint AS Debits,
-                   COALESCE(sum(delta), 0)::bigint AS Net
-            FROM economics_ledger
-            WHERE created_at >= now() - (@windowMinutes || ' minutes')::interval
-            GROUP BY reason
-            ORDER BY abs(COALESCE(sum(delta), 0)) DESC, reason
-            LIMIT 100
-            """;
-
-        var rows = await conn.QueryAsync<LedgerReasonWindow>(
-            new CommandDefinition(sql, new { windowMinutes = WindowMinutes }, cancellationToken: ct));
-        foreach (var row in rows)
-            analytics.Track("meta_analytics", "ledger_reason_window", Tags(row));
+        foreach (var value in (await wallets.ListReasonVolumesAsync(WindowMinutes, ct)).Take(100))
+            analytics.Track("meta_analytics", "ledger_reason_window", Tags(new LedgerReasonWindow(
+                value.Reason, value.Rows, value.Credits, value.Debits, value.Net)));
     }
 
     private static async Task PublishGameEconomyAsync(
-        System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string sql = """
-            SELECT split_part(reason, '.', 1) AS Module,
-                   count(*)::bigint AS Rows,
-                   COALESCE(sum(CASE WHEN delta < 0 THEN -delta ELSE 0 END), 0)::bigint AS Stake,
-                   COALESCE(sum(CASE WHEN delta > 0 THEN delta ELSE 0 END), 0)::bigint AS Payout,
-                   COALESCE(sum(delta), 0)::bigint AS Net,
-                   count(DISTINCT telegram_user_id)::bigint AS Users
-            FROM economics_ledger
-            WHERE created_at >= now() - (@windowMinutes || ' minutes')::interval
-              AND reason LIKE '%.%'
-              AND split_part(reason, '.', 1) NOT IN ('admin', 'ledger', 'season')
-            GROUP BY split_part(reason, '.', 1)
-            ORDER BY Rows DESC
-            LIMIT 50
-            """;
-
-        var rows = await conn.QueryAsync<GameEconomyWindow>(
-            new CommandDefinition(sql, new { windowMinutes = WindowMinutes }, cancellationToken: ct));
-        foreach (var row in rows)
-            analytics.Track("meta_analytics", "game_economy_window", Tags(row));
+        foreach (var value in (await wallets.ListGameVolumesAsync(WindowMinutes, ct)).OrderByDescending(x => x.Rows).Take(50))
+            analytics.Track("meta_analytics", "game_economy_window", Tags(new GameEconomyWindow(
+                value.Module, value.Rows, value.Stake, value.Payout, value.Net, value.Users)));
     }
 
     private static async Task PublishSeasonSnapshotAsync(
@@ -246,19 +198,10 @@ public sealed partial class MetaAnalyticsSnapshotJob(
 
     private static async Task PublishRiskAndWhalesAsync(
         System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string whalesSql = """
-            SELECT telegram_user_id AS UserId,
-                   balance_scope_id AS BalanceScopeId,
-                   coins AS Coins,
-                   row_number() OVER (ORDER BY coins DESC, telegram_user_id ASC)::int AS Rank
-            FROM users
-            ORDER BY coins DESC, telegram_user_id ASC
-            LIMIT 25
-            """;
-
         const string rtpSql = """
             SELECT p.season_id AS SeasonId,
                    p.chat_id AS ChatId,
@@ -284,8 +227,9 @@ public sealed partial class MetaAnalyticsSnapshotJob(
             GROUP BY severity, status
             """;
 
-        foreach (var row in await conn.QueryAsync<WhaleSnapshot>(new CommandDefinition(whalesSql, cancellationToken: ct)))
-            analytics.Track("meta_analytics", "whale_balance", Tags(row));
+        foreach (var value in await wallets.ListWhalesAsync(25, ct))
+            analytics.Track("meta_analytics", "whale_balance", Tags(new WhaleSnapshot(
+                value.UserId, value.BalanceScopeId, value.Coins, value.Rank)));
 
         foreach (var row in await conn.QueryAsync<PlayerRtpSnapshot>(new CommandDefinition(rtpSql, cancellationToken: ct)))
             analytics.Track("meta_analytics", "player_rtp", Tags(row));
@@ -313,31 +257,16 @@ public sealed partial class MetaAnalyticsSnapshotJob(
 
     private static async Task PublishEngagementSnapshotAsync(
         System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string sql = """
-            SELECT count(*)::bigint AS Wallets,
-                   count(DISTINCT telegram_user_id)::bigint AS Users,
-                   count(DISTINCT balance_scope_id)::bigint AS BalanceScopes,
-                   count(*) FILTER (WHERE created_at >= now() - interval '24 hours')::bigint AS NewWallets24H,
-                   count(*) FILTER (WHERE created_at >= now() - interval '7 days')::bigint AS NewWallets7D,
-                   count(*) FILTER (WHERE updated_at >= now() - interval '24 hours')::bigint AS ActiveWallets24H,
-                   count(*) FILTER (WHERE last_daily_bonus_on = CURRENT_DATE)::bigint AS DailyClaimersToday,
-                   (SELECT count(DISTINCT telegram_user_id)::bigint
-                      FROM economics_ledger
-                     WHERE created_at >= now() - interval '24 hours') AS TransactingUsers24H,
-                   (SELECT count(DISTINCT balance_scope_id)::bigint
-                      FROM economics_ledger
-                     WHERE created_at >= now() - interval '24 hours') AS ActiveScopes24H,
-                   (SELECT count(*)::bigint
-                      FROM known_chats
-                     WHERE last_seen_at >= now() - interval '24 hours') AS ActiveChats24H
-            FROM users
-            """;
-
-        var row = await conn.QuerySingleAsync<EngagementSnapshot>(
-            new CommandDefinition(sql, cancellationToken: ct));
+        var value = await wallets.GetEngagementAsync(ct);
+        var activeChats = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
+            "SELECT count(*) FROM known_chats WHERE last_seen_at >= now() - interval '24 hours'", cancellationToken: ct));
+        var row = new EngagementSnapshot(value.Wallets, value.Users, value.BalanceScopes,
+            value.NewWallets24H, value.NewWallets7D, value.ActiveWallets24H, value.DailyClaimersToday,
+            value.TransactingUsers24H, value.ActiveScopes24H, activeChats);
         analytics.Track("meta_analytics", "engagement_snapshot", Tags(row));
     }
 
@@ -406,63 +335,26 @@ public sealed partial class MetaAnalyticsSnapshotJob(
     }
 
     private static async Task PublishLedgerHealthSnapshotAsync(
-        System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string sql = """
-            SELECT count(*) FILTER (WHERE created_at >= now() - interval '5 minutes')::bigint AS RowsWindow,
-                   count(*) FILTER (WHERE created_at >= now() - interval '5 minutes' AND delta > 0)::bigint AS CreditsWindow,
-                   count(*) FILTER (WHERE created_at >= now() - interval '5 minutes' AND delta < 0)::bigint AS DebitsWindow,
-                   COALESCE(sum(delta) FILTER (WHERE created_at >= now() - interval '5 minutes'), 0)::bigint AS NetWindow,
-                   count(*) FILTER (WHERE operation_id IS NOT NULL)::bigint AS IdempotentRows,
-                   count(*) FILTER (WHERE balance_after < 0)::bigint AS NegativeBalanceRows,
-                   count(*) FILTER (WHERE delta = 0)::bigint AS ZeroDeltaRows,
-                   COALESCE(max(created_at), to_timestamp(0)) AS LastLedgerAt,
-                   COALESCE(EXTRACT(EPOCH FROM now() - max(created_at)), 0)::double precision AS LastLedgerAgeSeconds
-            FROM economics_ledger
-            """;
-
-        var row = await conn.QuerySingleAsync<LedgerHealthSnapshot>(
-            new CommandDefinition(sql, cancellationToken: ct));
+        var value = await wallets.GetLedgerHealthAsync(WindowMinutes, ct);
+        var row = new LedgerHealthSnapshot(value.RowsWindow, value.CreditsWindow, value.DebitsWindow,
+            value.NetWindow, value.IdempotentRows, value.NegativeBalanceRows, value.ZeroDeltaRows,
+            value.LastLedgerAt.UtcDateTime, value.LastLedgerAgeSeconds);
         analytics.Track("meta_analytics", "ledger_health_snapshot", Tags(row));
     }
 
     private static async Task PublishEconomyIntegritySnapshotAsync(
-        System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
-        const string sql = """
-            WITH latest_ledger AS (
-                SELECT DISTINCT ON (telegram_user_id, balance_scope_id)
-                       telegram_user_id, balance_scope_id, balance_after
-                FROM economics_ledger
-                ORDER BY telegram_user_id, balance_scope_id, id DESC
-            ), compared AS (
-                SELECT u.coins, l.balance_after,
-                       CASE WHEN l.balance_after IS NULL OR l.balance_after <> u.coins THEN 1 ELSE 0 END AS mismatch,
-                       abs(u.coins - COALESCE(l.balance_after, u.coins)) AS difference
-                FROM users u
-                LEFT JOIN latest_ledger l USING (telegram_user_id, balance_scope_id)
-            ), ranked AS (
-                SELECT coins::numeric,
-                       row_number() OVER (ORDER BY coins)::numeric AS rn,
-                       count(*) OVER ()::numeric AS n
-                FROM users
-            )
-            SELECT COALESCE((SELECT sum(coins) FROM users), 0)::bigint AS WalletCoinSupply,
-                   COALESCE((SELECT sum(balance_after) FROM latest_ledger), 0)::bigint AS LatestLedgerSupply,
-                   (SELECT count(*) FROM compared WHERE mismatch = 1)::bigint AS MismatchedWallets,
-                   COALESCE((SELECT sum(difference) FROM compared), 0)::bigint AS MismatchAbsoluteCoins,
-                   (SELECT count(*) FROM compared WHERE balance_after IS NULL)::bigint AS WalletsWithoutLedger,
-                   COALESCE((SELECT sum((2 * rn - n - 1) * coins) / NULLIF(max(n) * sum(coins), 0) FROM ranked), 0)::double precision AS BalanceGini,
-                   COALESCE((SELECT 100.0 * sum(coins) FILTER (WHERE bucket = 1) / NULLIF(sum(coins), 0)
-                       FROM (SELECT coins, ntile(10) OVER (ORDER BY coins DESC) AS bucket FROM users) q), 0)::double precision AS TopDecileCoinSharePercent
-            """;
-
-        var row = await conn.QuerySingleAsync<EconomyIntegritySnapshot>(
-            new CommandDefinition(sql, cancellationToken: ct));
+        var value = await wallets.GetIntegrityAsync(ct);
+        var row = new EconomyIntegritySnapshot(value.WalletCoinSupply, value.LatestLedgerSupply,
+            value.MismatchedWallets, value.MismatchAbsoluteCoins, value.WalletsWithoutLedger,
+            value.BalanceGini, value.TopDecileCoinSharePercent);
         analytics.Track("meta_analytics", "economy_integrity_snapshot", Tags(row));
     }
 
@@ -516,16 +408,16 @@ public sealed partial class MetaAnalyticsSnapshotJob(
 
     private static async Task PublishSocialSnapshotsAsync(
         System.Data.Common.DbConnection conn,
+        IWalletAnalyticsService wallets,
         IAnalyticsService analytics,
         CancellationToken ct)
     {
         const string overviewSql = """
             SELECT (SELECT count(*)::bigint FROM known_chats WHERE first_seen_at >= now() - interval '24 hours') AS NewChats24H,
                    (SELECT count(*)::bigint FROM known_chats WHERE last_seen_at >= now() - interval '24 hours') AS ActiveChats24H,
-                   (SELECT count(*)::bigint FROM economics_ledger WHERE reason = 'transfer.send' AND created_at >= now() - interval '24 hours') AS Transfers24H,
-                   (SELECT COALESCE(sum(-delta), 0)::bigint FROM economics_ledger WHERE reason = 'transfer.send' AND created_at >= now() - interval '24 hours') AS TransferCoins24H,
+                   0::bigint AS Transfers24H, 0::bigint AS TransferCoins24H,
                    (SELECT count(*)::bigint FROM challenge_duels WHERE created_at >= now() - interval '24 hours') AS ChallengesCreated24H,
-                   (SELECT count(DISTINCT telegram_user_id)::bigint FROM economics_ledger WHERE reason IN ('transfer.send', 'transfer.receive') AND created_at >= now() - interval '24 hours') AS SocialUsers24H
+                   0::bigint AS SocialUsers24H
             """;
         const string chatTypesSql = """
             SELECT chat_type AS ChatType,
@@ -538,6 +430,8 @@ public sealed partial class MetaAnalyticsSnapshotJob(
 
         var overview = await conn.QuerySingleAsync<SocialOverviewSnapshot>(
             new CommandDefinition(overviewSql, cancellationToken: ct));
+        var social = await wallets.GetSocialActivityAsync(DateTimeOffset.UtcNow.AddHours(-24), ct);
+        overview = overview with { Transfers24H = social.Transfers, TransferCoins24H = social.TransferCoins, SocialUsers24H = social.Users };
         analytics.Track("meta_analytics", "social_overview_snapshot", Tags(overview));
 
         var chatTypes = await conn.QueryAsync<ChatTypeSnapshot>(

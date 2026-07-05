@@ -31,6 +31,15 @@ public sealed partial class PickService(
 {
     private readonly PickOptions _opts = options.Value;
 
+    public Task<PickChainState?> ClaimChainAsync(Guid chainId, CancellationToken ct) =>
+        Task.FromResult(chains.TryClaim(chainId));
+
+    public Task RestoreChainAsync(PickChainState chain, CancellationToken ct)
+    {
+        chains.Add(chain);
+        return Task.CompletedTask;
+    }
+
     public async Task<PickResult> PickAsync(
         long userId,
         string displayName,

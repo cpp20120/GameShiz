@@ -12,8 +12,8 @@ public sealed class BlackjackModule : IModule
         services
             .BindOptions<BlackjackOptions>(BlackjackOptions.SectionName)
             .AddScoped<IBlackjackService, BlackjackService>()
+            .AddScoped<IBlackjackClient, LocalBlackjackClient>()
             .AddScoped<IBlackjackHandStore, BlackjackHandStore>()
-            .AddHandler<BlackjackHandler>()
             .AddBackgroundJob<BlackjackHandTimeoutJob>();
     }
 

@@ -1,6 +1,5 @@
 using BotFramework.Host.Contracts.Telegram;
 using Dapper;
-using Telegram.Bot.Types.Enums;
 
 namespace BotFramework.Host.TelegramOutbox;
 
@@ -222,16 +221,16 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
 
-    private static string ToDb(ParseMode parseMode) =>
-        parseMode == ParseMode.None ? "" : parseMode.ToString();
+    private static string ToDb(OutboundParseMode parseMode) =>
+        parseMode == OutboundParseMode.None ? "" : parseMode.ToString();
 
-    private static ParseMode FromDb(string? parseMode)
+    private static OutboundParseMode FromDb(string? parseMode)
     {
-        if (string.IsNullOrWhiteSpace(parseMode)) return ParseMode.None;
+        if (string.IsNullOrWhiteSpace(parseMode)) return OutboundParseMode.None;
 
-        return Enum.TryParse<ParseMode>(parseMode, ignoreCase: true, out var parsed)
+        return Enum.TryParse<OutboundParseMode>(parseMode, ignoreCase: true, out var parsed)
             ? parsed
-            : ParseMode.None;
+            : OutboundParseMode.None;
     }
 
     private sealed record TelegramOutboxDbRow(

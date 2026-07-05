@@ -12,8 +12,7 @@ public sealed class FootballModule : IModule
         services
             .BindOptions<FootballOptions>(FootballOptions.SectionName)
             .AddScoped<IFootballService, FootballService>()
-            .AddScoped<IFootballBetStore, FootballBetStore>()
-            .AddHandler<FootballHandler>();
+            .AddScoped<IFootballBetStore, FootballBetStore>();
     }
 
     public IModuleMigrations GetMigrations() => new FootballMigrations();

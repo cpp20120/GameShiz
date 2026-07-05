@@ -11,15 +11,16 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.79" />
-    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
     <PackageReference Update="Meziantou.Analyzer" Version="3.0.115" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

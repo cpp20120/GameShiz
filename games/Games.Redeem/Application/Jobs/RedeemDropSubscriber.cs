@@ -1,7 +1,6 @@
 using System.Globalization;
 using BotFramework.Host.Contracts.Telegram;
 using Microsoft.Extensions.DependencyInjection;
-using Telegram.Bot.Types.Enums;
 
 namespace Games.Redeem.Application.Jobs;
 
@@ -29,7 +28,7 @@ public sealed partial class RedeemDropSubscriber(
                     chatId,
                     string.Format(CultureInfo.InvariantCulture, localizer.Get("redeem", "drop.message"), code),
                     DedupeKey: $"redeem-drop:{userId}:{chatId}:{gameId}:{ev.OccurredAt}",
-                    ParseMode: ParseMode.Html),
+                    ParseMode: OutboundParseMode.Html),
                 ct);
         }
         catch (Exception ex)

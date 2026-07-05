@@ -1,0 +1,13 @@
+global using BotFramework.Host.Contracts.Economics;
+global using BotFramework.Host.Contracts.Localization;
+global using BotFramework.Host.Economics.Services;
+global using BotFramework.Sdk.MiniGames;
+global using BotFramework.Sdk.Modules;
+global using BotFramework.Sdk.Modules.Migrations;
+global using Games.Darts.Application.Jobs;
+global using Games.Darts.Application.Services;
+global using Games.Darts.Domain.Models;
+global using Games.Darts.Domain.Results;
+global using Games.Darts.Infrastructure.Integrations;
+global using Games.Darts.Infrastructure.Persistence;
+global using Microsoft.Extensions.Logging;

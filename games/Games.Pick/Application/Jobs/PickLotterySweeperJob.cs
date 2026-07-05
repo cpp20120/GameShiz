@@ -13,18 +13,14 @@
 // after the in-DB transition succeeds.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using System.Globalization;
 using Microsoft.Extensions.Options;
-using Telegram.Bot;
-using Telegram.Bot.Types.Enums;
 
 namespace Games.Pick.Application.Jobs;
 
 public sealed partial class PickLotterySweeperJob(
     IPickLotteryStore store,
     IPickLotteryService service,
-    ITelegramBotClient bot,
-    ILocalizer localizer,
+    IPickAnnouncementPublisher announcements,
     IOptions<PickOptions> options,
     ILogger<PickLotterySweeperJob> logger) : IBackgroundJob
 {
@@ -45,7 +41,7 @@ public sealed partial class PickLotterySweeperJob(
                     try
                     {
                         var result = await service.SettleAsync(row, stoppingToken);
-                        await PostResultAsync(result, stoppingToken);
+                        await announcements.PublishLotteryAsync(result, stoppingToken);
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
                     catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
@@ -59,43 +55,6 @@ public sealed partial class PickLotterySweeperJob(
         }
     }
 
-    private async Task PostResultAsync(LotterySettleResult result, CancellationToken ct)
-    {
-        var chatId = result.Row.ChatId;
-        string text;
-        if (result.Kind == LotterySettleKind.Cancelled)
-        {
-            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.cancelled"),
-                result.Entries.Count,
-                result.Row.Stake);
-        }
-        else
-        {
-            var winnerLabel = string.IsNullOrEmpty(result.WinnerName)
-                ? string.Create(CultureInfo.InvariantCulture, $"User ID: {result.WinnerId}"
-)
-                : System.Net.WebUtility.HtmlEncode(result.WinnerName);
-            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.settled"),
-                winnerLabel,
-                result.Pot,
-                result.Fee,
-                result.Payout,
-                result.Entries.Count);
-        }
-
-        try
-        {
-            await bot.SendMessage(chatId, text,
-                parseMode: ParseMode.Html, cancellationToken: ct);
-        }
-        catch (Exception ex)
-        {
-            LogPostFailed(result.Row.Id, chatId, ex);
-        }
-    }
-
-    private string Loc(string key) => localizer.Get("pick", key);
-
     [LoggerMessage(EventId = 5931, Level = LogLevel.Error,
         Message = "pick.lottery.sweeper.tick_failed")]
     partial void LogTickFailed(Exception ex);
@@ -104,7 +63,4 @@ public sealed partial class PickLotterySweeperJob(
         Message = "pick.lottery.sweeper.settle_failed lottery={LotteryId} chat={ChatId}")]
     partial void LogSettleFailed(Guid lotteryId, long chatId, Exception ex);
 
-    [LoggerMessage(EventId = 5933, Level = LogLevel.Warning,
-        Message = "pick.lottery.sweeper.post_failed lottery={LotteryId} chat={ChatId}")]
-    partial void LogPostFailed(Guid lotteryId, long chatId, Exception ex);
 }

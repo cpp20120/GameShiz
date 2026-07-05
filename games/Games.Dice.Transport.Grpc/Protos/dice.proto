@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option csharp_namespace = "Games.Dice.Transport.Grpc.Wire";
+package casino.dice.v1;
+
+service DiceApi {
+  rpc Play (DicePlayGrpcRequest) returns (DicePlayGrpcResponse);
+}
+
+message DicePlayGrpcRequest {
+  int64 user_id = 1;
+  string display_name = 2;
+  int32 slot_value = 3;
+  int64 balance_scope_id = 4;
+  string operation_source_id = 5;
+  bool is_forwarded = 6;
+  RequestMetadataGrpc metadata = 7;
+}
+
+message RequestMetadataGrpc {
+  string request_id = 1;
+  string correlation_id = 2;
+  string client_id = 3;
+  string user_id = 4;
+  string scope_id = 5;
+  string culture = 6;
+  map<string, string> baggage = 7;
+}
+
+message DicePlayGrpcResponse {
+  DicePlayStatusGrpc status = 1;
+  int32 prize = 2;
+  int32 stake = 3;
+  int32 balance = 4;
+  int32 tax = 5;
+  int32 daily_rolls_used = 6;
+  int32 daily_roll_limit = 7;
+}
+
+enum DicePlayStatusGrpc {
+  DICE_PLAY_STATUS_UNSPECIFIED = 0;
+  DICE_PLAY_STATUS_PLAYED = 1;
+  DICE_PLAY_STATUS_FORWARDED = 2;
+  DICE_PLAY_STATUS_NOT_ENOUGH_COINS = 3;
+  DICE_PLAY_STATUS_DAILY_ROLL_LIMIT_EXCEEDED = 4;
+}

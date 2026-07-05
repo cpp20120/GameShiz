@@ -13,10 +13,7 @@ public sealed class AdminModule : IModule
             .BindOptions<AdminOptions>(AdminOptions.SectionName)
             .AddScoped<IAdminStore, AdminStore>()
             .AddScoped<IAdminService, AdminService>()
-            .AddScoped<IChatsStore, ChatsStore>()
-            .AddHandler<AdminHandler>()
-            .AddHandler<AnalyticsHandler>()
-            .AddHandler<ChatsHandler>();
+            .AddScoped<IChatsStore, ChatsStore>();
     }
 
     public IModuleMigrations GetMigrations() => new AdminMigrations();

@@ -2,38 +2,18 @@ using Dapper;
 
 namespace Games.Admin.Infrastructure.Persistence;
 
-public sealed class AdminStore(INpgsqlConnectionFactory connections) : IAdminStore
+public sealed class AdminStore(INpgsqlConnectionFactory connections, IWalletReadService wallets) : IAdminStore
 {
     public async Task<IReadOnlyList<UserSummary>> ListUsersAsync(CancellationToken ct)
     {
-        const string sql = """
-            SELECT telegram_user_id AS TelegramUserId,
-                   balance_scope_id AS BalanceScopeId,
-                   display_name     AS DisplayName,
-                   coins            AS Coins,
-                   (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT AS UpdatedAtUnixMs
-            FROM users ORDER BY coins DESC
-            """;
-
-        await using var conn = await connections.OpenAsync(ct);
-        var rows = await conn.QueryAsync<UserSummary>(new CommandDefinition(sql, cancellationToken: ct));
-        return rows.ToList();
+        var rows = await wallets.ListAsync(ct);
+        return rows.OrderByDescending(x => x.Coins).Select(Map).ToList();
     }
 
     public async Task<UserSummary?> FindUserAsync(long userId, long balanceScopeId, CancellationToken ct)
     {
-        const string sql = """
-            SELECT telegram_user_id AS TelegramUserId,
-                   balance_scope_id AS BalanceScopeId,
-                   display_name     AS DisplayName,
-                   coins            AS Coins,
-                   (EXTRACT(EPOCH FROM updated_at) * 1000)::BIGINT AS UpdatedAtUnixMs
-            FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
-            """;
-
-        await using var conn = await connections.OpenAsync(ct);
-        return await conn.QuerySingleOrDefaultAsync<UserSummary>(
-            new CommandDefinition(sql, new { userId, balanceScopeId }, cancellationToken: ct));
+        var row = await wallets.GetAsync(userId, balanceScopeId, ct);
+        return row is null ? null : Map(row);
     }
 
     public async Task<IReadOnlyList<PendingChatBet>> DeletePendingMiniGameBetsAsync(long chatId, CancellationToken ct)
@@ -111,4 +91,8 @@ public sealed class AdminStore(INpgsqlConnectionFactory connections) : IAdminSto
             new { originalName }, cancellationToken: ct));
         return rows > 0;
     }
+
+    private static UserSummary Map(WalletAccount account) => new(
+        account.UserId, account.BalanceScopeId, account.DisplayName, account.Coins,
+        account.UpdatedAt.ToUnixTimeMilliseconds());
 }

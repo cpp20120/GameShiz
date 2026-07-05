@@ -12,11 +12,9 @@ public sealed class DartsModule : IModule
         services
             .BindOptions<DartsOptions>(DartsOptions.SectionName)
             .AddSingleton<IDartsRollQueue, DartsRollQueue>()
-            .AddSingleton<DartsBotDiceSender>()
             .AddScoped<IDartsRoundStore, DartsRoundStore>()
             .AddScoped<IDartsService, DartsService>()
-            .AddBackgroundJob<DartsRollDispatcherJob>()
-            .AddHandler<DartsHandler>();
+            .AddBackgroundJob<DartsRollDispatcherJob>();
     }
 
     public IModuleMigrations GetMigrations() => new DartsMigrations();

@@ -89,7 +89,8 @@ public sealed partial class ClickHouseAnalyticsService(
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _flushTimer?.Dispose();
-        await _loopCts?.CancelAsync()!;
+        if (_loopCts is not null)
+            await _loopCts.CancelAsync();
         if (_flushLoop != null)
         {
             try { await _flushLoop; }
@@ -102,6 +103,8 @@ public sealed partial class ClickHouseAnalyticsService(
         await FlushBufferAsync();
         if (_connection != null) await _connection.DisposeAsync();
         _connection = null;
+        _loopCts?.Dispose();
+        _loopCts = null;
     }
 
     public void Track(string moduleId, string eventName, IReadOnlyDictionary<string, object?> tags)

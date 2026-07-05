@@ -123,7 +123,6 @@ global using Games.Darts.Infrastructure.Migrations;
 global using Games.Darts.Infrastructure.Modules;
 global using Games.Darts.Infrastructure.Persistence;
 global using Games.Darts.Infrastructure.Queues;
-global using Games.Dice.Application.Handlers;
 global using Games.Dice.Application.Services;
 global using Games.Dice.Domain.Configuration;
 global using Games.Dice.Domain.Events;

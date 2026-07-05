@@ -4,6 +4,32 @@ This document is a diagram-first view of the current CasinoShiz architecture.
 For feature details and configuration keys, see [docs.md](docs.md). For operational
 procedures, see [operations.md](operations.md).
 
+## Repository Boundaries
+
+```text
+framework/
+  BotFramework.Contracts/   transport-neutral messaging contracts
+  BotFramework.Sdk/         module and domain abstractions
+  BotFramework.Host/        backend infrastructure and composition
+  BotFramework.Telegram/    Telegram ingress, routing and delivery
+games/
+  Games.X.Contracts/        logical interfaces and portable DTOs
+  Games.X/                  backend application/domain/infrastructure
+  Games.X.Telegram/         Telegram presentation adapter
+  Games.X.Transport.Grpc/   protobuf and remote adapters
+host/
+  CasinoShiz.Host/          combined compatibility deployment + Razor admin
+  CasinoShiz.Backend/       Telegram-free backend process
+  CasinoShiz.TelegramBff/   Telegram client process
+  CasinoShiz.AdminBff/      browser admin BFF without database access
+tests/CasinoShiz.Tests/     behavior and dependency-boundary tests
+```
+
+Not every context requires every optional project. PixelBattle uses HTTP/SSE for
+its WebApp, native-dice contexts share `Games.NativeDice.Transport.Grpc`, and
+Horse rendering is isolated in `Games.Horse.Rendering`. See
+[`games/README.md`](../games/README.md) for the ownership rules.
+
 ## System Context
 
 ```mermaid
@@ -13,8 +39,10 @@ flowchart LR
     telegram["Telegram Bot API"]
 
     subgraph system["CasinoShiz"]
-        host["ASP.NET Core host<br/>Telegram bot + admin UI"]
-        modules["Game modules"]
+        bff["Telegram BFF<br/>client adapters"]
+        backend["Backend<br/>game services + persistence"]
+        legacy["Legacy Host<br/>combined deployment + admin UI"]
+        contracts["Logical contracts<br/>interfaces + events"]
         webapp["PixelBattle WebApp"]
     end
 
@@ -24,37 +52,53 @@ flowchart LR
     monitoring["Prometheus + Grafana"]
 
     player <-->|"commands, callbacks, dice"| telegram
-    telegram <-->|"polling or webhook"| host
+    telegram <-->|"polling or webhook"| bff
+    telegram <-->|"legacy mode"| legacy
     player <-->|"Telegram WebApp"| webapp
-    admin -->|"HTTPS /admin"| host
+    admin -->|"HTTPS /admin"| legacy
 
-    host --> modules
-    host --> webapp
-    host <--> postgres
-    host <--> redis
-    host --> clickhouse
-    monitoring -->|"scrape and query"| host
+    bff --> contracts
+    backend --> contracts
+    legacy --> contracts
+    bff -->|"gRPC adapters"| backend
+    backend --> webapp
+    legacy --> webapp
+    backend <--> postgres
+    legacy <--> postgres
+    bff <--> redis
+    legacy <--> redis
+    backend --> clickhouse
+    legacy --> clickhouse
+    monitoring -->|"scrape and query"| backend
+    monitoring -->|"scrape and query"| legacy
     monitoring --> redis
     monitoring --> postgres
     monitoring --> clickhouse
 ```
 
-The ASP.NET Core process is the composition root and runtime boundary. Game modules
-do not host separate processes; they register handlers, services, migrations,
-locales, projections, event subscribers, jobs, and Telegram commands into the host.
+The repository supports two deployment shapes. `CasinoShiz.Host` is the compatible
+modular-monolith composition. The split composition runs `CasinoShiz.Backend` and
+`CasinoShiz.TelegramBff`; both depend on logical contracts while gRPC stays inside
+transport projects. A bounded context can therefore remain in-process or cross the
+process boundary without changing its application-facing interface.
 
 ## Runtime Containers
 
 ```mermaid
 flowchart TB
-    subgraph aspnet["CasinoShiz.Host process"]
-        http["ASP.NET endpoints<br/>webhook, health, admin, PixelBattle"]
-        driver["BotHostedService<br/>polling and command registration"]
+    subgraph bffProcess["CasinoShiz.TelegramBff process"]
+        webhook["webhook / polling"]
         pipeline["UpdatePipeline"]
         router["UpdateRouter"]
-        framework["Shared framework services<br/>economics, tuning, events, analytics"]
-        games["Game and utility modules"]
-        jobs["Hosted jobs<br/>migrations, catch-up, sweepers"]
+        adapters["Games.*.Telegram adapters"]
+        clients["contract interfaces<br/>gRPC implementations"]
+    end
+    subgraph backendProcess["CasinoShiz.Backend process"]
+        grpc["gRPC endpoints"]
+        services["game application services"]
+        framework["economics, events, analytics"]
+        jobs["migrations, projections, sweepers"]
+        http["health + PixelBattle HTTP/SSE"]
     end
 
     pg[("PostgreSQL")]
@@ -62,37 +106,39 @@ flowchart TB
     ch[("ClickHouse")]
     tg["Telegram Bot API"]
 
-    tg --> driver
-    tg --> http
-    driver --> pipeline
-    http --> pipeline
+    tg --> webhook
+    webhook --> pipeline
     pipeline --> router
-    router --> games
-    games --> framework
-    jobs --> games
+    router --> adapters
+    adapters --> clients
+    clients --> grpc
+    grpc --> services
+    services --> framework
+    jobs --> services
     jobs --> framework
 
     framework <--> pg
-    games <--> pg
+    services <--> pg
     framework <--> rd
     framework --> ch
-    games --> tg
+    adapters --> tg
 ```
 
 ## Host Composition
 
-`Program.cs` selects the distribution by listing modules. Each module owns its
-internal DI registration and contributes metadata to the shared host.
+Each composition root selects backend modules, Telegram adapter modules, or both.
+Backend modules own persistence/migrations/jobs; adapter modules own handlers and
+client presentation. Transport registration belongs only to Backend/BFF programs.
 
 ```mermaid
 flowchart LR
     program["Program.cs"]
-    builder["AddBotFramework()"]
+    builder["AddBotFramework()<br/>or AddBackendFramework()<br/>or AddTelegramBff()"]
     addmodule["AddModule&lt;T&gt;()"]
 
     subgraph framework["Framework registration"]
-        telegram["Telegram client"]
-        update["Update pipeline + router"]
+        telegram["Telegram runtime<br/>(adapter composition only)"]
+        update["Update pipeline + router<br/>(adapter composition only)"]
         economics["Economics + daily limits"]
         tuning["Runtime tuning"]
         events["Event store + event bus"]
@@ -101,11 +147,11 @@ flowchart LR
     end
 
     subgraph contribution["Module contribution"]
-        handlers["IUpdateHandler"]
+        handlers["IUpdateHandler<br/>(Telegram module)"]
         services["Module services"]
         commands["BotCommand"]
         locales["LocaleBundle"]
-        migrations["IModuleMigrations"]
+        migrations["IModuleMigrations<br/>(backend module)"]
         projections["Projections/subscribers"]
         modulejobs["Background jobs"]
     end
@@ -131,8 +177,9 @@ Current module families:
 
 ## Telegram Update Flow
 
-Polling and webhook delivery use the same processing pipeline. Redis changes the
-transport between ingestion and processing, not the handler model.
+Inside `BotFramework.Telegram`, polling and webhook delivery use the same processing
+pipeline. This runs in `CasinoShiz.TelegramBff` or in the combined legacy Host.
+Redis changes ingestion delivery, not the handler or logical client contracts.
 
 ```mermaid
 flowchart TD
@@ -258,7 +305,10 @@ Most command paths follow the same dependency direction:
 flowchart LR
     route["Route attribute"]
     handler["Application handler"]
-    service["Application service"]
+    contract["Contract interface"]
+    transport{"Composition"}
+    grpc["gRPC client adapter"]
+    service["Backend application service"]
     domain["Domain model / rules"]
     store["Store or repository"]
     shared["Shared host services"]
@@ -266,7 +316,11 @@ flowchart LR
     telegram["Telegram Bot API"]
 
     route --> handler
-    handler --> service
+    handler --> contract
+    contract --> transport
+    transport -->|"legacy Host"| service
+    transport -->|"split BFF"| grpc
+    grpc --> service
     service --> domain
     service --> store
     service --> shared
@@ -275,12 +329,53 @@ flowchart LR
     handler --> telegram
 ```
 
-Handlers parse Telegram input and render responses. Services own use-case
-orchestration. Domain objects own game rules where a game has a DDD split.
-Stores and repositories own persistence. Cross-cutting balance, analytics, tuning,
-locking, and event behavior belongs to framework services.
+Handlers live in `Games.*.Telegram`, parse Telegram input, and render responses.
+They know a logical interface, not whether it is local or remote. Backend services
+own orchestration; domain objects own rules; stores own persistence. Protobuf,
+generated clients, and channels remain in `Games.*.Transport.Grpc`. Cross-cutting
+balance, analytics, tuning, locking, and event behavior belongs to framework services.
 
 ## Wallet And Ledger
+
+The logical wallet/protection ports live in `BotFramework.Contracts`. Identity uses
+the separate `IPlayerDirectory` port. Composition chooses their implementation:
+
+- combined host/backend: local PostgreSQL services;
+- split deployment: `CasinoShiz.IdentityService` and `CasinoShiz.WalletService`
+  reached through adapters in `*.Transport.Grpc`;
+- Telegram BFF: always consumes the logical ports and does not know whether their
+  target is the main backend or a dedicated service.
+
+Backend selection is configured with `Services:{Identity|Wallet}:Mode` (`Local` or
+`Grpc`) and `Address`. The BFF accepts independent
+`Services:{Identity|Wallet}:Address` values and falls back to
+`Backend:GrpcAddress`. Transport choice therefore stays in composition roots.
+
+Wallet account reads now cross `IWalletReadService`; ledger and operational
+aggregates cross `IWalletAnalyticsService`. Game contexts no longer query the
+compatibility `users` or `economics_ledger` tables. SQL for those tables is confined
+to wallet-owned infrastructure. Legacy Razor admin pages are compiled into Backend
+as a compatibility surface. In a split deployment the browser reaches them only
+through Admin BFF, so the existing operator UI remains intact while pages migrate
+to owning-context contracts incrementally.
+
+## Admin BFF
+
+`CasinoShiz.AdminBff` owns browser login/session state and registers no database
+connection. After authentication it reverse-proxies `/admin/*` (except login and
+logout) to Backend, adding the internal operations key and authenticated actor.
+Backend validates those headers, creates the legacy server session, and executes
+the original Razor pages and their antiforgery-protected actions.
+
+The first migrated vertical slice contains wallet inspection, idempotent balance
+adjustment and identity lookup. Each rendered adjustment carries a stable operation
+ID, so repeating the same browser POST cannot apply the ledger mutation twice.
+Service failures are reported per page rather than taking down unrelated sections.
+
+The old `CasinoShiz.Host/Pages/Admin` remains the single compatibility UI source and
+is linked into Backend at build time; it is not duplicated in AdminBff. A page can
+later move behind an owning-context contract after its read/mutation contract and
+server-side audit semantics exist.
 
 Wallet identity is `(telegram_user_id, balance_scope_id)`. The balance scope is
 normally the Telegram chat id, so one person has independent balances in different
@@ -546,6 +641,17 @@ JSON while keeping the same role boundary as the on-screen audit view.
 
 ### Docker Compose
 
+The compose file exposes two explicit application profiles. `monolith` runs
+`CasinoShiz.Host`; `microservices` runs Backend, Identity, Wallet, TelegramBff,
+and AdminBff as separate containers. Both profiles reuse PostgreSQL and the
+observability infrastructure. Internal calls use service DNS names and gRPC;
+only composition/environment values differ between deployment modes.
+
+```bash
+docker compose --profile monolith up --build
+docker compose --profile microservices up --build
+```
+
 ```mermaid
 flowchart TB
     internet["Telegram / browser"]
@@ -656,6 +762,17 @@ retry. Event retry redispatches the persisted event. Outbox recovery preserves t
 payload, attempt count, deduplication key, and previous error while making an unsent
 record immediately eligible; sent, missing, or concurrently changed records are not
 mutated. Successful mutation attempts are appended to `admin_audit`.
+
+The browser admin is a separate `CasinoShiz.AdminBff` process and never reads
+PostgreSQL directly. It uses transport-neutral Identity, Wallet, and Operations
+contracts; gRPC is an adapter selected only by composition. `Admin:ReadOnlyToken`
+creates an inspection-only session and `Admin:SuperAdminToken` creates a session
+allowed to submit antiforgery-protected mutations. The Admin BFF and Backend must
+receive the same non-empty `Services:Operations:ApiKey` from deployment secrets;
+the Backend rejects every Operations gRPC call when the key is absent or invalid.
+Actor ID and name come from the authenticated server-side session, while the
+Backend owns execution and audit recording. Wallet adjustments therefore remain
+audited even when Wallet runs as a separate service.
 
 ## Dependency Rules
 

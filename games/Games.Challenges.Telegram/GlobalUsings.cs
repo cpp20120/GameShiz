@@ -1,0 +1,13 @@
+global using BotFramework.Host.Contracts.Localization;
+global using BotFramework.Sdk.Modules;
+global using BotFramework.Sdk.Modules.Migrations;
+global using BotFramework.Sdk.UpdateHandling;
+global using BotFramework.Sdk.UpdateHandling.Routes;
+global using Games.Blackjack.Domain.Models;
+global using Games.Blackjack.Domain.Rules;
+global using Games.Challenges.Application.Models;
+global using Games.Challenges.Application.Services;
+global using Games.Challenges.Domain.Entities;
+global using Games.Challenges.Domain.Results;
+global using Games.Challenges.Domain.Rules;
+global using Games.Horse.Infrastructure.Rendering.Generators;

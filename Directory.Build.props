@@ -4,6 +4,9 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <AnalysisMode>Recommended</AnalysisMode>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- MSBuild 18.0.11 can fail GetTargetFrameworks without diagnostics while
+         evaluating multiple project references concurrently. -->
+    <BuildInParallel>false</BuildInParallel>
   </PropertyGroup>
 
   <ItemGroup>

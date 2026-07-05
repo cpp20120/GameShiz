@@ -1,0 +1,9 @@
+global using BotFramework.Sdk.Domain;
+global using BotFramework.Sdk.Events.Contracts;
+global using Games.Poker.Domain.Commands;
+global using Games.Poker.Domain.Configuration;
+global using Games.Poker.Domain.Entities;
+global using Games.Poker.Domain.Events;
+global using Games.Poker.Domain.Models;
+global using Games.Poker.Domain.Results;
+global using Games.Poker.Domain.Rules;

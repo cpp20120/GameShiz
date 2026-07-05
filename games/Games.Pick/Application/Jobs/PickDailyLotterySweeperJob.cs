@@ -8,18 +8,14 @@
 // stay in 'open' and the next tick picks them up.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using System.Globalization;
 using Microsoft.Extensions.Options;
-using Telegram.Bot;
-using Telegram.Bot.Types.Enums;
 
 namespace Games.Pick.Application.Jobs;
 
 public sealed partial class PickDailyLotterySweeperJob(
     IPickDailyLotteryStore store,
     IPickDailyLotteryService service,
-    ITelegramBotClient bot,
-    ILocalizer localizer,
+    IPickAnnouncementPublisher announcements,
     IOptions<PickOptions> options,
     ILogger<PickDailyLotterySweeperJob> logger) : IBackgroundJob
 {
@@ -40,7 +36,7 @@ public sealed partial class PickDailyLotterySweeperJob(
                     try
                     {
                         var settle = await service.SettleAsync(row, stoppingToken);
-                        await PostAsync(settle, stoppingToken);
+                        await announcements.PublishDailyAsync(settle, stoppingToken);
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
                     catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
@@ -54,50 +50,6 @@ public sealed partial class PickDailyLotterySweeperJob(
         }
     }
 
-    private async Task PostAsync(DailySettleResult result, CancellationToken ct)
-    {
-        var chatId = result.Row.ChatId;
-        var day = result.Row.DayLocal.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-        string text;
-
-        if (!result.Drawn || result.WinnerId is null)
-        {
-            // Empty pool — say nothing if there were truly zero participants
-            // (no point pinging the chat). Only post if some race made us
-            // arrive here with a non-trivial state.
-            if (result.TicketsTotal == 0) return;
-            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.sweep.cancelled"), day, result.TicketsTotal);
-        }
-        else
-        {
-            var winnerLabel = string.IsNullOrEmpty(result.WinnerName)
-                ? string.Create(CultureInfo.InvariantCulture, $"User ID: {result.WinnerId}"
-)
-                : System.Net.WebUtility.HtmlEncode(result.WinnerName);
-            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.sweep.settled"),
-                day,
-                winnerLabel,
-                result.WinnerTicketCount ?? 0,
-                result.TicketsTotal,
-                result.DistinctUsers,
-                result.PotTotal,
-                result.Fee,
-                result.Payout);
-        }
-
-        try
-        {
-            await bot.SendMessage(chatId, text,
-                parseMode: ParseMode.Html, cancellationToken: ct);
-        }
-        catch (Exception ex)
-        {
-            LogPostFailed(result.Row.Id, chatId, ex);
-        }
-    }
-
-    private string Loc(string key) => localizer.Get("pick", key);
-
     [LoggerMessage(EventId = 5971, Level = LogLevel.Error,
         Message = "pick.daily.sweeper.tick_failed")]
     partial void LogTickFailed(Exception ex);
@@ -106,7 +58,4 @@ public sealed partial class PickDailyLotterySweeperJob(
         Message = "pick.daily.sweeper.settle_failed lottery={LotteryId} chat={ChatId}")]
     partial void LogSettleFailed(Guid lotteryId, long chatId, Exception ex);
 
-    [LoggerMessage(EventId = 5973, Level = LogLevel.Warning,
-        Message = "pick.daily.sweeper.post_failed lottery={LotteryId} chat={ChatId}")]
-    partial void LogPostFailed(Guid lotteryId, long chatId, Exception ex);
 }

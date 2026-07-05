@@ -38,8 +38,6 @@ public sealed partial class PokerTurnTimeoutJob(
     private async Task SweepAsync(CancellationToken ct)
     {
         var opts = tuning.GetSection<PokerOptions>(PokerOptions.SectionName);
-        PokerService.PruneGates((long)opts.TurnTimeoutMs * 3);
-
         using var scope = services.CreateScope();
         var bot = scope.ServiceProvider.GetRequiredService<ITelegramBotClient>();
         var service = scope.ServiceProvider.GetRequiredService<IPokerService>();

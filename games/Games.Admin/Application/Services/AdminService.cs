@@ -106,7 +106,6 @@ public sealed partial class AdminService(
                     await RollGates.ClearAsync("darts", bet.UserId, bet.ChatId, ct);
                     if (bet.BotMessageId is { } botMessageId)
                     {
-                        DartsDiceRoundBinding.Unbind(bet.ChatId, botMessageId);
                         BotMiniGameDiceOwner.MarkCompleted(bet.ChatId, botMessageId);
                     }
                     break;

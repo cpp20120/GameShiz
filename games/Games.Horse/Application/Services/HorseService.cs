@@ -196,7 +196,7 @@ public sealed partial class HorseService(
         var txForUi = transactions
             .ConvertAll(t => new RaceTransaction(t.UserId, t.BalanceScopeId, t.Amount))
 ;
-        return new RaceOutcome(HorseError.None, winner, gifBytes, txForUi, participants, betScopeIds);
+        return new RaceOutcome(HorseError.None, winner, gifBytes, txForUi, participants, betScopeIds, raceDate);
     }
 
     public static Dictionary<int, double> GetKoefs(Dictionary<int, int> stakes)

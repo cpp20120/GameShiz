@@ -1,0 +1,10 @@
+@{ var title = ViewData["Title"] as string ?? "Admin"; }
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>@title · CasinoShiz Admin</title><link rel="stylesheet" href="~/admin.css"/></head><body>
+<header><h1>🎰 CasinoShiz</h1><nav>
+<a href="/admin" class="@(Context.Request.Path.Equals("/admin") ? "active" : "")">Dashboard</a>
+<a href="/admin/people" class="@(Context.Request.Path.StartsWithSegments("/admin/people") ? "active" : "")">People</a>
+<a href="/admin/users" class="@(Context.Request.Path.StartsWithSegments("/admin/users") ? "active" : "")">Wallets</a>
+<a href="/admin/recovery" class="@(Context.Request.Path.StartsWithSegments("/admin/recovery") ? "active" : "")">Recovery</a>
+<a href="/admin/audit" class="@(Context.Request.Path.StartsWithSegments("/admin/audit") ? "active" : "")">Audit</a>
+</nav><div class="header-right"><a href="/admin/logout">Logout</a></div></header><main>@RenderBody()</main></body></html>

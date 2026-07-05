@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\Games.Meta.Contracts\Games.Meta.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="MetaTelegramModule.cs" />
+    <Compile Include="..\Games.Meta\Application\Meta\MetaHandler.cs" Link="MetaHandler.cs" />
+    <Compile Include="..\Games.Meta\Application\Meta\MetaMenuHandler.cs" Link="MetaMenuHandler.cs" />
+    <Compile Include="..\Games.Meta\Application\Meta\MyStatsHandler.cs" Link="MyStatsHandler.cs" />
+    <Compile Include="..\Games.Meta\Application\Tournaments\TournamentHandler.cs" Link="TournamentHandler.cs" />
+    <Compile Include="..\Games.Meta\Application\Risk\RiskHandler.cs" Link="RiskHandler.cs" />
+  </ItemGroup>
+</Project>

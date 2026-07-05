@@ -12,8 +12,7 @@ public sealed class DiceCubeModule : IModule
         services
             .BindOptions<DiceCubeOptions>(DiceCubeOptions.SectionName)
             .AddScoped<IDiceCubeService, DiceCubeService>()
-            .AddScoped<IDiceCubeBetStore, DiceCubeBetStore>()
-            .AddHandler<DiceCubeHandler>();
+            .AddScoped<IDiceCubeBetStore, DiceCubeBetStore>();
     }
 
     public IModuleMigrations GetMigrations() => new DiceCubeMigrations();

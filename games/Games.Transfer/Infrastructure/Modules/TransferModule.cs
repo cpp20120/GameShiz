@@ -11,8 +11,7 @@ public sealed class TransferModule : IModule
     {
         services
             .BindOptions<TransferOptions>(TransferOptions.SectionName)
-            .AddScoped<ITransferService, TransferService>()
-            .AddHandler<TransferHandler>();
+            .AddScoped<ITransferService, TransferService>();
     }
 
     public IModuleMigrations GetMigrations() => new TransferMigrations();

@@ -13,9 +13,7 @@ public sealed class PokerModule : IModule
             .BindOptions<PokerOptions>(PokerOptions.SectionName)
             .AddScoped<IPokerService, PokerService>()
             .AddScoped<IPokerTableStore, PokerTableStore>()
-            .AddScoped<IPokerSeatStore, PokerSeatStore>()
-            .AddHandler<PokerHandler>()
-            .AddBackgroundJob<PokerTurnTimeoutJob>();
+            .AddScoped<IPokerSeatStore, PokerSeatStore>();
     }
 
     public IModuleMigrations GetMigrations() => new PokerMigrations();

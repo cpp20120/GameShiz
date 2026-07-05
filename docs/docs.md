@@ -35,7 +35,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Analytics | ClickHouse 24.x via `ClickHouse.Client` 7.x (buffered, degrades gracefully) |
 | Dashboards | Grafana 11 with auto-provisioned ClickHouse + Prometheus datasources |
 | Graphics | SkiaSharp 3.x (horse race GIF renderer, offloaded to thread pool) |
-| Tests | xUnit, 1,179 tests covering domain + services + router + framework |
+| Tests | xUnit, 1,201 tests covering domain, services, adapters, boundaries and framework |
 | Deploy | Docker Compose (bot + postgres + redis + clickhouse + prometheus + grafana) / Helm chart |
 
 ## Layout
@@ -55,84 +55,61 @@ CasinoShiz/
 ├── docs/docs.md                      — this document
 ├── db/clickhouse/                    — manual ClickHouse migration scripts
 ├── framework/
-│   ├── BotFramework.Sdk/             — module contracts split by feature:
-│   │   ├── Admin/                    — admin page contribution contracts
-│   │   ├── Commands/                 — command bus and middleware contracts
-│   │   ├── Domain/                   — aggregate/repository contracts
-│   │   ├── Events/                   — event bus, event store, meta and Telegram events
-│   │   ├── Modules/                  — IModule, DI adapter contracts, migrations
-│   │   ├── MiniGames/                — shared Telegram mini-game session/gate contracts
-│   │   ├── Projections/ Snapshots/   — projection and snapshot contracts
-│   │   └── UpdateHandling/           — handlers and route attributes
-│   ├── BotFramework.Sdk.Testing/     — xUnit helpers split into repositories and fakes
-│   └── BotFramework.Host/            — reusable runtime infrastructure split by feature:
-│       ├── Admin/                    — admin auth, audit, admin endpoint mount
-│       ├── Analytics/                — ClickHouse writer and query/report services
-│       ├── Commands/                 — command bus, command middleware, rate limiting
-│       ├── Composition/              — builder, module loading, framework migrations
-│       ├── Contracts/                — public host contracts exposed to modules
-│       ├── Economics/                — wallet, daily bonus, dice roll gates, tax, stores
-│       ├── Events/                   — event bus, dispatch failures, replay, stores, serialization
-│       ├── Persistence/              — Npgsql, Dapper handlers, EF repository
-│       ├── Pipeline/                 — update middleware and routing
-│       ├── Runtime/                  — hosted services and background jobs
-│       └── Security/                 — captcha services
+│   ├── BotFramework.Contracts/       — transport-neutral request/event contracts
+│   ├── BotFramework.Sdk/             — module, domain, event and update-handler abstractions
+│   ├── BotFramework.Sdk.Testing/     — test repositories and fakes
+│   ├── BotFramework.Host/            — backend infrastructure: DB, economics, events,
+│   │                                   analytics, jobs, admin auth and composition
+│   └── BotFramework.Telegram/        — Telegram client, polling/webhook, middleware,
+│                                       update routing, Redis streams and outbox delivery
 ├── games/
-│   ├── Games.Dice/                   — slots 🎰
-│   ├── Games.DiceCube/               — dice cube 🎲
-│   ├── Games.Darts/                  — darts 🎯
-│   ├── Games.Football/               — football ⚽
-│   ├── Games.Bowling/                — bowling 🎳
-│   ├── Games.Basketball/             — basketball 🏀
-│   ├── Games.Blackjack/              — blackjack
-│   ├── Games.Horse/                  — horse racing + GIF renderer
-│   ├── Games.Poker/                  — Texas Hold'em
-│   ├── Games.SecretHitler/           — hidden-role social deduction
-│   ├── Games.Pick/                   — /pick, /picklottery + /pickjoin, /dailylottery
-│   ├── Games.Challenges/             — 1v1 PvP challenge layer over the other games
-│   ├── Games.PixelBattle/            — Telegram WebApp pixel canvas + SSE updates
-│   ├── Games.Redeem/                 — freespin codes + emoji captcha
-│   ├── Games.Leaderboard/            — /top, /topall, /balance, /daily, /help
-│   ├── Games.Transfer/               — /transfer (peer coins in groups)
-│   ├── Games.Meta/                   — seasons, profiles, quests, achievements, clans,
-│   │                                   tournaments, risk flags, interactive /menu
-│   └── Games.Admin/                  — admin Telegram commands (/run, /rename, /chats,
-│                                       /analytics)
+│   ├── Games.<Context>.Contracts/    — interfaces and DTOs; no Telegram, DB or gRPC
+│   ├── Games.<Context>/              — application/domain backend, stores, jobs, migrations
+│   ├── Games.<Context>.Telegram/     — commands, callbacks, keyboards and Telegram rendering
+│   ├── Games.<Context>.Transport.Grpc/ — generated wire types and gRPC adapters
+│   ├── Games.NativeDice.Transport.Grpc/ — shared transport for the five native-dice games
+│   ├── Games.Darts.Telegram.Delivery/  — legacy direct Telegram roll delivery adapter
+│   └── Games.Horse.Rendering/        — reusable transport-neutral GIF renderer
 ├── host/
-│   └── CasinoShiz.Host/              — composition root
-│       ├── Composition/Program.cs    — AddBotFramework().AddModule<T>()…Build().UseBotFramework()
-│       ├── Debug/                    — optional debug module/handlers
-│       ├── appsettings.json
-│       └── Pages/Admin/              — Razor pages for /admin UI
+│   ├── CasinoShiz.Host/              — legacy all-in-one composition + Razor admin UI
+│   ├── CasinoShiz.Backend/           — Telegram-free backend composition and gRPC servers
+│   └── CasinoShiz.TelegramBff/       — Telegram runtime, adapters and gRPC clients
 └── tests/
-    └── CasinoShiz.Tests/             — 1,179 xUnit tests
+    └── CasinoShiz.Tests/             — domain, application, infrastructure and boundary tests
 ```
 
-Each `Games.*` module uses the same layer layout:
+Each bounded context is a project family rather than one project containing every layer:
 
 ```text
-Application/
-  Handlers/     Telegram command/callback handlers
-  Services/     application services and public module service interfaces
-  Jobs/         background jobs and timeout workers
-  Projections/  event projections
-  Results/      use-case result records
-  Analytics/    read-model snapshots and analytics DTOs
-Domain/
-  Configuration/ options records
-  Commands/      parsed command/action records
-  Entities/      game state and domain entities
-  Events/        domain events
-  Rules/         pure rules, transition engines, evaluators, registries
-  Results/       domain result records, statuses, errors, snapshots
-Infrastructure/
-  Persistence/   Dapper stores, rows, store interfaces
-  Migrations/    module migrations
-  Modules/       `IModule` registration classes
-  Rendering/     renderers and generated media
-  Integrations/  external adapters such as Telegram WebApp/SSE/bot senders
-  Queues/        Redis/queue adapters
+Games.<Context>.Contracts/
+  interfaces and public request/result/domain records
+Games.<Context>/
+  Application/
+    Services/     application services and backend-facing interfaces
+    Jobs/         background jobs and timeout workers
+    Projections/  event projections
+    Results/      backend-only use-case records
+    Analytics/    read-model snapshots and analytics DTOs
+  Domain/
+    Commands/      backend-only commands
+    Events/        domain events
+    Rules/         backend-only rules and registries
+  Infrastructure/
+    Persistence/   Dapper stores, rows and store interfaces
+    Migrations/    module migrations
+    Modules/       backend `IModule` registration
+    Integrations/  backend HTTP/SSE or event adapters
+    Queues/        Redis/queue adapters
+Games.<Context>.Telegram/
+  Telegram handlers, keyboards, immediate replies and client-specific rendering
+Games.<Context>.Transport.Grpc/
+  protobuf files, generated wire types, server endpoints and remote clients
 ```
+
+Not every context needs every project. PixelBattle uses backend HTTP/SSE instead of
+gRPC for its WebApp. Native-dice contexts share one transport project. Backend-only
+registries and persistence rows stay in the backend project. Empty legacy layer
+directories are intentionally removed after files move to their owning project.
 
 `Games.Meta` is additionally grouped by feature inside layers (`Achievements`, `Clans`, `Quests`, `Risk`, `Seasons`, `Streaks`, `Tournaments`, `Catalog`, `History`) because it owns several progression subsystems.
 
@@ -154,7 +131,15 @@ Game stakes and payouts change the current chat wallet through the append-only e
 
 ### Host composition
 
-`BotFrameworkBuilder.AddBotFramework()` registers framework singletons (Telegram client, router, pipeline, middlewares, `IEconomicsService`, `IDailyBonusService`, `IRuntimeTuningAccessor`, event bus, Redis Streams, admin auth, migrations runner). Each `.AddModule<T>()` instantiates the module, runs `ConfigureServices(IModuleServiceCollection)`, and folds its handlers/locales/migrations/commands/admin pages into the shared aggregate. The host also registers `DebugModule` before the game modules. `UseBotFramework()` wires the webhook endpoint, health endpoints, session middleware, and admin gate.
+`AddBackendFramework()` registers backend services (`IEconomicsService`, `IDailyBonusService`, request/event buses, persistence, admin auth, health and migrations) without referencing `Telegram.Bot`. `BotFramework.Telegram` adds the client adapter runtime: Telegram client, update router/pipeline/middleware, polling/webhook, Redis update transport, and outbound dispatcher. The legacy `AddBotFramework()` composes both halves during migration. Each `.AddModule<T>()` instantiates the module, runs `ConfigureServices(IModuleServiceCollection)`, and folds its handlers/locales/migrations/commands/admin pages into the shared aggregate.
+
+Bounded-context consumers depend only on contract interfaces, request/response records, and integration events. The monolith resolves those interfaces to in-process dispatchers; separate BFF/services resolve the same interfaces to gRPC or broker adapters in their composition roots. Generated wire models and transport clients must not enter application or contract projects.
+
+The native Telegram dice games (`DiceCube`, `Darts`, `Football`, `Basketball`, and `Bowling`) are split into dependency-free `Games.*.Contracts`, backend `Games.*`, and `Games.*.Telegram` adapter projects. The legacy host loads both backend and Telegram modules, so this separation does not require a distributed deployment. Darts background delivery crosses an `IDartsRollDelivery` port; only its Telegram adapter knows `ITelegramBotClient`.
+
+For separate deployment, `Games.NativeDice.Transport.Grpc` maps the same five interfaces to gRPC. Protobuf/generated types and channel setup remain inside that transport project. `CasinoShiz.Backend` loads backend modules and maps the service; `CasinoShiz.TelegramBff` loads Telegram modules and resolves their interfaces to remote clients.
+
+`Transfer` follows the same layout. Telegram resolves the recipient and formats replies; the backend contract performs the atomic balance transfer. Both local and gRPC compositions implement the same `ITransferService` interface.
 
 ### Request flow
 
@@ -1425,19 +1410,25 @@ dotnet run --project host/CasinoShiz.Host
 # Tests
 dotnet test
 
-# Full stack (Postgres + Redis + ClickHouse + Prometheus + Grafana)
+# Full stack in monolith mode
 # Create/fill .env with Bot__Token, Bot__BotUsername (or Bot__Username), Bot__Admins__0
-docker compose up --build
+docker compose --profile monolith up --build
+
+# Distributed-process smoke/development mode. Also set OPERATIONS_API_KEY and
+# ADMIN_SUPERADMIN_TOKEN; ADMIN_READONLY_TOKEN is optional.
+docker compose --profile microservices up --build
 ```
 
 ### Ports & URLs (docker-compose defaults)
 
 | Service | Port | URL | Purpose |
 |---|---|---|---|
-| Bot (ASP.NET) | 3000 | `http://localhost:3000` | Webhook + admin UI + health |
-| Admin UI | 3000 | `http://localhost:3000/admin/login` | Razor pages, session-gated |
-| Health (live) | 3000 | `http://localhost:3000/health/live` | Liveness probe |
-| Health (ready) | 3000 | `http://localhost:3000/health/ready` | Readiness probe |
+| Monolith | 4000 | `http://localhost:4000` | Combined compatibility deployment |
+| Backend | 5081 | `http://localhost:5081/health/live` | Games and Operations gRPC |
+| Identity | 5082 | `http://localhost:5082/health/live` | Identity gRPC |
+| Wallet | 5083 | `http://localhost:5083/health/live` | Wallet gRPC |
+| Telegram BFF | 5084 | `http://localhost:5084/health/live` | Telegram polling/webhook adapter |
+| Admin BFF | 5085 | `http://localhost:5085` | Browser administration client |
 | Postgres | 5432 | `postgres://cazino:cazino@localhost:5432/cazino` | Primary datastore |
 | Redis | 6379 | `redis://localhost:6379` | Streams + CAP transport |
 | ClickHouse HTTP | 8123 | `http://localhost:8123` | Analytics queries |
@@ -1671,7 +1662,7 @@ All ordinary game debits pass the protection check inside the same PostgreSQL tr
 
 ## Testing
 
-1,131 xUnit tests under `tests/CasinoShiz.Tests/`. No external database in CI — games use in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.). `DailyBonusMath` unit-tests the bonus coin formula.
+1,201 xUnit tests under `tests/CasinoShiz.Tests/`. No external database in CI — games use in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.). Boundary tests also enforce that contract/backend assemblies do not acquire Telegram or gRPC dependencies. `DailyBonusMath` unit-tests the bonus coin formula.
 
 ```bash
 dotnet test

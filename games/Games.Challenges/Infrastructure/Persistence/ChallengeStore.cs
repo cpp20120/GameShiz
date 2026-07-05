@@ -2,22 +2,17 @@ using Dapper;
 
 namespace Games.Challenges.Infrastructure.Persistence;
 
-public sealed class ChallengeStore(INpgsqlConnectionFactory connections) : IChallengeStore
+public sealed class ChallengeStore(
+    INpgsqlConnectionFactory connections,
+    IPlayerDirectory players,
+    IWalletReadService wallets) : IChallengeStore
 {
     public async Task<ChallengeUser?> FindKnownUserByUsernameAsync(long chatId, string username, CancellationToken ct)
     {
-        await using var conn = await connections.OpenAsync(ct);
-        return await conn.QuerySingleOrDefaultAsync<ChallengeUser>(new CommandDefinition("""
-            SELECT telegram_user_id AS UserId,
-                   display_name AS DisplayName
-            FROM users
-            WHERE balance_scope_id = @chatId
-              AND lower(display_name) = lower(@username)
-            ORDER BY updated_at DESC
-            LIMIT 1
-            """,
-            new { chatId, username },
-            cancellationToken: ct));
+        var identity = await players.FindByUsernameAsync(username, ct);
+        if (identity is null || await wallets.GetAsync(identity.UserId, chatId, ct) is null)
+            return null;
+        return new ChallengeUser(identity.UserId, identity.DisplayName);
     }
 
     public async Task<bool> HasPendingAsync(long challengerId, long targetId, long chatId, CancellationToken ct)

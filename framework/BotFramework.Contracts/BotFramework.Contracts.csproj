@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>BotFramework.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\BotFramework.Host\Contracts\Economics\**\*.cs" Link="Wallet\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\BotFramework.Host\Contracts\ResponsibleGaming\**\*.cs" Link="Wallet\ResponsibleGaming\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

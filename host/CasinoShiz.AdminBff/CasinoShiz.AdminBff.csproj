@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CasinoShiz.AdminBff</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <ProjectReference Include="..\..\services\CasinoShiz.Identity.Transport.Grpc\CasinoShiz.Identity.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\services\CasinoShiz.Wallet.Transport.Grpc\CasinoShiz.Wallet.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\services\CasinoShiz.Operations.Transport.Grpc\CasinoShiz.Operations.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Transport.Grpc\Games.Admin.Transport.Grpc.csproj" />
+  </ItemGroup>
+</Project>

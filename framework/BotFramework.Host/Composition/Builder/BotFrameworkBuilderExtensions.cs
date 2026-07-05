@@ -1,16 +1,18 @@
-using Microsoft.AspNetCore.Http;
 using BotFramework.Host.Contracts.Telegram;
 using BotFramework.Host.TelegramOutbox;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
-using Telegram.Bot;
+using BotFramework.Contracts.Messaging;
+using BotFramework.Host.Messaging;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BotFramework.Host.Composition.Builder;
 
 public static class BotFrameworkBuilderExtensions
 {
-    public static IBotFrameworkBuilder AddBotFramework(this IHostApplicationBuilder builder)
+    public static IBotFrameworkBuilder AddBackendFramework(this IHostApplicationBuilder builder)
     {
         var services = builder.Services;
         var configuration = builder.Configuration;
@@ -38,29 +40,9 @@ public static class BotFrameworkBuilderExtensions
 
         services.Configure<BotFrameworkOptions>(configuration.GetSection(BotFrameworkOptions.SectionName));
 
-        services.AddSingleton<ITelegramBotClient>(sp =>
-        {
-            var opts = sp.GetRequiredService<IOptions<BotFrameworkOptions>>().Value;
-            if (string.IsNullOrWhiteSpace(opts.Token))
-            {
-                throw new InvalidOperationException(
-                    "BotFrameworkOptions.Token is not configured. Set Bot:Token in configuration.");
-            }
-
-            return new TelegramBotClient(opts.Token);
-        });
-
-        services.AddSingleton<UpdateRouter>();
-        services.AddSingleton<UpdatePipeline>();
-
-        services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, Pipeline.Middleware.LoggingMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, Pipeline.Middleware.RateLimitMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();
-
         services.AddSingleton<ICommandBus, CommandBus>();
+        services.AddScoped<IRequestClient, LocalRequestClient>();
+        services.TryAddScoped<IIntegrationEventPublisher, LocalIntegrationEventPublisher>();
 
         services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
         var redisEnabled = configuration.GetValue<bool>($"{RedisOptions.SectionName}:Enabled");
@@ -105,6 +87,8 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<ITelegramOutbox>(sp => sp.GetRequiredService<PostgresTelegramOutboxStore>());
 
         services.AddSingleton<IEconomicsService, EconomicsService>();
+        services.AddSingleton<IWalletReadService, WalletReadService>();
+        services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();
         services.AddSingleton<IDistributedGameLock, PostgresDistributedGameLock>();
         services.AddSingleton<IMiniGameSessionStore, PostgresMiniGameSessionStore>();
         services.AddSingleton<IMiniGameRollGateStore, PostgresMiniGameRollGateStore>();
@@ -136,22 +120,18 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<EventLogSubscriber>();
         services.AddSingleton<ClickHouseEventMirror>();
         services.AddSingleton<IBackgroundJobStatusService, BackgroundJobStatusService>();
+        services.AddScoped<BotFramework.Contracts.Operations.IOperationsAdminService, BotFramework.Host.Admin.Operations.OperationsAdminService>();
 
         services.AddHostedService<ModuleMigrationRunner>();
         services.AddHostedService<EventAnalyticsBackfillService>();
-        services.AddHostedService<TelegramOutboxDispatcherService>();
         services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
         services.AddHostedService<DailyBonusCatchUpHostedService>();
 
         services.AddHostedService<BackgroundJobRunner>();
 
-        services.AddHostedService<BotHostedService>();
-
         if (redisEnabled)
         {
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn!));
-            services.AddSingleton<UpdateStreamPublisher>();
-            services.AddHostedService<UpdateStreamWorkerService>();
         }
 
         return new BotFrameworkBuilder(services, configuration);

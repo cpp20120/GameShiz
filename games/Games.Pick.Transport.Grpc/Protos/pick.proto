@@ -1,0 +1,19 @@
+syntax = "proto3";
+option csharp_namespace = "Games.Pick.Transport.Grpc.Wire";
+package casinoshiz.pick.v1;
+message ContractCall { string payload_json = 1; }
+message ContractReply { string payload_json = 1; }
+service PickApi {
+  rpc Pick (ContractCall) returns (ContractReply);
+  rpc ContinueChain (ContractCall) returns (ContractReply);
+  rpc ClaimChain (ContractCall) returns (ContractReply);
+  rpc RestoreChain (ContractCall) returns (ContractReply);
+  rpc OpenLottery (ContractCall) returns (ContractReply);
+  rpc JoinLottery (ContractCall) returns (ContractReply);
+  rpc LotteryInfo (ContractCall) returns (ContractReply);
+  rpc CancelLottery (ContractCall) returns (ContractReply);
+  rpc BuyDaily (ContractCall) returns (ContractReply);
+  rpc DailyInfo (ContractCall) returns (ContractReply);
+  rpc DailyHistory (ContractCall) returns (ContractReply);
+  rpc DailySchedule (ContractCall) returns (ContractReply);
+}

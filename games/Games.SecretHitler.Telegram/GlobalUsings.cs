@@ -1,0 +1,14 @@
+global using BotFramework.Host.Contracts.Localization;
+global using BotFramework.Sdk.Modules;
+global using BotFramework.Sdk.Modules.Migrations;
+global using BotFramework.Sdk.UpdateHandling;
+global using BotFramework.Sdk.UpdateHandling.Routes;
+global using Games.SecretHitler.Application.Handlers;
+global using Games.SecretHitler.Application.Services;
+global using Games.SecretHitler.Domain.Commands;
+global using Games.SecretHitler.Domain.Configuration;
+global using Games.SecretHitler.Domain.Entities;
+global using Games.SecretHitler.Domain.Results;
+global using Games.SecretHitler.Domain.Rules;
+global using Games.SecretHitler.Infrastructure.Rendering;
+global using Microsoft.Extensions.Logging;

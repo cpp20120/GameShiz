@@ -18,7 +18,6 @@
     <PackageReference Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
     <PackageReference Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
     <PackageReference Include="StackExchange.Redis" Version="3.0.7" />
-    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
@@ -35,6 +34,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <ProjectReference Include="..\BotFramework.Sdk\BotFramework.Sdk.csproj" />
   </ItemGroup>
 
@@ -46,6 +46,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="CasinoShiz.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Contracts\Economics\**\*.cs" />
+    <Compile Remove="Contracts\ResponsibleGaming\**\*.cs" />
   </ItemGroup>
 
 </Project>

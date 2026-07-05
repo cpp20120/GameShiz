@@ -42,43 +42,59 @@ public sealed partial class JsonEventSerializer : IEventSerializer
         foreach (var module in loadedModules.Modules)
         {
             var asm = module.GetType().Assembly;
-            if (!seenAssemblies.Add(asm)) continue;
+            RegisterAssembly(asm, table, seenAssemblies, eventInterface, logger);
 
-            foreach (var type in asm.GetTypes())
+            foreach (var referencedAssemblyName in asm.GetReferencedAssemblies())
             {
-                if (type is not { IsClass: true, IsAbstract: false }) continue;
-                if (!eventInterface.IsAssignableFrom(type)) continue;
-
-                string? eventTypeName;
-                try
-                {
-                    var instance = (IDomainEvent)RuntimeHelpers.GetUninitializedObject(type);
-                    eventTypeName = instance.EventType;
-                }
-                catch (Exception ex)
-                {
-                    LogEventTypeProbeFailed(logger, ex, type.FullName);
-                    continue;
-                }
-
-                if (string.IsNullOrEmpty(eventTypeName))
-                {
-                    LogEmptyEventType(logger, type.FullName);
-                    continue;
-                }
-
-                if (table.TryGetValue(eventTypeName, out var existing) && existing != type)
-                {
-                    throw new InvalidOperationException(
-                        $"Duplicate EventType '{eventTypeName}' on {type.FullName} and {existing.FullName}. " +
-                        "Event type strings must be unique across all loaded modules.");
-                }
-
-                table[eventTypeName] = type;
+                var referencedAssembly = System.Reflection.Assembly.Load(referencedAssemblyName);
+                RegisterAssembly(referencedAssembly, table, seenAssemblies, eventInterface, logger);
             }
         }
 
         return table;
+    }
+
+    private static void RegisterAssembly(
+        System.Reflection.Assembly assembly,
+        Dictionary<string, Type> table,
+        HashSet<System.Reflection.Assembly> seenAssemblies,
+        Type eventInterface,
+        ILogger logger)
+    {
+        if (!seenAssemblies.Add(assembly)) return;
+
+        foreach (var type in assembly.GetTypes())
+        {
+            if (type is not { IsClass: true, IsAbstract: false }) continue;
+            if (!eventInterface.IsAssignableFrom(type)) continue;
+
+            string? eventTypeName;
+            try
+            {
+                var instance = (IDomainEvent)RuntimeHelpers.GetUninitializedObject(type);
+                eventTypeName = instance.EventType;
+            }
+            catch (Exception ex)
+            {
+                LogEventTypeProbeFailed(logger, ex, type.FullName);
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(eventTypeName))
+            {
+                LogEmptyEventType(logger, type.FullName);
+                continue;
+            }
+
+            if (table.TryGetValue(eventTypeName, out var existing) && existing != type)
+            {
+                throw new InvalidOperationException(
+                    $"Duplicate EventType '{eventTypeName}' on {type.FullName} and {existing.FullName}. " +
+                    "Event type strings must be unique across all loaded modules.");
+            }
+
+            table[eventTypeName] = type;
+        }
     }
 
     [LoggerMessage(EventId = 1600, Level = LogLevel.Information, Message = "event.serializer.types count={Count}")]

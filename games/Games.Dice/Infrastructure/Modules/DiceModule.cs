@@ -16,6 +16,11 @@
 
 namespace Games.Dice.Infrastructure.Modules;
 
+using BotFramework.Contracts.Messaging;
+using Games.Dice.Application.Requests;
+using Games.Dice.Contracts.Play;
+using Games.Dice.Infrastructure.Messaging;
+
 public sealed class DiceModule : IModule
 {
     public string Id => "dice";
@@ -27,8 +32,9 @@ public sealed class DiceModule : IModule
         services
             .BindOptions<DiceOptions>(DiceOptions.SectionName)
             .AddScoped<IDiceService, DiceService>()
-            .AddScoped<IDiceHistoryStore, DiceHistoryStore>()
-            .AddHandler<DiceHandler>();
+            .AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
+            .AddScoped<IDiceClient, InProcessDiceClient>()
+            .AddScoped<IDiceHistoryStore, DiceHistoryStore>();
     }
 
     public IModuleMigrations GetMigrations() => new DiceMigrations();

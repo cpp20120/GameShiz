@@ -12,8 +12,7 @@ public sealed class BasketballModule : IModule
         services
             .BindOptions<BasketballOptions>(BasketballOptions.SectionName)
             .AddScoped<IBasketballService, BasketballService>()
-            .AddScoped<IBasketballBetStore, BasketballBetStore>()
-            .AddHandler<BasketballHandler>();
+            .AddScoped<IBasketballBetStore, BasketballBetStore>();
     }
 
     public IModuleMigrations GetMigrations() => new BasketballMigrations();
