@@ -13,6 +13,7 @@
 
 using System.Globalization;
 using Microsoft.Extensions.Caching.Memory;
+using StackExchange.Redis;
 
 namespace Games.DiceCube.Application.Services;
 
@@ -25,7 +26,8 @@ public sealed class DiceCubeService(
     IRuntimeTuningAccessor tuning,
     IMiniGameSessionGhostHeal ghostHeal,
     ITelegramDiceDailyRollLimiter telegramDiceRolls,
-    IMiniGameSessionStore? sessions = null) : IDiceCubeService
+    IMiniGameSessionStore? sessions = null,
+    IConnectionMultiplexer? redis = null) : IDiceCubeService
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
 
@@ -56,7 +58,7 @@ public sealed class DiceCubeService(
         if (amount > balance) return CubeBetResult.Fail(CubeBetError.NotEnoughCoins, balance);
 
         if (cube.MinSecondsBetweenBets > 0
-            && cache.TryGetValue(CooldownCacheKey(userId, chatId), out DateTimeOffset lastRoll))
+            && await GetCooldownLastRollAsync(userId, chatId, ct) is { } lastRoll)
         {
             var wait = (lastRoll + TimeSpan.FromSeconds(cube.MinSecondsBetweenBets)) - DateTimeOffset.UtcNow;
             if (wait > TimeSpan.Zero)
@@ -156,15 +158,7 @@ public sealed class DiceCubeService(
         await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
         var cube = Cube;
         if (cube.MinSecondsBetweenBets > 0)
-        {
-            cache.Set(
-                CooldownCacheKey(userId, chatId),
-                DateTimeOffset.UtcNow,
-                new MemoryCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
-                });
-        }
+            await SetCooldownLastRollAsync(userId, chatId, DateTimeOffset.UtcNow, ct);
 
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
 
@@ -220,4 +214,52 @@ public sealed class DiceCubeService(
 
     private static string BuildBetOperationId(DiceCubeBet bet, string action) =>
         $"dicecube:{action}:{bet.UserId}:{bet.ChatId}:{bet.CreatedAt.ToUnixTimeMilliseconds()}";
+
+    private async Task<DateTimeOffset?> GetCooldownLastRollAsync(long userId, long chatId, CancellationToken ct)
+    {
+        var key = CooldownCacheKey(userId, chatId);
+        if (redis is not null)
+        {
+            try
+            {
+                var value = await redis.GetDatabase().StringGetAsync(key);
+                if (long.TryParse((ReadOnlySpan<byte>)value, CultureInfo.InvariantCulture, out var unixMilliseconds))
+                    return DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds);
+            }
+            catch (RedisException)
+            {
+                // Redis is an optimisation for this soft anti-spam cooldown.
+                // Local memory keeps a single-node deployment useful during an outage.
+            }
+        }
+
+        return cache.TryGetValue(key, out DateTimeOffset lastRoll) ? lastRoll : null;
+    }
+
+    private async Task SetCooldownLastRollAsync(
+        long userId,
+        long chatId,
+        DateTimeOffset lastRoll,
+        CancellationToken ct)
+    {
+        var key = CooldownCacheKey(userId, chatId);
+        cache.Set(key, lastRoll, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+        });
+
+        if (redis is null) return;
+
+        try
+        {
+            await redis.GetDatabase().StringSetAsync(
+                key,
+                lastRoll.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+                TimeSpan.FromHours(6));
+        }
+        catch (RedisException)
+        {
+            // The local entry above is the intentional fallback.
+        }
+    }
 }

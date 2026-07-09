@@ -2,8 +2,13 @@ using BotFramework.Host.Localization;
 using BotFramework.Host.Pipeline.Middleware;
 using BotFramework.Host.Pipeline.Routing;
 using BotFramework.Host.Runtime.Hosting;
+using BotFramework.Host.Redis.Streams;
+using BotFramework.Host.TelegramOutbox;
+using BotFramework.Telegram.Outbox;
+using DotNetCore.CAP;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -15,6 +20,7 @@ public static class TelegramBffBuilderExtensions
     public static IBotFrameworkBuilder AddTelegramBff(this IHostApplicationBuilder builder)
     {
         var services = builder.Services;
+        var configuration = builder.Configuration;
         services.Configure<BotFrameworkOptions>(
             builder.Configuration.GetSection(BotFrameworkOptions.SectionName));
         services.AddSingleton<ITelegramBotClient>(sp =>
@@ -29,6 +35,26 @@ public static class TelegramBffBuilderExtensions
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
         services.AddSingleton<ILocalizer, Localizer>();
         services.AddHostedService<BotHostedService>();
+        var useCapOutboxTransport = string.Equals(
+            configuration[$"{TelegramOutboxTransportOptions.SectionName}:Transport"],
+            "Cap",
+            StringComparison.OrdinalIgnoreCase);
+        if (useCapOutboxTransport)
+        {
+            var postgres = configuration.GetConnectionString("Postgres")
+                ?? throw new InvalidOperationException("TelegramOutbox:Transport=Cap requires ConnectionStrings:Postgres.");
+            var redis = configuration[$"{RedisOptions.SectionName}:ConnectionString"];
+            if (string.IsNullOrWhiteSpace(redis))
+                throw new InvalidOperationException("TelegramOutbox:Transport=Cap requires Redis:ConnectionString.");
+
+            services.AddCap(options =>
+            {
+                options.UsePostgreSql(postgres);
+                options.UseRedis(redis);
+                options.DefaultGroupName = "casinoshiz.telegram-bff";
+            });
+            services.AddSingleton<TelegramOutboxCapDeliveryConsumer>();
+        }
         return new BotFrameworkBuilder(services, builder.Configuration);
     }
 

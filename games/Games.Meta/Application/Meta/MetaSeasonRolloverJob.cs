@@ -1,24 +1,19 @@
 using Dapper;
 using Microsoft.Extensions.DependencyInjection;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Meta.Application.Meta;
 
 public sealed partial class MetaSeasonRolloverJob(
     IServiceScopeFactory scopes,
-    ILogger<MetaSeasonRolloverJob> logger) : IBackgroundJob
+    ILogger<MetaSeasonRolloverJob> logger) : IRecurringScheduledCommand
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
-    public string Name => "meta.season_rollover";
+    public string Key => "meta.season_rollover";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(Interval);
 
-    public async Task RunAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await TickAsync(stoppingToken);
-            await Task.Delay(Interval, stoppingToken);
-        }
-    }
+    public Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct) => TickAsync(ct);
 
     private async Task TickAsync(CancellationToken ct)
     {

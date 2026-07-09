@@ -11,6 +11,7 @@ public sealed class ChallengeModule : IModule
     {
         services
             .BindOptions<ChallengeOptions>(ChallengeOptions.SectionName)
+            .AddScoped<ChallengeDbContext>()
             .AddScoped<IChallengeStore, ChallengeStore>()
             .AddScoped<IChallengeService, ChallengeService>();
     }

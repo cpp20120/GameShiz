@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PickLotterySweeperJob — IBackgroundJob that periodically settles expired
+// PickLotterySweeperJob — Quartz command that periodically settles expired
 // /picklottery pools and posts the outcome to the originating chat.
 //
 // Runs at PickLotteryOptions.SweeperIntervalSeconds. Each tick:
@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Microsoft.Extensions.Options;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Pick.Application.Jobs;
 
@@ -22,37 +23,30 @@ public sealed partial class PickLotterySweeperJob(
     IPickLotteryService service,
     IPickAnnouncementPublisher announcements,
     IOptions<PickOptions> options,
-    ILogger<PickLotterySweeperJob> logger) : IBackgroundJob
+    ILogger<PickLotterySweeperJob> logger) : IRecurringScheduledCommand
 {
-    public string Name => "pick.lottery.sweeper";
+    public string Key => "pick.lottery.sweeper";
+    public ScheduleDescriptor Schedule =>
+        ScheduleDescriptor.Every(TimeSpan.FromSeconds(Math.Max(5, options.Value.Lottery.SweeperIntervalSeconds)));
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        var interval = TimeSpan.FromSeconds(Math.Max(5, options.Value.Lottery.SweeperIntervalSeconds));
-
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            var expired = await store.ListExpiredOpenAsync(limit: 16, ct);
+            foreach (var row in expired)
             {
-                var expired = await store.ListExpiredOpenAsync(limit: 16, stoppingToken);
-                foreach (var row in expired)
+                try
                 {
-                    if (stoppingToken.IsCancellationRequested) break;
-                    try
-                    {
-                        var result = await service.SettleAsync(row, stoppingToken);
-                        await announcements.PublishLotteryAsync(result, stoppingToken);
-                    }
-                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
-                    catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
+                    var result = await service.SettleAsync(row, ct);
+                    await announcements.PublishLotteryAsync(result, ct);
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception ex) { LogTickFailed(ex); }
-
-            try { await Task.Delay(interval, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { LogTickFailed(ex); }
     }
 
     [LoggerMessage(EventId = 5931, Level = LogLevel.Error,

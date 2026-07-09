@@ -3,7 +3,9 @@ using Dapper;
 
 namespace BotFramework.Host.TelegramOutbox;
 
-public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connections) : ITelegramOutboxStore
+public sealed class PostgresTelegramOutboxStore(
+    INpgsqlConnectionFactory connections,
+    IServiceProvider services) : ITelegramOutboxStore
 {
     private const int MaxTextLength = 4096;
     private const int MaxErrorLength = 8000;
@@ -133,6 +135,10 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
                 parseMode = ToDb(message.ParseMode),
             },
             cancellationToken: ct));
+
+        // A local dispatcher polls as a fallback; the CAP relay additionally
+        // receives an immediate in-process signal in split deployment.
+        services.GetService<TelegramOutboxCapRelayService>()?.Signal();
     }
 
     public async Task<IReadOnlyList<TelegramOutboxRow>> ClaimDueAsync(int limit, TimeSpan lease, CancellationToken ct)
@@ -145,9 +151,11 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
             WITH due AS (
                 SELECT id
                 FROM telegram_outbox
-                WHERE status = 'pending'
-                  AND next_attempt_at <= now()
-                  AND (locked_until IS NULL OR locked_until <= now())
+                WHERE (status = 'pending'
+                       AND next_attempt_at <= now()
+                       AND (locked_until IS NULL OR locked_until <= now()))
+                   OR (status = 'sending'
+                       AND locked_until <= now())
                 ORDER BY next_attempt_at, id
                 LIMIT @limit
                 FOR UPDATE SKIP LOCKED

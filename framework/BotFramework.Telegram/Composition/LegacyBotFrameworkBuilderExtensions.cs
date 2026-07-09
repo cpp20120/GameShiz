@@ -24,9 +24,7 @@ public static class LegacyBotFrameworkBuilderExtensions
         services.AddSingleton<ITelegramBotClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<BotFrameworkOptions>>().Value;
-            if (string.IsNullOrWhiteSpace(options.Token))
-                throw new InvalidOperationException("Set Bot:Token in configuration.");
-            return new TelegramBotClient(options.Token);
+            return string.IsNullOrWhiteSpace(options.Token) ? throw new InvalidOperationException("Set Bot:Token in configuration.") : new TelegramBotClient(options.Token);
         });
         services.AddSingleton<UpdateRouter>();
         services.AddSingleton<UpdatePipeline>();
@@ -36,15 +34,21 @@ public static class LegacyBotFrameworkBuilderExtensions
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
         services.AddSingleton<IUpdateMiddleware, RateLimitMiddleware>();
         services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();
-        services.AddHostedService<TelegramOutboxDispatcherService>();
+        var useCapOutboxTransport = string.Equals(
+            configuration[$"{TelegramOutboxTransportOptions.SectionName}:Transport"],
+            "Cap",
+            StringComparison.OrdinalIgnoreCase);
+        if (!useCapOutboxTransport)
+        {
+            services.AddSingleton<TelegramOutboxDispatcherService>();
+            services.AddHostedService(sp => sp.GetRequiredService<TelegramOutboxDispatcherService>());
+        }
         services.AddHostedService<BotHostedService>();
 
         var redisEnabled = configuration.GetValue<bool>($"{RedisOptions.SectionName}:Enabled");
-        if (redisEnabled)
-        {
-            services.AddSingleton<UpdateStreamPublisher>();
-            services.AddHostedService<UpdateStreamWorkerService>();
-        }
+        if (!redisEnabled) return result;
+        services.AddSingleton<UpdateStreamPublisher>();
+        services.AddHostedService<UpdateStreamWorkerService>();
 
         return result;
     }

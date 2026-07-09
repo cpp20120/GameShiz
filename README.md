@@ -445,6 +445,12 @@ if enabled
 
 Redis connection string, for example `redis:6379`.
 
+`TelegramOutbox__Transport`
+
+no
+
+`Local` (default) sends through the monolith dispatcher. Set `Cap` for split Backend → Telegram BFF delivery; it requires PostgreSQL and Redis in both processes.
+
 `ClickHouse__Enabled`
 
 no

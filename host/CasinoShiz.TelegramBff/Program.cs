@@ -32,8 +32,10 @@ using Games.Admin.Telegram;
 using Games.Admin.Transport.Grpc;
 using CasinoShiz.Identity.Transport.Grpc;
 using CasinoShiz.Wallet.Transport.Grpc;
+using CasinoShiz.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults();
 
 var backendAddress = builder.Configuration["Backend:GrpcAddress"]
     ?? throw new InvalidOperationException("Set Backend:GrpcAddress for the Telegram BFF.");

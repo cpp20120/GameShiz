@@ -1,6 +1,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Types.Enums;
 using BotFramework.Host.Contracts.Telegram;
+using System.Threading.Channels;
 
 namespace BotFramework.Host.TelegramOutbox;
 
@@ -13,6 +14,10 @@ public sealed partial class TelegramOutboxDispatcherService(
     private static readonly TimeSpan EmptyDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan Lease = TimeSpan.FromMinutes(2);
     private const int BatchSize = 20;
+    private readonly Channel<byte> _wakeups = Channel.CreateBounded<byte>(1);
+
+    /// <summary>Requests an immediate poll; repeated wake-ups are coalesced.</summary>
+    public void Signal() => _wakeups.Writer.TryWrite(0);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -33,7 +38,12 @@ public sealed partial class TelegramOutboxDispatcherService(
             }
 
             var delay = processed == 0 ? EmptyDelay : PollDelay;
-            try { await Task.Delay(delay, stoppingToken); }
+            try
+            {
+                var wakeup = _wakeups.Reader.WaitToReadAsync(stoppingToken).AsTask();
+                await Task.WhenAny(Task.Delay(delay, stoppingToken), wakeup);
+                while (_wakeups.Reader.TryRead(out _)) continue;
+            }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }

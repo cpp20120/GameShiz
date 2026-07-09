@@ -367,6 +367,10 @@ logout) to Backend, adding the internal operations key and authenticated actor.
 Backend validates those headers, creates the legacy server session, and executes
 the original Razor pages and their antiforgery-protected actions.
 
+The proxy implementation is YARP. External gRPC clients are created through the
+shared resilient client factory in `CasinoShiz.ServiceDefaults`; composition roots
+also use that project for OpenTelemetry and common health registration.
+
 The first migrated vertical slice contains wallet inspection, idempotent balance
 adjustment and identity lookup. Each rendered adjustment carries a stable operation
 ID, so repeating the same browser POST cannot apply the ledger mutation twice.
@@ -500,21 +504,36 @@ flowchart LR
     subscriber["Event subscriber / job"]
     api["ITelegramOutbox"]
     table[("telegram_outbox")]
-    dispatcher["TelegramOutboxDispatcherService"]
+    mode{"TelegramOutbox:Transport"}
+    dispatcher["Local dispatcher"]
+    relay["Backend CAP relay"]
+    cap["CAP / Redis"]
+    bff["Telegram BFF"]
     bot["Telegram Bot API"]
 
     subscriber -->|"EnqueueAsync<br/>optional dedupe_key"| api
     api --> table
+    table --> mode
+    mode -->|"Local"| dispatcher
+    mode -->|"Cap"| relay
     dispatcher -->|"claim due rows<br/>FOR UPDATE SKIP LOCKED"| table
     dispatcher -->|"SendMessage"| bot
     bot -->|"message id"| dispatcher
     dispatcher -->|"mark sent / schedule retry"| table
+    relay -->|"claim due rows"| table
+    relay -->|"delivery command"| cap
+    cap --> bff
+    bff -->|"SendMessage"| bot
+    bff -->|"delivery receipt"| cap
+    cap -->|"mark sent"| table
 ```
 
-`dedupe_key` suppresses duplicate enqueues from repeated event handling. The
-dispatcher records `telegram_message_id` on success and applies exponential retry
-metadata on failure. Live handler replies, validation errors, menus, and other
-immediate user interactions still use direct `ctx.Bot.SendMessage(...)` calls.
+`dedupe_key` suppresses duplicate enqueues from repeated event handling. Both
+delivery modes reclaim expired leases; the CAP mode records `telegram_message_id`
+only after the Telegram BFF receipt. Telegram itself has no idempotency key, so
+notifications must still tolerate at-least-once delivery. Live handler replies,
+validation errors, menus, and other immediate user interactions still use direct
+`ctx.Bot.SendMessage(...)` calls.
 
 ## Seasonal Meta Projections
 
@@ -730,7 +749,7 @@ flowchart LR
     telegramOutbox[("telegram_outbox")]
     retry["Admin/debug retry"]
     replay["Event replay / projection rebuild"]
-    telegramRetry["Outbox dispatcher retry"]
+    telegramRetry["Local dispatcher or CAP relay retry"]
     adminRecovery["/admin/recovery<br/>SuperAdmin confirmation"]
     eventRetry["IEventDispatchRetryService"]
     outboxNow["Reschedule unsent row now"]

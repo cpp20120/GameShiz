@@ -8,6 +8,7 @@
     <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Scheduling.Abstractions\BotFramework.Scheduling.Abstractions.csproj" />
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />

@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Transfer.Application.Services;
 using Games.Transfer.Transport.Grpc.Wire;
 using Grpc.Net.Client;
@@ -11,8 +12,7 @@ public static class TransferGrpcExtensions
 {
     public static IServiceCollection AddTransferGrpcClient(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(sp => new TransferApi.TransferApiClient(sp.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<TransferApi.TransferApiClient>(address);
         services.AddScoped<ITransferService, GrpcTransferService>();
         return services;
     }

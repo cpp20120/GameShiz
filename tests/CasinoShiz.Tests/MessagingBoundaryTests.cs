@@ -26,6 +26,28 @@ namespace CasinoShiz.Tests;
 public sealed class MessagingBoundaryTests
 {
     [Fact]
+    public void CoreSdk_DoesNotReferenceTelegramBot()
+    {
+        var references = typeof(BotFramework.Sdk.Modules.IModule).Assembly.GetReferencedAssemblies();
+        Assert.DoesNotContain(references,
+            reference => string.Equals(reference.Name, "Telegram.Bot", StringComparison.Ordinal));
+        Assert.Contains(
+            typeof(BotFramework.Sdk.UpdateHandling.UpdateContext).Assembly.GetReferencedAssemblies(),
+            reference => string.Equals(reference.Name, "Telegram.Bot", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SecretHitlerGameStore_UsesEfCoreContext()
+    {
+        var constructor = typeof(Games.SecretHitler.Infrastructure.Persistence.SecretHitlerGameStore)
+            .GetConstructors().Single();
+        Assert.Contains(constructor.GetParameters(), parameter =>
+            parameter.ParameterType == typeof(Games.SecretHitler.Infrastructure.Persistence.SecretHitlerDbContext));
+        Assert.DoesNotContain(constructor.GetParameters(), parameter =>
+            parameter.ParameterType.Name.Contains("NpgsqlConnectionFactory", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void IdentityAndWalletContracts_AreTransportNeutral()
     {
         Assert.Same(typeof(IRequest<>).Assembly, typeof(IPlayerDirectory).Assembly);

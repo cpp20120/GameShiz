@@ -40,12 +40,11 @@ public sealed partial class UpdateRouter(
         var marker = typeof(IUpdateHandler);
         var assemblies = modules.Select(m => m.GetType().Assembly).Distinct();
 
-        return assemblies
+        return [.. assemblies
             .SelectMany(asm => asm.GetTypes())
             .Where(t => t is { IsClass: true, IsAbstract: false } && marker.IsAssignableFrom(t))
             .SelectMany(t => t.GetCustomAttributes<RouteAttribute>().Select(a => new Route(a, t)))
-            .OrderByDescending(r => r.Attribute.Priority)
-            .ToArray();
+            .OrderByDescending(r => r.Attribute.Priority)];
     }
 
     public async Task DispatchAsync(ITelegramBotClient bot, Update update, IServiceProvider scopedServices, CancellationToken ct)

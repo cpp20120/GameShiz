@@ -11,10 +11,11 @@ public sealed class SecretHitlerModule : IModule
     {
         services
             .BindOptions<SecretHitlerOptions>(SecretHitlerOptions.SectionName)
+            .AddScoped<SecretHitlerDbContext>()
             .AddScoped<ISecretHitlerService, SecretHitlerService>()
             .AddScoped<ISecretHitlerGameStore, SecretHitlerGameStore>()
             .AddScoped<ISecretHitlerPlayerStore, SecretHitlerPlayerStore>()
-            .AddBackgroundJob<SecretHitlerGateCleanupJob>();
+            .AddRecurringScheduledCommand<SecretHitlerGateCleanupJob>();
     }
 
     public IModuleMigrations GetMigrations() => new SecretHitlerMigrations();

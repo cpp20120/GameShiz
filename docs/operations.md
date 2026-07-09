@@ -338,7 +338,7 @@ unresolved dispatch failures: 0
 
 The same records are available at `/admin/recovery`. Read-only admins may inspect them; `SuperAdmin` may retry one unresolved failure after explicit confirmation. A successful retry marks the failure resolved. Missing, already resolved, non-deserializable, or newly failing events remain failures and are not reported as successful. Retrying redispatches the persisted event, so existing subscriber and projection idempotency rules still apply.
 
-The recovery page also lists at most 100 newest `pending`/`sending` Telegram outbox records. **Reschedule now** only makes an unsent row immediately eligible; it preserves the payload, attempt count, deduplication key, and last error. An active dispatcher lease, sent row, missing row, or concurrently changed row is rejected safely. There are no bulk retry controls.
+The recovery page also lists at most 100 newest `pending`/`sending` Telegram outbox records. **Reschedule now** only makes an unsent row immediately eligible; it preserves the payload, attempt count, deduplication key, and last error. An active local-dispatcher or CAP-relay lease, sent row, missing row, or concurrently changed row is rejected safely. There are no bulk retry controls.
 
 Both recovery actions write their result and record id to `admin_audit`.
 

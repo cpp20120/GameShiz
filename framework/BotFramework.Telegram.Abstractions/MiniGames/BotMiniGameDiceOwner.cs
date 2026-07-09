@@ -43,10 +43,7 @@ public static class BotMiniGameDiceOwner
         if (MiniGameDicePlayer.TryResolvePlayer(diceMessage, out userId, out displayName))
             return true;
 
-        if (diceMessage.From is not { IsBot: true })
-            return false;
-
-        return TryGetBinding(diceMessage.Chat.Id, diceMessage.MessageId, out userId, out displayName);
+        return diceMessage.From is { IsBot: true } && TryGetBinding(diceMessage.Chat.Id, diceMessage.MessageId, out userId, out displayName);
     }
 
     private static bool TryGetBinding(long chatId, int messageId, out long userId, out string displayName)
@@ -70,12 +67,9 @@ public static class BotMiniGameDiceOwner
     {
         if (!Completed.TryGetValue((chatId, messageId), out var untilTicks))
             return false;
-        if (Environment.TickCount64 > untilTicks)
-        {
-            Completed.TryRemove((chatId, messageId), out _);
-            return false;
-        }
+        if (Environment.TickCount64 <= untilTicks) return true;
+        Completed.TryRemove((chatId, messageId), out _);
+        return false;
 
-        return true;
     }
 }

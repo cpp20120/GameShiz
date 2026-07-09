@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
@@ -62,6 +63,6 @@ public class OperationsGrpcProxy : DispatchProxy
 
 public static class OperationsGrpcExtensions
 {
-    public static IServiceCollection AddOperationsGrpcClient(this IServiceCollection services,Uri address,string apiKey){services.AddSingleton(_=>new OperationsApi.OperationsApiClient(GrpcChannel.ForAddress(address)));services.AddScoped<IOperationsAdminService>(p=>OperationsGrpcProxy.Create(p.GetRequiredService<OperationsApi.OperationsApiClient>(),apiKey));return services;}
+    public static IServiceCollection AddOperationsGrpcClient(this IServiceCollection services,Uri address,string apiKey){services.AddResilientGrpcClient<OperationsApi.OperationsApiClient>(address);services.AddScoped<IOperationsAdminService>(p=>OperationsGrpcProxy.Create(p.GetRequiredService<OperationsApi.OperationsApiClient>(),apiKey));return services;}
     public static IEndpointRouteBuilder MapOperationsGrpcTransport(this IEndpointRouteBuilder endpoints){endpoints.MapGrpcService<OperationsGrpcEndpoint>();return endpoints;}
 }

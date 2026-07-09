@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Challenges.Application.Services;
 using Games.Challenges.Transport.Grpc.Wire;
 using Grpc.Net.Client;
@@ -11,9 +12,7 @@ public static class ChallengeGrpcExtensions
 {
     public static IServiceCollection AddChallengeGrpcClient(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(serviceProvider =>
-            new ChallengeApi.ChallengeApiClient(serviceProvider.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<ChallengeApi.ChallengeApiClient>(address);
         services.AddScoped<IChallengeService, GrpcChallengeService>();
         return services;
     }

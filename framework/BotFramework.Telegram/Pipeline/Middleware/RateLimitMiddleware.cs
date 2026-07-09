@@ -32,12 +32,14 @@ public sealed partial class RateLimitMiddleware(
             var db = redis.GetDatabase();
             var key = string.Create(CultureInfo.InvariantCulture, $"ratelimit:update:{userId}:{DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 10}");
             var count = await db.StringIncrementAsync(key);
-            if (count == 1)
-                await db.KeyExpireAsync(key, RedisWindow + TimeSpan.FromSeconds(2));
-            if (count > Capacity)
+            switch (count)
             {
-                LogRateLimited(userId);
-                return;
+                case 1:
+                    await db.KeyExpireAsync(key, RedisWindow + TimeSpan.FromSeconds(2));
+                    break;
+                case > Capacity:
+                    LogRateLimited(userId);
+                    return;
             }
 
             await next(ctx);

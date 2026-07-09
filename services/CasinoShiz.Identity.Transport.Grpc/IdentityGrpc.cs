@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using System.Text.Json;
 using BotFramework.Contracts.Identity;
 using CasinoShiz.Identity.Transport.Grpc.Wire;
@@ -51,7 +52,7 @@ public static class IdentityGrpcExtensions
 {
     public static IServiceCollection AddIdentityGrpcClient(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => new IdentityApi.IdentityApiClient(GrpcChannel.ForAddress(address)));
+        services.AddResilientGrpcClient<IdentityApi.IdentityApiClient>(address);
         services.AddSingleton<IPlayerDirectory, GrpcPlayerDirectory>();
         return services;
     }

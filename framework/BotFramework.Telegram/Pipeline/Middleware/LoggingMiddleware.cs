@@ -9,12 +9,12 @@ public sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> logger)
         var update = ctx.Update;
         var kind = update switch
         {
-            { Message.Text: { } }   => "text",
-            { Message.Dice: { } }   => "dice",
-            { CallbackQuery: { } }  => "callback",
-            { ChannelPost: { } }    => "channel_post",
-            { EditedMessage: { } }  => "edited_message",
-            { InlineQuery: { } }    => "inline_query",
+            { Message.Text: not null }   => "text",
+            { Message.Dice: not null }   => "dice",
+            { CallbackQuery: not null }  => "callback",
+            { ChannelPost: not null }    => "channel_post",
+            { EditedMessage: not null }  => "edited_message",
+            { InlineQuery: not null }    => "inline_query",
             _                       => "other",
         };
 

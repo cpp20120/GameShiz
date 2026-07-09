@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using Dapper;
 using Microsoft.Extensions.Options;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Meta.Application.Meta;
 
@@ -11,36 +12,26 @@ public sealed partial class OperationsReportingJob(
     IOptions<BotFrameworkOptions> botOptions,
     IAnalyticsService analytics,
     IWalletAnalyticsService walletAnalytics,
-    ILogger<OperationsReportingJob> logger) : IBackgroundJob
+    ILogger<OperationsReportingJob> logger) : IRecurringScheduledCommand
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
     private readonly BotFrameworkOptions _bot = botOptions.Value;
 
-    public string Name => "meta.operations_reporting";
+    public string Key => "meta.operations_reporting";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(Interval);
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            if (_bot.Admins.Count > 0)
             {
-                if (_bot.Admins.Count > 0)
-                {
-                    await SendWeeklySummaryIfDueAsync(stoppingToken);
-                    await SendEconomyAlertsAsync(stoppingToken);
-                }
+                await SendWeeklySummaryIfDueAsync(ct);
+                await SendEconomyAlertsAsync(ct);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                LogReportingFailed(ex);
-            }
-
-            await Task.Delay(Interval, stoppingToken);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { LogReportingFailed(ex); }
     }
 
     private async Task SendWeeklySummaryIfDueAsync(CancellationToken ct)

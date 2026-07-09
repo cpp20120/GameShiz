@@ -22,4 +22,5 @@
   <ItemGroup>
     <Protobuf Include="Protos\native_dice.proto" GrpcServices="Both" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" /></ItemGroup>
 </Project>

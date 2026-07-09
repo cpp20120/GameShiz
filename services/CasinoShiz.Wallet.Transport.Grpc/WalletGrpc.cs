@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using System.Reflection;
 using System.Text.Json;
 using BotFramework.Host.Contracts.Economics;
@@ -85,7 +86,7 @@ public static class WalletGrpcExtensions
 {
     public static IServiceCollection AddWalletGrpcClients(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => new WalletApi.WalletApiClient(GrpcChannel.ForAddress(address)));
+        services.AddResilientGrpcClient<WalletApi.WalletApiClient>(address);
         services.AddSingleton(provider => WalletGrpcProxy<IEconomicsService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxy<IDailyBonusService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxy<IWalletReadService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));

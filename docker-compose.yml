@@ -179,7 +179,9 @@ services:
     env_file: [.env]
     environment:
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
-      Redis__Enabled: "false"
+      Redis__Enabled: "true"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      TelegramOutbox__Transport: "Cap"
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
       Services__Identity__Mode: "Grpc"
@@ -190,6 +192,7 @@ services:
     ports: ["5081:8080"]
     depends_on:
       postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
     healthcheck:
@@ -265,12 +268,17 @@ services:
       Services__Identity__Address: "http://identity:8080"
       Services__Wallet__Address: "http://wallet:8080"
       Bot__Enabled: "true"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      TelegramOutbox__Transport: "Cap"
     ports: ["5084:8080"]
     extra_hosts: ["api.telegram.org:149.154.167.220"]
     depends_on:
       backend: { condition: service_healthy }
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
       interval: 5s

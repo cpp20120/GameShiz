@@ -7,6 +7,9 @@
     <RootNamespace>BotFramework.Telegram</RootNamespace>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
     <NuGetAuditMode>direct</NuGetAuditMode>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Telegram</PackageId>
+    <Description>Telegram runtime adapter for BotFramework.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,11 +20,13 @@
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="Telegram.Bot" Version="22.10.1" />
     <PackageReference Include="StackExchange.Redis" Version="3.0.7" />
+    <PackageReference Include="DotNetCore.CAP" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <ProjectReference Include="..\BotFramework.Sdk\BotFramework.Sdk.csproj" />
+    <ProjectReference Include="..\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
     <ProjectReference Include="..\BotFramework.Host\BotFramework.Host.csproj" />
   </ItemGroup>
 

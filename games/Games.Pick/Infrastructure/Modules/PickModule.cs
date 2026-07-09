@@ -21,13 +21,13 @@ public sealed class PickModule : IModule
             // multi-user 5-min lottery
             .AddSingleton<IPickLotteryStore, PickLotteryStore>()
             .AddSingleton<IPickLotteryService, PickLotteryService>()
-            .AddBackgroundJob<PickLotterySweeperJob>()
+            .AddRecurringScheduledCommand<PickLotterySweeperJob>()
 
             // per-chat daily lottery
             .AddSingleton<IPickDailyLotteryStore, PickDailyLotteryStore>()
             .AddSingleton<IPickDailyLotteryService, PickDailyLotteryService>()
             .AddScoped<IPickClient, LocalPickClient>()
-            .AddBackgroundJob<PickDailyLotterySweeperJob>();
+            .AddRecurringScheduledCommand<PickDailyLotterySweeperJob>();
     }
 
     public IModuleMigrations GetMigrations() => new PickMigrations();

@@ -3,38 +3,30 @@
 // idle hand is auto-stood (settled on whatever the player currently has),
 // releasing the UserState slot so the player can start a new hand.
 //
-// Ported from src/CasinoShiz.Core/Services/BlackjackHandTimeoutService.cs;
-// rewired as an IBackgroundJob the framework hosts. The 5-second warm-up
-// delay survives so we don't sweep on boot before the DB has even opened.
+// Ported from src/CasinoShiz.Core/Services/BlackjackHandTimeoutService.cs and
+// executed every 30 seconds by Quartz after module migrations have completed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Blackjack.Application.Jobs;
 
 public sealed partial class BlackjackHandTimeoutJob(
     IServiceProvider services,
     IOptions<BlackjackOptions> options,
-    ILogger<BlackjackHandTimeoutJob> logger) : IBackgroundJob
+    ILogger<BlackjackHandTimeoutJob> logger) : IRecurringScheduledCommand
 {
     private readonly BlackjackOptions _opts = options.Value;
 
-    public string Name => "blackjack.hand_timeout";
+    public string Key => "blackjack.hand_timeout";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(TimeSpan.FromSeconds(30));
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        try { await Task.Delay(5_000, stoppingToken); }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try { await SweepAsync(stoppingToken); }
-            catch (Exception ex) { LogSweepFailed(ex); }
-
-            try { await Task.Delay(30_000, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-        }
+        try { await SweepAsync(ct); }
+        catch (Exception ex) { LogSweepFailed(ex); }
     }
 
     private async Task SweepAsync(CancellationToken ct)

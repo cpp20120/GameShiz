@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-using Microsoft.Extensions.Options;
 using static Games.SecretHitler.Domain.Rules.ShResultHelpers;
 
 namespace Games.SecretHitler.Application.Services;

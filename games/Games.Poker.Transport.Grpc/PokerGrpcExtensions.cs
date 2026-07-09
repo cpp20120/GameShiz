@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Poker.Application.Services;
 using Games.Poker.Transport.Grpc.Wire;
 using Grpc.Net.Client;
@@ -11,8 +12,7 @@ public static class PokerGrpcExtensions
 {
     public static IServiceCollection AddPokerGrpcClient(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(sp => new PokerApi.PokerApiClient(sp.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<PokerApi.PokerApiClient>(address);
         services.AddScoped<IPokerService, GrpcPokerService>();
         return services;
     }

@@ -36,7 +36,7 @@ public sealed partial class AdminService(
             ["count"] = users.Count,
         });
 
-        LogUsersync(callerId, users.Count);
+        LogUserSync(callerId, users.Count);
         return users.Count;
     }
 
@@ -47,13 +47,14 @@ public sealed partial class AdminService(
         var displayName = before?.DisplayName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {targetUserId}");
         await economics.EnsureUserAsync(targetUserId, balanceScopeId, displayName, ct);
 
-        if (amount > 0)
+        switch (amount)
         {
-            await economics.CreditAsync(targetUserId, balanceScopeId, amount, "admin.pay", ct);
-        }
-        else if (amount < 0)
-        {
-            await economics.DebitAsync(targetUserId, balanceScopeId, -amount, "admin.pay", ct);
+            case > 0:
+                await economics.CreditAsync(targetUserId, balanceScopeId, amount, "admin.pay", ct);
+                break;
+            case < 0:
+                await economics.DebitAsync(targetUserId, balanceScopeId, -amount, "admin.pay", ct);
+                break;
         }
 
         var after = await store.FindUserAsync(targetUserId, balanceScopeId, ct);
@@ -163,5 +164,5 @@ public sealed partial class AdminService(
     }
 
     [LoggerMessage(LogLevel.Information, "admin.usersync caller={CallerId} count={Count}")]
-    partial void LogUsersync(long callerId, int count);
+    partial void LogUserSync(long callerId, int count);
 }

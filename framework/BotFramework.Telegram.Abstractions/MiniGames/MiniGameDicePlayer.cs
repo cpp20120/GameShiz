@@ -20,14 +20,11 @@ public static class MiniGameDicePlayer
             return true;
         }
 
-        if (diceMessage is { From.IsBot: true, ReplyToMessage.From: { IsBot: false } ru })
-        {
-            userId = ru.Id;
-            displayName = Format(ru);
-            return true;
-        }
+        if (diceMessage is not { From.IsBot: true, ReplyToMessage.From: { IsBot: false } ru }) return false;
+        userId = ru.Id;
+        displayName = Format(ru);
+        return true;
 
-        return false;
     }
 
     private static string Format(User u) =>

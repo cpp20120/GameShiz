@@ -10,6 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
+    <PackageReference Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
+    <ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Identity.Transport.Grpc\CasinoShiz.Identity.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Wallet.Transport.Grpc\CasinoShiz.Wallet.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />

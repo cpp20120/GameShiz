@@ -7,6 +7,7 @@ using BotFramework.Contracts.Messaging;
 using BotFramework.Host.Messaging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using BotFramework.Scheduling.Quartz;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -45,12 +46,24 @@ public static class BotFrameworkBuilderExtensions
         services.TryAddScoped<IIntegrationEventPublisher, LocalIntegrationEventPublisher>();
 
         services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
+        services.Configure<TelegramOutboxTransportOptions>(
+            configuration.GetSection(TelegramOutboxTransportOptions.SectionName));
         var redisEnabled = configuration.GetValue<bool>($"{RedisOptions.SectionName}:Enabled");
         var redisConn = configuration.GetValue<string>($"{RedisOptions.SectionName}:ConnectionString");
+        var useCapOutboxTransport = string.Equals(
+            configuration[$"{TelegramOutboxTransportOptions.SectionName}:Transport"],
+            "Cap",
+            StringComparison.OrdinalIgnoreCase);
         if (redisEnabled && string.IsNullOrWhiteSpace(redisConn))
         {
             throw new InvalidOperationException(
                 "Redis:Enabled is true but Redis:ConnectionString is not set.");
+        }
+
+        if (useCapOutboxTransport && !redisEnabled)
+        {
+            throw new InvalidOperationException(
+                "TelegramOutbox:Transport=Cap requires Redis because CAP transport is enabled.");
         }
 
         var botIsProduction = configuration.GetValue<bool>($"{BotFrameworkOptions.SectionName}:IsProduction");
@@ -61,6 +74,7 @@ public static class BotFrameworkBuilderExtensions
         }
 
         var pgConnStr = configuration.GetConnectionString("Postgres")!;
+        services.AddSingleton<DomainEventSubscriptionDispatcher>();
         if (redisEnabled)
         {
             services.AddCap(opts =>
@@ -85,6 +99,11 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<PostgresTelegramOutboxStore>();
         services.AddSingleton<ITelegramOutboxStore>(sp => sp.GetRequiredService<PostgresTelegramOutboxStore>());
         services.AddSingleton<ITelegramOutbox>(sp => sp.GetRequiredService<PostgresTelegramOutboxStore>());
+        if (useCapOutboxTransport)
+        {
+            services.AddSingleton<TelegramOutboxCapRelayService>();
+            services.AddSingleton<TelegramOutboxCapReceiptConsumer>();
+        }
 
         services.AddSingleton<IEconomicsService, EconomicsService>();
         services.AddSingleton<IWalletReadService, WalletReadService>();
@@ -123,11 +142,15 @@ public static class BotFrameworkBuilderExtensions
         services.AddScoped<BotFramework.Contracts.Operations.IOperationsAdminService, BotFramework.Host.Admin.Operations.OperationsAdminService>();
 
         services.AddHostedService<ModuleMigrationRunner>();
+        if (useCapOutboxTransport)
+            services.AddHostedService(sp => sp.GetRequiredService<TelegramOutboxCapRelayService>());
+        services.AddQuartzGameScheduling(pgConnStr);
         services.AddHostedService<EventAnalyticsBackfillService>();
         services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
         services.AddHostedService<DailyBonusCatchUpHostedService>();
 
         services.AddHostedService<BackgroundJobRunner>();
+        services.AddQuartzRecurringCommandBootstrapper();
 
         if (redisEnabled)
         {

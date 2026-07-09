@@ -13,18 +13,18 @@ public sealed class OperationsAdminService(IEventDispatchFailureStore failures, 
     : IOperationsAdminService
 {
     public async Task<IReadOnlyList<OperationFailure>> ListFailuresAsync(int limit, string? eventType, CancellationToken ct) =>
-        (await failures.ListUnresolvedAsync(Math.Clamp(limit, 1, 100), eventType, ct)).Select(x => new OperationFailure(
-            x.Id,x.StreamId,x.StreamVersion,x.EventType,x.Stage,x.HandlerName,x.Error,x.ErrorType,x.RetryCount,x.CreatedAt,x.LastSeenAt)).ToList();
+        [.. (await failures.ListUnresolvedAsync(Math.Clamp(limit, 1, 100), eventType, ct)).Select(x => new OperationFailure(
+            x.Id,x.StreamId,x.StreamVersion,x.EventType,x.Stage,x.HandlerName,x.Error,x.ErrorType,x.RetryCount,x.CreatedAt,x.LastSeenAt))];
     public async Task<IReadOnlyList<OperationOutbox>> ListOutboxAsync(int limit, string? status, CancellationToken ct) =>
-        (await outbox.ListUnsentAsync(Math.Clamp(limit, 1, 100), status, ct)).Select(x => new OperationOutbox(
-            x.Id,x.ChatId,x.Status,x.Attempts,x.NextAttemptAt,x.LockedUntil,x.LastError,x.MessagePreview,x.CreatedAt,x.UpdatedAt)).ToList();
+        [.. (await outbox.ListUnsentAsync(Math.Clamp(limit, 1, 100), status, ct)).Select(x => new OperationOutbox(
+            x.Id,x.ChatId,x.Status,x.Attempts,x.NextAttemptAt,x.LockedUntil,x.LastError,x.MessagePreview,x.CreatedAt,x.UpdatedAt))];
     public Task<IReadOnlyList<OperationJob>> ListJobsAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<OperationJob>>(
-        jobs.Snapshot().Select(x => new OperationJob(x.Name,x.Kind,x.State,x.LastStartedAt,x.LastHeartbeatAt,
-            x.LastCompletedAt,x.LastFailedAt,x.NextRunAt,x.CrashCount,x.RestartBackoffMs,x.LastError,x.Note)).ToList());
+        [.. jobs.Snapshot().Select(x => new OperationJob(x.Name,x.Kind,x.State,x.LastStartedAt,x.LastHeartbeatAt,
+            x.LastCompletedAt,x.LastFailedAt,x.NextRunAt,x.CrashCount,x.RestartBackoffMs,x.LastError,x.Note))]);
     public async Task<IReadOnlyList<OperationAudit>> ListAuditAsync(int limit, string? actor, string? action,
         string? details, DateTimeOffset? from, DateTimeOffset? until, CancellationToken ct) =>
-        (await audits.ListAsync(Math.Clamp(limit,1,1000),actor,action,details,from,until,ct)).Select(x =>
-            new OperationAudit(x.Id,x.ActorId,x.ActorName,x.Action,x.DetailsJson,x.OccurredAt)).ToList();
+        [.. (await audits.ListAsync(Math.Clamp(limit,1,1000),actor,action,details,from,until,ct)).Select(x =>
+            new OperationAudit(x.Id,x.ActorId,x.ActorName,x.Action,x.DetailsJson,x.OccurredAt))];
     public async Task<OperationMutationResult> RetryEventAsync(long id,long actorId,string actorName,CancellationToken ct)
     {
         EventDispatchRetryResult result;
@@ -49,12 +49,12 @@ public sealed class OperationsAdminService(IEventDispatchFailureStore failures, 
         var result = delta > 0
             ? await economics.CreditOnceAsync(userId, balanceScopeId, delta, "admin.adjust", operationId, ct)
             : await economics.TryDebitOnceAsync(userId, balanceScopeId, -delta, "admin.adjust", operationId, ct);
-        var success = result.Applied && !result.Rejected;
+        var success = result is { Applied: true, Rejected: false };
         await audit.LogAsync(actorId, actorName, "wallet.adjust", new
         {
             userId, balanceScopeId, delta, operationId,
             result = success ? "succeeded" : "rejected",
-            result.NewBalance
+            result.NewBalance,
         }, ct);
         return new(success, success
             ? $"Wallet adjusted. Balance: {result.NewBalance}."

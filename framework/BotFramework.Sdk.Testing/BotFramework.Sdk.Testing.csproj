@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>BotFramework.Sdk.Testing</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Testing</PackageId>
+    <Description>Test fixtures and fakes for BotFramework contracts.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -2,36 +2,28 @@ using System.Globalization;
 using System.Diagnostics;
 using Dapper;
 using Microsoft.Extensions.DependencyInjection;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Meta.Application.Meta;
 
 public sealed partial class MetaAnalyticsSnapshotJob(
     IServiceScopeFactory scopes,
-    ILogger<MetaAnalyticsSnapshotJob> logger) : IBackgroundJob
+    ILogger<MetaAnalyticsSnapshotJob> logger) : IRecurringScheduledCommand
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
     private const int WindowMinutes = 5;
 
-    public string Name => "meta.analytics_snapshot";
+    public string Key => "meta.analytics_snapshot";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(Interval);
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
-            {
-                await TickAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                LogSnapshotFailed(ex);
-            }
-            await Task.Delay(Interval, stoppingToken);
+            await TickAsync(ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { LogSnapshotFailed(ex); }
     }
 
     private async Task TickAsync(CancellationToken ct)

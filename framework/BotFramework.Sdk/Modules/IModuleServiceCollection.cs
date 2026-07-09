@@ -6,6 +6,8 @@
 // Adding a game to a Host = reference the module's assembly + register it once.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using BotFramework.Scheduling.Abstractions;
+
 namespace BotFramework.Sdk.Modules;
 // ─────────────────────────────────────────────────────────────────────────────
 // Host-supplied abstractions that modules bind against. Modules never see the
@@ -25,6 +27,7 @@ public interface IModuleServiceCollection
     IModuleServiceCollection AddScoped<TService, TImpl>()
         where TService : class
         where TImpl : class, TService;
+    IModuleServiceCollection AddScoped<TImplementation>() where TImplementation : class;
     IModuleServiceCollection AddSingleton<TService, TImpl>() where TImpl : class, TService;
 
     /// <summary>Registers a concrete type as its own singleton implementation (e.g. background workers).</summary>
@@ -64,6 +67,10 @@ public interface IModuleServiceCollection
     /// RunAsync on startup, signals cancellation on shutdown.
     /// </summary>
     IModuleServiceCollection AddBackgroundJob<TJob>() where TJob : class, IBackgroundJob;
+
+    /// <summary>Registers a module-owned recurring job run by the host scheduler.</summary>
+    IModuleServiceCollection AddRecurringScheduledCommand<TCommand>()
+        where TCommand : class, IRecurringScheduledCommand;
 
     /// <summary>
     /// Registers a command handler. Bus dispatches through every middleware

@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Meta.Application.Clans;
 using Games.Meta.Application.Meta;
 using Games.Meta.Application.Quests;
@@ -15,8 +16,7 @@ public static class MetaGrpcExtensions
 {
     public static IServiceCollection AddMetaGrpcClients(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(provider => new MetaApi.MetaApiClient(provider.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<MetaApi.MetaApiClient>(address);
         services.AddScoped(provider => MetaGrpcProxy<IMetaService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
         services.AddScoped(provider => MetaGrpcProxy<IQuestService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
         services.AddScoped(provider => MetaGrpcProxy<IClanService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));

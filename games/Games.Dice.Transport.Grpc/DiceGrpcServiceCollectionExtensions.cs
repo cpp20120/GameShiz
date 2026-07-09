@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Dice.Contracts.Play;
 using Games.Dice.Transport.Grpc.Wire;
 using Grpc.Net.Client;
@@ -16,9 +17,7 @@ public static class DiceGrpcServiceCollectionExtensions
         this IServiceCollection services,
         Uri backendAddress)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(backendAddress));
-        services.AddSingleton(sp =>
-            new DiceApi.DiceApiClient(sp.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<DiceApi.DiceApiClient>(backendAddress);
         services.AddScoped<IDiceClient, GrpcDiceClient>();
         return services;
     }

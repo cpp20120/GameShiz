@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Redeem.Contracts;
 using Games.Redeem.Transport.Grpc.Wire;
 using Grpc.Net.Client;
@@ -10,8 +11,7 @@ public static class RedeemGrpcExtensions
 {
     public static IServiceCollection AddRedeemGrpcClient(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(sp => new RedeemApi.RedeemApiClient(sp.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<RedeemApi.RedeemApiClient>(address);
         services.AddScoped<IRedeemClient, GrpcRedeemClient>();
         return services;
     }

@@ -33,4 +33,5 @@
     <InternalsVisibleTo Include="CasinoShiz.Tests" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" /></ItemGroup>
 </Project>

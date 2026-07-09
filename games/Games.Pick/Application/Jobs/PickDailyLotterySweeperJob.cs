@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PickDailyLotterySweeperJob — IBackgroundJob that drains daily lotteries
+// PickDailyLotterySweeperJob — Quartz command that drains daily lotteries
 // whose deadline (next-local-midnight UTC instant) has passed and posts the
 // outcome in the originating chat.
 //
@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Microsoft.Extensions.Options;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Pick.Application.Jobs;
 
@@ -17,37 +18,30 @@ public sealed partial class PickDailyLotterySweeperJob(
     IPickDailyLotteryService service,
     IPickAnnouncementPublisher announcements,
     IOptions<PickOptions> options,
-    ILogger<PickDailyLotterySweeperJob> logger) : IBackgroundJob
+    ILogger<PickDailyLotterySweeperJob> logger) : IRecurringScheduledCommand
 {
-    public string Name => "pick.daily.lottery.sweeper";
+    public string Key => "pick.daily.lottery.sweeper";
+    public ScheduleDescriptor Schedule =>
+        ScheduleDescriptor.Every(TimeSpan.FromSeconds(Math.Max(15, options.Value.Daily.SweeperIntervalSeconds)));
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        var interval = TimeSpan.FromSeconds(Math.Max(15, options.Value.Daily.SweeperIntervalSeconds));
-
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            var expired = await store.ListExpiredOpenAsync(limit: 32, ct);
+            foreach (var row in expired)
             {
-                var expired = await store.ListExpiredOpenAsync(limit: 32, stoppingToken);
-                foreach (var row in expired)
+                try
                 {
-                    if (stoppingToken.IsCancellationRequested) break;
-                    try
-                    {
-                        var settle = await service.SettleAsync(row, stoppingToken);
-                        await announcements.PublishDailyAsync(settle, stoppingToken);
-                    }
-                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
-                    catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
+                    var settle = await service.SettleAsync(row, ct);
+                    await announcements.PublishDailyAsync(settle, ct);
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception ex) { LogTickFailed(ex); }
-
-            try { await Task.Delay(interval, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { LogTickFailed(ex); }
     }
 
     [LoggerMessage(EventId = 5971, Level = LogLevel.Error,

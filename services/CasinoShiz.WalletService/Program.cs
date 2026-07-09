@@ -1,7 +1,9 @@
 using BotFramework.Host.Composition.Builder;
 using CasinoShiz.Wallet.Transport.Grpc;
+using CasinoShiz.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults();
 builder.AddBackendFramework();
 builder.Services.AddGrpc();
 

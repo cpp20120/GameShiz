@@ -14,7 +14,7 @@ public sealed class BlackjackModule : IModule
             .AddScoped<IBlackjackService, BlackjackService>()
             .AddScoped<IBlackjackClient, LocalBlackjackClient>()
             .AddScoped<IBlackjackHandStore, BlackjackHandStore>()
-            .AddBackgroundJob<BlackjackHandTimeoutJob>();
+            .AddRecurringScheduledCommand<BlackjackHandTimeoutJob>();
     }
 
     public IModuleMigrations GetMigrations() => new BlackjackMigrations();

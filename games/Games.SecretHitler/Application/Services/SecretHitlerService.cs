@@ -34,10 +34,15 @@ public sealed partial class SecretHitlerService(
         }
     }
 
-    private sealed class Gate
+    private sealed class Gate : IDisposable
     {
         public readonly SemaphoreSlim Semaphore = new(1, 1);
         public long LastUsedTick = Environment.TickCount64;
+
+        public void Dispose()
+        {
+            Semaphore.Dispose();
+        }
     }
 
     private readonly SecretHitlerOptions _opts = options.Value;

@@ -19,6 +19,7 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using BotFramework.Scheduling.Abstractions;
 
 namespace BotFramework.Host.Composition.Modules;
 
@@ -38,6 +39,12 @@ public sealed class ModuleServiceCollectionAdapter(
         where TImpl : class, TService
     {
         services.AddScoped<TService, TImpl>();
+        return this;
+    }
+
+    public IModuleServiceCollection AddScoped<TImplementation>() where TImplementation : class
+    {
+        services.AddScoped<TImplementation>();
         return this;
     }
 
@@ -105,6 +112,15 @@ public sealed class ModuleServiceCollectionAdapter(
     {
         services.AddSingleton<TJob>();
         registrations.AddBackgroundJob<TJob>();
+        return this;
+    }
+
+    public IModuleServiceCollection AddRecurringScheduledCommand<TCommand>()
+        where TCommand : class, IRecurringScheduledCommand
+    {
+        services.AddScoped<TCommand>();
+        services.AddScoped<IRecurringScheduledCommand>(sp => sp.GetRequiredService<TCommand>());
+        services.AddScoped<IScheduledCommand>(sp => sp.GetRequiredService<TCommand>());
         return this;
     }
 

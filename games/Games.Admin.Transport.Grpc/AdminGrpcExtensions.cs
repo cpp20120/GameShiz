@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using BotFramework.Host.Analytics.Reports;
 using Games.Admin.Application.Services;
 using Games.Admin.Infrastructure.Persistence;
@@ -13,8 +14,7 @@ public static class AdminGrpcExtensions
 {
     public static IServiceCollection AddAdminGrpcClients(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(provider => new AdminApi.AdminApiClient(provider.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<AdminApi.AdminApiClient>(address);
         services.AddScoped(provider => AdminGrpcProxy<IAdminService>.Create(provider.GetRequiredService<AdminApi.AdminApiClient>()));
         services.AddScoped(provider => AdminGrpcProxy<IChatsStore>.Create(provider.GetRequiredService<AdminApi.AdminApiClient>()));
         services.AddScoped(provider => AdminGrpcProxy<IAnalyticsQueryService>.Create(provider.GetRequiredService<AdminApi.AdminApiClient>()));

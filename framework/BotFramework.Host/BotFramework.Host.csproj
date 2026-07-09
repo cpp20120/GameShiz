@@ -10,6 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
+    <ProjectReference Include="..\BotFramework.Scheduling.Quartz\BotFramework.Scheduling.Quartz.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 

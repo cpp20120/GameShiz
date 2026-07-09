@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.Basketball.Application.Services;
 using Games.Bowling.Application.Services;
 using Games.Darts.Application.Services;
@@ -17,9 +18,7 @@ public static class NativeDiceGrpcExtensions
         this IServiceCollection services,
         Uri backendAddress)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(backendAddress));
-        services.AddSingleton(sp =>
-            new NativeDiceApi.NativeDiceApiClient(sp.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<NativeDiceApi.NativeDiceApiClient>(backendAddress);
         services.AddScoped<IDiceCubeService, GrpcDiceCubeService>();
         services.AddScoped<IDartsService, GrpcDartsService>();
         services.AddScoped<IFootballService, GrpcFootballService>();

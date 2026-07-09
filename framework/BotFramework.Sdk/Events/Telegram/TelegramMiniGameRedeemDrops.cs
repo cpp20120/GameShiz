@@ -20,8 +20,11 @@ public static class TelegramMiniGameRedeemDrops
 
     private static bool ShouldDrop(double chance)
     {
-        if (chance <= 0) return false;
-        if (chance >= 1) return true;
-        return Random.Shared.NextDouble() < chance;
+        return chance switch
+        {
+            <= 0 => false,
+            >= 1 => true,
+            _ => Random.Shared.NextDouble() < chance,
+        };
     }
 }

@@ -1,5 +1,4 @@
 global using BotFramework.Sdk.Events.Meta;
-global using BotFramework.Sdk.MiniGames;
 global using Games.Meta.Domain.Achievements;
 global using Games.Meta.Domain.Clans;
 global using Games.Meta.Domain.Quests;

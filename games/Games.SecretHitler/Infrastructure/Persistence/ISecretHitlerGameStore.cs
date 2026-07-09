@@ -1,5 +1,3 @@
-using Dapper;
-
 namespace Games.SecretHitler.Infrastructure.Persistence;
 
 public interface ISecretHitlerGameStore

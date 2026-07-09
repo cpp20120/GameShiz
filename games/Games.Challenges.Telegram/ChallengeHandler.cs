@@ -312,8 +312,7 @@ public sealed class ChallengeHandler(
         var challenge = result.Challenge!;
         if (result.IsTie)
         {
-            return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.tie"),
-                challenge.ChallengerRollLabel(result.ChallengerRoll),
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.tie"), Challenge.ChallengerRollLabel(result.ChallengerRoll),
                 challenge.TargetRollLabel(result.TargetRoll),
                 challenge.Amount);
         }

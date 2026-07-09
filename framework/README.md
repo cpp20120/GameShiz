@@ -13,6 +13,9 @@ shape.
 | `BotFramework.Sdk` | Module-facing abstractions: modules, domain/events, repositories, projections, analytics, localization, runtime contracts | backend `Games.*` modules |
 | `BotFramework.Sdk.Testing` | xUnit helpers and in-memory test doubles | `tests/CasinoShiz.Tests` |
 | `BotFramework.Host` | Backend/runtime infrastructure: composition, persistence, CAP/event bus, economics/wallet adapters, analytics, runtime jobs, admin/security, health | backend/monolith composition roots |
+| `BotFramework.Telegram.Abstractions` | Telegram update context, routes and handler contracts | Telegram adapters and runtime |
+| `BotFramework.Scheduling.Abstractions` | Transport-neutral scheduled command contracts | game application layers |
+| `BotFramework.Scheduling.Quartz` | Persistent Quartz implementation of game scheduling | backend composition roots |
 | `BotFramework.Telegram` | Telegram adapter runtime: bot client, polling/webhook ingress, update pipeline, router, route attributes, Telegram update context and delivery helpers | Telegram BFF, monolith compatibility host, `Games.*.Telegram` adapters |
 
 The intended dependency direction is:
@@ -42,6 +45,9 @@ framework/
   BotFramework.Sdk/         module, domain, persistence and event abstractions
   BotFramework.Sdk.Testing/ test helpers and in-memory doubles
   BotFramework.Host/        backend infrastructure and composition
+  BotFramework.Telegram.Abstractions/ Telegram update contracts
+  BotFramework.Scheduling.Abstractions/ scheduled command contracts
+  BotFramework.Scheduling.Quartz/ persistent Quartz scheduler
   BotFramework.Telegram/    Telegram ingress, update routing and delivery
 
 games/
@@ -476,9 +482,11 @@ Domain/integration events can flow through the configured event bus. External
 effects such as Telegram messages emitted from subscribers and background jobs
 should use a durable outbox.
 
-Telegram outbox records are persisted before sending. Dispatchers claim due rows,
-send them to Telegram, store the resulting Telegram message id when available, and
-apply retry metadata on failure.
+Telegram outbox records are persisted before sending. In the monolith, the local
+dispatcher claims due rows and sends them to Telegram. In the split deployment, the
+Backend relay claims rows, publishes a CAP command through Redis to Telegram BFF,
+and marks a row sent only after the BFF confirms the Telegram message id. Both modes
+reclaim expired leases and retain retry metadata on failure.
 
 Handlers that respond immediately to live Telegram updates may still send direct
 Telegram responses. Critical asynchronous notifications should use the outbox.

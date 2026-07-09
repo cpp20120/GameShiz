@@ -1,23 +1,18 @@
 
+using BotFramework.Scheduling.Abstractions;
+
 namespace Games.SecretHitler.Application.Jobs;
 
-public sealed partial class SecretHitlerGateCleanupJob : IBackgroundJob
+public sealed partial class SecretHitlerGateCleanupJob : IRecurringScheduledCommand
 {
     private const long IdleMs = 60 * 60 * 1_000; // 1 hour
 
-    public string Name => "sh.gate_cleanup";
+    public string Key => "sh.gate_cleanup";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(TimeSpan.FromMinutes(10));
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        try { await Task.Delay(5_000, stoppingToken); }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            SecretHitlerService.PruneGates(IdleMs);
-
-            try { await Task.Delay(10 * 60 * 1_000, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-        }
+        SecretHitlerService.PruneGates(IdleMs);
+        return Task.CompletedTask;
     }
 }

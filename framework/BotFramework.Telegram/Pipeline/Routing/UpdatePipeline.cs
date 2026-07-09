@@ -19,9 +19,7 @@ public sealed class UpdatePipeline
     {
         var ordered = middleware.ToArray();
 
-        UpdateDelegate terminal = async ctx => await router.DispatchAsync(ctx.Bot, ctx.Update, ctx.Services, ctx.Ct);
-
-        var chain = terminal;
+        var chain = (UpdateDelegate)Terminal;
         for (var i = ordered.Length - 1; i >= 0; i--)
         {
             var mw = ordered[i];
@@ -29,6 +27,9 @@ public sealed class UpdatePipeline
             chain = ctx => mw.InvokeAsync(ctx, next);
         }
         _chain = chain;
+        return;
+
+        async Task Terminal(UpdateContext ctx) => await router.DispatchAsync(ctx.Bot, ctx.Update, ctx.Services, ctx.Ct);
     }
 
     public Task InvokeAsync(UpdateContext ctx) => _chain(ctx);

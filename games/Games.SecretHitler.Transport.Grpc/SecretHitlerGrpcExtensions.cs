@@ -1,3 +1,4 @@
+using CasinoShiz.ServiceDefaults;
 using Games.SecretHitler.Application.Services;
 using Games.SecretHitler.Transport.Grpc.Wire;
 using Grpc.Net.Client;
@@ -11,8 +12,7 @@ public static class SecretHitlerGrpcExtensions
 {
     public static IServiceCollection AddSecretHitlerGrpcClient(this IServiceCollection services, Uri address)
     {
-        services.AddSingleton(_ => GrpcChannel.ForAddress(address));
-        services.AddSingleton(sp => new SecretHitlerApi.SecretHitlerApiClient(sp.GetRequiredService<GrpcChannel>()));
+        services.AddResilientGrpcClient<SecretHitlerApi.SecretHitlerApiClient>(address);
         services.AddScoped<ISecretHitlerService, GrpcSecretHitlerService>();
         return services;
     }

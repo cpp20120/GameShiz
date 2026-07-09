@@ -9,7 +9,7 @@ public sealed class PokerTelegramModule : IModule
     public void ConfigureServices(IModuleServiceCollection services) =>
         services
             .AddHandler<PokerHandler>()
-            .AddBackgroundJob<PokerTurnTimeoutJob>();
+            .AddRecurringScheduledCommand<PokerTurnTimeoutJob>();
 
     public IModuleMigrations? GetMigrations() => null;
     public IReadOnlyList<BotCommand> GetBotCommands() =>

@@ -194,7 +194,12 @@ flowchart LR
 
 ### Telegram outbox
 
-`ITelegramOutbox.EnqueueAsync(TelegramOutboxMessage)` persists critical async outbound Telegram text messages in `telegram_outbox`. `TelegramOutboxDispatcherService` starts after framework migrations, claims due rows with `FOR UPDATE SKIP LOCKED`, sends them through `ITelegramBotClient.SendMessage`, records `telegram_message_id` on success, and schedules exponential retry on failure.
+`ITelegramOutbox.EnqueueAsync(TelegramOutboxMessage)` persists critical async outbound Telegram text messages in `telegram_outbox`. The `TelegramOutbox:Transport` setting chooses delivery:
+
+- `Local` (default, monolith): `TelegramOutboxDispatcherService` claims due rows with `FOR UPDATE SKIP LOCKED`, sends through `ITelegramBotClient.SendMessage`, records `telegram_message_id` on success, and schedules exponential retry on failure.
+- `Cap` (split deployment): `TelegramOutboxCapRelayService` in Backend claims rows and publishes a CAP command through Redis. Telegram BFF sends it, then publishes a delivery receipt; Backend marks the row sent only after that receipt. `Cap` requires `Redis:Enabled=true`, `Redis:ConnectionString`, and `ConnectionStrings:Postgres` in both processes.
+
+Both modes reclaim expired `sending` leases. Delivery remains at-least-once because Telegram `sendMessage` has no idempotency key.
 
 Use it for business-important messages emitted outside the live update response path: event subscribers, scheduled settlement announcements, reward/drop notifications, and similar `DB/event -> Telegram side effect` flows. Normal interactive replies from handlers (`/help`, validation errors, balance/menu views, immediate game feedback) should stay direct `ctx.Bot.SendMessage(...)`; delayed retries there would produce stale or confusing messages.
 
@@ -1003,6 +1008,8 @@ Adding a migration = one new `Migration("name", "SQL")` entry in the module's `I
 | `015_telegram_outbox` | Durable Telegram delivery queue and retry state |
 | `016_event_analytics_checkpoint` | Singleton checkpoint for historical ES → ClickHouse backfill |
 | `017_responsible_gaming_and_ops_reports` | Global player stake limits/cooldowns/self-exclusion and deduplicated weekly/anomaly report checkpoints |
+| `018_telegram_outbox_expired_lease_recovery` | Index for reclaiming expired Telegram outbox delivery leases |
+| `019_quartz_ado_job_store` | Persistent Quartz ADO job-store schema and indexes |
 
 ### Module migrations
 
@@ -1398,6 +1405,7 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 |---|---|---|
 | `ConnectionStrings` | `Postgres` | always |
 | `Redis` | `Enabled`, `ConnectionString` | `Redis:Enabled = true` |
+| `TelegramOutbox` | `Transport` (`Local` or `Cap`) | `Cap` for Backend → Telegram BFF delivery; requires PostgreSQL and Redis in both processes |
 | `ClickHouse` | `Enabled`, `Host`, `Database`, `Table`, `Project` | `ClickHouse:Enabled = true` (validation throws on startup if `Enabled` but `Host` is empty) |
 
 ## Running

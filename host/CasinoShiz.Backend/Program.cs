@@ -39,8 +39,10 @@ using BotFramework.Host.Admin.Auth;
 using System.Security.Cryptography;
 using System.Text;
 using CasinoShiz.Host.Pages.Admin;
+using CasinoShiz.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults();
 builder.Services.AddSingleton<HorseGifCache>();
 
 builder.AddBackendFramework()
@@ -80,7 +82,7 @@ app.UseStaticFiles();
 app.UseSession();
 app.Use(async (context, next) =>
 {
-    if (!context.Request.Path.StartsWithSegments("/admin"))
+    if (!context.Request.Path.StartsWithSegments("/admin", StringComparison.Ordinal))
     {
         await next();
         return;
@@ -95,7 +97,7 @@ app.Use(async (context, next) =>
         return;
     }
 
-    _ = long.TryParse(context.Request.Headers["x-admin-actor-id"], out var actorId);
+    _ = long.TryParse(context.Request.Headers["x-admin-actor-id"], System.Globalization.CultureInfo.InvariantCulture, out var actorId);
     var actorName = context.Request.Headers["x-admin-actor-name"].ToString();
     var role = string.Equals(context.Request.Headers["x-admin-role"], "SuperAdmin", StringComparison.Ordinal)
         ? AdminRole.SuperAdmin : AdminRole.ReadOnly;

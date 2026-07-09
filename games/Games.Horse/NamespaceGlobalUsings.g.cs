@@ -56,6 +56,7 @@ global using BotFramework.Sdk.UpdateHandling;
 global using BotFramework.Sdk.UpdateHandling.Routes;
 global using Games.Horse.Contracts;
 global using Games.Horse.Application.Jobs;
+global using BotFramework.Scheduling.Abstractions;
 global using Games.Horse.Application.Services;
 global using Games.Horse.Domain.Configuration;
 global using Games.Horse.Domain.Events;

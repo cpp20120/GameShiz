@@ -26,9 +26,9 @@ public sealed class MetaModule : IModule
             .AddDomainEventSubscription<MetaXpProjection>("meta.game_completed")
             .AddDomainEventSubscription<QuestProjection>("meta.game_completed")
             .AddDomainEventSubscription<ClanProjection>("meta.game_completed")
-            .AddBackgroundJob<MetaSeasonRolloverJob>()
-            .AddBackgroundJob<MetaAnalyticsSnapshotJob>()
-            .AddBackgroundJob<OperationsReportingJob>();
+            .AddRecurringScheduledCommand<MetaSeasonRolloverJob>()
+            .AddRecurringScheduledCommand<MetaAnalyticsSnapshotJob>()
+            .AddRecurringScheduledCommand<OperationsReportingJob>();
     }
 
     public IModuleMigrations GetMigrations() => new MetaMigrations();

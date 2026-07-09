@@ -14,8 +14,5 @@ global using BotFramework.Sdk.Metrics;
 global using BotFramework.Sdk.MiniGames;
 global using BotFramework.Sdk.Modules;
 global using BotFramework.Sdk.Modules.Migrations;
-global using BotFramework.Sdk.Pipeline;
 global using BotFramework.Sdk.Projections;
 global using BotFramework.Sdk.Snapshots;
-global using BotFramework.Sdk.UpdateHandling;
-global using BotFramework.Sdk.UpdateHandling.Routes;

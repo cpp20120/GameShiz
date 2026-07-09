@@ -69,17 +69,15 @@ public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUp
         var key = (userId, chatId);
         var state = _sessions.AddOrUpdate(
             key,
-            _ => new SessionState(Guid.NewGuid().ToString("N"), now),
-            (_, current) => now - current.LastSeenAt >= SessionIdleTimeout
-                ? new SessionState(Guid.NewGuid().ToString("N"), now)
-                : current with { LastSeenAt = now });
+            (_, arg) => new SessionState(Guid.NewGuid().ToString("N"), arg),
+            (_, current, arg) => arg - current.LastSeenAt >= SessionIdleTimeout
+                ? new SessionState(Guid.NewGuid().ToString("N"), arg)
+                : current with { LastSeenAt = arg }, now);
 
-        if (_sessions.Count > 10_000)
-        {
-            var cutoff = now - SessionIdleTimeout - SessionIdleTimeout;
-            foreach (var candidate in _sessions.Where(x => x.Value.LastSeenAt < cutoff).Take(1_000))
-                _sessions.TryRemove(candidate.Key, out _);
-        }
+        if (_sessions.Count <= 10_000) return state.Id;
+        var cutoff = now - SessionIdleTimeout - SessionIdleTimeout;
+        foreach (var candidate in _sessions.Where(x => x.Value.LastSeenAt < cutoff).Take(1_000))
+            _sessions.TryRemove(candidate.Key, out _);
         return state.Id;
     }
 
