@@ -4,42 +4,34 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Horse.Application.Jobs;
 
-public sealed class HorseRaceSchedulerService(
-    IGameScheduler scheduler,
-    IOptions<HorseOptions> options) : IBackgroundJob
-{
-    public string Name => "horse.race_scheduler";
-
-    public async Task RunAsync(CancellationToken stoppingToken)
-    {
-        var value = options.Value;
-        if (value.AutoRunEnabled)
-        {
-            var utcHour = (Math.Clamp(value.AutoRunLocalHour, 0, 23) - value.TimezoneOffsetHours + 24) % 24;
-            var minute = Math.Clamp(value.AutoRunLocalMinute, 0, 59);
-            await scheduler.ScheduleAsync(new(
-                "horse.daily-race",
-                HorseRaceScheduledCommand.CommandKey,
-                new ScheduleDescriptor($"0 {minute} {utcHour} * * ?")), stoppingToken);
-        }
-        await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
-    }
-}
-
+/// <summary>Persistent Quartz command for the configured daily global horse race.</summary>
 public sealed partial class HorseRaceScheduledCommand(
     IHorseService horse,
     IHorseRaceNotifier notifier,
     IHorseResultStore results,
     IOptions<HorseOptions> options,
-    ILogger<HorseRaceScheduledCommand> logger) : IScheduledCommand
+    ILogger<HorseRaceScheduledCommand> logger) : IRecurringScheduledCommand
 {
     public const string CommandKey = "horse.run-daily-race";
+
     public string Key => CommandKey;
+
+    public ScheduleDescriptor Schedule
+    {
+        get
+        {
+            var value = options.Value;
+            var utcHour = (Math.Clamp(value.AutoRunLocalHour, 0, 23) - value.TimezoneOffsetHours + 24) % 24;
+            var minute = Math.Clamp(value.AutoRunLocalMinute, 0, 59);
+            return new ScheduleDescriptor($"0 {minute} {utcHour} * * ?");
+        }
+    }
 
     public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
         var value = options.Value;
         if (!value.AutoRunEnabled || value.Admins.Count == 0) return;
+
         var raceDate = HorseTimeHelper.GetRaceDate(value.TimezoneOffsetHours);
         if (await results.FindAsync(raceDate, 0, ct) is not null) return;
 
@@ -49,6 +41,7 @@ public sealed partial class HorseRaceScheduledCommand(
             LogSkipped(raceDate, outcome.Error);
             return;
         }
+
         await notifier.SendResultGifsAsync(outcome, raceDate, ct);
         notifier.ScheduleWinnerAnnouncements(outcome);
         LogCompleted(raceDate, outcome.Winner + 1);

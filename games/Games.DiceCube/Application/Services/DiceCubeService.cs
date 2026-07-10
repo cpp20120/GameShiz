@@ -158,7 +158,7 @@ public sealed class DiceCubeService(
         await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
         var cube = Cube;
         if (cube.MinSecondsBetweenBets > 0)
-            await SetCooldownLastRollAsync(userId, chatId, DateTimeOffset.UtcNow, ct);
+            await SetCooldownLastRollAsync(userId, chatId, DateTimeOffset.UtcNow, CooldownTtl(cube), ct);
 
         var balance = await economics.GetBalanceAsync(userId, chatId, ct);
 
@@ -240,12 +240,13 @@ public sealed class DiceCubeService(
         long userId,
         long chatId,
         DateTimeOffset lastRoll,
+        TimeSpan ttl,
         CancellationToken ct)
     {
         var key = CooldownCacheKey(userId, chatId);
         cache.Set(key, lastRoll, new MemoryCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
+            AbsoluteExpirationRelativeToNow = ttl,
         });
 
         if (redis is null) return;
@@ -255,11 +256,17 @@ public sealed class DiceCubeService(
             await redis.GetDatabase().StringSetAsync(
                 key,
                 lastRoll.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
-                TimeSpan.FromHours(6));
+                ttl);
         }
         catch (RedisException)
         {
             // The local entry above is the intentional fallback.
         }
     }
+
+    private static TimeSpan CooldownTtl(DiceCubeOptions options) =>
+        TimeSpan.FromSeconds(Math.Clamp(
+            Math.Max(options.CooldownCacheTtlSeconds, options.MinSecondsBetweenBets + 5),
+            1,
+            86_400));
 }

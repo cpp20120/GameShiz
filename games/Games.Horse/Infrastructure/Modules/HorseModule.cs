@@ -15,8 +15,7 @@ public sealed class HorseModule : IModule
             .AddScoped<IHorseRaceNotifier, IntegrationEventHorseRaceNotifier>()
             .AddScoped<IHorseBetStore, HorseBetStore>()
             .AddScoped<IHorseResultStore, HorseResultStore>()
-            .AddScoped<IScheduledCommand, HorseRaceScheduledCommand>()
-            .AddBackgroundJob<HorseRaceSchedulerService>();
+            .AddRecurringScheduledCommand<HorseRaceScheduledCommand>();
     }
 
     public IModuleMigrations GetMigrations() => new HorseMigrations();

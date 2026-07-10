@@ -2,21 +2,61 @@
 
 `framework/` is the reusable runtime layer for CasinoShiz modules.
 
-The framework is split into transport-neutral contracts, backend/runtime infrastructure,
-and Telegram-specific adapter infrastructure. Game modules should depend on the
-smallest framework surface they need and must not depend on concrete deployment
-shape.
+The framework is split into transport-neutral contracts, backend/runtime infrastructure, and Telegram-specific adapter infrastructure. Game modules should depend on the smallest framework surface they need and must not depend on concrete deployment shape.
 
-| Assembly | Role | Referenced by |
-|----------|------|---------------|
-| `BotFramework.Contracts` | Transport-neutral service contracts, DTOs, wallet/identity/read ports and portable integration contracts | hosts, services, transport adapters, game contracts |
-| `BotFramework.Sdk` | Module-facing abstractions: modules, domain/events, repositories, projections, analytics, localization, runtime contracts | backend `Games.*` modules |
-| `BotFramework.Sdk.Testing` | xUnit helpers and in-memory test doubles | `tests/CasinoShiz.Tests` |
-| `BotFramework.Host` | Backend/runtime infrastructure: composition, persistence, CAP/event bus, economics/wallet adapters, analytics, runtime jobs, admin/security, health | backend/monolith composition roots |
-| `BotFramework.Telegram.Abstractions` | Telegram update context, routes and handler contracts | Telegram adapters and runtime |
-| `BotFramework.Scheduling.Abstractions` | Transport-neutral scheduled command contracts | game application layers |
-| `BotFramework.Scheduling.Quartz` | Persistent Quartz implementation of game scheduling | backend composition roots |
-| `BotFramework.Telegram` | Telegram adapter runtime: bot client, polling/webhook ingress, update pipeline, router, route attributes, Telegram update context and delivery helpers | Telegram BFF, monolith compatibility host, `Games.*.Telegram` adapters |
+Assembly
+
+Role
+
+Referenced by
+
+`BotFramework.Contracts`
+
+Transport-neutral service contracts, DTOs, wallet/identity/read ports and portable integration contracts
+
+hosts, services, transport adapters, game contracts
+
+`BotFramework.Sdk`
+
+Module-facing abstractions: modules, domain/events, repositories, projections, analytics, localization, runtime contracts
+
+backend `Games.*` modules
+
+`BotFramework.Sdk.Testing`
+
+xUnit helpers and in-memory test doubles
+
+`tests/CasinoShiz.Tests`
+
+`BotFramework.Host`
+
+Backend/runtime infrastructure: composition, persistence, CAP/event bus, economics/wallet adapters, analytics, runtime jobs, admin/security, health
+
+backend/monolith composition roots
+
+`BotFramework.Telegram.Abstractions`
+
+Telegram update context, routes and handler contracts
+
+Telegram adapters and runtime
+
+`BotFramework.Scheduling.Abstractions`
+
+Transport-neutral scheduled command contracts
+
+game application layers
+
+`BotFramework.Scheduling.Quartz`
+
+Persistent Quartz implementation of game scheduling
+
+backend composition roots
+
+`BotFramework.Telegram`
+
+Telegram adapter runtime: bot client, polling/webhook ingress, update pipeline, router, route attributes, Telegram update context and delivery helpers
+
+Telegram BFF, monolith compatibility host, `Games.*.Telegram` adapters
 
 The intended dependency direction is:
 
@@ -34,8 +74,7 @@ Composition roots
   -> BotFramework.Telegram when Telegram ingress is enabled
 ```
 
-Modules should not reference deployment-specific hosts. Hosts select which modules
-and transports are active.
+Modules should not reference deployment-specific hosts. Hosts select which modules and transports are active.
 
 ## Repository boundaries
 
@@ -70,9 +109,7 @@ tests/
   CasinoShiz.Tests/
 ```
 
-Not every context needs every optional project. Simple modules may only have
-`Games.X` and `Games.X.Telegram`. Split-service modules may additionally provide
-`Games.X.Contracts` and `Games.X.Transport.Grpc`.
+Not every context needs every optional project. Simple modules may only have `Games.X` and `Games.X.Telegram`. Split-service modules may additionally provide `Games.X.Contracts` and `Games.X.Transport.Grpc`.
 
 ## Layering
 
@@ -100,8 +137,7 @@ Not every context needs every optional project. Simple modules may only have
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`BotFramework.Telegram` is intentionally not part of the backend SDK. Telegram is
-an adapter boundary, not a domain dependency.
+`BotFramework.Telegram` is intentionally not part of the backend SDK. Telegram is an adapter boundary, not a domain dependency.
 
 ## Physical layout
 
@@ -159,8 +195,7 @@ MiniGames/ Modules/ Pipeline/ Projections/ Snapshots/
 
 ## Host composition
 
-The combined compatibility host can compose backend and Telegram adapters in one
-process:
+The combined compatibility host can compose backend and Telegram adapters in one process:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -219,9 +254,7 @@ app.UseTelegramFramework();
 app.Run();
 ```
 
-The composition root decides whether a contract is implemented locally or through
-a transport adapter such as gRPC. Application-facing interfaces do not change when
-a module crosses the process boundary.
+The composition root decides whether a contract is implemented locally or through a transport adapter such as gRPC. Application-facing interfaces do not change when a module crosses the process boundary.
 
 ## Module registration
 
@@ -253,21 +286,17 @@ public sealed class MyGameTelegramModule : ITelegramModule
 }
 ```
 
-A new module should be able to start with a small set of contracts and grow only
-when it needs persistence, projections, transport adapters or Telegram presentation.
+A new module should be able to start with a small set of contracts and grow only when it needs persistence, projections, transport adapters or Telegram presentation.
 
 ## Telegram update pipeline and routing
 
-Every Telegram update flows through the Telegram update pipeline and then the
-attribute router:
+Every Telegram update flows through the Telegram update pipeline and then the attribute router:
 
 ```text
 Exception → Deduplication → Logging → RateLimit → KnownChats → UpdateRouter
 ```
 
-Routing is attribute-driven. A Telegram adapter adds a handler by implementing
-`IUpdateHandler`, decorating it with route attributes and registering it in the
-Telegram module:
+Routing is attribute-driven. A Telegram adapter adds a handler by implementing `IUpdateHandler`, decorating it with route attributes and registering it in the Telegram module:
 
 ```csharp
 services.AddHandler<MyHandler>();
@@ -283,8 +312,7 @@ Supported route attributes include:
 [ChannelPost]
 ```
 
-Only the Telegram layer knows Telegram update types, bot clients and rendering
-details. Backend services receive application commands through logical contracts.
+Only the Telegram layer knows Telegram update types, bot clients and rendering details. Backend services receive application commands through logical contracts.
 
 ## Deployment shapes
 
@@ -332,8 +360,7 @@ CasinoShiz.WalletService
   wallet, ledger, limits and protection
 ```
 
-Transport choice belongs to composition. Modules should depend on logical contracts,
-not on whether the target is local, gRPC or another transport.
+Transport choice belongs to composition. Modules should depend on logical contracts, not on whether the target is local, gRPC or another transport.
 
 ## Persistence styles
 
@@ -341,14 +368,11 @@ The framework supports two aggregate persistence styles.
 
 ### Classical aggregates
 
-Classical aggregates are persisted by module-owned stores/repositories, usually
-with Dapper and module-specific tables. Most simple game modules should use this
-style.
+Classical aggregates are persisted by module-owned stores/repositories, usually with Dapper and module-specific tables. Most simple game modules should use this style.
 
 ### Event-sourced aggregates
 
-Event-sourced aggregates implement `IEventSourcedAggregate` and are registered by
-the module:
+Event-sourced aggregates implement `IEventSourcedAggregate` and are registered by the module:
 
 ```csharp
 services.RegisterAggregate<MyAggregate>(PersistenceStrategy.EventSourced);
@@ -356,22 +380,18 @@ services.RegisterAggregate<MyAggregate>(PersistenceStrategy.EventSourced);
 
 This registration wires:
 
-- `IRepository<MyAggregate>` → `EventSourcedRepository<MyAggregate>`
-- `IAggregateFactory<MyAggregate>` → `DefaultAggregateFactory<MyAggregate>` unless
-  the module already registered a custom factory
+-   `IRepository<MyAggregate>` → `EventSourcedRepository<MyAggregate>`
+-   `IAggregateFactory<MyAggregate>` → `DefaultAggregateFactory<MyAggregate>` unless the module already registered a custom factory
 
 The event-sourced repository owns the aggregate lifecycle:
 
-1. Load stored events from `IEventStore`.
-2. Deserialize and replay them through `LoadFromHistory`.
-3. Append `PendingEvents` with optimistic concurrency.
-4. Dispatch appended events through `EventDispatcher`.
-5. Call `MarkEventsCommitted` after successful append.
+1.  Load stored events from `IEventStore`.
+2.  Deserialize and replay them through `LoadFromHistory`.
+3.  Append `PendingEvents` with optimistic concurrency.
+4.  Dispatch appended events through `EventDispatcher`.
+5.  Call `MarkEventsCommitted` after successful append.
 
-`DefaultAggregateFactory<T>` tries to create aggregates through DI, first with the
-stream id as a `string` constructor argument and then without it. A module can
-override this by registering its own `IAggregateFactory<T>` before calling
-`RegisterAggregate<T>(PersistenceStrategy.EventSourced)`.
+`DefaultAggregateFactory<T>` tries to create aggregates through DI, first with the stream id as a `string` constructor argument and then without it. A module can override this by registering its own `IAggregateFactory<T>` before calling `RegisterAggregate<T>(PersistenceStrategy.EventSourced)`.
 
 ## Event flow
 
@@ -389,40 +409,46 @@ IEventStore.AppendAsync(...)        // commits module_events
 EventDispatcher.DispatchAsync(...)  // projections, domain bus, analytics
 ```
 
-`IEventStore` remains a small storage primitive: load stream and append events. It
-does not know about projections, subscribers or analytics.
+`IEventStore` remains a small storage primitive: load stream and append events. It does not know about projections, subscribers or analytics.
 
 `EventDispatcher` fans each committed event into:
 
-- matching `IProjection`s;
-- `IDomainEventBus` subscribers, including framework-wide subscribers;
-- `IAnalyticsService.Track(...)`.
+-   matching `IProjection`s;
+-   `IDomainEventBus` subscribers, including framework-wide subscribers;
+-   `IAnalyticsService.Track(...)`.
 
-Post-commit dispatch means a dispatch failure does not roll back the already
-committed event append. Projection handlers and subscribers must be idempotent.
-Recovery should be done with replay/rebuild jobs or targeted retries.
+Post-commit dispatch means a dispatch failure does not roll back the already committed event append. Projection handlers and subscribers must be idempotent. Recovery should be done with replay/rebuild jobs or targeted retries.
 
-`ProjectionContext.Transaction` is nullable. It is normally `null` in the current
-implementation. The field exists so a future same-transaction unit-of-work
-implementation can pass a provider-specific transaction object without changing
-module contracts.
+`ProjectionContext.Transaction` is nullable. It is normally `null` in the current implementation. The field exists so a future same-transaction unit-of-work implementation can pass a provider-specific transaction object without changing module contracts.
 
 ## Cross-module domain events
 
-`IDomainEventBus` lets modules react to events without referencing each other.
-Subscriptions are pattern-based:
+`IDomainEventBus` lets modules react to events without referencing each other. Subscriptions are pattern-based:
 
-| Pattern | Meaning |
-|---------|---------|
-| `sh.game_ended` | exact event |
-| `sh.*` | every event from one module |
-| `*.game_ended` | one action from any module |
-| `*` | every event |
+Pattern
+
+Meaning
+
+`sh.game_ended`
+
+exact event
+
+`sh.*`
+
+every event from one module
+
+`*.game_ended`
+
+one action from any module
+
+`*`
+
+every event
 
 At startup, `EventSubscriptionInitializer` subscribes framework listeners to `*`:
 
-- `EventLogSubscriber` writes events to `event_log` for admin/history views.
-- `ClickHouseEventMirror` mirrors events to ClickHouse when analytics is enabled.
+-   `EventLogSubscriber` writes events to `event_log` for admin/history views.
+-   `ClickHouseEventMirror` mirrors events to ClickHouse when analytics is enabled.
 
 Modules add their own subscribers with:
 
@@ -430,13 +456,11 @@ Modules add their own subscribers with:
 services.AddDomainEventSubscription<MySubscriber>("poker.*");
 ```
 
-`IDomainEventBus` is an abstraction. The active implementation can be in-process
-or backed by CAP/Redis Streams depending on composition and configuration.
+`IDomainEventBus` is an abstraction. The active implementation can be in-process or backed by CAP/Redis Streams depending on composition and configuration.
 
 ## Projections
 
-Projections are module-owned read models. A projection declares which event types
-it handles:
+Projections are module-owned read models. A projection declares which event types it handles:
 
 ```csharp
 public sealed class MyProjection : IProjection
@@ -457,89 +481,68 @@ Register it in the module:
 services.AddProjection<MyProjection>();
 ```
 
-Projections run after the event append commits. They should be idempotent and safe
-to replay.
+Projections run after the event append commits. They should be idempotent and safe to replay.
 
 ## Event tables
 
-`module_events` stores event-sourced aggregate streams. It is the source of truth
-for replayable aggregate state.
+`module_events` stores event-sourced aggregate streams. It is the source of truth for replayable aggregate state.
 
-`event_log` is a flat audit/history stream populated by `EventLogSubscriber`. It
-can contain events from event-sourced modules and other published domain events.
-Admin history pages should read this table, not replay aggregate streams.
+`event_log` is a flat audit/history stream populated by `EventLogSubscriber`. It can contain events from event-sourced modules and other published domain events. Admin history pages should read this table, not replay aggregate streams.
 
 `module_snapshots` stores optional aggregate snapshots through `ISnapshotStore<T>`.
 
-`event_dispatch_failures` stores failed post-commit dispatch attempts for targeted
-retry and operational recovery.
+`event_dispatch_failures` stores failed post-commit dispatch attempts for targeted retry and operational recovery.
 
 ## Outbox and side effects
 
 The framework distinguishes event delivery from external side effects.
 
-Domain/integration events can flow through the configured event bus. External
-effects such as Telegram messages emitted from subscribers and background jobs
-should use a durable outbox.
+Domain/integration events can flow through the configured event bus. External effects such as Telegram messages emitted from subscribers and background jobs should use a durable outbox.
 
-Telegram outbox records are persisted before sending. In the monolith, the local
-dispatcher claims due rows and sends them to Telegram. In the split deployment, the
-Backend relay claims rows, publishes a CAP command through Redis to Telegram BFF,
-and marks a row sent only after the BFF confirms the Telegram message id. Both modes
-reclaim expired leases and retain retry metadata on failure.
+Telegram outbox records are persisted before sending. In the monolith, the local dispatcher claims due rows and sends them to Telegram. In the split deployment, the Backend relay claims rows, publishes a CAP command through Redis to Telegram BFF, and marks a row sent only after the BFF confirms the Telegram message id. Both modes reclaim expired leases and retain retry metadata on failure.
 
-Handlers that respond immediately to live Telegram updates may still send direct
-Telegram responses. Critical asynchronous notifications should use the outbox.
+Handlers that respond immediately to live Telegram updates may still send direct Telegram responses. Critical asynchronous notifications should use the outbox.
 
 ## Wallet and identity boundaries
 
 Wallet and identity are logical service boundaries.
 
-Backend modules should not directly query wallet or identity tables. They should
-use framework contracts such as wallet read/write ports, player directory ports and
-service adapters selected by composition.
+Backend modules should not directly query wallet or identity tables. They should use framework contracts such as wallet read/write ports, player directory ports and service adapters selected by composition.
 
-In a combined host those ports may be implemented locally. In a split deployment
-they may be implemented by gRPC clients pointing at `CasinoShiz.IdentityService`
-and `CasinoShiz.WalletService`.
+In a combined host those ports may be implemented locally. In a split deployment they may be implemented by gRPC clients pointing at `CasinoShiz.IdentityService` and `CasinoShiz.WalletService`.
 
-Wallet invariants such as idempotent debits/credits, balance scopes, ledger append,
-limits, cooldowns and self-exclusion belong to the wallet owner, not to individual
-game modules.
+Wallet invariants such as idempotent debits/credits, balance scopes, ledger append, limits, cooldowns and self-exclusion belong to the wallet owner, not to individual game modules.
 
 ## Migrations
 
-Framework-owned tables are created by framework migrations first. Module migrations
-are then applied through `IModuleMigrations` and tracked in `__module_migrations`.
+Framework-owned tables are created by framework migrations first. Module migrations are then applied through `IModuleMigrations` and tracked in `__module_migrations`.
 
 Migrations are forward-only raw SQL migrations executed via Dapper.
 
-When services are split, each service should own its own database/schema migrations.
-Backend migrations should not create or mutate wallet/identity-owned tables except
-during explicitly marked compatibility transitions.
+When services are split, each service should own its own database/schema migrations. Backend migrations should not create or mutate wallet/identity-owned tables except during explicitly marked compatibility transitions.
 
 ## Adding a new backend module
 
 A new backend module should:
 
-1. Define its application service contract or use an existing framework contract.
-2. Define domain model, commands, results and events.
-3. Choose classical persistence or event-sourced persistence.
-4. Register services through `ConfigureServices(IModuleServiceCollection)`.
-5. Register migrations through `IModuleMigrations`.
-6. Register projections and domain-event subscribers when needed.
-7. Keep Telegram, HTTP and transport-specific code out of the backend module.
+1.  Define its application service contract or use an existing framework contract.
+2.  Define domain model, commands, results and events.
+3.  Choose classical persistence or event-sourced persistence.
+4.  Register services through `ConfigureServices(IModuleServiceCollection)`.
+5.  Register migrations through `IModuleMigrations`.
+6.  Register projections and domain-event subscribers when needed.
+7.  Keep Telegram, HTTP and transport-specific code out of the backend module.
 
 ## Adding a new Telegram adapter module
 
 A new Telegram adapter should:
 
-1. Reference `BotFramework.Telegram`.
-2. Reference the game contract or backend-facing interface it needs.
-3. Implement Telegram handlers using route attributes.
-4. Parse Telegram input and render Telegram responses.
-5. Call logical application contracts, not concrete backend services.
-6. Register handlers through `ConfigureServices(ITelegramModuleServiceCollection)`.
+1.  Reference `BotFramework.Telegram`.
+2.  Reference the game contract or backend-facing interface it needs.
+3.  Implement Telegram handlers using route attributes.
+4.  Parse Telegram input and render Telegram responses.
+5.  Call logical application contracts, not concrete backend services.
+6.  Register handlers through `ConfigureServices(ITelegramModuleServiceCollection)`.
 
 The adapter should not own game state, wallet state or persistence.
 
@@ -547,28 +550,24 @@ The adapter should not own game state, wallet state or persistence.
 
 A new module that wants event sourcing should:
 
-1. Define domain events implementing `IDomainEvent` with stable `EventType` strings,
-   e.g. `mygame.round_started`.
-2. Define an aggregate implementing `IEventSourcedAggregate`.
-3. Register it with `RegisterAggregate<MyAggregate>(PersistenceStrategy.EventSourced)`.
-4. Optionally register `IAggregateFactory<MyAggregate>` if the default DI/id
-   constructor creation is not enough.
-5. Register projections with `AddProjection<TProjection>()`.
-6. Register cross-module subscribers with
-   `AddDomainEventSubscription<TSubscriber>(pattern)`.
+1.  Define domain events implementing `IDomainEvent` with stable `EventType` strings, e.g. `mygame.round_started`.
+2.  Define an aggregate implementing `IEventSourcedAggregate`.
+3.  Register it with `RegisterAggregate<MyAggregate>(PersistenceStrategy.EventSourced)`.
+4.  Optionally register `IAggregateFactory<MyAggregate>` if the default DI/id constructor creation is not enough.
+5.  Register projections with `AddProjection<TProjection>()`.
+6.  Register cross-module subscribers with `AddDomainEventSubscription<TSubscriber>(pattern)`.
 
-After that, appended aggregate events automatically flow through projections,
-event log, ClickHouse mirror, module subscribers and analytics.
+After that, appended aggregate events automatically flow through projections, event log, ClickHouse mirror, module subscribers and analytics.
 
 ## Framework rules
 
-- `BotFramework.Sdk` should remain transport-neutral.
-- `BotFramework.Telegram` is the framework project that owns Telegram runtime types.
-- Backend modules should not depend on Telegram adapters.
-- Telegram adapters should not own persistence.
-- Transport adapters should live outside domain/application modules.
-- Composition roots decide local vs remote implementation.
-- Event handlers, projections and subscribers must be idempotent.
-- External side effects that must survive process failure should use an outbox.
-- Wallet and identity tables are owned by their services, not by games.
-- Game modules should communicate through contracts and events, not by importing another game's internals.
+-   `BotFramework.Sdk` should remain transport-neutral.
+-   `BotFramework.Telegram` is the framework project that owns Telegram runtime types.
+-   Backend modules should not depend on Telegram adapters.
+-   Telegram adapters should not own persistence.
+-   Transport adapters should live outside domain/application modules.
+-   Composition roots decide local vs remote implementation.
+-   Event handlers, projections and subscribers must be idempotent.
+-   External side effects that must survive process failure should use an outbox.
+-   Wallet and identity tables are owned by their services, not by games.
+-   Game modules should communicate through contracts and events, not by importing another game's internals.

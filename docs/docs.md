@@ -354,7 +354,7 @@ Two-step game: `/dice bet <amount>` → `dicecube_bets` row → user (or bot) se
 `DiceCubeService.PlaceBetAsync`:
 
 1. Validates amount in `[1, MaxBet]`.
-2. Enforces `MinSecondsBetweenBets` per chat through `IMemoryCache` to prevent griefing fast-spamming throws.
+2. Enforces `MinSecondsBetweenBets` per chat through Redis when available, with an in-memory fallback for a single-node deployment. The distributed marker has an explicit TTL.
 3. Debits stake, inserts a pending row.
 
 `DiceCubeService.ResolveAsync` on the user's 🎲:
@@ -365,7 +365,7 @@ Two-step game: `/dice bet <amount>` → `dicecube_bets` row → user (or bot) se
 
 Pending rows snapshot the multiplier in case the rule changes mid-flight (admin tuning).
 
-Config: `Mult4`, `Mult5`, `Mult6`, `MaxBet`, `DefaultBet`, `MinSecondsBetweenBets`, `RedeemDropChance`.
+Config: `Mult4`, `Mult5`, `Mult6`, `MaxBet`, `DefaultBet`, `MinSecondsBetweenBets`, `CooldownCacheTtlSeconds`, `RedeemDropChance`.
 
 ### Darts / football / basketball / bowling
 
@@ -1362,7 +1362,7 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 | `dice:Cost` | 🎰 slot spin stake (gas tax adds 0 at `Cost = 10`) |
 | `<game>:RedeemDropChance` | Chance per resolved sticker-game roll/throw to drop a `/redeem <uuid>` code for that same game (`0.02` = 2%) |
 | `dicecube:Mult4` / `Mult5` / `Mult6` | Pay multipliers for faces 4–6 on `/dice` 🎲 |
-| `dicecube:MaxBet`, `MinSecondsBetweenBets` | Stake cap and per-chat cooldown |
+| `dicecube:MaxBet`, `MinSecondsBetweenBets`, `CooldownCacheTtlSeconds` | Stake cap, per-chat cooldown and TTL of its Redis marker |
 | `darts:*`, `bowling:*`, `football:*`, `basketball:*` | `MaxBet`, `DefaultBet`, `RedeemDropChance` |
 | `horse:*` | See below |
 | `poker:BuyIn` | Buy-in per seat |
