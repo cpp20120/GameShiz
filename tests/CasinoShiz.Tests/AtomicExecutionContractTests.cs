@@ -4,6 +4,8 @@ using Games.Dice.Application.Execution;
 using Games.DiceCube.Application.Execution;
 using Games.Blackjack.Application.Execution;
 using Games.Basketball.Application.Execution;
+using Games.Bowling.Application.Execution;
+using Games.Football.Application.Execution;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -98,6 +100,36 @@ public sealed class AtomicExecutionContractTests
         Assert.DoesNotContain(typeof(IEconomicsService), dependencies);
         Assert.DoesNotContain(typeof(IDomainEventBus), dependencies);
         Assert.DoesNotContain(typeof(IAnalyticsService), dependencies);
+    }
+
+    [Fact]
+    public void BowlingService_OrchestratesOnlyThroughAtomicExecutors()
+    {
+        var dependencies = typeof(BowlingService).GetConstructors().Single().GetParameters()
+            .Select(parameter => parameter.ParameterType).ToArray();
+
+        Assert.Contains(typeof(IAtomicGameExecutor<BowlingPlaceBetCommand, BowlingBetState, BowlingBetResult>), dependencies);
+        Assert.Contains(typeof(IAtomicGameExecutor<BowlingRollCommand, BowlingBetState, BowlingRollResult>), dependencies);
+        Assert.Contains(typeof(IAtomicGameExecutor<BowlingAbortCommand, BowlingBetState, BowlingAbortResult>), dependencies);
+        Assert.DoesNotContain(typeof(IEconomicsService), dependencies);
+        Assert.DoesNotContain(typeof(IDomainEventBus), dependencies);
+        Assert.DoesNotContain(typeof(IAnalyticsService), dependencies);
+        Assert.DoesNotContain(typeof(ITelegramDiceDailyRollLimiter), dependencies);
+    }
+
+    [Fact]
+    public void FootballService_OrchestratesOnlyThroughAtomicExecutors()
+    {
+        var dependencies = typeof(FootballService).GetConstructors().Single().GetParameters()
+            .Select(parameter => parameter.ParameterType).ToArray();
+
+        Assert.Contains(typeof(IAtomicGameExecutor<FootballPlaceBetCommand, FootballBetState, FootballBetResult>), dependencies);
+        Assert.Contains(typeof(IAtomicGameExecutor<FootballThrowCommand, FootballBetState, FootballThrowResult>), dependencies);
+        Assert.Contains(typeof(IAtomicGameExecutor<FootballAbortCommand, FootballBetState, FootballAbortResult>), dependencies);
+        Assert.DoesNotContain(typeof(IEconomicsService), dependencies);
+        Assert.DoesNotContain(typeof(IDomainEventBus), dependencies);
+        Assert.DoesNotContain(typeof(IAnalyticsService), dependencies);
+        Assert.DoesNotContain(typeof(ITelegramDiceDailyRollLimiter), dependencies);
     }
 
     [Fact]

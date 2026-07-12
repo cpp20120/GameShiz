@@ -4,6 +4,8 @@ using Games.Dice.Infrastructure.Migrations;
 using Games.DiceCube.Infrastructure.Migrations;
 using Games.Blackjack.Infrastructure.Migrations;
 using Games.Basketball.Infrastructure.Migrations;
+using Games.Bowling.Infrastructure.Migrations;
+using Games.Football.Infrastructure.Migrations;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -42,6 +44,10 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
             await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
         foreach (var migration in new BasketballMigrations().Migrations)
             await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+        foreach (var migration in new BowlingMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+        foreach (var migration in new FootballMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
     }
 
     public async Task DisposeAsync() => await container.DisposeAsync().ConfigureAwait(false);
@@ -59,6 +65,8 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
                 dice_rolls,
                 dicecube_bets,
                 basketball_bets,
+                bowling_bets,
+                football_bets,
                 economics_ledger,
                 telegram_dice_daily_rolls,
                 mini_game_sessions,

@@ -1,174 +1,97 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// FootballService — bet, then resolve on Telegram's ⚽ dice (values 1–5).
-// Payout: 1–3 → x0, 4 → x2, 5 → x2. Uniform 1..5 ⇒ EV 0.8 of stake.
-// ─────────────────────────────────────────────────────────────────────────────
-
-
 using System.Globalization;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Football.Application.Execution;
 
 namespace Games.Football.Application.Services;
 
 public sealed class FootballService(
-    IEconomicsService economics,
-    IAnalyticsService analytics,
     IFootballBetStore bets,
-    IDomainEventBus events,
     IRuntimeTuningAccessor tuning,
     IMiniGameSessionGhostHeal ghostHeal,
-    ITelegramDiceDailyRollLimiter telegramDiceRolls,
+    IAtomicGameExecutor<FootballPlaceBetCommand, FootballBetState, FootballBetResult> placeExecutor,
+    IAtomicGameExecutor<FootballThrowCommand, FootballBetState, FootballThrowResult> throwExecutor,
+    IAtomicGameExecutor<FootballAbortCommand, FootballBetState, FootballAbortResult> abortExecutor,
     IMiniGameSessionStore? sessions = null) : IFootballService
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
-
-    public static readonly IReadOnlyDictionary<int, int> Multipliers = new Dictionary<int, int>
-    {
-        [1] = 0, [2] = 0, [3] = 0, [4] = 2, [5] = 2,
-    };
+    private FootballOptions Options => tuning.GetSection<FootballOptions>(FootballOptions.SectionName);
+    public static IReadOnlyDictionary<int, int> Multipliers => FootballRules.Multipliers;
 
     public Task<FootballBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, CancellationToken ct) =>
-        PlaceBetAsync(userId, displayName, chatId, amount, sourceMessageId: 0, ct);
+        PlaceBetAsync(userId, displayName, chatId, amount, 0, ct);
 
-    public async Task<FootballBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct)
+    public async Task<FootballBetResult> PlaceBetAsync(
+        long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct)
     {
-        var maxBet = tuning.GetSection<FootballOptions>(FootballOptions.SectionName).MaxBet;
-        if (amount <= 0 || amount > maxBet) return FootballBetResult.Fail(FootballBetError.InvalidAmount);
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-        if (amount > balance) return FootballBetResult.Fail(FootballBetError.NotEnoughCoins, balance);
-
-        var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
-            userId,
-            chatId,
-            MiniGameIds.Football,
-            async c =>
-            {
-                if (await bets.FindAsync(userId, chatId, c) == null)
+        var options = Options;
+        string? blocker = null;
+        var claimed = false;
+        if (amount > 0 && amount <= options.MaxBet)
+        {
+            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+                userId, chatId, MiniGameIds.Football,
+                async c =>
                 {
-                    BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-                    await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, c);
-                }
-            },
-            ghostHeal,
-            Sessions,
-            ct);
-        if (!session.Ok)
-            return new FootballBetResult(FootballBetError.BusyOtherGame, 0, balance, 0, session.Blocker, 0, 0);
-
-        var existing = await bets.FindAsync(userId, chatId, ct);
-        if (existing != null) return FootballBetResult.Fail(FootballBetError.AlreadyPending, balance, existing.Amount);
-
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Football, ct);
-        if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
-        {
-            return new FootballBetResult(
-                FootballBetError.DailyRollLimit, 0, balance, 0, BlockingGameId: null, gate.UsedToday, gate.Limit);
+                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) is null)
+                    {
+                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, c).ConfigureAwait(false);
+                    }
+                }, ghostHeal, Sessions, ct).ConfigureAwait(false);
+            claimed = session.Ok;
+            blocker = session.Ok ? null : session.Blocker;
         }
-
-        var betOperationId = string.Create(CultureInfo.InvariantCulture, $"football:bet:{chatId}:{sourceMessageId}:{userId}");
-        var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "football.bet", betOperationId, ct);
-        if (debit.Rejected)
+        var commandId = sourceMessageId != 0
+            ? $"football:bet:{chatId}:{sourceMessageId}:{userId}"
+            : $"football:bet:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await placeExecutor.ExecuteAsync(new(new(
+            userId, displayName, chatId, amount, commandId, options.MaxBet, blocker)), ct).ConfigureAwait(false);
+        if (result.Error == FootballBetError.None)
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Football, ct);
-            return FootballBetResult.Fail(FootballBetError.NotEnoughCoins, balance);
+            BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Football);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
         }
-
-        var createdAt = DateTimeOffset.UtcNow;
-        if (!await bets.InsertAsync(new FootballBet(userId, chatId, amount, createdAt), ct))
+        else if (claimed && result.Error != FootballBetError.AlreadyPending)
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Football, ct);
-            await economics.CreditOnceAsync(userId, chatId, amount, "football.bet.refund", $"{betOperationId}:insert-refund", ct);
-            return FootballBetResult.Fail(FootballBetError.AlreadyPending, balance);
+            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
         }
-
-        BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Football);
-        await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Football, ct);
-
-        analytics.Track("football", "bet", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount,
-        });
-
-        return new FootballBetResult(FootballBetError.None, amount, debit.NewBalance, 0, BlockingGameId: null, 0, 0);
+        return result;
     }
 
-    public async Task<FootballThrowResult> ThrowAsync(long userId, string displayName, long chatId, int face, CancellationToken ct)
+    public Task<FootballThrowResult> ThrowAsync(long userId, string displayName, long chatId, int face, CancellationToken ct) =>
+        ThrowAsync(userId, displayName, chatId, face, 0, ct);
+
+    public async Task<FootballThrowResult> ThrowAsync(
+        long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct)
     {
-        var bet = await bets.FindAsync(userId, chatId, ct);
-        if (bet == null) return new FootballThrowResult(FootballThrowOutcome.NoBet);
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var multiplier = Multipliers.TryGetValue(face, out var m) ? m : 0;
-        var payout = bet.Amount * multiplier;
-
-        if (payout > 0)
-            await economics.CreditOnceAsync(userId, chatId, payout, "football.payout", BuildBetOperationId(bet, "payout"), ct);
-
-        await bets.DeleteAsync(userId, chatId, ct);
-        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-
-        analytics.Track("football", "throw", new Dictionary<string, object?>
-(StringComparer.Ordinal)
+        var commandId = sourceMessageId != 0
+            ? $"football:throw:{chatId}:{sourceMessageId}:{userId}"
+            : $"football:throw:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await throwExecutor.ExecuteAsync(new(new(
+            userId, displayName, chatId, face, commandId, Options.RedeemDropChance)), ct).ConfigureAwait(false);
+        if (result.Outcome == FootballThrowOutcome.Thrown)
         {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
-            ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
-        });
-
-        var football = tuning.GetSection<FootballOptions>(FootballOptions.SectionName);
-        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await events.PublishAsync(
-            new FootballThrowCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
-            ct);
-        await events.PublishAsync(
-            new GameCompletedMetaEvent(
-                ChatId: chatId,
-                UserId: userId,
-                DisplayName: displayName,
-                GameKey: MiniGameIds.Football,
-                Stake: bet.Amount,
-                Payout: payout,
-                IsWin: payout > bet.Amount,
-                Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
-                OccurredAt: occurredAt),
-            ct);
-        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
-            events, football.RedeemDropChance, userId, chatId, MiniGameIds.Football, occurredAt, ct);
-
-        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.Football, ct);
-        return new FootballThrowResult(
-            FootballThrowOutcome.Thrown,
-            face,
-            bet.Amount,
-            multiplier,
-            payout,
-            balance,
-            daily.UsedToday,
-            daily.Limit);
+            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
+        }
+        return result;
     }
 
-    public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct)
+    public Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct) =>
+        AbortPendingBetAfterSendDiceFailedAsync(
+            userId, string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}"), chatId, 0, ct);
+
+    public async Task AbortPendingBetAfterSendDiceFailedAsync(
+        long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct)
     {
-        var bet = await bets.FindAsync(userId, chatId, ct);
-        if (bet == null) return;
-
-        await economics.CreditOnceAsync(userId, chatId, bet.Amount, "football.send_dice_failed", BuildBetOperationId(bet, "send-dice-failed"), ct);
-        await bets.DeleteAsync(userId, chatId, ct);
+        var commandId = sourceMessageId != 0
+            ? $"football:abort:{chatId}:{sourceMessageId}:{userId}"
+            : $"football:abort:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await abortExecutor.ExecuteAsync(new(new(userId, displayName, chatId, commandId)), ct).ConfigureAwait(false);
+        if (!result.Aborted) return;
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct);
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Football, ct);
-
-        analytics.Track("football", "bet_aborted", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId,
-            ["chat_id"] = chatId,
-            ["amount"] = bet.Amount,
-        });
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
     }
-
-    private static string BuildBetOperationId(FootballBet bet, string action) =>
-        $"football:{action}:{bet.UserId}:{bet.ChatId}:{bet.CreatedAt.ToUnixTimeMilliseconds()}";
 }

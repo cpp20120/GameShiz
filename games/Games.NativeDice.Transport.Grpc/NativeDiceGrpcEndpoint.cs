@@ -68,13 +68,19 @@ public sealed class NativeDiceGrpcEndpoint(
     public override async Task<ContractReply> FootballThrow(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<RollCall>();
-        return NativeDiceWireCodec.Reply(await football.ThrowAsync(x.UserId, x.DisplayName, x.ChatId, x.Face, context.CancellationToken));
+        return NativeDiceWireCodec.Reply(await football.ThrowAsync(
+            x.UserId, x.DisplayName, x.ChatId, x.Face, x.SourceMessageId, context.CancellationToken));
     }
 
     public override async Task<ContractReply> FootballAbort(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<AbortCall>();
-        await football.AbortPendingBetAfterSendDiceFailedAsync(x.UserId, x.ChatId, context.CancellationToken);
+        await football.AbortPendingBetAfterSendDiceFailedAsync(
+            x.UserId,
+            string.IsNullOrWhiteSpace(x.DisplayName) ? $"User ID: {x.UserId}" : x.DisplayName,
+            x.ChatId,
+            x.SourceMessageId,
+            context.CancellationToken);
         return NativeDiceWireCodec.Reply(new EmptyReply());
     }
 
@@ -117,13 +123,19 @@ public sealed class NativeDiceGrpcEndpoint(
     public override async Task<ContractReply> BowlingRoll(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<RollCall>();
-        return NativeDiceWireCodec.Reply(await bowling.RollAsync(x.UserId, x.DisplayName, x.ChatId, x.Face, context.CancellationToken));
+        return NativeDiceWireCodec.Reply(await bowling.RollAsync(
+            x.UserId, x.DisplayName, x.ChatId, x.Face, x.SourceMessageId, context.CancellationToken));
     }
 
     public override async Task<ContractReply> BowlingAbort(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<AbortCall>();
-        await bowling.AbortPendingBetAfterSendDiceFailedAsync(x.UserId, x.ChatId, context.CancellationToken);
+        await bowling.AbortPendingBetAfterSendDiceFailedAsync(
+            x.UserId,
+            string.IsNullOrWhiteSpace(x.DisplayName) ? $"User ID: {x.UserId}" : x.DisplayName,
+            x.ChatId,
+            x.SourceMessageId,
+            context.CancellationToken);
         return NativeDiceWireCodec.Reply(new EmptyReply());
     }
 }

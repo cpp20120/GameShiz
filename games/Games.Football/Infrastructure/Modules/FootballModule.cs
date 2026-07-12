@@ -1,6 +1,10 @@
 
 namespace Games.Football.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Football.Application.Execution;
+
 public sealed class FootballModule : IModule
 {
     public string Id => "football";
@@ -12,6 +16,15 @@ public sealed class FootballModule : IModule
         services
             .BindOptions<FootballOptions>(FootballOptions.SectionName)
             .AddScoped<IFootballService, FootballService>()
+            .AddScoped<IGameAction<FootballPlaceBetCommand, FootballBetState, FootballBetResult>, FootballPlaceBetAction>()
+            .AddScoped<GameExecutionDescriptor<FootballPlaceBetCommand, FootballBetState, FootballBetResult>, FootballPlaceBetDescriptor>()
+            .AddScoped<IGameStateStore<FootballPlaceBetCommand, FootballBetState>, FootballBetStateStore>()
+            .AddScoped<IGameAction<FootballThrowCommand, FootballBetState, FootballThrowResult>, FootballThrowAction>()
+            .AddScoped<GameExecutionDescriptor<FootballThrowCommand, FootballBetState, FootballThrowResult>, FootballThrowDescriptor>()
+            .AddScoped<IGameStateStore<FootballThrowCommand, FootballBetState>, FootballBetStateStore>()
+            .AddScoped<IGameAction<FootballAbortCommand, FootballBetState, FootballAbortResult>, FootballAbortAction>()
+            .AddScoped<GameExecutionDescriptor<FootballAbortCommand, FootballBetState, FootballAbortResult>, FootballAbortDescriptor>()
+            .AddScoped<IGameStateStore<FootballAbortCommand, FootballBetState>, FootballBetStateStore>()
             .AddScoped<IFootballBetStore, FootballBetStore>();
     }
 

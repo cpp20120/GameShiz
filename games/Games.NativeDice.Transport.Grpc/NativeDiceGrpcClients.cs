@@ -61,9 +61,14 @@ public sealed class GrpcFootballService(NativeDiceApi.NativeDiceApiClient client
     public async Task<FootballBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct) =>
         (await client.FootballPlaceBetAsync(NativeDiceWireCodec.Call(new BetCall(userId, displayName, chatId, amount, sourceMessageId)), cancellationToken: ct)).Read<FootballBetResult>();
     public async Task<FootballThrowResult> ThrowAsync(long userId, string displayName, long chatId, int face, CancellationToken ct) =>
-        (await client.FootballThrowAsync(NativeDiceWireCodec.Call(new RollCall(userId, displayName, chatId, face)), cancellationToken: ct)).Read<FootballThrowResult>();
+        await ThrowAsync(userId, displayName, chatId, face, 0, ct);
+    public async Task<FootballThrowResult> ThrowAsync(long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct) =>
+        (await client.FootballThrowAsync(NativeDiceWireCodec.Call(new RollCall(userId, displayName, chatId, face, sourceMessageId)), cancellationToken: ct)).Read<FootballThrowResult>();
     public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct) =>
         _ = await client.FootballAbortAsync(NativeDiceWireCodec.Call(new AbortCall(userId, chatId)), cancellationToken: ct);
+    public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct) =>
+        _ = await client.FootballAbortAsync(
+            NativeDiceWireCodec.Call(new AbortCall(userId, chatId, displayName, sourceMessageId)), cancellationToken: ct);
 }
 
 public sealed class GrpcBasketballService(NativeDiceApi.NativeDiceApiClient client) : IBasketballService
@@ -89,7 +94,12 @@ public sealed class GrpcBowlingService(NativeDiceApi.NativeDiceApiClient client)
     public async Task<BowlingBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct) =>
         (await client.BowlingPlaceBetAsync(NativeDiceWireCodec.Call(new BetCall(userId, displayName, chatId, amount, sourceMessageId)), cancellationToken: ct)).Read<BowlingBetResult>();
     public async Task<BowlingRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct) =>
-        (await client.BowlingRollAsync(NativeDiceWireCodec.Call(new RollCall(userId, displayName, chatId, face)), cancellationToken: ct)).Read<BowlingRollResult>();
+        await RollAsync(userId, displayName, chatId, face, 0, ct);
+    public async Task<BowlingRollResult> RollAsync(long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct) =>
+        (await client.BowlingRollAsync(NativeDiceWireCodec.Call(new RollCall(userId, displayName, chatId, face, sourceMessageId)), cancellationToken: ct)).Read<BowlingRollResult>();
     public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct) =>
         _ = await client.BowlingAbortAsync(NativeDiceWireCodec.Call(new AbortCall(userId, chatId)), cancellationToken: ct);
+    public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct) =>
+        _ = await client.BowlingAbortAsync(
+            NativeDiceWireCodec.Call(new AbortCall(userId, chatId, displayName, sourceMessageId)), cancellationToken: ct);
 }

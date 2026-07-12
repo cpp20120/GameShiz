@@ -1,6 +1,10 @@
 
 namespace Games.Bowling.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Bowling.Application.Execution;
+
 public sealed class BowlingModule : IModule
 {
     public string Id => "bowling";
@@ -12,6 +16,15 @@ public sealed class BowlingModule : IModule
         services
             .BindOptions<BowlingOptions>(BowlingOptions.SectionName)
             .AddScoped<IBowlingService, BowlingService>()
+            .AddScoped<IGameAction<BowlingPlaceBetCommand, BowlingBetState, BowlingBetResult>, BowlingPlaceBetAction>()
+            .AddScoped<GameExecutionDescriptor<BowlingPlaceBetCommand, BowlingBetState, BowlingBetResult>, BowlingPlaceBetDescriptor>()
+            .AddScoped<IGameStateStore<BowlingPlaceBetCommand, BowlingBetState>, BowlingBetStateStore>()
+            .AddScoped<IGameAction<BowlingRollCommand, BowlingBetState, BowlingRollResult>, BowlingRollAction>()
+            .AddScoped<GameExecutionDescriptor<BowlingRollCommand, BowlingBetState, BowlingRollResult>, BowlingRollDescriptor>()
+            .AddScoped<IGameStateStore<BowlingRollCommand, BowlingBetState>, BowlingBetStateStore>()
+            .AddScoped<IGameAction<BowlingAbortCommand, BowlingBetState, BowlingAbortResult>, BowlingAbortAction>()
+            .AddScoped<GameExecutionDescriptor<BowlingAbortCommand, BowlingBetState, BowlingAbortResult>, BowlingAbortDescriptor>()
+            .AddScoped<IGameStateStore<BowlingAbortCommand, BowlingBetState>, BowlingBetStateStore>()
             .AddScoped<IBowlingBetStore, BowlingBetStore>();
     }
 

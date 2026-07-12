@@ -12,7 +12,9 @@ public interface IBowlingService
 {
     Task<BowlingBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct);
     Task<BowlingRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct);
+    Task<BowlingRollResult> RollAsync(long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct);
 
     /// <summary>Refund and clear pending bet when bot cannot complete SendMessage/SendDice after debit.</summary>
     Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct);
+    Task AbortPendingBetAfterSendDiceFailedAsync(long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct);
 }
