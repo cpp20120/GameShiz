@@ -1,6 +1,11 @@
 
 namespace Games.DiceCube.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.DiceCube.Application.Execution;
+using Games.DiceCube.Infrastructure.Persistence;
+
 public sealed class DiceCubeModule : IModule
 {
     public string Id => "dicecube";
@@ -12,6 +17,15 @@ public sealed class DiceCubeModule : IModule
         services
             .BindOptions<DiceCubeOptions>(DiceCubeOptions.SectionName)
             .AddScoped<IDiceCubeService, DiceCubeService>()
+            .AddScoped<IGameAction<DiceCubePlaceBetCommand, DiceCubePlaceBetState, CubeBetResult>, DiceCubePlaceBetAction>()
+            .AddScoped<GameExecutionDescriptor<DiceCubePlaceBetCommand, DiceCubePlaceBetState, CubeBetResult>, DiceCubePlaceBetDescriptor>()
+            .AddScoped<IGameStateStore<DiceCubePlaceBetCommand, DiceCubePlaceBetState>, DiceCubeBetStateStore>()
+            .AddScoped<IGameAction<DiceCubeRollCommand, DiceCubePlaceBetState, CubeRollResult>, DiceCubeRollAction>()
+            .AddScoped<GameExecutionDescriptor<DiceCubeRollCommand, DiceCubePlaceBetState, CubeRollResult>, DiceCubeRollDescriptor>()
+            .AddScoped<IGameStateStore<DiceCubeRollCommand, DiceCubePlaceBetState>, DiceCubeBetStateStore>()
+            .AddScoped<IGameAction<DiceCubeAbortCommand, DiceCubePlaceBetState, DiceCubeAbortResult>, DiceCubeAbortAction>()
+            .AddScoped<GameExecutionDescriptor<DiceCubeAbortCommand, DiceCubePlaceBetState, DiceCubeAbortResult>, DiceCubeAbortDescriptor>()
+            .AddScoped<IGameStateStore<DiceCubeAbortCommand, DiceCubePlaceBetState>, DiceCubeBetStateStore>()
             .AddScoped<IDiceCubeBetStore, DiceCubeBetStore>();
     }
 

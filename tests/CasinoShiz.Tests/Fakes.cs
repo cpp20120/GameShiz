@@ -262,48 +262,6 @@ sealed class NullEventBus : IDomainEventBus
     public void Subscribe(string eventTypePattern, IDomainEventSubscriber subscriber) { }
 }
 
-sealed class NullDiceHistoryStore : IDiceHistoryStore
-{
-    public Task AppendAsync(DiceRoll roll, CancellationToken ct) => Task.CompletedTask;
-}
-
-sealed class InMemoryBlackjackHandStore : IBlackjackHandStore
-{
-    private readonly Dictionary<long, BlackjackHandRow> _hands = new();
-
-    public Task<BlackjackHandRow?> FindAsync(long userId, CancellationToken ct) =>
-        Task.FromResult(_hands.GetValueOrDefault(userId));
-
-    public Task<bool> InsertAsync(BlackjackHandRow hand, CancellationToken ct)
-    {
-        if (_hands.ContainsKey(hand.UserId)) return Task.FromResult(false);
-        _hands[hand.UserId] = hand;
-        return Task.FromResult(true);
-    }
-
-    public Task UpdateAsync(BlackjackHandRow hand, CancellationToken ct)
-    {
-        _hands[hand.UserId] = hand;
-        return Task.CompletedTask;
-    }
-
-    public Task DeleteAsync(long userId, CancellationToken ct)
-    {
-        _hands.Remove(userId);
-        return Task.CompletedTask;
-    }
-
-    public Task<IReadOnlyList<long>> ListStuckUserIdsAsync(DateTimeOffset cutoff, CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<long>>([.. _hands.Keys]);
-
-    public Task SetStateMessageIdAsync(long userId, int messageId, CancellationToken ct)
-    {
-        if (_hands.TryGetValue(userId, out var h))
-            _hands[userId] = h with { StateMessageId = messageId };
-        return Task.CompletedTask;
-    }
-}
-
 sealed class InMemoryBasketballBetStore : IBasketballBetStore
 {
     private readonly Dictionary<(long, long), BasketballBet> _bets = new();
@@ -511,12 +469,15 @@ sealed class InMemoryLeaderboardStore : ILeaderboardStore
 {
     private readonly List<(long UserId, long ScopeId, string Name, int Coins, long UpdatedAtMs)> _users = [];
 
+    public int ListActiveCallCount { get; private set; }
+
     public void Seed(long userId, long scopeId, string name, int coins, long updatedAtMs) =>
         _users.Add((userId, scopeId, name, coins, updatedAtMs));
 
     public Task<IReadOnlyList<LeaderboardUser>> ListActiveAsync(
         long sinceUnixMs, long balanceScopeId, CancellationToken ct)
     {
+        ListActiveCallCount++;
         var active = _users
             .Where(u => u.ScopeId == balanceScopeId && u.UpdatedAtMs >= sinceUnixMs)
             .OrderByDescending(u => u.Coins)

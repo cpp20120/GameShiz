@@ -4,7 +4,18 @@
 <header><h1>🎰 CasinoShiz</h1><nav>
 <a href="/admin" class="@(Context.Request.Path.Equals("/admin") ? "active" : "")">Dashboard</a>
 <a href="/admin/people" class="@(Context.Request.Path.StartsWithSegments("/admin/people") ? "active" : "")">People</a>
+<a href="/admin/groups" class="@(Context.Request.Path.StartsWithSegments("/admin/groups") ? "active" : "")">Chats</a>
 <a href="/admin/users" class="@(Context.Request.Path.StartsWithSegments("/admin/users") ? "active" : "")">Wallets</a>
+<a href="/admin/bets" class="@(Context.Request.Path.StartsWithSegments("/admin/bets") ? "active" : "")">Bets</a>
+<a href="/admin/challenges" class="@(Context.Request.Path.StartsWithSegments("/admin/challenges") ? "active" : "")">1v1</a>
+<a href="/admin/ledger" class="@(Context.Request.Path.StartsWithSegments("/admin/ledger") ? "active" : "")">Ledger</a>
+<a href="/admin/history" class="@(Context.Request.Path.StartsWithSegments("/admin/history") ? "active" : "")">History</a>
+<a href="/admin/settings" class="@(Context.Request.Path.StartsWithSegments("/admin/settings") ? "active" : "")">Settings</a>
+<a href="/admin/meta" class="@(Context.Request.Path.StartsWithSegments("/admin/meta") ? "active" : "")">Meta</a>
+<a href="/admin/horse" class="@(Context.Request.Path.StartsWithSegments("/admin/horse") ? "active" : "")">Horse</a>
+<a href="/admin/events" class="@(Context.Request.Path.StartsWithSegments("/admin/events") ? "active" : "")">Events</a>
 <a href="/admin/recovery" class="@(Context.Request.Path.StartsWithSegments("/admin/recovery") ? "active" : "")">Recovery</a>
+<a href="/admin/game-availability" class="@(Context.Request.Path.StartsWithSegments("/admin/game-availability") ? "active" : "")">Availability</a>
+<a href="/admin/operator-tools" class="@(Context.Request.Path.StartsWithSegments("/admin/operator-tools") ? "active" : "")">Tools</a>
 <a href="/admin/audit" class="@(Context.Request.Path.StartsWithSegments("/admin/audit") ? "active" : "")">Audit</a>
 </nav><div class="header-right"><a href="/admin/logout">Logout</a></div></header><main>@RenderBody()</main></body></html>

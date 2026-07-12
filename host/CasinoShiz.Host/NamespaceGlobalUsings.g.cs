@@ -81,7 +81,6 @@ global using Games.Basketball.Infrastructure.Models;
 global using Games.Basketball.Infrastructure.Modules;
 global using Games.Basketball.Infrastructure.Persistence;
 global using Games.Blackjack.Application.Handlers;
-global using Games.Blackjack.Application.Jobs;
 global using Games.Blackjack.Application.Services;
 global using Games.Blackjack.Domain.Configuration;
 global using Games.Blackjack.Domain.Events;

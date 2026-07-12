@@ -1,0 +1,23 @@
+@page "/admin/game-availability"
+@model GameAvailabilityModel
+@{ ViewData["Title"] = "Game availability"; }
+<h1>Game availability</h1>
+<p>Chat overrides take precedence over <code>Games:&lt;game-id&gt;:Enabled</code>. The backend checks the authoritative value.</p>
+@if (TempData["flash"] is string flash) { <p class="ok">@flash</p> }
+@if (TempData["error-message"] is string message) { <p class="error">@message</p> }
+@if (Model.Error is not null) { <p class="error">@Model.Error</p> }
+<form method="get"><label>Chat ID <input asp-for="ChatId" /></label><button>Filter</button></form>
+@if (Model.CanMutate) {
+<form method="post">
+  <label>Chat ID <input asp-for="ChatId" required /></label>
+  <label>Game ID <input asp-for="GameId" required /></label>
+  <label><input asp-for="Enabled" /> Enabled</label>
+  <label>Reason <input asp-for="Reason" required maxlength="500" /></label>
+  <button>Save override</button>
+</form>
+}
+<table><tr><th>Chat</th><th>Game</th><th>State</th><th>Reason</th><th>Actor</th><th>Changed</th></tr>
+@foreach (var item in Model.Overrides) {
+<tr><td>@item.ChatId</td><td>@item.GameId</td><td>@(item.Enabled ? "enabled" : "disabled")</td>
+<td>@item.Reason</td><td>@item.ChangedBy</td><td>@item.ChangedAt</td></tr>
+}</table>

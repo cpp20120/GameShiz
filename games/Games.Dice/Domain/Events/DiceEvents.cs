@@ -19,3 +19,14 @@ public sealed record DiceRollCompleted(
 {
     public string EventType => "dice.roll_completed";
 }
+
+public sealed record DiceRollRejected(
+    long ChatId,
+    long UserId,
+    int DiceValue,
+    string Reason,
+    int Loss,
+    long OccurredAt) : IDomainEvent
+{
+    public string EventType => "dice.roll_rejected";
+}

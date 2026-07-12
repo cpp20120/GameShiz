@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+
+
+
     <RootNamespace>BotFramework.Telegram</RootNamespace>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
     <NuGetAuditMode>direct</NuGetAuditMode>
@@ -17,10 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.1.79" />
-    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
-    <PackageReference Include="StackExchange.Redis" Version="3.0.7" />
-    <PackageReference Include="DotNetCore.CAP" Version="10.0.1" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Telegram.Bot" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="DotNetCore.CAP" />
   </ItemGroup>
 
   <ItemGroup>

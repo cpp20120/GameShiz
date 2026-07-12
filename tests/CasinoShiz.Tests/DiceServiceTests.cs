@@ -1,240 +1,62 @@
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Dice.Application.Execution;
 using Xunit;
 
 namespace CasinoShiz.Tests;
 
-// Telegram slot-machine dice values are base-4 packed triples:
-//   value 1  → [0,0,0] = three bars  → prize 21
-//   value 22 → [1,1,1] = three cherries → prize 23
-//   value 43 → [2,2,2] = three lemons → prize 30
-//   value 64 → [3,3,3] = three sevens → prize 77
-public class DiceServiceTests
+public sealed class DiceServiceTests
 {
-    private static DiceService MakeService(
-        FakeEconomicsService? economics = null,
-        int cost = 7,
-        ITelegramDiceDailyRollLimiter? limiter = null,
-        NullEventBus? bus = null,
-        double redeemDropChance = 0) =>
-        new(
-            economics ?? new FakeEconomicsService(),
-            new NullAnalyticsService(),
-            new NullDiceHistoryStore(),
-            bus ?? new NullEventBus(),
-            limiter ?? new NullTelegramDiceDailyRollLimiter(),
-            new FakeRuntimeTuning { Dice = new DiceOptions { Cost = cost, RedeemDropChance = redeemDropChance } });
-
     [Fact]
-    public async Task PlayAsync_ForwardedMessage_ReturnsForwarded()
+    public async Task PlayAsync_ForwardedMessage_DoesNotEnterExecutor()
     {
-        var svc = MakeService();
-        var result = await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: true, ct: default);
+        var executor = new RecordingExecutor(new DicePlayResult(DiceOutcome.Played));
+        var service = new DiceService(executor, new FakeRuntimeTuning());
+
+        var result = await service.PlayAsync(1, "u", 64, 100, 1, true, default);
+
         Assert.Equal(DiceOutcome.Forwarded, result.Outcome);
+        Assert.Null(executor.Envelope);
     }
 
     [Fact]
-    public async Task PlayAsync_ForwardedMessage_NoDebit()
+    public async Task PlayAsync_MapsExistingArgumentsToAtomicCommand()
     {
-        var econ = new FakeEconomicsService();
-        var svc = MakeService(econ);
-        await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: true, ct: default);
-        Assert.Empty(econ.Debits);
-    }
-
-    [Fact]
-    public async Task PlayAsync_InsufficientBalance_ReturnsNotEnoughCoins()
-    {
-        var econ = new FakeEconomicsService { StartingBalance = 0 };
-        var svc = MakeService(econ);
-        var result = await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(DiceOutcome.NotEnoughCoins, result.Outcome);
-    }
-
-    [Fact]
-    public async Task PlayAsync_DailyRollLimit_ReturnsLimitExceeded()
-    {
-        var svc = MakeService(limiter: new RejectingTelegramDiceDailyRollLimiter());
-        var result = await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(DiceOutcome.DailyRollLimitExceeded, result.Outcome);
-        Assert.Equal(3, result.DailyDiceUsed);
-        Assert.Equal(10, result.DailyDiceLimit);
-    }
-
-    [Fact]
-    public async Task DailyRollLimit_IsTrackedIndependentlyPerGame()
-    {
-        BotMiniGameSession.DangerousResetAllForTests();
-        try
+        var expected = new DicePlayResult(DiceOutcome.Played, 77, 8, 169, 1, 2, 10);
+        var executor = new RecordingExecutor(expected);
+        var tuning = new FakeRuntimeTuning
         {
-            var limiter = new GameScopedTelegramDiceDailyRollLimiter(maxRollsPerGame: 1);
-            var economics = new FakeEconomicsService();
-            var dice = MakeService(economics, limiter: limiter);
-            var basketball = new BasketballService(
-                economics,
-                new NullAnalyticsService(),
-                new InMemoryBasketballBetStore(),
-                new NullEventBus(),
-                new FakeRuntimeTuning(),
-                new NullMiniGameSessionGhostHeal(),
-                limiter);
+            Dice = new DiceOptions { Cost = 7, RedeemDropChance = 0.25 },
+        };
+        var service = new DiceService(executor, tuning);
 
-            var firstDice = await dice.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-            var secondDice = await dice.PlayAsync(1, "u", 64, 100, sourceMessageId: 2, isForwarded: false, ct: default);
-            var basketballBet = await basketball.PlaceBetAsync(1, "u", 100, 10, default);
+        var result = await service.PlayAsync(42, "player", 64, -100, 99, false, default);
 
-            Assert.Equal(DiceOutcome.Played, firstDice.Outcome);
-            Assert.Equal(DiceOutcome.DailyRollLimitExceeded, secondDice.Outcome);
-            Assert.Equal(BasketballBetError.None, basketballBet.Error);
-        }
-        finally
+        Assert.Equal(expected, result);
+        var command = Assert.IsType<DiceCommand>(executor.Envelope?.Command);
+        Assert.Equal(42, command.UserId);
+        Assert.Equal("player", command.DisplayName);
+        Assert.Equal(64, command.DiceValue);
+        Assert.Equal(-100, command.ChatId);
+        Assert.Equal(99, command.SourceMessageId);
+        Assert.Equal(7, command.Cost);
+        Assert.Equal(0.25, command.RedeemDropChance);
+        Assert.False(command.IsForwarded);
+    }
+
+    private sealed class RecordingExecutor(DicePlayResult result)
+        : IAtomicGameExecutor<DiceCommand, NoGameState, DicePlayResult>
+    {
+        public Type StateType => typeof(NoGameState);
+
+        public GameExecutionEnvelope<DiceCommand>? Envelope { get; private set; }
+
+        public Task<DicePlayResult> ExecuteAsync(
+            GameExecutionEnvelope<DiceCommand> envelope,
+            CancellationToken ct)
         {
-            BotMiniGameSession.DangerousResetAllForTests();
+            Envelope = envelope;
+            return Task.FromResult(result);
         }
-    }
-
-    [Fact]
-    public async Task PlayAsync_InsufficientBalance_RefundsConsumedRoll()
-    {
-        var recording = new RecordingTelegramDiceDailyRollLimiter();
-        var econ = new FakeEconomicsService { StartingBalance = 0 };
-        var svc = MakeService(econ, limiter: recording);
-        await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(1, recording.RefundCount);
-    }
-
-    [Fact]
-    public async Task PlayAsync_TripleSeven_Returns77Prize()
-    {
-        var svc = MakeService();
-        // value 64 decodes to [3,3,3] = three sevens
-        var result = await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(DiceOutcome.Played, result.Outcome);
-        Assert.Equal(77, result.Prize);
-    }
-
-    [Fact]
-    public async Task PlayAsync_TripleBar_Returns21Prize()
-    {
-        var svc = MakeService();
-        // value 1 decodes to [0,0,0] = three bars
-        var result = await svc.PlayAsync(1, "u", 1, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(DiceOutcome.Played, result.Outcome);
-        Assert.Equal(21, result.Prize);
-    }
-
-    [Fact]
-    public async Task PlayAsync_TripleCherry_Returns23Prize()
-    {
-        var svc = MakeService();
-        // value 22 decodes to [1,1,1] = three cherries
-        var result = await svc.PlayAsync(1, "u", 22, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(DiceOutcome.Played, result.Outcome);
-        Assert.Equal(23, result.Prize);
-    }
-
-    [Fact]
-    public async Task PlayAsync_TripleLemon_Returns30Prize()
-    {
-        var svc = MakeService();
-        // value 43 decodes to [2,2,2] = three lemons
-        var result = await svc.PlayAsync(1, "u", 43, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Equal(DiceOutcome.Played, result.Outcome);
-        Assert.Equal(30, result.Prize);
-    }
-
-    [Fact]
-    public async Task PlayAsync_ValidRoll_DebitsStakeAndGas()
-    {
-        var econ = new FakeEconomicsService();
-        var svc = MakeService(econ, cost: 7);
-        await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Single(econ.Debits);
-        // loss = cost + gas; gas for cost=7 (< 10) is at least 1
-        Assert.True(econ.Debits[0].Amount >= 8);
-    }
-
-    [Fact]
-    public async Task PlayAsync_WinningRoll_CreditsPrize()
-    {
-        var econ = new FakeEconomicsService();
-        var svc = MakeService(econ);
-        // three sevens always wins
-        await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-        Assert.Single(econ.Credits);
-        Assert.Equal(77, econ.Credits[0].Amount);
-    }
-
-    [Fact]
-    public async Task PlayAsync_RedeemDropChanceOne_PublishesDropRequest()
-    {
-        var bus = new NullEventBus();
-        var svc = MakeService(bus: bus, redeemDropChance: 1);
-
-        await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-
-        Assert.Contains(bus.Published, ev =>
-            ev is TelegramMiniGameRedeemCodeDropRequested
-            {
-                UserId: 1,
-                ChatId: 100,
-                GameId: MiniGameIds.Dice,
-            });
-    }
-
-    [Fact]
-    public async Task PlayAsync_RedeemDropChanceZero_DoesNotPublishDropRequest()
-    {
-        var bus = new NullEventBus();
-        var svc = MakeService(bus: bus, redeemDropChance: 0);
-
-        await svc.PlayAsync(1, "u", 64, 100, sourceMessageId: 1, isForwarded: false, ct: default);
-
-        Assert.DoesNotContain(bus.Published, ev => ev is TelegramMiniGameRedeemCodeDropRequested);
-    }
-
-    [Theory]
-    [InlineData(16, 17)] // seven, seven, bar
-    [InlineData(11, 11)] // lemon, lemon, bar
-    [InlineData(6, 7)]   // cherry, cherry, bar
-    [InlineData(37, 1)]  // bar, cherry, lemon
-    public async Task PlayAsync_CoversRemainingPayoutShapes(int diceValue, int expectedPrize)
-    {
-        var result = await MakeService().PlayAsync(
-            1, "u", diceValue, 100, sourceMessageId: diceValue, isForwarded: false, ct: default);
-        Assert.Equal(expectedPrize, result.Prize);
-    }
-
-    [Fact]
-    public async Task PlayAsync_PublishesDiceAndMetaEvents()
-    {
-        var bus = new NullEventBus();
-        var result = await MakeService(bus: bus).PlayAsync(
-            1, "player", 64, 100, sourceMessageId: 99, isForwarded: false, ct: default);
-
-        var dice = Assert.Single(bus.Published.OfType<DiceRollCompleted>());
-        Assert.Equal(result.Prize, dice.Prize);
-        var meta = Assert.Single(bus.Published.OfType<GameCompletedMetaEvent>());
-        Assert.Equal(MiniGameIds.Dice, meta.GameKey);
-        Assert.Equal("player", meta.DisplayName);
-    }
-
-    [Fact]
-    public async Task PlayAsync_TracksForwardedInsufficientAndSuccessAnalytics()
-    {
-        var analytics = new RecordingAnalyticsService();
-        var service = new DiceService(
-            new FakeEconomicsService(), analytics, new NullDiceHistoryStore(), new NullEventBus(),
-            new NullTelegramDiceDailyRollLimiter(), new FakeRuntimeTuning());
-        await service.PlayAsync(1, "u", 1, 100, 1, true, default);
-        await service.PlayAsync(1, "u", 64, 100, 2, false, default);
-
-        var poorAnalytics = new RecordingAnalyticsService();
-        var poorService = new DiceService(
-            new FakeEconomicsService { StartingBalance = 0 }, poorAnalytics, new NullDiceHistoryStore(),
-            new NullEventBus(), new NullTelegramDiceDailyRollLimiter(), new FakeRuntimeTuning());
-        await poorService.PlayAsync(2, "poor", 1, 100, 3, false, default);
-
-        Assert.Contains(analytics.Events, x => x.EventName == "forwarded");
-        Assert.Contains(analytics.Events, x => x.EventName == "success");
-        Assert.Contains(poorAnalytics.Events, x => x.EventName == "not_enough_coins");
     }
 }

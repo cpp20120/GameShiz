@@ -6,6 +6,9 @@
 
 
 using System.Globalization;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Darts.Application.Execution;
 
 namespace Games.Darts.Application.Services;
 
@@ -18,7 +21,9 @@ public sealed class DartsService(
     IDartsRollQueue rollQueue,
     IRuntimeTuningAccessor tuning,
     ITelegramDiceDailyRollLimiter telegramDiceRolls,
-    IMiniGameSessionStore? sessions = null) : IDartsService
+    IMiniGameSessionStore? sessions = null,
+    IAtomicGameExecutor<DartsQuickThrowCommand, NoGameState, DartsThrowResult>? quickThrowExecutor = null)
+    : IDartsService
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
 
@@ -202,7 +207,75 @@ BotMessageId: null,
     /// Quick-play path: place a bet for <paramref name="amount"/> and immediately settle it using
     /// the face value from the user's own thrown sticker.  No queue, no bot dice involved.
     /// </summary>
-    public async Task<DartsThrowResult> QuickThrowAsync(
+    public Task<DartsThrowResult> QuickThrowAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int diceMessageId,
+        int face,
+        int amount,
+        CancellationToken ct) =>
+        quickThrowExecutor is null
+            ? QuickThrowLegacyAsync(userId, displayName, chatId, diceMessageId, face, amount, ct)
+            : QuickThrowAtomicAsync(userId, displayName, chatId, diceMessageId, face, amount, ct);
+
+    private async Task<DartsThrowResult> QuickThrowAtomicAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int diceMessageId,
+        int face,
+        int amount,
+        CancellationToken ct)
+    {
+        var options = tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
+        string? blocker = null;
+        if (amount > 0 && amount <= options.MaxBet)
+        {
+            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+                userId,
+                chatId,
+                MiniGameIds.Darts,
+                async c =>
+                {
+                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, c).ConfigureAwait(false) == 0)
+                    {
+                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, c)
+                            .ConfigureAwait(false);
+                    }
+                },
+                ghostHeal,
+                Sessions,
+                ct).ConfigureAwait(false);
+            if (!session.Ok) blocker = session.Blocker;
+        }
+
+        var result = await quickThrowExecutor!
+            .ExecuteAsync(
+                new GameExecutionEnvelope<DartsQuickThrowCommand>(
+                    new DartsQuickThrowCommand(
+                        userId,
+                        displayName,
+                        chatId,
+                        diceMessageId,
+                        face,
+                        amount,
+                        options.MaxBet,
+                        options.RedeemDropChance,
+                        blocker)),
+                ct)
+            .ConfigureAwait(false);
+        if (result.Outcome == DartsThrowOutcome.Thrown)
+        {
+            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct)
+                .ConfigureAwait(false);
+        }
+        return result;
+    }
+
+    private async Task<DartsThrowResult> QuickThrowLegacyAsync(
         long userId, string displayName, long chatId, int diceMessageId, int face, int amount, CancellationToken ct)
     {
         var maxBet = tuning.GetSection<DartsOptions>(DartsOptions.SectionName).MaxBet;

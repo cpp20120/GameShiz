@@ -1,4 +1,6 @@
 using BotFramework.Host.Composition.Builder;
+using BotFramework.Host.Configuration.RuntimeTuning;
+using BotFramework.Host.Persistence.Connections;
 using Games.Dice.Telegram;
 using Games.Dice.Transport.Grpc;
 using Games.NativeDice.Transport.Grpc;
@@ -36,6 +38,10 @@ using CasinoShiz.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
+builder.Services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
+builder.Services.AddSingleton<RuntimeTuningAccessor>();
+builder.Services.AddSingleton<IRuntimeTuningAccessor>(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
 
 var backendAddress = builder.Configuration["Backend:GrpcAddress"]
     ?? throw new InvalidOperationException("Set Backend:GrpcAddress for the Telegram BFF.");

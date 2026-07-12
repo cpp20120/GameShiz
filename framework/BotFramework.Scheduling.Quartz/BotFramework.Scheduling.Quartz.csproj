@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AllowMissingPrunePackageData>true</AllowMissingPrunePackageData></PropertyGroup>
+  <PropertyGroup><AllowMissingPrunePackageData>true</AllowMissingPrunePackageData></PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.15.1" />
-    <PackageReference Include="Quartz.Extensions.Hosting" Version="3.15.1" />
+    <PackageReference Include="Quartz.Extensions.DependencyInjection" />
+    <PackageReference Include="Quartz.Extensions.Hosting" />
+    <PackageReference Include="Quartz.Serialization.SystemTextJson" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="..\BotFramework.Scheduling.Abstractions\BotFramework.Scheduling.Abstractions.csproj" /></ItemGroup>
 </Project>

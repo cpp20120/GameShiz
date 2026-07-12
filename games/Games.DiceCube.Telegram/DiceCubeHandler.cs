@@ -136,7 +136,8 @@ public sealed partial class DiceCubeHandler(
             {
                 try
                 {
-                    await service.AbortPendingBetAfterSendDiceFailedAsync(userId, chatId, ctx.Ct);
+                    await service.AbortPendingBetAfterSendDiceFailedAsync(
+                        userId, displayName, chatId, reply.MessageId, ctx.Ct);
                 }
                 catch (Exception abortEx)
                 {
@@ -171,7 +172,8 @@ public sealed partial class DiceCubeHandler(
                 await RollGates.ClearAsync(RollGateId, userId, chatId, ctx.Ct);
                 try
                 {
-                    await service.AbortPendingBetAfterSendDiceFailedAsync(userId, chatId, ctx.Ct);
+                    await service.AbortPendingBetAfterSendDiceFailedAsync(
+                        userId, displayName, chatId, reply.MessageId, ctx.Ct);
                 }
                 catch (Exception abortEx)
                 {
@@ -191,7 +193,7 @@ public sealed partial class DiceCubeHandler(
         try
         {
             var face = msg.Dice!.Value;
-            var r = await service.RollAsync(userId, displayName, chatId, face, ctx.Ct);
+            var r = await service.RollAsync(userId, displayName, chatId, face, msg.MessageId, ctx.Ct);
 
             if (r.Outcome == CubeRollOutcome.NoBet)
             {
@@ -221,7 +223,7 @@ public sealed partial class DiceCubeHandler(
                 // Bet placed — immediately settle using the already-known face value.
                 await ctx.Bot.SendMessage(chatId, Loc("roll.quick_wait"), parseMode: ParseMode.Html,
                     replyParameters: reply, cancellationToken: ctx.Ct);
-                r = await service.RollAsync(userId, displayName, chatId, face, ctx.Ct);
+                r = await service.RollAsync(userId, displayName, chatId, face, msg.MessageId, ctx.Ct);
             }
 
             var net = r.Payout - r.Bet;

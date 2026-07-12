@@ -36,14 +36,23 @@ using CasinoShiz.Identity.Transport.Grpc;
 using CasinoShiz.Wallet.Transport.Grpc;
 using CasinoShiz.Operations.Transport.Grpc;
 using BotFramework.Host.Admin.Auth;
+using BotFramework.Sdk.MiniGames;
+using CasinoShiz.Host.Infrastructure;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography;
 using System.Text;
 using CasinoShiz.Host.Pages.Admin;
 using CasinoShiz.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(8080, listen => listen.Protocols = HttpProtocols.Http1);
+    options.ListenAnyIP(8081, listen => listen.Protocols = HttpProtocols.Http2);
+});
 builder.AddServiceDefaults();
 builder.Services.AddSingleton<HorseGifCache>();
+builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 
 builder.AddBackendFramework()
     .AddModule<DiceModule>()
@@ -74,7 +83,7 @@ if (walletRemote)
 if (identityRemote)
     builder.Services.AddIdentityGrpcClient(new Uri(builder.Configuration["Services:Identity:Address"]
         ?? throw new InvalidOperationException("Services:Identity:Address is required in Grpc mode.")));
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options => options.Interceptors.Add<BotFramework.Host.Games.GameAvailabilityGrpcInterceptor>());
 
 var app = builder.Build();
 

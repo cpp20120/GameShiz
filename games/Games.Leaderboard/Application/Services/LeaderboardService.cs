@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
+using BotFramework.Contracts.Caching;
 using System.Text.Json;
 using LeaderboardModel = Games.Leaderboard.Domain.Models.Leaderboard;
 
@@ -10,7 +10,7 @@ public sealed class LeaderboardService(
     IEconomicsService economics,
     IAnalyticsService analytics,
     IOptions<LeaderboardOptions> options,
-    IConnectionMultiplexer? redis = null) : ILeaderboardService
+    ICacheStore? distributedCache = null) : ILeaderboardService
 {
     private readonly LeaderboardOptions _opts = options.Value;
     private static readonly JsonSerializerOptions CacheJson = new(JsonSerializerDefaults.Web);
@@ -39,7 +39,7 @@ public sealed class LeaderboardService(
 
                 var shown = places.Sum(p => p.Users.Count);
                 return new LeaderboardModel(places, limit > 0 && places.Count >= limit && active.Count > shown);
-            });
+            }, ct);
 
         TrackQuery("chat_top", balanceScopeId, limit, result.Places.Sum(p => p.Users.Count), result.Truncated);
         return result;
@@ -83,7 +83,7 @@ public sealed class LeaderboardService(
                 }
 
                 return new GlobalLeaderboard(places, limit > 0 && totalUsers > users.Count, totalUsers);
-            });
+            }, ct);
 
         TrackQuery("global_top", 0, limit, result.Places.Sum(p => p.Users.Count), result.Truncated);
         return result;
@@ -114,7 +114,7 @@ public sealed class LeaderboardService(
                     .ToList();
 
                 return new MultiChatLeaderboard(grouped);
-            });
+            }, ct);
 
         TrackQuery("split_top", 0, perChatLimit, result.Chats.Sum(c => c.Places.Sum(p => p.Users.Count)), false, result.Chats.Count);
         return result;
@@ -152,32 +152,24 @@ public sealed class LeaderboardService(
         return now - ((long)_opts.DaysOfInactivityToHide * 24 * 60 * 60 * 1000);
     }
 
-    private async Task<T> GetOrCreateCachedAsync<T>(string key, Func<Task<T>> factory)
+    private async Task<T> GetOrCreateCachedAsync<T>(string key, Func<Task<T>> factory, CancellationToken ct)
     {
-        if (redis is null) return await factory();
+        if (distributedCache is null) return await factory();
 
-        try
+        var cached = await distributedCache.GetStringAsync(key, ct);
+        if (!string.IsNullOrEmpty(cached))
         {
-            var database = redis.GetDatabase();
-            var cached = await database.StringGetAsync(key);
-            if (cached.HasValue)
-            {
-                var value = JsonSerializer.Deserialize<T>(cached.ToString(), CacheJson);
-                if (value is not null) return value;
-            }
+            var value = JsonSerializer.Deserialize<T>(cached, CacheJson);
+            if (value is not null) return value;
+        }
 
-            var fresh = await factory();
-            await database.StringSetAsync(
-                key,
-                JsonSerializer.Serialize(fresh, CacheJson),
-                TimeSpan.FromSeconds(Math.Clamp(_opts.CacheSeconds, 1, 300)));
-            return fresh;
-        }
-        catch (RedisException)
-        {
-            // A leaderboard is a read model: Redis must never make it unavailable.
-            return await factory();
-        }
+        var fresh = await factory();
+        await distributedCache.SetStringAsync(
+            key,
+            JsonSerializer.Serialize(fresh, CacheJson),
+            TimeSpan.FromSeconds(Math.Clamp(_opts.CacheSeconds, 1, 300)),
+            ct);
+        return fresh;
     }
 
     private static List<LeaderboardPlace> BuildPlaces(List<LeaderboardUser> sortedDesc)

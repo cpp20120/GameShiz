@@ -1,0 +1,80 @@
+using BotFramework.Host.Composition.Migrations;
+using Dapper;
+using Games.Dice.Infrastructure.Migrations;
+using Games.DiceCube.Infrastructure.Migrations;
+using Games.Blackjack.Infrastructure.Migrations;
+using Games.Basketball.Infrastructure.Migrations;
+using Npgsql;
+using Testcontainers.PostgreSql;
+using Xunit;
+
+namespace CasinoShiz.Tests;
+
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class AtomicPostgresCollection : ICollectionFixture<AtomicPostgresFixture>
+{
+    public const string Name = "AtomicPostgres";
+}
+
+public sealed class AtomicPostgresFixture : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer container = new PostgreSqlBuilder("postgres:17-alpine")
+        .WithDatabase("casinoshiz_atomic_tests")
+        .WithUsername("postgres")
+        .WithPassword("postgres")
+        .Build();
+
+    public string ConnectionString => container.GetConnectionString();
+
+    public async Task InitializeAsync()
+    {
+        await container.StartAsync().ConfigureAwait(false);
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+
+        foreach (var migration in new FrameworkMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+        foreach (var migration in new DiceMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+        foreach (var migration in new DiceCubeMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+        foreach (var migration in new BlackjackMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+        foreach (var migration in new BasketballMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+    }
+
+    public async Task DisposeAsync() => await container.DisposeAsync().ConfigureAwait(false);
+
+    public async Task ResetAsync()
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await connection.ExecuteAsync("""
+            TRUNCATE TABLE
+                game_event_outbox,
+                game_schedule_outbox,
+                game_command_idempotency,
+                game_aggregate_states,
+                dice_rolls,
+                dicecube_bets,
+                basketball_bets,
+                economics_ledger,
+                telegram_dice_daily_rolls,
+                mini_game_sessions,
+                users,
+                player_protection,
+                game_availability_overrides,
+                blackjack_hands
+            RESTART IDENTITY CASCADE
+            """).ConfigureAwait(false);
+    }
+
+    public async Task<T> ScalarAsync<T>(string sql, object? parameters = null)
+    {
+        await using var connection = new NpgsqlConnection(ConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        var result = await connection.ExecuteScalarAsync<T>(sql, parameters).ConfigureAwait(false);
+        return result is null ? throw new InvalidOperationException("Scalar query returned null.") : result;
+    }
+}

@@ -185,9 +185,9 @@ services:
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
       Services__Identity__Mode: "Grpc"
-      Services__Identity__Address: "http://identity:8080"
+      Services__Identity__Address: "http://identity:8081"
       Services__Wallet__Mode: "Grpc"
-      Services__Wallet__Address: "http://wallet:8080"
+      Services__Wallet__Address: "http://wallet:8081"
       Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
     ports: ["5081:8080"]
     depends_on:
@@ -264,9 +264,9 @@ services:
         APP_DLL: CasinoShiz.TelegramBff.dll
     env_file: [.env]
     environment:
-      Backend__GrpcAddress: "http://backend:8080"
-      Services__Identity__Address: "http://identity:8080"
-      Services__Wallet__Address: "http://wallet:8080"
+      Backend__GrpcAddress: "http://backend:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
       Bot__Enabled: "true"
       ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
@@ -298,8 +298,9 @@ services:
         APP_DLL: CasinoShiz.AdminBff.dll
     environment:
       Services__Backend__Address: "http://backend:8080"
-      Services__Identity__Address: "http://identity:8080"
-      Services__Wallet__Address: "http://wallet:8080"
+      Services__Backend__GrpcAddress: "http://backend:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
       Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
       Admin__SuperAdminToken: "${ADMIN_SUPERADMIN_TOKEN}"
       Admin__ReadOnlyToken: "${ADMIN_READONLY_TOKEN:-}"

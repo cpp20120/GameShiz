@@ -193,6 +193,106 @@ Admin/ Commands/ Configuration/ Domain/ Events/ Health/ Metrics/
 MiniGames/ Modules/ Pipeline/ Projections/ Snapshots/
 ```
 
+## Atomic game execution and effects
+
+Games that mutate wallets or persistent state should implement a pure
+`IGameAction<TCommand, TState, TResult>`. The action receives materialized state,
+wallet/quota snapshots, framework-provided entropy and UTC time. `Decide` performs
+no I/O and returns one complete `GameDecision`.
+
+```text
+transport request
+  -> command envelope / idempotency / sorted advisory locks
+  -> load snapshots
+  -> game.Decide(input)
+  -> materialize and validate GameEffectPlan
+  -> apply effects in deterministic transaction phases
+  -> inbox result + commit
+  -> asynchronous outbox delivery
+```
+
+Every declarative consequence implements `IGameEffect`. Built-in effect
+categories are deliberately explicit:
+
+- `EconomyEffect` debits or credits the command wallet;
+- `QuotaEffect` consumes or restores a declared quota;
+- `IGameRecord` writes module-specific history through a registered writer;
+- `IDomainEvent` is persisted to the transactional event outbox;
+- `ScheduleEffect` schedules or cancels a durable command through the schedule outbox.
+
+`GameEffectSet` materializes these categories before the first mutation.
+`GameEffectPlan` rejects null effects, mutations on rejected decisions, unknown
+quotas, missing or duplicate handlers, and built-in effects placed in the custom
+category. Effects are not represented by `IAsyncEnumerable`: laziness would make
+the transaction boundary and retry semantics depend on enumeration progress.
+
+The Host applies effects in a fixed order inside one PostgreSQL transaction:
+
+```text
+player protection
+  -> economy
+  -> quotas
+  -> aggregate state
+  -> module records
+  -> custom typed effects
+  -> event outbox
+  -> schedule outbox
+  -> command inbox result
+  -> commit
+```
+
+Economy ledger rows, events and schedules use batch SQL. Quota and custom effects
+are grouped once while building the plan. PostgreSQL commands on one connection
+are still awaited sequentially; parallel commands on the same transaction are
+not supported by Npgsql.
+
+Modules can define additional typed effects without receiving the connection or
+transaction directly:
+
+```csharp
+public sealed record AchievementEffect(
+    long UserId,
+    string AchievementId) : IGameEffect;
+
+public sealed class AchievementEffectHandler
+    : GameEffectHandler<AchievementEffect>
+{
+    protected override Task ApplyBatchAsync(
+        IReadOnlyList<AchievementEffect> effects,
+        IGameExecutionContext context,
+        CancellationToken ct) =>
+        context.ExecuteAsync(
+            """
+            INSERT INTO achievements (user_id, achievement_id)
+            SELECT item.user_id, item.achievement_id
+            FROM unnest(@UserIds, @AchievementIds)
+                AS item(user_id, achievement_id)
+            ON CONFLICT DO NOTHING
+            """,
+            new
+            {
+                UserIds = effects.Select(effect => effect.UserId).ToArray(),
+                AchievementIds = effects.Select(effect => effect.AchievementId).ToArray(),
+            },
+            ct);
+}
+```
+
+Register the handler explicitly:
+
+```csharp
+services.AddAtomicGameEffectHandler<AchievementEffectHandler>();
+```
+
+Then include materialized instances in `GameDecision.CustomEffects`. Handlers of
+the same effect type receive one batch. Their `Order` values and effect type names
+provide stable ordering. A handler failure rolls back every earlier mutation,
+including wallet, quota, state, records and outbox rows.
+
+External work that must not affect the game commit belongs behind a committed
+domain event/outbox consumer. Analytics, Telegram delivery and other remote calls
+must not be implemented as transactional custom effect handlers.
+
 ## Host composition
 
 The combined compatibility host can compose backend and Telegram adapters in one process:

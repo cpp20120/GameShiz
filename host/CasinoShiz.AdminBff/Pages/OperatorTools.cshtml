@@ -1,0 +1,21 @@
+@page "/admin/operator-tools"
+@model OperatorToolsModel
+@{ ViewData["Title"] = "Operator tools"; }
+<h1>Operator tools</h1>
+@if (!Model.CanUse) { <p>Replay and simulation require SuperAdmin.</p> }
+else {
+<h2>Read-only event replay</h2>
+<form method="post" asp-page-handler="Replay"><label>Stream ID <input asp-for="StreamId" required /></label><button>Replay</button></form>
+@if (Model.Replay is not null) { <p>@Model.Replay.Steps.Count events; first incompatible: @Model.Replay.FirstIncompatibleVersion</p> }
+<h2>Economy simulation</h2>
+<form method="post" asp-page-handler="Simulate">
+<label>Players <input asp-for="Players" /></label><label>Rounds <input asp-for="Rounds" /></label><label>Seed <input asp-for="Seed" /></label>
+<label>Starting balance <input asp-for="StartingBalance" /></label><label>Stake <input asp-for="Stake" /></label>
+<label>Win payout <input asp-for="WinPayout" /></label><label>Win probability <input asp-for="WinProbability" /></label><button>Simulate</button>
+</form>
+@if (Model.Simulation is not null) { <p>Emission: @Model.Simulation.Emission; sinks: @Model.Simulation.Sinks; RTP: @Model.Simulation.Rtp</p> }
+}
+<h2>Incomplete fairness commitments</h2>
+<table><tr><th>ID</th><th>Game</th><th>Algorithm</th><th>Created</th></tr>
+@foreach (var item in Model.Incomplete) { <tr><td>@item.Id</td><td>@item.GameId</td><td>@item.AlgorithmVersion</td><td>@item.CreatedAt</td></tr> }
+</table>

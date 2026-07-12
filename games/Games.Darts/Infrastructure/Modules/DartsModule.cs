@@ -1,6 +1,10 @@
 
 namespace Games.Darts.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Darts.Application.Execution;
+
 public sealed class DartsModule : IModule
 {
     public string Id => "darts";
@@ -14,6 +18,9 @@ public sealed class DartsModule : IModule
             .AddSingleton<IDartsRollQueue, DartsRollQueue>()
             .AddScoped<IDartsRoundStore, DartsRoundStore>()
             .AddScoped<IDartsService, DartsService>()
+            .AddScoped<IGameAction<DartsQuickThrowCommand, NoGameState, DartsThrowResult>, DartsQuickThrowAction>()
+            .AddScoped<GameExecutionDescriptor<DartsQuickThrowCommand, NoGameState, DartsThrowResult>, DartsQuickThrowDescriptor>()
+            .AddScoped<IGameStateStore<DartsQuickThrowCommand, NoGameState>, DartsNoGameStateStore>()
             .AddBackgroundJob<DartsRollDispatcherJob>();
     }
 

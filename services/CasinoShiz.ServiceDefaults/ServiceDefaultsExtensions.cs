@@ -14,8 +14,17 @@ public static class ServiceDefaultsExtensions
     {
         builder.Services.AddHealthChecks();
         builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics => metrics.AddRuntimeInstrumentation().AddHttpClientInstrumentation().AddAspNetCoreInstrumentation().AddOtlpExporter())
-            .WithTracing(tracing => tracing.AddHttpClientInstrumentation().AddAspNetCoreInstrumentation().AddOtlpExporter());
+            .WithMetrics(metrics => metrics
+                .AddMeter("CasinoShiz.GameExecution")
+                .AddRuntimeInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddAspNetCoreInstrumentation()
+                .AddOtlpExporter())
+            .WithTracing(tracing => tracing
+                .AddSource("CasinoShiz.GameExecution")
+                .AddHttpClientInstrumentation()
+                .AddAspNetCoreInstrumentation()
+                .AddOtlpExporter());
         return builder;
     }
 

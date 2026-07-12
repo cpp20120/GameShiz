@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
-  <ItemGroup><PackageReference Include="Dapper" Version="2.1.79" /></ItemGroup>
+  <PropertyGroup></PropertyGroup>
+  <ItemGroup><PackageReference Include="Dapper" /></ItemGroup>
   <ItemGroup><ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" /><ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" /><ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" /></ItemGroup>
 </Project>

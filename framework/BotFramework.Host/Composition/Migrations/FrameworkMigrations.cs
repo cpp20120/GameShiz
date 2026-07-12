@@ -420,5 +420,120 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             CREATE INDEX IF NOT EXISTS idx_qrtz_ft_job_group ON qrtz_fired_triggers (job_group);
             CREATE INDEX IF NOT EXISTS idx_qrtz_ft_job_req_recovery ON qrtz_fired_triggers (requests_recovery);
             """),
+
+        new Migration("020_game_availability", """
+            CREATE TABLE IF NOT EXISTS game_availability_overrides (
+                chat_id     BIGINT      NOT NULL,
+                game_id     TEXT        NOT NULL,
+                enabled     BOOLEAN     NOT NULL,
+                reason      TEXT        NOT NULL,
+                changed_by  BIGINT      NOT NULL,
+                changed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (chat_id, game_id)
+            );
+            CREATE INDEX IF NOT EXISTS ix_game_availability_game
+                ON game_availability_overrides (game_id, chat_id);
+            """),
+
+        new Migration("021_fairness_audit", """
+            CREATE TABLE IF NOT EXISTS fairness_audit (
+                id                    BIGSERIAL   PRIMARY KEY,
+                game_id               TEXT        NOT NULL,
+                algorithm_version     TEXT        NOT NULL,
+                commitment            TEXT        NOT NULL,
+                canonical_input_hash  TEXT        NOT NULL,
+                server_seed           TEXT        NOT NULL,
+                revealed_seed         TEXT,
+                result_value          INTEGER,
+                result_hash           TEXT,
+                entropy_source        TEXT        NOT NULL,
+                status                TEXT        NOT NULL,
+                created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+                completed_at          TIMESTAMPTZ,
+                CHECK (entropy_source IN ('server', 'external')),
+                CHECK (status IN ('committed', 'completed', 'abandoned'))
+            );
+            CREATE INDEX IF NOT EXISTS ix_fairness_incomplete
+                ON fairness_audit (created_at) WHERE status = 'committed';
+            """),
+
+        new Migration("022_atomic_game_command_inbox", """
+            ALTER TABLE game_command_idempotency
+                ADD COLUMN IF NOT EXISTS game_id TEXT,
+                ADD COLUMN IF NOT EXISTS aggregate_id TEXT,
+                ADD COLUMN IF NOT EXISTS result_type TEXT,
+                ADD COLUMN IF NOT EXISTS entropy_json JSONB;
+
+            CREATE INDEX IF NOT EXISTS ix_game_command_idempotency_game_aggregate
+                ON game_command_idempotency (game_id, aggregate_id, started_at DESC);
+            """),
+
+        new Migration("023_atomic_game_event_outbox", """
+            CREATE TABLE IF NOT EXISTS game_event_outbox (
+                id              BIGSERIAL   PRIMARY KEY,
+                command_id      TEXT        NOT NULL,
+                event_index     INTEGER     NOT NULL,
+                event_type      TEXT        NOT NULL,
+                type_name       TEXT        NOT NULL,
+                payload         JSONB       NOT NULL,
+                occurred_at     TIMESTAMPTZ NOT NULL,
+                status          TEXT        NOT NULL DEFAULT 'pending',
+                attempts        INTEGER     NOT NULL DEFAULT 0,
+                next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                locked_until    TIMESTAMPTZ,
+                last_error      TEXT,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                sent_at         TIMESTAMPTZ,
+                UNIQUE (command_id, event_index)
+            );
+            CREATE INDEX IF NOT EXISTS ix_game_event_outbox_due
+                ON game_event_outbox (status, next_attempt_at, id)
+                WHERE status IN ('pending', 'sending');
+            """),
+
+        new Migration("024_versioned_game_aggregate_states", """
+            CREATE TABLE IF NOT EXISTS game_aggregate_states (
+                game_id       TEXT        NOT NULL,
+                aggregate_id  TEXT        NOT NULL,
+                state_type    TEXT        NOT NULL,
+                version       BIGINT      NOT NULL,
+                state         JSONB       NOT NULL,
+                updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (game_id, aggregate_id),
+                CHECK (version >= 0)
+            );
+            CREATE INDEX IF NOT EXISTS ix_game_aggregate_states_updated
+                ON game_aggregate_states (game_id, updated_at DESC);
+            """),
+
+        new Migration("025_atomic_game_schedule_outbox", """
+            CREATE TABLE IF NOT EXISTS game_schedule_outbox (
+                id              BIGSERIAL   PRIMARY KEY,
+                command_id      TEXT        NOT NULL,
+                effect_index    INTEGER     NOT NULL,
+                schedule_id     TEXT        NOT NULL,
+                effect_kind     TEXT        NOT NULL,
+                job_key         TEXT,
+                due_at          TIMESTAMPTZ,
+                data            JSONB       NOT NULL DEFAULT '{}'::jsonb,
+                status          TEXT        NOT NULL DEFAULT 'pending',
+                attempts        INTEGER     NOT NULL DEFAULT 0,
+                next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                locked_until    TIMESTAMPTZ,
+                last_error      TEXT,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                sent_at         TIMESTAMPTZ,
+                UNIQUE (command_id, effect_index),
+                CHECK (effect_kind IN ('schedule', 'cancel')),
+                CHECK (
+                    (effect_kind = 'schedule' AND job_key IS NOT NULL AND due_at IS NOT NULL)
+                    OR effect_kind = 'cancel')
+            );
+            CREATE INDEX IF NOT EXISTS ix_game_schedule_outbox_due
+                ON game_schedule_outbox (status, next_attempt_at, id)
+                WHERE status IN ('pending', 'sending');
+            CREATE INDEX IF NOT EXISTS ix_game_schedule_outbox_order
+                ON game_schedule_outbox (schedule_id, id, status);
+            """),
     ];
 }

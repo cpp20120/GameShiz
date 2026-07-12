@@ -532,7 +532,6 @@ public sealed class MessagingBoundaryTests
         using var provider = services.BuildServiceProvider();
 
         Assert.Null(provider.GetService<IDiceService>());
-        Assert.Null(provider.GetService<IDiceHistoryStore>());
         Assert.Empty(provider.GetRequiredService<LoadedModules>().Migrations);
     }
 

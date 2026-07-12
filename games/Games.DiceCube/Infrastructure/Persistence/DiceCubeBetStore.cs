@@ -22,26 +22,4 @@ public sealed class DiceCubeBetStore(INpgsqlConnectionFactory connections) : IDi
             cancellationToken: ct));
     }
 
-    public async Task<bool> InsertAsync(DiceCubeBet bet, CancellationToken ct)
-    {
-        await using var conn = await connections.OpenAsync(ct);
-        var rows = await conn.ExecuteAsync(new CommandDefinition("""
-            INSERT INTO dicecube_bets (user_id, chat_id, amount, created_at, mult4, mult5, mult6)
-            VALUES (@UserId, @ChatId, @Amount, @CreatedAt, @Mult4, @Mult5, @Mult6)
-            ON CONFLICT (user_id, chat_id) DO NOTHING
-            """,
-            bet,
-            cancellationToken: ct));
-        return rows > 0;
-    }
-
-    public async Task DeleteAsync(long userId, long chatId, CancellationToken ct)
-    {
-        await using var conn = await connections.OpenAsync(ct);
-        await conn.ExecuteAsync(new CommandDefinition(
-            "DELETE FROM dicecube_bets WHERE user_id = @userId AND chat_id = @chatId",
-            new { userId, chatId },
-            cancellationToken: ct));
-    }
 }
-

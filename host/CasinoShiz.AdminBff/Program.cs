@@ -3,9 +3,9 @@ using CasinoShiz.AdminBff.Pages;
 using CasinoShiz.Wallet.Transport.Grpc;
 using Games.Admin.Transport.Grpc;
 using CasinoShiz.Operations.Transport.Grpc;
+using CasinoShiz.ServiceDefaults;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
-using CasinoShiz.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -21,25 +21,49 @@ builder.Services.AddSession(options =>
 });
 
 var backend = new Uri(builder.Configuration["Services:Backend:Address"] ?? "http://localhost:5081");
+var backendGrpc = new Uri(builder.Configuration["Services:Backend:GrpcAddress"] ?? backend.ToString());
 var wallet = new Uri(builder.Configuration["Services:Wallet:Address"] ?? backend.ToString());
 var identity = new Uri(builder.Configuration["Services:Identity:Address"] ?? backend.ToString());
 var operationsApiKey = builder.Configuration["Services:Operations:ApiKey"] ?? "";
+var proxiedAdminPaths = new[]
+{
+    "/admin/bets",
+    "/admin/challenges",
+    "/admin/events",
+    "/admin/groups",
+    "/admin/history",
+    "/admin/horse",
+    "/admin/horse/image",
+    "/admin/ledger",
+    "/admin/meta",
+    "/admin/meta-alerts",
+    "/admin/meta-economy",
+    "/admin/meta-events",
+    "/admin/meta-quests",
+    "/admin/meta-seasons",
+    "/admin/meta-tournament/{id}",
+    "/admin/meta-tournaments",
+    "/admin/quartz",
+    "/admin/settings",
+};
 builder.Services.AddReverseProxy()
     .LoadFromMemory(
-    [
-        new RouteConfig { RouteId = "legacy-admin-root", ClusterId = "backend", Match = new RouteMatch { Path = "/admin" } },
-        new RouteConfig { RouteId = "legacy-admin", ClusterId = "backend", Match = new RouteMatch { Path = "/admin/{**catch-all}" } },
-    ],
-    [
-        new ClusterConfig
+        proxiedAdminPaths.Select((path, index) => new RouteConfig
         {
+            RouteId = $"backend-admin-{index}",
             ClusterId = "backend",
-            Destinations = new Dictionary<string, DestinationConfig>
-(StringComparer.Ordinal) {
-                ["primary"] = new() { Address = backend.ToString() },
+            Match = new RouteMatch { Path = path },
+        }).ToArray(),
+        [
+            new ClusterConfig
+            {
+                ClusterId = "backend",
+                Destinations = new Dictionary<string, DestinationConfig>(StringComparer.Ordinal)
+                {
+                    ["primary"] = new() { Address = backend.ToString() },
+                },
             },
-        },
-    ])
+        ])
     .AddTransforms(transforms => transforms.AddRequestTransform(context =>
     {
         var session = context.HttpContext.Session;
@@ -49,10 +73,10 @@ builder.Services.AddReverseProxy()
         context.ProxyRequest.Headers.TryAddWithoutValidation("x-admin-role", session.ActorRole());
         return ValueTask.CompletedTask;
     }));
-builder.Services.AddAdminGrpcClients(backend);
+builder.Services.AddAdminGrpcClients(backendGrpc);
 builder.Services.AddWalletGrpcClients(wallet);
 builder.Services.AddIdentityGrpcClient(identity);
-builder.Services.AddOperationsGrpcClient(backend, builder.Configuration["Services:Operations:ApiKey"] ?? "");
+builder.Services.AddOperationsGrpcClient(backendGrpc, builder.Configuration["Services:Operations:ApiKey"] ?? "");
 
 var app = builder.Build();
 app.UseStaticFiles();

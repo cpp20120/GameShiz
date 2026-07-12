@@ -7,6 +7,12 @@ public interface IGameScheduler
     Task UnscheduleAsync(string scheduleId, CancellationToken ct);
 }
 
+/// <summary>Read-only operational view of persistent scheduler state.</summary>
+public interface IGameSchedulerStatusReader
+{
+    Task<IReadOnlyList<GameScheduledJobStatus>> SnapshotAsync(CancellationToken ct);
+}
+
 public interface IScheduledCommand
 {
     string Key { get; }
@@ -28,7 +34,17 @@ public sealed record GameScheduleCommand(
 public sealed record ScheduleDescriptor(
     string? CronExpression = null,
     TimeSpan? RepeatInterval = null,
-    string? TimeZoneId = null)
+    string? TimeZoneId = null,
+    DateTimeOffset? RunAt = null)
 {
     public static ScheduleDescriptor Every(TimeSpan interval) => new(RepeatInterval: interval);
+
+    public static ScheduleDescriptor Once(DateTimeOffset runAt) => new(RunAt: runAt);
 }
+
+public sealed record GameScheduledJobStatus(
+    string ScheduleId,
+    string JobKey,
+    string State,
+    DateTimeOffset? PreviousFireTime,
+    DateTimeOffset? NextFireTime);

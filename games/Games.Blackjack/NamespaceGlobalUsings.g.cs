@@ -55,7 +55,6 @@ global using BotFramework.Sdk.Snapshots;
 global using BotFramework.Sdk.UpdateHandling;
 global using BotFramework.Sdk.UpdateHandling.Routes;
 global using Games.Blackjack.Contracts;
-global using Games.Blackjack.Application.Jobs;
 global using Games.Blackjack.Application.Services;
 global using Games.Blackjack.Domain.Configuration;
 global using Games.Blackjack.Domain.Events;

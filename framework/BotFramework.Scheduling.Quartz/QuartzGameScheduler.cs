@@ -2,6 +2,7 @@ using BotFramework.Scheduling.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Quartz;
+using Quartz.Impl.Matchers;
 
 namespace BotFramework.Scheduling.Quartz;
 
@@ -19,10 +20,13 @@ public static class QuartzSchedulingExtensions
                 store.UseProperties = true;
                 store.UsePostgres(connectionString);
                 store.UseClustering();
+                store.UseSystemTextJsonSerializer();
             });
         });
         services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
-        services.AddSingleton<IGameScheduler, QuartzGameScheduler>();
+        services.AddSingleton<QuartzGameScheduler>();
+        services.AddSingleton<IGameScheduler>(sp => sp.GetRequiredService<QuartzGameScheduler>());
+        services.AddSingleton<IGameSchedulerStatusReader>(sp => sp.GetRequiredService<QuartzGameScheduler>());
         return services;
     }
 
@@ -33,7 +37,7 @@ public static class QuartzSchedulingExtensions
     }
 }
 
-internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameScheduler
+internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameScheduler, IGameSchedulerStatusReader
 {
     public async Task ScheduleAsync(GameScheduleCommand command, CancellationToken ct)
     {
@@ -48,19 +52,20 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
             job.JobDataMap[pair.Key] = pair.Value;
         await scheduler.AddJob(job, true, true, ct);
 
-        IScheduleBuilder schedule = command.Schedule switch
+        var triggerBuilder = TriggerBuilder.Create()
+            .WithIdentity(command.ScheduleId, "games")
+            .ForJob(jobKey);
+        triggerBuilder = command.Schedule switch
         {
-            { CronExpression: { Length: > 0 } cronExpression } => BuildCronSchedule(cronExpression, command.Schedule.TimeZoneId),
+            { RunAt: { } runAt } => triggerBuilder.StartAt(runAt),
+            { CronExpression: { Length: > 0 } cronExpression } =>
+                triggerBuilder.WithSchedule(BuildCronSchedule(cronExpression, command.Schedule.TimeZoneId)),
             { RepeatInterval: { } interval } when interval > TimeSpan.Zero =>
-                SimpleScheduleBuilder.RepeatSecondlyForever(1).WithInterval(interval),
+                triggerBuilder.WithSchedule(SimpleScheduleBuilder.RepeatSecondlyForever(1).WithInterval(interval)),
             _ => throw new ArgumentException("A cron expression or positive repeat interval is required.", nameof(command)),
         };
         var triggerKey = new TriggerKey(command.ScheduleId, "games");
-        var trigger = TriggerBuilder.Create()
-            .WithIdentity(triggerKey)
-            .ForJob(jobKey)
-            .WithSchedule(schedule)
-            .Build();
+        var trigger = triggerBuilder.Build();
         if (await scheduler.CheckExists(triggerKey, ct))
             await scheduler.RescheduleJob(triggerKey, trigger, ct);
         else
@@ -88,6 +93,29 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
     {
         var scheduler = await schedulers.GetScheduler(ct);
         await scheduler.UnscheduleJob(new TriggerKey(scheduleId, "games"), ct);
+    }
+
+    public async Task<IReadOnlyList<GameScheduledJobStatus>> SnapshotAsync(CancellationToken ct)
+    {
+        var scheduler = await schedulers.GetScheduler(ct);
+        var jobKeys = await scheduler.GetJobKeys(GroupMatcher<JobKey>.GroupEquals("games"), ct);
+        var result = new List<GameScheduledJobStatus>();
+        foreach (var jobKey in jobKeys.OrderBy(static key => key.Name, StringComparer.Ordinal))
+        {
+            var triggers = await scheduler.GetTriggersOfJob(jobKey, ct);
+            foreach (var trigger in triggers.OrderBy(static item => item.Key.Name, StringComparer.Ordinal))
+            {
+                var state = await scheduler.GetTriggerState(trigger.Key, ct);
+                result.Add(new GameScheduledJobStatus(
+                    trigger.Key.Name,
+                    jobKey.Name,
+                    state.ToString().ToLowerInvariant(),
+                    trigger.GetPreviousFireTimeUtc(),
+                    trigger.GetNextFireTimeUtc()));
+            }
+        }
+
+        return result;
     }
 
     private static CronScheduleBuilder BuildCronSchedule(string cronExpression, string? timeZoneId)

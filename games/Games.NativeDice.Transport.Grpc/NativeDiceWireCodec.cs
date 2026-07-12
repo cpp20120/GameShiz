@@ -33,8 +33,8 @@ internal sealed record BetCall(
     int Amount,
     int SourceMessageId);
 
-internal sealed record RollCall(long UserId, string DisplayName, long ChatId, int Face);
-internal sealed record AbortCall(long UserId, long ChatId);
+internal sealed record RollCall(long UserId, string DisplayName, long ChatId, int Face, int SourceMessageId = 0);
+internal sealed record AbortCall(long UserId, long ChatId, string DisplayName = "", int SourceMessageId = 0);
 internal sealed record DartsThrowCall(
     long RoundId,
     long UserId,

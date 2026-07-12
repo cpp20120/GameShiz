@@ -1,6 +1,11 @@
 
 namespace Games.Blackjack.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Scheduling.Abstractions;
+using BotFramework.Sdk.Execution;
+using Games.Blackjack.Application.Execution;
+
 public sealed class BlackjackModule : IModule
 {
     public string Id => "blackjack";
@@ -13,8 +18,20 @@ public sealed class BlackjackModule : IModule
             .BindOptions<BlackjackOptions>(BlackjackOptions.SectionName)
             .AddScoped<IBlackjackService, BlackjackService>()
             .AddScoped<IBlackjackClient, LocalBlackjackClient>()
-            .AddScoped<IBlackjackHandStore, BlackjackHandStore>()
-            .AddRecurringScheduledCommand<BlackjackHandTimeoutJob>();
+            .AddScoped<IBlackjackStateReader, BlackjackStateReader>()
+            .AddScoped<IGameAction<BlackjackStartCommand, BlackjackGameState, BlackjackResult>, BlackjackStartAction>()
+            .AddScoped<GameExecutionDescriptor<BlackjackStartCommand, BlackjackGameState, BlackjackResult>, BlackjackStartDescriptor>()
+            .AddScoped<IGameStateStore<BlackjackStartCommand, BlackjackGameState>, PostgresJsonGameStateStore<BlackjackStartCommand, BlackjackGameState, BlackjackResult>>()
+            .AddScoped<IGameAction<BlackjackTurnCommand, BlackjackGameState, BlackjackResult>, BlackjackTurnAction>()
+            .AddScoped<GameExecutionDescriptor<BlackjackTurnCommand, BlackjackGameState, BlackjackResult>, BlackjackTurnDescriptor>()
+            .AddScoped<IGameStateStore<BlackjackTurnCommand, BlackjackGameState>, PostgresJsonGameStateStore<BlackjackTurnCommand, BlackjackGameState, BlackjackResult>>()
+            .AddScoped<IGameAction<BlackjackTimeoutCommand, BlackjackGameState, BlackjackResult>, BlackjackTimeoutAction>()
+            .AddScoped<GameExecutionDescriptor<BlackjackTimeoutCommand, BlackjackGameState, BlackjackResult>, BlackjackTimeoutDescriptor>()
+            .AddScoped<IGameStateStore<BlackjackTimeoutCommand, BlackjackGameState>, PostgresJsonGameStateStore<BlackjackTimeoutCommand, BlackjackGameState, BlackjackResult>>()
+            .AddScoped<IScheduledCommand, AtomicGameScheduledCommand<BlackjackTimeoutCommand, BlackjackGameState, BlackjackResult>>()
+            .AddScoped<IGameAction<BlackjackSetMessageCommand, BlackjackGameState, BlackjackResult>, BlackjackSetMessageAction>()
+            .AddScoped<GameExecutionDescriptor<BlackjackSetMessageCommand, BlackjackGameState, BlackjackResult>, BlackjackSetMessageDescriptor>()
+            .AddScoped<IGameStateStore<BlackjackSetMessageCommand, BlackjackGameState>, PostgresJsonGameStateStore<BlackjackSetMessageCommand, BlackjackGameState, BlackjackResult>>();
     }
 
     public IModuleMigrations GetMigrations() => new BlackjackMigrations();

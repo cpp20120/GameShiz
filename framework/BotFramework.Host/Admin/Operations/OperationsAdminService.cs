@@ -4,12 +4,14 @@ using BotFramework.Host.Events.Dispatch;
 using BotFramework.Host.Contracts.Economics;
 using BotFramework.Host.Runtime.Jobs;
 using BotFramework.Host.TelegramOutbox;
+using BotFramework.Contracts.Games;
 
 namespace BotFramework.Host.Admin.Operations;
 
 public sealed class OperationsAdminService(IEventDispatchFailureStore failures, IEventDispatchRetryService retry,
     ITelegramOutboxStore outbox, IBackgroundJobStatusService jobs, IAdminAuditReader audits, IAdminAuditLog audit,
-    IEconomicsService economics)
+    IEconomicsService economics, IGameAvailabilityService availability, IReadOnlyEventReplayService replay,
+    IEconomySimulationService simulation, IRandomOutcomeGenerator fairness)
     : IOperationsAdminService
 {
     public async Task<IReadOnlyList<OperationFailure>> ListFailuresAsync(int limit, string? eventType, CancellationToken ct) =>
@@ -60,4 +62,51 @@ public sealed class OperationsAdminService(IEventDispatchFailureStore failures, 
             ? $"Wallet adjusted. Balance: {result.NewBalance}."
             : "Adjustment was rejected by Wallet.");
     }
+
+    public Task<IReadOnlyList<GameAvailability>> ListGameAvailabilityAsync(long? chatId, CancellationToken ct) =>
+        availability.ListOverridesAsync(chatId, ct);
+
+    public async Task<OperationMutationResult> SetGameAvailabilityAsync(long chatId, string gameId, bool enabled,
+        string reason, long actorId, string actorName, CancellationToken ct)
+    {
+        try
+        {
+            await availability.SetOverrideAsync(new(chatId, gameId, enabled, reason, actorId, actorName), ct);
+            return new(true, $"Game '{gameId}' is now {(enabled ? "enabled" : "disabled")} for chat {chatId}.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return new(false, exception.Message);
+        }
+    }
+
+    public async Task<EventReplayReport> ReplayEventStreamAsync(string streamId, long actorId, string actorName,
+        CancellationToken ct)
+    {
+        var report = await replay.ReplayAsync(streamId, ct);
+        await audit.LogAsync(actorId, actorName, "tools.event_replay", new
+        {
+            streamId,
+            events = report.Steps.Count,
+            report.FirstIncompatibleVersion,
+        }, ct);
+        return report;
+    }
+
+    public async Task<EconomySimulationReport> SimulateEconomyAsync(EconomySimulationRequest request,
+        long actorId, string actorName, CancellationToken ct)
+    {
+        var report = simulation.Simulate(request);
+        await audit.LogAsync(actorId, actorName, "tools.economy_simulation", new
+        {
+            request.Players,
+            request.Rounds,
+            request.Seed,
+            Rules = request.Rules,
+        }, ct);
+        return report;
+    }
+
+    public Task<IReadOnlyList<FairnessCommitment>> ListIncompleteFairnessAsync(CancellationToken ct) =>
+        fairness.ListIncompleteAsync(ct);
 }

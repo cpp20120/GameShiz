@@ -87,13 +87,24 @@ public sealed class NativeDiceGrpcEndpoint(
     public override async Task<ContractReply> BasketballThrow(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<RollCall>();
-        return NativeDiceWireCodec.Reply(await basketball.ThrowAsync(x.UserId, x.DisplayName, x.ChatId, x.Face, context.CancellationToken));
+        return NativeDiceWireCodec.Reply(await basketball.ThrowAsync(
+            x.UserId,
+            x.DisplayName,
+            x.ChatId,
+            x.Face,
+            x.SourceMessageId,
+            context.CancellationToken));
     }
 
     public override async Task<ContractReply> BasketballAbort(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<AbortCall>();
-        await basketball.AbortPendingBetAfterSendDiceFailedAsync(x.UserId, x.ChatId, context.CancellationToken);
+        await basketball.AbortPendingBetAfterSendDiceFailedAsync(
+            x.UserId,
+            string.IsNullOrWhiteSpace(x.DisplayName) ? $"User ID: {x.UserId}" : x.DisplayName,
+            x.ChatId,
+            x.SourceMessageId,
+            context.CancellationToken);
         return NativeDiceWireCodec.Reply(new EmptyReply());
     }
 

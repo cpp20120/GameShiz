@@ -8,6 +8,7 @@ public sealed class RecoveryModel(
     IEventDispatchFailureStore failures,
     IEventDispatchRetryService eventRetry,
     ITelegramOutboxStore outbox,
+    ITelegramOutboxMonitor outboxMonitor,
     IBackgroundJobStatusService backgroundJobs,
     IAdminAuditLog audit) : PageModel
 {
@@ -21,6 +22,7 @@ public sealed class RecoveryModel(
     public bool CanRetry => Actor.Role == AdminRole.SuperAdmin;
     public IReadOnlyList<EventDispatchFailureRow> EventFailures { get; private set; } = [];
     public IReadOnlyList<TelegramOutboxAdminRow> OutboxRecords { get; private set; } = [];
+    public TelegramOutboxSummary OutboxSummary { get; private set; } = new(0, 0, 0, 0, null);
     public IReadOnlyList<BackgroundJobStatusSnapshot> BackgroundJobs { get; private set; } = [];
     public string? Flash { get; private set; }
     public bool FlashError { get; private set; }
@@ -33,6 +35,7 @@ public sealed class RecoveryModel(
         Actor = actor;
         EventFailures = await failures.ListUnresolvedAsync(100, EventType, ct);
         OutboxRecords = await outbox.ListUnsentAsync(100, OutboxStatus, ct);
+        OutboxSummary = await outboxMonitor.GetSummaryAsync(ct);
         BackgroundJobs = backgroundJobs.Snapshot();
         Flash = TempData["RecoveryFlash"] as string;
         FlashError = TempData["RecoveryFlashError"] is true;

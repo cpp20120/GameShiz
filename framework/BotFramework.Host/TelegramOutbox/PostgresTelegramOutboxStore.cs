@@ -5,7 +5,7 @@ namespace BotFramework.Host.TelegramOutbox;
 
 public sealed class PostgresTelegramOutboxStore(
     INpgsqlConnectionFactory connections,
-    IServiceProvider services) : ITelegramOutboxStore
+    IServiceProvider services) : ITelegramOutboxStore, ITelegramOutboxMonitor
 {
     private const int MaxTextLength = 4096;
     private const int MaxErrorLength = 8000;
@@ -44,6 +44,21 @@ public sealed class PostgresTelegramOutboxStore(
             },
             cancellationToken: ct));
         return rows.ToList();
+    }
+
+    public async Task<TelegramOutboxSummary> GetSummaryAsync(CancellationToken ct)
+    {
+        await using var conn = await connections.OpenAsync(ct);
+        return await conn.QuerySingleAsync<TelegramOutboxSummary>(new CommandDefinition(
+            """
+            SELECT count(*) FILTER (WHERE status = 'pending')::int AS PendingCount,
+                   count(*) FILTER (WHERE status = 'sending')::int AS SendingCount,
+                   count(*) FILTER (WHERE status = 'pending' AND next_attempt_at <= now())::int AS DueCount,
+                   count(*) FILTER (WHERE status = 'sending' AND locked_until <= now())::int AS ExpiredLeaseCount,
+                   min(created_at) FILTER (WHERE status IN ('pending', 'sending')) AS OldestUnsentAt
+            FROM telegram_outbox
+            """,
+            cancellationToken: ct));
     }
 
     public async Task<TelegramOutboxRescheduleResult> RescheduleNowAsync(long id, CancellationToken ct)
@@ -93,6 +108,8 @@ public sealed class PostgresTelegramOutboxStore(
         }
 
         await tx.CommitAsync(ct);
+        if (result.Success)
+            services.GetService<TelegramOutboxCapRelayService>()?.Signal();
         return result;
     }
 

@@ -1,5 +1,7 @@
 namespace BotFramework.Contracts.Operations;
 
+using BotFramework.Contracts.Games;
+
 public sealed record OperationFailure(long Id, string StreamId, long StreamVersion, string EventType,
     string Stage, string HandlerName, string Error, string? ErrorType, int RetryCount,
     DateTimeOffset CreatedAt, DateTimeOffset LastSeenAt);
@@ -24,4 +26,11 @@ public interface IOperationsAdminService
     Task<OperationMutationResult> RescheduleOutboxAsync(long id, long actorId, string actorName, CancellationToken ct);
     Task<OperationMutationResult> AdjustWalletAsync(long userId, long balanceScopeId, int delta,
         string operationId, long actorId, string actorName, CancellationToken ct);
+    Task<IReadOnlyList<GameAvailability>> ListGameAvailabilityAsync(long? chatId, CancellationToken ct);
+    Task<OperationMutationResult> SetGameAvailabilityAsync(long chatId, string gameId, bool enabled,
+        string reason, long actorId, string actorName, CancellationToken ct);
+    Task<EventReplayReport> ReplayEventStreamAsync(string streamId, long actorId, string actorName, CancellationToken ct);
+    Task<EconomySimulationReport> SimulateEconomyAsync(EconomySimulationRequest request,
+        long actorId, string actorName, CancellationToken ct);
+    Task<IReadOnlyList<FairnessCommitment>> ListIncompleteFairnessAsync(CancellationToken ct);
 }
