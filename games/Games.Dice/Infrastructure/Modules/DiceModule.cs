@@ -41,6 +41,7 @@ public sealed class DiceModule : IModule
             .AddScoped<IGameStateStore<DiceCommand, NoGameState>, DiceStateStore>()
             .AddScoped<IGameRecordWriter, DiceRollRecordWriter>()
             .AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
+            .AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
             .AddScoped<IDiceClient, InProcessDiceClient>();
     }
 

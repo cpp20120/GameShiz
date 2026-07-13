@@ -77,6 +77,8 @@ public static class BotFrameworkBuilderExtensions
             .ValidateOnStart();
 
         services.AddSingleton<ICommandBus, CommandBus>();
+        services.AddMediatR(configuration =>
+            configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestClient, LocalRequestClient>();
         services.TryAddScoped<IIntegrationEventPublisher, LocalIntegrationEventPublisher>();
 

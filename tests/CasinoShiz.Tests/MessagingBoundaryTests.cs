@@ -424,7 +424,9 @@ public sealed class MessagingBoundaryTests
     public async Task LocalRequestClient_DispatchesThroughTransportNeutralPort()
     {
         var services = new ServiceCollection();
+        services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestHandler<PingRequest, PingResponse>, PingHandler>();
+        services.AddScoped<MediatR.IRequestHandler<PingRequest, PingResponse>, PingHandler>();
         services.AddScoped<IRequestClient, LocalRequestClient>();
         await using var provider = services.BuildServiceProvider();
         await using var scope = provider.CreateAsyncScope();

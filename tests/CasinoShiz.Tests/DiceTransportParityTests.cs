@@ -69,7 +69,9 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
             Dice = new DiceOptions { Cost = 5, RedeemDropChance = 0 },
         });
         services.AddScoped<IDiceService, DiceService>();
+        services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
+        services.AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
         services.AddScoped<IRequestClient, LocalRequestClient>();
         return services.BuildServiceProvider();
     }
@@ -85,7 +87,9 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
             Dice = new DiceOptions { Cost = 5, RedeemDropChance = 0 },
         });
         builder.Services.AddScoped<IDiceService, DiceService>();
+        builder.Services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         builder.Services.AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
+        builder.Services.AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
         builder.Services.AddScoped<IRequestClient, LocalRequestClient>();
         builder.Services.AddGrpc();
 
