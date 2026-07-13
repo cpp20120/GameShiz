@@ -63,9 +63,7 @@ public sealed partial class DiscordHostedService(
 
         using var scope = scopeFactory.CreateScope();
         var commands = scope.ServiceProvider.GetServices<IDiscordInteractionHandler>()
-            .SelectMany(x => x.BuildCommands())
-            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => x.First())
+            .SelectMany(handler => handler.BuildCommands())
             .ToArray();
 
         if (commands.Length == 0) return;
