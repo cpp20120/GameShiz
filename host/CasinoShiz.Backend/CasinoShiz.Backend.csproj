@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\games\Games.Leaderboard\Games.Leaderboard.csproj" />
     <ProjectReference Include="..\..\games\Games.Leaderboard.Transport.Grpc\Games.Leaderboard.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.PixelBattle\Games.PixelBattle.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Transport.Grpc\Games.PixelBattle.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick\Games.Pick.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Transport.Grpc\Games.Pick.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack\Games.Blackjack.csproj" />
