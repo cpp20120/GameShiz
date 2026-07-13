@@ -17,6 +17,60 @@ services:
       retries: 20
       start_period: 10s
 
+  backend-postgres:
+    profiles: ["microservices"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: backend
+      POSTGRES_USER: backend
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - backend_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backend -d backend"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  identity-postgres:
+    profiles: ["microservices"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - identity_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  wallet-postgres:
+    profiles: ["microservices"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wallet
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - wallet_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
   clickhouse:
     image: clickhouse/clickhouse-server:24.8-alpine
     restart: unless-stopped
@@ -168,7 +222,7 @@ services:
     env_file:
       - .env
     environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "true"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
       ClickHouse__ConnectionString: "clickhouse://default:${CLICKHOUSE_PASSWORD}@clickhouse:8123"
@@ -222,7 +276,7 @@ services:
       Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
     ports: ["5081:8080"]
     depends_on:
-      postgres: { condition: service_healthy }
+      backend-postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
@@ -245,13 +299,13 @@ services:
         PROJECT: services/CasinoShiz.IdentityService/CasinoShiz.IdentityService.csproj
         APP_DLL: CasinoShiz.IdentityService.dll
     environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=identity-postgres;Port=5432;Database=identity;Username=identity;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "false"
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
     ports: ["5082:8080"]
     depends_on:
-      postgres: { condition: service_healthy }
+      identity-postgres: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
       interval: 5s
@@ -270,13 +324,13 @@ services:
         PROJECT: services/CasinoShiz.WalletService/CasinoShiz.WalletService.csproj
         APP_DLL: CasinoShiz.WalletService.dll
     environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=wallet-postgres;Port=5432;Database=wallet;Username=wallet;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "false"
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
     ports: ["5083:8080"]
     depends_on:
-      postgres: { condition: service_healthy }
+      wallet-postgres: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
       interval: 5s
@@ -300,7 +354,7 @@ services:
       Services__Identity__Address: "http://identity:8081"
       Services__Wallet__Address: "http://wallet:8081"
       Bot__Enabled: "true"
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
       TelegramOutbox__Transport: "Cap"
       Rendering__Minio__Enabled: "true"
@@ -313,7 +367,7 @@ services:
       backend: { condition: service_healthy }
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
-      postgres: { condition: service_healthy }
+      backend-postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       minio: { condition: service_healthy }
     healthcheck:
@@ -403,6 +457,9 @@ networks:
 
 volumes:
   postgres_data:
+  backend_postgres_data:
+  identity_postgres_data:
+  wallet_postgres_data:
   clickhouse_data:
   redis_data:
   bot_app_data:

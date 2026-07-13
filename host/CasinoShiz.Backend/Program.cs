@@ -55,7 +55,7 @@ builder.AddServiceDefaults();
 builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 
-builder.AddBackendFramework()
+var framework = builder.AddBackendFramework()
     .AddModule<DiceModule>()
     .AddModule<DiceCubeModule>()
     .AddModule<DartsRemoteModule>()
@@ -73,11 +73,12 @@ builder.AddBackendFramework()
     .AddModule<PokerModule>()
     .AddModule<SecretHitlerModule>()
     .AddModule<MetaModule>()
-    .AddModule<AdminModule>()
-    .AddModule<IdentityModule>();
+    .AddModule<AdminModule>();
 
 var walletRemote = string.Equals(builder.Configuration["Services:Wallet:Mode"], "Grpc", StringComparison.OrdinalIgnoreCase);
 var identityRemote = string.Equals(builder.Configuration["Services:Identity:Mode"], "Grpc", StringComparison.OrdinalIgnoreCase);
+if (!identityRemote)
+    framework.AddModule<IdentityModule>();
 if (walletRemote)
     builder.Services.AddWalletGrpcClients(new Uri(builder.Configuration["Services:Wallet:Address"]
         ?? throw new InvalidOperationException("Services:Wallet:Address is required in Grpc mode.")));

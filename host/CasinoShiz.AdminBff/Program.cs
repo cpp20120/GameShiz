@@ -4,6 +4,8 @@ using CasinoShiz.Wallet.Transport.Grpc;
 using Games.Admin.Transport.Grpc;
 using CasinoShiz.Operations.Transport.Grpc;
 using CasinoShiz.ServiceDefaults;
+using BotFramework.Contracts.Identity;
+using BotFramework.Host.Contracts.Economics;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
 
@@ -102,5 +104,26 @@ app.Use(async (context, next) =>
 app.MapRazorPages();
 app.MapReverseProxy();
 app.MapGet("/", () => Results.Redirect("/admin"));
+app.MapGet("/api/aggregation/players/{userId:long}", async (
+    long userId,
+    long? balanceScopeId,
+    IPlayerDirectory identities,
+    IWalletReadService wallets,
+    CancellationToken ct) =>
+{
+    var identityTask = identities.GetAsync(userId, ct);
+    var walletTask = balanceScopeId is { } scope
+        ? wallets.GetAsync(userId, scope, ct)
+        : Task.FromResult<WalletAccount?>(null);
+    await Task.WhenAll(identityTask, walletTask);
+
+    var identityResult = await identityTask;
+    var walletResult = await walletTask;
+    return identityResult is null && walletResult is null
+        ? Results.NotFound()
+        : Results.Ok(new PlayerAggregateResponse(identityResult, walletResult));
+});
 app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", service = "casinoshiz-admin-bff" }));
 await app.RunAsync();
+
+internal sealed record PlayerAggregateResponse(PlayerIdentity? Identity, WalletAccount? Wallet);

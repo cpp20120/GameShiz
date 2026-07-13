@@ -23,3 +23,8 @@ Rules:
 7. The outbox is for external side effects. Domain state and wallet consistency are committed at their owning boundary.
 
 `SecretHitlerDbContext` and `SecretHitlerGameStore` are the first reference implementation for ordinary game persistence.
+
+
+## Physical ownership in microservices mode
+
+The `microservices` Docker Compose profile uses independent PostgreSQL instances and volumes for Backend, Identity, and Wallet. The monolith profile keeps the shared `cazino` database for backwards compatibility. Cross-service read composition belongs in a BFF/aggregator and must use service APIs; direct cross-database joins are forbidden. Identity migrations do not backfill from the Wallet `users` table in distributed mode.

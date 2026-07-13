@@ -31,10 +31,6 @@ public sealed class IdentityMigrations : IModuleMigrations
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ux_player_identities_username
                 ON player_identities (lower(username)) WHERE username IS NOT NULL;
-            INSERT INTO player_identities (telegram_user_id, display_name, first_seen_at, last_seen_at)
-            SELECT telegram_user_id, max(display_name), min(created_at), max(updated_at)
-            FROM users GROUP BY telegram_user_id
-            ON CONFLICT (telegram_user_id) DO NOTHING;
             """),
     ];
 }
