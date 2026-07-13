@@ -195,6 +195,9 @@ MiniGames/ Modules/ Pipeline/ Projections/ Snapshots/
 
 ## Atomic game execution and effects
 
+For the system-level container, transaction and concurrency diagrams, see
+[`docs/arch.md`](../docs/arch.md#atomic-execution-kernel-and-effect-system).
+
 Games that mutate wallets or persistent state should implement a pure
 `IGameAction<TCommand, TState, TResult>`. The action receives materialized state,
 wallet/quota snapshots, framework-provided entropy and UTC time. `Decide` performs
@@ -215,10 +218,124 @@ Every declarative consequence implements `IGameEffect`. Built-in effect
 categories are deliberately explicit:
 
 - `EconomyEffect` debits or credits the command wallet;
-- `QuotaEffect` consumes or restores a declared quota;
+- `WalletEconomyEffect` targets an explicitly declared wallet in a multi-wallet command;
+- `QuotaEffect` consumes, restores, or grants capacity on a declared quota;
 - `IGameRecord` writes module-specific history through a registered writer;
 - `IDomainEvent` is persisted to the transactional event outbox;
 - `ScheduleEffect` schedules or cancels a durable command through the schedule outbox.
+
+### Contract at a glance
+
+The SDK portion of the system has no database, DI, transport, outbox, or async
+dependency. A game action is a synchronous function from an input snapshot to a
+decision:
+
+```csharp
+public interface IGameAction<TCommand, TState, TResult>
+{
+    GameDecision<TState, TResult> Decide(
+        GameActionInput<TState, TCommand> input);
+}
+```
+
+`GameActionInput` contains the command, loaded state, primary-wallet snapshot,
+declared quota snapshots, named entropy and the framework UTC timestamp. The
+action must not read the clock, generate randomness, resolve services, query a
+database, publish messages, or start background work.
+
+```csharp
+public sealed class CoinFlipAction
+    : IGameAction<CoinFlipCommand, NoGameState, CoinFlipResult>
+{
+    public GameDecision<NoGameState, CoinFlipResult> Decide(
+        GameActionInput<NoGameState, CoinFlipCommand> input)
+    {
+        if (input.Wallet.Balance < input.Command.Stake)
+            return new(
+                DecisionStatus.Rejected,
+                input.State,
+                CoinFlipResult.InsufficientBalance,
+                [], [], [], [], [],
+                RejectionReason: "insufficient_balance");
+
+        var won = input.Entropy.GetDouble("coin-flip") >= 0.5;
+        var economy = won
+            ? new[] { EconomyEffect.Debit(input.Command.Stake, "coinflip.stake"),
+                      EconomyEffect.Credit(input.Command.Stake * 2, "coinflip.win") }
+            : new[] { EconomyEffect.Debit(input.Command.Stake, "coinflip.stake") };
+
+        return new(
+            DecisionStatus.Accepted,
+            input.State,
+            new CoinFlipResult(won),
+            economy,
+            [],
+            [],
+            [new CoinFlipCompleted(input.Command.UserId, won, input.UtcNow)],
+            []);
+    }
+}
+```
+
+The descriptor supplies infrastructure metadata without putting it in the
+domain command: game id, command id, aggregate id, wallet identity, quota
+identities, entropy names, and additional lock keys. Lock keys are acquired in
+stable sorted order.
+
+```csharp
+public sealed class CoinFlipDescriptor
+    : GameExecutionDescriptor<CoinFlipCommand, NoGameState, CoinFlipResult>
+{
+    public override string GameId => "coinflip";
+    public override string CommandId(CoinFlipCommand command) => command.CommandId;
+    public override string AggregateId(CoinFlipCommand command) =>
+        $"{command.ChatId}:{command.UserId}";
+    public override long ChatId(CoinFlipCommand command) => command.ChatId;
+    public override string DisplayName(CoinFlipCommand command) => command.DisplayName;
+    public override WalletIdentity Wallet(CoinFlipCommand command) =>
+        new(command.UserId, command.ChatId);
+    public override IReadOnlyList<string> EntropyNames => ["coin-flip"];
+}
+```
+
+Register the action, descriptor and state store explicitly in the backend
+module. This keeps discovery deterministic and avoids a reflection DSL:
+
+```csharp
+services
+    .AddScoped<IGameAction<CoinFlipCommand, NoGameState, CoinFlipResult>,
+        CoinFlipAction>()
+    .AddScoped<GameExecutionDescriptor<CoinFlipCommand, NoGameState, CoinFlipResult>,
+        CoinFlipDescriptor>()
+    .AddScoped<IGameStateStore<CoinFlipCommand, NoGameState>,
+        CoinFlipStateStore>();
+```
+
+The compatibility application service depends on
+`IAtomicGameExecutor<CoinFlipCommand,NoGameState,CoinFlipResult>` and delegates
+the complete mutation path to it. Transport handlers continue to depend on the
+existing logical game contract.
+
+### Effect categories and guarantees
+
+| Effect | Target | Transactional behavior |
+|---|---|---|
+| `EconomyEffect` | Descriptor primary wallet | Balance check, wallet update and ledger row; protected wager debits pass player-protection checks |
+| `WalletEconomyEffect` | Explicit `(userId, balanceScopeId)` | Multi-wallet balance update and ledger row; every wallet lock must be declared by the descriptor |
+| `QuotaEffect.Consume` | Declared quota | Increases used capacity and rejects overflow |
+| `QuotaEffect.Restore` | Declared quota | Returns consumed capacity, clamped at zero |
+| `QuotaEffect.Grant` | Declared quota | Adds future capacity and may move usage below zero |
+| `IGameRecord` | Module history table | Written by exactly one registered typed record writer |
+| custom `IGameEffect` | Module-owned state | Applied by exactly one typed handler through `IGameExecutionContext` |
+| `IDomainEvent` | Game event outbox | Written once per command/event index and delivered after commit |
+| `ScheduleEffect` | Schedule outbox | Durable schedule/cancel request delivered after commit |
+
+`WalletEconomyEffect` is intentionally separate from primary-wallet
+`EconomyEffect`. It supports transfers, challenge stakes, race payouts, and
+other multi-wallet decisions. It enforces non-negative balances and ledger
+consistency, but primary-wallet player-protection checks are not implicitly
+reapplied to arbitrary target wallets. A module introducing protected
+multi-wallet wager debits must model and test that policy explicitly.
 
 `GameEffectSet` materializes these categories before the first mutation.
 `GameEffectPlan` rejects null effects, mutations on rejected decisions, unknown
@@ -292,6 +409,59 @@ including wallet, quota, state, records and outbox rows.
 External work that must not affect the game commit belongs behind a committed
 domain event/outbox consumer. Analytics, Telegram delivery and other remote calls
 must not be implemented as transactional custom effect handlers.
+
+### State stores and concurrency profiles
+
+`IGameStateStore<TCommand,TState>` loads and saves module state through the
+limited `IGameExecutionContext`. It never owns the transaction. The framework
+also provides a JSON aggregate store for ordinary versioned state; modules may
+provide transaction-aware stores for existing normalized tables.
+
+Choose the smallest aggregate key that protects a real invariant:
+
+- user game: `game:{chatId}:{userId}`;
+- turn-based table: `table:{inviteCode}`;
+- multi-wallet operation: one aggregate plus every affected wallet lock;
+- realtime board: `tile:{index}`, so different cells remain parallel;
+- batch settlement: race/table id plus the complete declared payout-wallet set.
+
+Commands with the same aggregate key execute sequentially. Commands with
+different aggregate keys can run concurrently unless they share another
+declared lock such as a wallet or quota. Do not use a global game lock merely
+because the game has a global read model.
+
+Turn-based games can use the SDK types in `Execution/TurnBased` for common
+revision, actor, turn and terminal-state validation. They still emit a normal
+materialized `GameDecision`; there is no task tree or hidden saga.
+
+### Idempotency and retry behavior
+
+The transport supplies a stable command id. Before loading state, the executor
+locks the command and aggregate and checks `game_command_idempotency`:
+
+- a new command stores entropy, applies the decision and persists the result;
+- a duplicate returns the previously serialized result without reapplying effects;
+- a failure or cancellation before commit rolls back state, ledger, records,
+  inbox completion and outbox rows together;
+- a response lost after commit is recovered by retrying the same command id.
+
+Transport payloads do not need to expose the id publicly. Telegram message or
+callback identity, gRPC metadata, and HTTP idempotency headers can populate the
+framework envelope. Generating a fresh id inside a retrying facade does not
+provide lost-response recovery.
+
+
+When adding or migrating a mutation:
+
+1. Put rules and calculations in a synchronous `IGameAction`.
+2. Pass time and named entropy through `GameActionInput`.
+3. Return every database consequence as state or a materialized effect list.
+4. Declare every quota and every additional wallet/aggregate lock up front.
+5. Keep the state store and custom handlers transaction-aware and transport-free.
+6. Publish analytics and remote notifications from committed events.
+7. Test deterministic decisions, rejection without effects, rollback, duplicate
+   command ids, concurrent same/different aggregates, and lost-response replay.
+8. Keep read-only queries outside the executor; the effect system is for commands.
 
 ## Host composition
 

@@ -335,6 +335,194 @@ own orchestration; domain objects own rules; stores own persistence. Protobuf,
 generated clients, and channels remain in `Games.*.Transport.Grpc`. Cross-cutting
 balance, analytics, tuning, locking, and event behavior belongs to framework services.
 
+## Atomic Execution Kernel And Effect System
+
+The module contract and registration  are documented in
+[`framework/README.md`](../framework/README.md#atomic-game-execution-and-effects).
+
+Game and economy commands use one linear execution kernel. Deployment transport
+does not change the command semantics: monolith calls and BFF-to-gRPC calls both
+arrive at the same `IAtomicGameExecutor<TCommand,TState,TResult>`.
+
+```mermaid
+flowchart LR
+    request["Telegram / gRPC / HTTP request"]
+    envelope["Framework envelope<br/>stable command id"]
+    transaction["PostgreSQL transaction"]
+    locks["Sorted advisory locks<br/>command + aggregate + wallets + quotas"]
+    inbox{"Command inbox"}
+    snapshots["State + wallet + quota snapshots<br/>UTC time + named entropy"]
+    decide["Pure IGameAction.Decide"]
+    plan["Materialized GameEffectPlan<br/>validation + grouping"]
+    apply["Deterministic effect pipeline"]
+    commit["Inbox result + commit"]
+    delivery["Outbox dispatch<br/>events + schedules"]
+
+    request --> envelope --> transaction --> locks --> inbox
+    inbox -->|"duplicate"| commit
+    inbox -->|"new"| snapshots --> decide --> plan --> apply --> commit
+    commit --> delivery
+```
+
+The game action is synchronous and has no infrastructure dependencies. It sees
+only the command, loaded state, snapshots, named entropy and framework time. It
+returns a `GameDecision` containing the new state, public result and complete
+materialized effect lists. Randomness, clocks, database reads, analytics calls,
+Telegram sends and service resolution do not occur inside `Decide`.
+
+```mermaid
+flowchart TB
+    input["GameActionInput"]
+    command["Command"]
+    state["Current state"]
+    wallet["WalletSnapshot"]
+    quotas["QuotaSnapshot map"]
+    entropy["Named EntropyValue"]
+    time["UtcNow"]
+
+    action["IGameAction.Decide<br/>pure synchronous rules"]
+
+    decision["GameDecision"]
+    newState["NewState"]
+    result["Result"]
+    effects["Materialized effects"]
+
+    command --> input
+    state --> input
+    wallet --> input
+    quotas --> input
+    entropy --> input
+    time --> input
+    input --> action --> decision
+    decision --> newState
+    decision --> result
+    decision --> effects
+```
+
+### Effect lanes
+
+Effects are typed data, not callbacks, tasks, or lazy streams. Before the first
+mutation, `GameEffectPlan` verifies that effects are valid for the decision,
+declared quotas exist, and record/custom effect types each have exactly one
+registered writer or handler.
+
+```mermaid
+flowchart LR
+    decision["Accepted GameDecision"]
+
+    protection["Player protection"]
+    primary["EconomyEffect<br/>primary wallet + ledger"]
+    quota["QuotaEffect<br/>consume / restore / grant"]
+    aggregate["Aggregate state store"]
+    records["IGameRecord writers"]
+    custom["Typed custom effects<br/>including multi-wallet"]
+    eventOutbox["Domain event outbox"]
+    scheduleOutbox["Schedule outbox"]
+    inboxResult["Serialized inbox result"]
+    pg["COMMIT"]
+
+    decision --> protection --> primary --> quota --> aggregate --> records --> custom
+    custom --> eventOutbox --> scheduleOutbox --> inboxResult --> pg
+```
+
+The lanes have distinct ownership:
+
+| Lane | Owner and invariant |
+|---|---|
+| `EconomyEffect` | Framework primary wallet; protected debit, balance and append-only ledger stay consistent |
+| `WalletEconomyEffect` | Framework multi-wallet handler; all target wallet locks are declared before `Decide` |
+| `QuotaEffect` | Framework quota store; configured capacity and usage change atomically with the command |
+| aggregate state | Module state store operating through `IGameExecutionContext` |
+| `IGameRecord` | Module history writer; preserves synchronous history consistency where required |
+| custom `IGameEffect` | One explicitly registered typed handler; no raw connection/transaction exposure |
+| `IDomainEvent` | Framework outbox; analytics and remote reactions happen after commit |
+| `ScheduleEffect` | Framework schedule outbox; Quartz work is created or cancelled durably |
+
+`IAsyncEnumerable<IGameEffect>` is intentionally not used. A lazy effect stream
+could throw after partial enumeration, depend on I/O timing, or produce different
+effects on retry. The decision is a finite value that can be validated before
+mutation. Npgsql work inside one transaction remains sequential; concurrency is
+achieved between independent commands rather than by issuing simultaneous
+operations on one connection.
+
+### Aggregate and lock scope
+
+The descriptor maps a command to its consistency boundary. Commands sharing any
+lock serialize; commands with disjoint lock sets can execute in parallel.
+
+```mermaid
+flowchart TD
+    command["Command"]
+    descriptor["GameExecutionDescriptor"]
+
+    userKey["user game<br/>game:{chat}:{user}"]
+    tableKey["turn-based table<br/>table:{inviteCode}"]
+    tileKey["PixelBattle cell<br/>tile:{index}"]
+    walletKeys["all affected wallet keys"]
+    quotaKeys["declared quota keys"]
+
+    command --> descriptor
+    descriptor --> userKey
+    descriptor --> tableKey
+    descriptor --> tileKey
+    descriptor --> walletKeys
+    descriptor --> quotaKeys
+```
+
+Examples:
+
+- Dice uses a user/game aggregate plus its wallet and daily quota.
+- Challenges, Transfer, Horse and completed table games declare every debit or
+  payout wallet, allowing a single atomic multi-wallet commit.
+- Blackjack, Poker and Secret Hitler serialize transitions by table/game id.
+- PixelBattle uses a tile aggregate. Writes to one tile are ordered while writes
+  to different tiles remain parallel; the full grid is a read model, not a
+  global mutation lock.
+
+### Commit, retry and external work
+
+```mermaid
+sequenceDiagram
+    participant Transport
+    participant Executor
+    participant Inbox
+    participant Action
+    participant PG as PostgreSQL
+    participant Outbox
+
+    Transport->>Executor: command + stable commandId
+    Executor->>PG: BEGIN + sorted advisory locks
+    Executor->>Inbox: GetOrBegin(commandId)
+    alt completed duplicate
+        Inbox-->>Executor: stored TResult
+        Executor->>PG: COMMIT
+        Executor-->>Transport: same TResult
+    else new command
+        Executor->>Action: Decide(materialized input)
+        Action-->>Executor: GameDecision
+        Executor->>PG: state + effects + inbox result + outbox rows
+        Executor->>PG: COMMIT
+        Executor-->>Transport: TResult
+        Outbox-->>Outbox: deliver events/schedules asynchronously
+    end
+```
+
+Cancellation or failure before commit rolls back every transactional lane. If a
+response is lost after commit, retrying the same command id returns the stored
+result without repeating effects. A fresh command id is a new command, so the
+stable id should come from Telegram update identity, callback identity, gRPC
+metadata, or an HTTP idempotency header.
+
+Analytics, ClickHouse writes, CAP publication, Telegram notifications and other
+remote operations are not transactional custom effects. They consume committed
+domain events/outbox records. Live transports may broadcast after the executor
+returns; PixelBattle additionally sends periodic full-grid snapshots so an
+ephemeral SSE broadcast loss self-heals.
+
+The legacy `IEconomicsService` remains a compatibility facade for non-command
+and administrative paths. New game mutations should use the execution kernel;
+read-only queries should continue to use owning-context read services directly.
+
 ## Wallet And Ledger
 
 The logical wallet/protection ports live in `BotFramework.Contracts`. Identity uses
