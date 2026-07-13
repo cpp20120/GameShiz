@@ -22,5 +22,5 @@ public sealed partial class DiscordInteractionRouter(
     }
 
     [LoggerMessage(LogLevel.Debug, "No Discord interaction handler accepted interaction {InteractionId} ({InteractionType})")]
-    private static partial void LogUnhandled(ILogger logger, ulong interactionId, Discord.InteractionType interactionType);
+    private static partial void LogUnhandled(ILogger logger, ulong interactionId, global::Discord.InteractionType interactionType);
 }
