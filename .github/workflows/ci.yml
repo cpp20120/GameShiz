@@ -13,7 +13,7 @@ on:
       - meta-**
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-test:
@@ -23,19 +23,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Apply queued agent patch
-        if: github.event_name == 'push' && hashFiles('.github/agent.patch') != ''
-        shell: bash
-        run: |
-          git apply --index .github/agent.patch
-          git rm .github/agent.patch
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "feat: add Discord backend and finish dependency migration"
-          git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Publish source snapshot
         uses: actions/upload-artifact@v4
