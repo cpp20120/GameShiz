@@ -31,5 +31,9 @@
     <ProjectReference Include="..\..\games\Games.SecretHitler.Transport.Grpc\Games.SecretHitler.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Meta.Discord\Games.Meta.Discord.csproj" />
     <ProjectReference Include="..\..\games\Games.Meta.Transport.Grpc\Games.Meta.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Discord\Games.PixelBattle.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Transport.Grpc\Games.PixelBattle.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Discord\Games.Admin.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Transport.Grpc\Games.Admin.Transport.Grpc.csproj" />
   </ItemGroup>
 </Project>
