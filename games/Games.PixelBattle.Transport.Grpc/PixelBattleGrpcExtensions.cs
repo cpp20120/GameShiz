@@ -1,6 +1,7 @@
 using CasinoShiz.ServiceDefaults;
 using Games.PixelBattle.Contracts;
 using Games.PixelBattle.Transport.Grpc.Wire;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
