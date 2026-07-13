@@ -1,4 +1,4 @@
-using BotFramework.Host.Composition.Builder;
+using BotFramework.Host.Composition.ServiceDatabases;
 using CasinoShiz.Wallet.Transport.Grpc;
 using CasinoShiz.ServiceDefaults;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -10,7 +10,7 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(8081, listen => listen.Protocols = HttpProtocols.Http2);
 });
 builder.AddServiceDefaults();
-builder.AddBackendFramework();
+builder.AddWalletServiceDatabase();
 builder.Services.AddGrpc();
 
 var app = builder.Build();

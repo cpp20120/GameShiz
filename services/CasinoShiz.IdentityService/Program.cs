@@ -1,4 +1,4 @@
-using BotFramework.Host.Composition.Builder;
+using BotFramework.Host.Composition.ServiceDatabases;
 using CasinoShiz.Identity;
 using CasinoShiz.Identity.Transport.Grpc;
 using CasinoShiz.ServiceDefaults;
@@ -11,7 +11,8 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(8081, listen => listen.Protocols = HttpProtocols.Http2);
 });
 builder.AddServiceDefaults();
-builder.AddBackendFramework().AddModule<IdentityModule>();
+builder.AddOwnedPostgresDatabase(new IdentityMigrations());
+builder.Services.AddSingleton<BotFramework.Contracts.Identity.IPlayerDirectory, PlayerDirectory>();
 builder.Services.AddGrpc();
 
 var app = builder.Build();
