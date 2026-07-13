@@ -20,7 +20,7 @@ namespace CasinoShiz.Tests;
 [Collection(AtomicPostgresCollection.Name)]
 public sealed class AtomicPickPostgresTests(AtomicPostgresFixture database) : IAsyncLifetime
 {
-    private static readonly DateTimeOffset Now = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
 
     public Task InitializeAsync() => database.ResetAsync();
     public Task DisposeAsync() => Task.CompletedTask;

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/framework/">
     <Project Path="framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <Project Path="framework\BotFramework.Discord\BotFramework.Discord.csproj" />
     <Project Path="framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <Project Path="framework\BotFramework.Sdk.Testing\BotFramework.Sdk.Testing.csproj" />
     <Project Path="framework\BotFramework.Host\BotFramework.Host.csproj" />
@@ -83,6 +84,7 @@
   </Folder>
   <Folder Name="/host/">
     <Project Path="host/CasinoShiz.AdminBff/CasinoShiz.AdminBff.csproj" />
+    <Project Path="host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj" />
     <Project Path="host\CasinoShiz.Backend\CasinoShiz.Backend.csproj" />
     <Project Path="host\CasinoShiz.Host\CasinoShiz.Host.csproj" />
     <Project Path="host\CasinoShiz.TelegramBff\CasinoShiz.TelegramBff.csproj" />
