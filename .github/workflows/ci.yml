@@ -30,7 +30,9 @@ jobs:
           REDIS_PASSWORD: ci-redis-password
           CLICKHOUSE_PASSWORD: ci-clickhouse-password
           GRAFANA_ADMIN_PASSWORD: ci-grafana-password
-        run: docker compose --profile microservices config --quiet
+        run: |
+          cp .env.example .env
+          docker compose --profile microservices config --quiet
 
       - name: Publish source snapshot
         uses: actions/upload-artifact@v4
