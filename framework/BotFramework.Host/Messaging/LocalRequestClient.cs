@@ -13,7 +13,7 @@ public sealed class LocalRequestClient(ISender sender) : IRequestClient
         TRequest request,
         RequestMetadata metadata,
         CancellationToken ct)
-        where TRequest : IRequest<TResponse>
+        where TRequest : BotFramework.Contracts.Messaging.IRequest<TResponse>
     {
         using var metadataScope = RequestMetadataContext.Push(metadata);
         return await sender.Send(request, ct);
