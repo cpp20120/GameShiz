@@ -1,0 +1,195 @@
+diff --git a/services/CasinoShiz.IdentityService/Program.cs b/services/CasinoShiz.IdentityService/Program.cs
+index e8217c2..93a7919 100644
+--- a/services/CasinoShiz.IdentityService/Program.cs
++++ b/services/CasinoShiz.IdentityService/Program.cs
+@@ -1,4 +1,4 @@
+-using BotFramework.Host.Composition.Builder;
++using BotFramework.Host.Composition.ServiceDatabases;
+ using CasinoShiz.Identity;
+ using CasinoShiz.Identity.Transport.Grpc;
+ using CasinoShiz.ServiceDefaults;
+@@ -11,7 +11,8 @@ builder.WebHost.ConfigureKestrel(options =>
+     options.ListenAnyIP(8081, listen => listen.Protocols = HttpProtocols.Http2);
+ });
+ builder.AddServiceDefaults();
+-builder.AddBackendFramework().AddModule<IdentityModule>();
++builder.AddOwnedPostgresDatabase(new IdentityMigrations());
++builder.Services.AddSingleton<BotFramework.Contracts.Identity.IPlayerDirectory, PlayerDirectory>();
+ builder.Services.AddGrpc();
+ 
+ var app = builder.Build();
+diff --git a/services/CasinoShiz.WalletService/Program.cs b/services/CasinoShiz.WalletService/Program.cs
+index 5b23e83..7c8263a 100644
+--- a/services/CasinoShiz.WalletService/Program.cs
++++ b/services/CasinoShiz.WalletService/Program.cs
+@@ -1,4 +1,4 @@
+-using BotFramework.Host.Composition.Builder;
++using BotFramework.Host.Composition.ServiceDatabases;
+ using CasinoShiz.Wallet.Transport.Grpc;
+ using CasinoShiz.ServiceDefaults;
+ using Microsoft.AspNetCore.Server.Kestrel.Core;
+@@ -10,7 +10,7 @@ builder.WebHost.ConfigureKestrel(options =>
+     options.ListenAnyIP(8081, listen => listen.Protocols = HttpProtocols.Http2);
+ });
+ builder.AddServiceDefaults();
+-builder.AddBackendFramework();
++builder.AddWalletServiceDatabase();
+ builder.Services.AddGrpc();
+ 
+ var app = builder.Build();
+diff --git a/framework/BotFramework.Host/Composition/ServiceDatabases/OwnedDatabaseMigrationRunner.cs b/framework/BotFramework.Host/Composition/ServiceDatabases/OwnedDatabaseMigrationRunner.cs
+new file mode 100644
+index 0000000..72a9d01
+--- /dev/null
++++ b/framework/BotFramework.Host/Composition/ServiceDatabases/OwnedDatabaseMigrationRunner.cs
+@@ -0,0 +1,63 @@
++using BotFramework.Host.Persistence.Connections;
++using BotFramework.Sdk.Modules.Migrations;
++using Dapper;
++using Microsoft.Extensions.Hosting;
++using Microsoft.Extensions.Logging;
++using Npgsql;
++
++namespace BotFramework.Host.Composition.ServiceDatabases;
++
++public sealed class OwnedDatabaseMigrationRunner(
++    INpgsqlConnectionFactory connections,
++    IEnumerable<IModuleMigrations> migrations,
++    ILogger<OwnedDatabaseMigrationRunner> logger) : IHostedService
++{
++    private const string EnsureTrackingTable = """
++        CREATE TABLE IF NOT EXISTS __module_migrations (
++            module_id TEXT NOT NULL,
++            migration_id TEXT NOT NULL,
++            content_hash TEXT NOT NULL,
++            applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),
++            PRIMARY KEY (module_id, migration_id)
++        );
++        """;
++
++    public async Task StartAsync(CancellationToken cancellationToken)
++    {
++        await using var connection = await connections.OpenAsync(cancellationToken);
++        await connection.ExecuteAsync(new CommandDefinition(EnsureTrackingTable, cancellationToken: cancellationToken));
++
++        foreach (var module in migrations)
++            await ApplyAsync(module, cancellationToken);
++    }
++
++    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
++
++    private async Task ApplyAsync(IModuleMigrations module, CancellationToken ct)
++    {
++        await using var connection = await connections.OpenAsync(ct);
++        var rows = await connection.QueryAsync<(string migration_id, string content_hash)>(new CommandDefinition(
++            "SELECT migration_id, content_hash FROM __module_migrations WHERE module_id = @moduleId",
++            new { moduleId = module.ModuleId }, cancellationToken: ct));
++        var applied = rows.ToDictionary(row => row.migration_id, row => row.content_hash, StringComparer.Ordinal);
++
++        foreach (var migration in module.Migrations)
++        {
++            if (applied.TryGetValue(migration.Id, out var existingHash))
++            {
++                if (!string.Equals(existingHash, migration.ContentHash, StringComparison.Ordinal))
++                    throw new InvalidOperationException($"Migration {module.ModuleId}:{migration.Id} changed after apply.");
++                continue;
++            }
++
++            await using var transaction = await connection.BeginTransactionAsync(ct);
++            await connection.ExecuteAsync(new CommandDefinition(migration.Sql, transaction: transaction, cancellationToken: ct));
++            await connection.ExecuteAsync(new CommandDefinition(
++                "INSERT INTO __module_migrations (module_id, migration_id, content_hash) VALUES (@moduleId, @migrationId, @contentHash)",
++                new { moduleId = module.ModuleId, migrationId = migration.Id, contentHash = migration.ContentHash },
++                transaction: transaction, cancellationToken: ct));
++            await transaction.CommitAsync(ct);
++            logger.LogInformation("Applied owned migration {ModuleId}:{MigrationId}", module.ModuleId, migration.Id);
++        }
++    }
++}
+diff --git a/framework/BotFramework.Host/Composition/ServiceDatabases/ServiceDatabaseBuilderExtensions.cs b/framework/BotFramework.Host/Composition/ServiceDatabases/ServiceDatabaseBuilderExtensions.cs
+new file mode 100644
+index 0000000..0863612
+--- /dev/null
++++ b/framework/BotFramework.Host/Composition/ServiceDatabases/ServiceDatabaseBuilderExtensions.cs
+@@ -0,0 +1,81 @@
++using BotFramework.Host.Analytics.ClickHouse;
++using BotFramework.Host.Composition.Builder;
++using BotFramework.Host.Composition.Migrations;
++using BotFramework.Host.Configuration.RuntimeTuning;
++using BotFramework.Host.Contracts.Analytics;
++using BotFramework.Host.Contracts.Economics;
++using BotFramework.Host.Contracts.ResponsibleGaming;
++using BotFramework.Host.Economics.Services;
++using BotFramework.Host.Persistence.Connections;
++using BotFramework.Sdk.Modules.Migrations;
++using Microsoft.Extensions.Configuration;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.DependencyInjection.Extensions;
++using Microsoft.Extensions.Hosting;
++using Microsoft.Extensions.Options;
++
++namespace BotFramework.Host.Composition.ServiceDatabases;
++
++public static class ServiceDatabaseBuilderExtensions
++{
++    public static IHostApplicationBuilder AddOwnedPostgresDatabase(
++        this IHostApplicationBuilder builder,
++        params IModuleMigrations[] migrations)
++    {
++        DapperTypeHandlers.Register();
++        builder.Services.AddOptions<PostgresConnectionOptions>()
++            .Configure(options => options.ConnectionString = builder.Configuration.GetConnectionString("Postgres") ?? string.Empty)
++            .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionString), "ConnectionStrings:Postgres is required.")
++            .ValidateOnStart();
++        builder.Services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
++        foreach (var migration in migrations)
++            builder.Services.AddSingleton<IModuleMigrations>(migration);
++        builder.Services.AddHostedService<OwnedDatabaseMigrationRunner>();
++        return builder;
++    }
++
++    public static IHostApplicationBuilder AddWalletServiceDatabase(this IHostApplicationBuilder builder)
++    {
++        builder.AddOwnedPostgresDatabase(new WalletOwnedMigrations());
++        builder.Services.TryAddSingleton(TimeProvider.System);
++        builder.Services.AddOptions<BotFrameworkOptions>()
++            .Bind(builder.Configuration.GetSection(BotFrameworkOptions.SectionName));
++        builder.Services.AddOptions<ClickHouseOptions>()
++            .Bind(builder.Configuration.GetSection(ClickHouseOptions.SectionName));
++
++        builder.Services.AddSingleton<ClickHouseAnalyticsService>();
++        builder.Services.AddSingleton<IAnalyticsService>(provider => provider.GetRequiredService<ClickHouseAnalyticsService>());
++        builder.Services.AddHostedService(provider => provider.GetRequiredService<ClickHouseAnalyticsService>());
++
++        builder.Services.AddSingleton<RuntimeTuningAccessor>();
++        builder.Services.AddSingleton<IRuntimeTuningAccessor>(provider => provider.GetRequiredService<RuntimeTuningAccessor>());
++        builder.Services.AddHostedService(provider => provider.GetRequiredService<RuntimeTuningAccessor>());
++
++        builder.Services.AddSingleton<IEconomicsService, EconomicsService>();
++        builder.Services.AddSingleton<IWalletReadService, WalletReadService>();
++        builder.Services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();
++        builder.Services.AddSingleton<IDailyBonusService, DailyBonusService>();
++        builder.Services.AddSingleton<IPlayerProtectionService, PlayerProtectionService>();
++        return builder;
++    }
++
++    private sealed class WalletOwnedMigrations : IModuleMigrations
++    {
++        private static readonly HashSet<string> OwnedIds =
++        [
++            "003_users",
++            "006_per_chat_wallets_and_ledger",
++            "008_users_last_daily_bonus",
++            "009_users_telegram_dice_daily",
++            "010_runtime_tuning",
++            "012_telegram_dice_daily_per_game",
++            "014_economics_operation_id",
++            "017_responsible_gaming_and_ops_reports",
++        ];
++
++        public string ModuleId => "wallet";
++        public IReadOnlyList<Migration> Migrations { get; } = new FrameworkMigrations().Migrations
++            .Where(migration => OwnedIds.Contains(migration.Id))
++            .ToArray();
++    }
++}
