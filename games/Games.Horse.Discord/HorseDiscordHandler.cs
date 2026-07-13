@@ -16,7 +16,7 @@ public sealed class HorseDiscordHandler(IHorseService service) : IDiscordMessage
                 result=await service.PlaceBetAsync(DiscordCommand.UserId(c),DiscordCommand.DisplayName(c),DiscordCommand.ScopeId(c),horse,amount,DiscordCommand.SourceId(c),c.CancellationToken);break;
             case "info": result=await service.GetTodayInfoAsync(DiscordCommand.ScopeId(c),c.CancellationToken);break;
             case "result": result=await service.GetTodayResultAsync(DiscordCommand.ScopeId(c),c.CancellationToken);break;
-            case "run": result=await service.RunRaceAsync(DiscordCommand.UserId(c),HorseRunKind.Local,DiscordCommand.ScopeId(c),c.CancellationToken);break;
+            case "run": result=await service.RunRaceAsync(DiscordCommand.UserId(c),HorseRunKind.ThisChat,DiscordCommand.ScopeId(c),c.CancellationToken);break;
             default: await Usage(c);return;
         }
         await DiscordCommand.ReplyResultAsync(c,result,"Horse");
