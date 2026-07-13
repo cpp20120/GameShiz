@@ -27,6 +27,7 @@ public sealed partial class DiscordHostedService(
 
         client.Log += OnDiscordLogAsync;
         client.MessageReceived += OnMessageReceivedAsync;
+        client.InteractionCreated += OnInteractionCreatedAsync;
 
         await client.LoginAsync(TokenType.Bot, _options.Token);
         await client.StartAsync();
@@ -42,6 +43,7 @@ public sealed partial class DiscordHostedService(
         finally
         {
             client.MessageReceived -= OnMessageReceivedAsync;
+            client.InteractionCreated -= OnInteractionCreatedAsync;
             client.Log -= OnDiscordLogAsync;
             await client.StopAsync();
             await client.LogoutAsync();
@@ -58,6 +60,19 @@ public sealed partial class DiscordHostedService(
         var context = new DiscordMessageContext(
             message,
             commandText,
+            scope.ServiceProvider,
+            lifetime.ApplicationStopping);
+        await router.RouteAsync(context);
+    }
+
+    private async Task OnInteractionCreatedAsync(SocketInteraction interaction)
+    {
+        if (interaction.User.IsBot) return;
+
+        using var scope = scopeFactory.CreateScope();
+        var router = scope.ServiceProvider.GetRequiredService<DiscordInteractionRouter>();
+        var context = new DiscordInteractionContext(
+            interaction,
             scope.ServiceProvider,
             lifetime.ApplicationStopping);
         await router.RouteAsync(context);

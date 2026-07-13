@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>Games.Football.Discord</RootNamespace></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Discord\BotFramework.Discord.csproj" />
+    <ProjectReference Include="..\Games.Discord.Shared\Games.Discord.Shared.csproj" />
+    <ProjectReference Include="..\Games.Football.Contracts\Games.Football.Contracts.csproj" />
+  </ItemGroup>
+</Project>
