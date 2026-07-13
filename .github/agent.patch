@@ -1,0 +1,351 @@
+diff --git a/.env.example b/.env.example
+index 5d0c1e6..2c8ef07 100644
+--- a/.env.example
++++ b/.env.example
+@@ -66,3 +66,8 @@ ADMIN_DISPLAY_NAME=Admin
+ # Render artifacts and match media history
+ MINIO_ROOT_USER=minioadmin
+ MINIO_ROOT_PASSWORD=replace-with-a-long-random-minio-password
++
++# Discord BFF
++Discord__Enabled=false
++Discord__Token=
++Discord__CommandPrefix=!
+diff --git a/CasinoShiz.slnx b/CasinoShiz.slnx
+index 297a64d..fc8e9db 100644
+--- a/CasinoShiz.slnx
++++ b/CasinoShiz.slnx
+@@ -1,6 +1,7 @@
+ <Solution>
+   <Folder Name="/framework/">
+     <Project Path="framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
++    <Project Path="framework\BotFramework.Discord\BotFramework.Discord.csproj" />
+     <Project Path="framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
+     <Project Path="framework\BotFramework.Sdk.Testing\BotFramework.Sdk.Testing.csproj" />
+     <Project Path="framework\BotFramework.Host\BotFramework.Host.csproj" />
+@@ -83,6 +84,7 @@
+   </Folder>
+   <Folder Name="/host/">
+     <Project Path="host/CasinoShiz.AdminBff/CasinoShiz.AdminBff.csproj" />
++    <Project Path="host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj" />
+     <Project Path="host\CasinoShiz.Backend\CasinoShiz.Backend.csproj" />
+     <Project Path="host\CasinoShiz.Host\CasinoShiz.Host.csproj" />
+     <Project Path="host\CasinoShiz.TelegramBff\CasinoShiz.TelegramBff.csproj" />
+diff --git a/Directory.Packages.props b/Directory.Packages.props
+index e5f0a3e..d786b01 100644
+--- a/Directory.Packages.props
++++ b/Directory.Packages.props
+@@ -12,6 +12,7 @@
+     <PackageVersion Include="DotNetCore.CAP" Version="10.0.1" />
+     <PackageVersion Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
+     <PackageVersion Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
++    <PackageVersion Include="Discord.Net" Version="3.18.0" />
+     <PackageVersion Include="Google.Protobuf" Version="3.35.1" />
+     <PackageVersion Include="Grpc.AspNetCore" Version="2.80.0" />
+     <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
+diff --git a/framework/BotFramework.Discord/BotFramework.Discord.csproj b/framework/BotFramework.Discord/BotFramework.Discord.csproj
+new file mode 100644
+index 0000000..8cfdb44
+--- /dev/null
++++ b/framework/BotFramework.Discord/BotFramework.Discord.csproj
+@@ -0,0 +1,20 @@
++<Project Sdk="Microsoft.NET.Sdk">
++  <PropertyGroup>
++    <RootNamespace>BotFramework.Discord</RootNamespace>
++    <IsPackable>true</IsPackable>
++    <PackageId>BotFramework.Discord</PackageId>
++    <Description>Discord runtime adapter for BotFramework.</Description>
++  </PropertyGroup>
++
++  <ItemGroup>
++    <FrameworkReference Include="Microsoft.AspNetCore.App" />
++  </ItemGroup>
++
++  <ItemGroup>
++    <PackageReference Include="Discord.Net" />
++  </ItemGroup>
++
++  <ItemGroup>
++    <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
++  </ItemGroup>
++</Project>
+diff --git a/framework/BotFramework.Discord/Composition/DiscordBuilderExtensions.cs b/framework/BotFramework.Discord/Composition/DiscordBuilderExtensions.cs
+new file mode 100644
+index 0000000..8cc0662
+--- /dev/null
++++ b/framework/BotFramework.Discord/Composition/DiscordBuilderExtensions.cs
+@@ -0,0 +1,47 @@
++using Discord.WebSocket;
++using Microsoft.AspNetCore.Builder;
++using Microsoft.AspNetCore.Http;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Hosting;
++using Microsoft.Extensions.Options;
++using BotFramework.Discord.Hosting;
++using BotFramework.Discord.Routing;
++
++namespace BotFramework.Discord.Composition;
++
++public static class DiscordBuilderExtensions
++{
++    public static IHostApplicationBuilder AddDiscordBackend(this IHostApplicationBuilder builder)
++    {
++        builder.Services.AddOptions<DiscordOptions>()
++            .Bind(builder.Configuration.GetSection(DiscordOptions.SectionName))
++            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.Token),
++                "Discord:Token is required when Discord:Enabled is true.")
++            .Validate(options => !options.Enabled || !string.IsNullOrEmpty(options.CommandPrefix),
++                "Discord:CommandPrefix is required when Discord:Enabled is true.")
++            .ValidateOnStart();
++
++        builder.Services.AddSingleton(sp =>
++        {
++            var options = sp.GetRequiredService<IOptions<DiscordOptions>>().Value;
++            return new DiscordSocketClient(new DiscordSocketConfig
++            {
++                GatewayIntents = options.GatewayIntents,
++                AlwaysDownloadUsers = false,
++            });
++        });
++        builder.Services.AddScoped<DiscordMessageRouter>();
++        builder.Services.AddHostedService<DiscordHostedService>();
++        return builder;
++    }
++
++    public static WebApplication UseDiscordBackend(this WebApplication app)
++    {
++        app.MapGet("/health/live", () => Results.Ok(new
++        {
++            status = "healthy",
++            service = "casinoshiz-discord-bff",
++        }));
++        return app;
++    }
++}
+diff --git a/framework/BotFramework.Discord/DiscordOptions.cs b/framework/BotFramework.Discord/DiscordOptions.cs
+new file mode 100644
+index 0000000..6812460
+--- /dev/null
++++ b/framework/BotFramework.Discord/DiscordOptions.cs
+@@ -0,0 +1,17 @@
++using Discord;
++
++namespace BotFramework.Discord;
++
++public sealed class DiscordOptions
++{
++    public const string SectionName = "Discord";
++
++    public bool Enabled { get; init; }
++    public string Token { get; init; } = string.Empty;
++    public string CommandPrefix { get; init; } = "!";
++    public GatewayIntents GatewayIntents { get; init; } =
++        GatewayIntents.Guilds |
++        GatewayIntents.GuildMessages |
++        GatewayIntents.DirectMessages |
++        GatewayIntents.MessageContent;
++}
+diff --git a/framework/BotFramework.Discord/Hosting/DiscordHostedService.cs b/framework/BotFramework.Discord/Hosting/DiscordHostedService.cs
+new file mode 100644
+index 0000000..3e8fd7a
+--- /dev/null
++++ b/framework/BotFramework.Discord/Hosting/DiscordHostedService.cs
+@@ -0,0 +1,96 @@
++using Discord;
++using Discord.WebSocket;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Hosting;
++using Microsoft.Extensions.Logging;
++using Microsoft.Extensions.Options;
++using BotFramework.Discord.Routing;
++
++namespace BotFramework.Discord.Hosting;
++
++public sealed partial class DiscordHostedService(
++    DiscordSocketClient client,
++    IServiceScopeFactory scopeFactory,
++    IOptions<DiscordOptions> options,
++    IHostApplicationLifetime lifetime,
++    ILogger<DiscordHostedService> logger) : BackgroundService
++{
++    private readonly DiscordOptions _options = options.Value;
++
++    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
++    {
++        if (!_options.Enabled)
++        {
++            LogDisabled(logger);
++            return;
++        }
++
++        client.Log += OnDiscordLogAsync;
++        client.MessageReceived += OnMessageReceivedAsync;
++
++        await client.LoginAsync(TokenType.Bot, _options.Token);
++        await client.StartAsync();
++        LogStarted(logger, client.CurrentUser?.Id ?? 0);
++
++        try
++        {
++            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
++        }
++        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
++        {
++        }
++        finally
++        {
++            client.MessageReceived -= OnMessageReceivedAsync;
++            client.Log -= OnDiscordLogAsync;
++            await client.StopAsync();
++            await client.LogoutAsync();
++        }
++    }
++
++    private async Task OnMessageReceivedAsync(SocketMessage message)
++    {
++        if (message.Author.IsBot || string.IsNullOrWhiteSpace(message.Content)) return;
++        if (!TryGetCommand(message.Content, _options.CommandPrefix, out var commandText)) return;
++
++        using var scope = scopeFactory.CreateScope();
++        var router = scope.ServiceProvider.GetRequiredService<DiscordMessageRouter>();
++        var context = new DiscordMessageContext(
++            message,
++            commandText,
++            scope.ServiceProvider,
++            lifetime.ApplicationStopping);
++        await router.RouteAsync(context);
++    }
++
++    private Task OnDiscordLogAsync(LogMessage message)
++    {
++        logger.Log(Map(message.Severity), message.Exception, "Discord: {Message}", message.Message);
++        return Task.CompletedTask;
++    }
++
++    private static bool TryGetCommand(string content, string prefix, out string commandText)
++    {
++        commandText = string.Empty;
++        if (string.IsNullOrEmpty(prefix) || !content.StartsWith(prefix, StringComparison.Ordinal)) return false;
++        commandText = content[prefix.Length..].Trim();
++        return commandText.Length > 0;
++    }
++
++    private static LogLevel Map(LogSeverity severity) => severity switch
++    {
++        LogSeverity.Critical => LogLevel.Critical,
++        LogSeverity.Error => LogLevel.Error,
++        LogSeverity.Warning => LogLevel.Warning,
++        LogSeverity.Info => LogLevel.Information,
++        LogSeverity.Verbose => LogLevel.Trace,
++        LogSeverity.Debug => LogLevel.Debug,
++        _ => LogLevel.Information,
++    };
++
++    [LoggerMessage(LogLevel.Information, "Discord backend is disabled")]
++    private static partial void LogDisabled(ILogger logger);
++
++    [LoggerMessage(LogLevel.Information, "Discord backend started as bot user {BotUserId}")]
++    private static partial void LogStarted(ILogger logger, ulong botUserId);
++}
+diff --git a/framework/BotFramework.Discord/Routing/DiscordMessageContext.cs b/framework/BotFramework.Discord/Routing/DiscordMessageContext.cs
+new file mode 100644
+index 0000000..57477c4
+--- /dev/null
++++ b/framework/BotFramework.Discord/Routing/DiscordMessageContext.cs
+@@ -0,0 +1,9 @@
++using Discord.WebSocket;
++
++namespace BotFramework.Discord.Routing;
++
++public sealed record DiscordMessageContext(
++    SocketMessage Message,
++    string CommandText,
++    IServiceProvider Services,
++    CancellationToken CancellationToken);
+diff --git a/framework/BotFramework.Discord/Routing/DiscordMessageRouter.cs b/framework/BotFramework.Discord/Routing/DiscordMessageRouter.cs
+new file mode 100644
+index 0000000..1d23539
+--- /dev/null
++++ b/framework/BotFramework.Discord/Routing/DiscordMessageRouter.cs
+@@ -0,0 +1,23 @@
++using Microsoft.Extensions.Logging;
++
++namespace BotFramework.Discord.Routing;
++
++public sealed partial class DiscordMessageRouter(
++    IEnumerable<IDiscordMessageHandler> handlers,
++    ILogger<DiscordMessageRouter> logger)
++{
++    public async Task RouteAsync(DiscordMessageContext context)
++    {
++        foreach (var handler in handlers)
++        {
++            if (!handler.CanHandle(context)) continue;
++            await handler.HandleAsync(context);
++            return;
++        }
++
++        LogUnhandledMessage(logger, context.Message.Id, context.Message.Author.Id);
++    }
++
++    [LoggerMessage(LogLevel.Debug, "No Discord handler accepted message {MessageId} from user {UserId}")]
++    private static partial void LogUnhandledMessage(ILogger logger, ulong messageId, ulong userId);
++}
+diff --git a/framework/BotFramework.Discord/Routing/IDiscordMessageHandler.cs b/framework/BotFramework.Discord/Routing/IDiscordMessageHandler.cs
+new file mode 100644
+index 0000000..a933b5f
+--- /dev/null
++++ b/framework/BotFramework.Discord/Routing/IDiscordMessageHandler.cs
+@@ -0,0 +1,7 @@
++namespace BotFramework.Discord.Routing;
++
++public interface IDiscordMessageHandler
++{
++    bool CanHandle(DiscordMessageContext context);
++    Task HandleAsync(DiscordMessageContext context);
++}
+diff --git a/host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj b/host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj
+new file mode 100644
+index 0000000..e73f3ba
+--- /dev/null
++++ b/host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj
+@@ -0,0 +1,10 @@
++<Project Sdk="Microsoft.NET.Sdk.Web">
++  <PropertyGroup>
++    <RootNamespace>CasinoShiz.DiscordBff</RootNamespace>
++  </PropertyGroup>
++
++  <ItemGroup>
++    <ProjectReference Include="..\..\framework\BotFramework.Discord\BotFramework.Discord.csproj" />
++    <ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
++  </ItemGroup>
++</Project>
+diff --git a/host/CasinoShiz.DiscordBff/Program.cs b/host/CasinoShiz.DiscordBff/Program.cs
+new file mode 100644
+index 0000000..6535f85
+--- /dev/null
++++ b/host/CasinoShiz.DiscordBff/Program.cs
+@@ -0,0 +1,10 @@
++using BotFramework.Discord.Composition;
++using CasinoShiz.ServiceDefaults;
++
++var builder = WebApplication.CreateBuilder(args);
++builder.AddServiceDefaults();
++builder.AddDiscordBackend();
++
++var app = builder.Build();
++app.UseDiscordBackend();
++await app.RunAsync();
+diff --git a/tests/CasinoShiz.Tests/AtomicPickPostgresTests.cs b/tests/CasinoShiz.Tests/AtomicPickPostgresTests.cs
+index 7873d32..7c59ae0 100644
+--- a/tests/CasinoShiz.Tests/AtomicPickPostgresTests.cs
++++ b/tests/CasinoShiz.Tests/AtomicPickPostgresTests.cs
+@@ -20,7 +20,7 @@ namespace CasinoShiz.Tests;
+ [Collection(AtomicPostgresCollection.Name)]
+ public sealed class AtomicPickPostgresTests(AtomicPostgresFixture database) : IAsyncLifetime
+ {
+-    private static readonly DateTimeOffset Now = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
++    private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
+ 
+     public Task InitializeAsync() => database.ResetAsync();
+     public Task DisposeAsync() => Task.CompletedTask;
