@@ -4,6 +4,7 @@ namespace Games.Bowling.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Bowling.Application.Execution;
+using Games.Bowling.Infrastructure.Configuration;
 
 public sealed class BowlingModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class BowlingModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<BowlingOptions>(BowlingOptions.SectionName)
+            .BindOptions<BowlingOptions, BowlingOptionsValidator>(BowlingOptions.SectionName)
             .AddScoped<IBowlingService, BowlingService>()
             .AddScoped<IGameAction<BowlingPlaceBetCommand, BowlingBetState, BowlingBetResult>, BowlingPlaceBetAction>()
             .AddScoped<GameExecutionDescriptor<BowlingPlaceBetCommand, BowlingBetState, BowlingBetResult>, BowlingPlaceBetDescriptor>()

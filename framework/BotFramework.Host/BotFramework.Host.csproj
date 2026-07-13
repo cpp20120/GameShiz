@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
     <ProjectReference Include="..\BotFramework.Scheduling.Quartz\BotFramework.Scheduling.Quartz.csproj" />
+    <ProjectReference Include="..\BotFramework.Rendering\BotFramework.Rendering.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
@@ -26,6 +27,7 @@
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Dapper" />
+    <PackageReference Include="FluentValidation" />
     <PackageReference Include="ClickHouse.Client" />
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />

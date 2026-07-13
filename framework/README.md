@@ -52,6 +52,12 @@ Persistent Quartz implementation of game scheduling
 
 backend composition roots
 
+`BotFramework.Rendering`
+
+Bounded TPL render queues, content-addressed artifact cache, MinIO media history and admin read endpoints
+
+backend, Telegram adapters and composition roots
+
 `BotFramework.Telegram`
 
 Telegram adapter runtime: bot client, polling/webhook ingress, update pipeline, router, route attributes, Telegram update context and delivery helpers
@@ -87,6 +93,7 @@ framework/
   BotFramework.Telegram.Abstractions/ Telegram update contracts
   BotFramework.Scheduling.Abstractions/ scheduled command contracts
   BotFramework.Scheduling.Quartz/ persistent Quartz scheduler
+  BotFramework.Rendering/ bounded rendering runtime and artifact/history ports
   BotFramework.Telegram/    Telegram ingress, update routing and delivery
 
 games/
@@ -223,6 +230,42 @@ categories are deliberately explicit:
 - `IGameRecord` writes module-specific history through a registered writer;
 - `IDomainEvent` is persisted to the transactional event outbox;
 - `ScheduleEffect` schedules or cancels a durable command through the schedule outbox.
+
+Admin mutations use the smaller companion kernel. An admin action produces an
+`AdminEffectPlan<TResult>` containing typed `IAdminEffect` values. The Host opens
+one transaction, resolves exactly one handler for every effect type, applies the
+finite materialized list in order, appends `admin_audit`, and commits. Handlers get
+the restricted `IAdminExecutionContext`, not `NpgsqlConnection` or a transaction.
+Runtime configuration is the first migrated effect (`RuntimeConfigurationPatchEffect`),
+so the JSONB update and its audit record cannot commit separately.
+
+## Typed configuration validation
+
+Modules register tunable options and their validator explicitly:
+
+```csharp
+services.BindOptions<HorseOptions, HorseOptionsValidator>(HorseOptions.SectionName);
+
+public sealed class HorseOptionsValidator
+    : FluentConfigurationValidator<HorseOptions>
+{
+    public HorseOptionsValidator()
+    {
+        RuleFor(x => x.HorseCount).InclusiveBetween(2, 16);
+        RuleFor(x => x.TimezoneOffsetHours).InclusiveBetween(-14, 14);
+    }
+}
+```
+
+`IConfigurationValidator<TOptions>` lives in `BotFramework.Sdk` and depends only
+on neutral validation result types. `FluentConfigurationValidator<TOptions>` is a
+Host adapter; modules may use it without coupling their domain contracts to
+FluentValidation. The same validator runs at startup (`ValidateOnStart`) and for
+admin preview/apply. Runtime JSON is deserialized strictly: unknown sections,
+unknown nested properties, invalid shapes, and semantic rule failures are rejected
+with structured `path`, `code`, and `message` issues. A valid patch is normalized,
+previewed as effective typed options, and only then handed to the admin effect
+executor.
 
 ### Contract at a glance
 
@@ -462,6 +505,90 @@ When adding or migrating a mutation:
 7. Test deterministic decisions, rejection without effects, rollback, duplicate
    command ids, concurrent same/different aggregates, and lost-response replay.
 8. Keep read-only queries outside the executor; the effect system is for commands.
+
+## Rendering, batching and media history
+
+Heavy GIF/image generation is runtime work, not an atomic game effect. A game
+first commits its decision, then submits an immutable render specification to
+`IRenderQueue`. `BotFramework.Rendering` describes the specification with a
+content-addressed `RenderKey`, checks the shared artifact store, deduplicates
+identical in-flight work, and runs a registered `IRenderJob<TSpec>` in a bounded
+TPL Dataflow worker.
+
+```text
+committed game result
+  -> immutable render spec
+  -> content key (renderer + version + input hash)
+  -> memory/in-flight dedup
+  -> MinIO cache hit -------------------------------> artifact
+  -> bounded TPL queue -> CPU render -> MinIO put --> artifact
+  -> optional RenderHistoryEntry manifest
+```
+
+There are separate interactive and background/prewarm queues. They share one
+global `MaxParallelism` semaphore, so together they cannot exceed the configured
+CPU budget. Queue capacity provides backpressure; `PrewarmAsync` may accept a
+whole matrix, but it cannot create unbounded active renders. This is intentionally
+not `IAsyncEnumerable`: one render is one finite, awaitable artifact.
+
+A renderer is explicit and versioned:
+
+```csharp
+public sealed class BoardRenderJob : IRenderJob<BoardRenderSpec>
+{
+    public RenderKey Describe(BoardRenderSpec spec) =>
+        new("board", "3", HashCanonical(spec), "png", "image/png");
+
+    public ValueTask<RenderOutput> RenderAsync(BoardRenderSpec spec, CancellationToken ct) =>
+        ValueTask.FromResult(RenderOutput.FromBytes(RenderBoard(spec), "board.png"));
+}
+
+services.AddRenderJob<BoardRenderSpec, BoardRenderJob>();
+```
+
+`RendererVersion` must change whenever pixels, encoding, fonts, localization or
+canonicalization change. Specifications must contain every input that affects
+the bytes and must not read mutable game state during rendering.
+
+Horse registers deterministic winner/variant GIF specifications. Quartz runs
+`horse.render-prewarm` at 03:15 UTC and feeds the complete winner × variant
+matrix through the bounded prewarm queue; a cache miss is still rendered on
+demand. Poker board PNGs use the same queue and content deduplication.
+
+When MinIO is enabled, artifacts live under
+`artifacts/{renderer}/{version}/{hash}.{extension}`. Match history stores small
+JSON manifests under `history/{game}/{aggregate}/...`; manifests point to the
+same immutable artifact instead of copying GIF/PNG bytes. Authenticated admin
+inspection is available through:
+
+- `GET /admin/render-history/{gameId}/{aggregateId}?take=50`;
+- `GET /admin/render-artifact/{rendererId}/{version}/{hash}.{extension}`.
+
+Configuration is under `Rendering`:
+
+```json
+{
+  "Rendering": {
+    "QueueCapacity": 64,
+    "MaxParallelism": 0,
+    "MaxArtifactBytes": 33554432,
+    "Minio": {
+      "Enabled": true,
+      "Endpoint": "minio:9000",
+      "AccessKey": "minioadmin",
+      "SecretKey": "change-me",
+      "Bucket": "casinoshiz-media",
+      "Secure": false
+    }
+  }
+}
+```
+
+`MaxParallelism = 0` selects half of the available logical processors (at least
+one). MinIO is a cache/history dependency, not a transaction participant. Read
+or write failure falls back to a transient artifact for the current response;
+history writes are retried and logged without changing an already committed game
+result. Production credentials must come from secrets, not committed settings.
 
 ## Host composition
 

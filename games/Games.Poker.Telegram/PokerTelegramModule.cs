@@ -1,5 +1,8 @@
 namespace Games.Poker.Telegram;
 
+using BotFramework.Rendering;
+using Games.Poker.Infrastructure.Rendering;
+
 public sealed class PokerTelegramModule : IModule
 {
     public string Id => "poker";
@@ -8,6 +11,7 @@ public sealed class PokerTelegramModule : IModule
 
     public void ConfigureServices(IModuleServiceCollection services) =>
         services
+            .AddScoped<IRenderJob<PokerBoardRenderSpec>, PokerBoardRenderJob>()
             .AddHandler<PokerHandler>()
             .AddRecurringScheduledCommand<PokerTurnTimeoutJob>();
 

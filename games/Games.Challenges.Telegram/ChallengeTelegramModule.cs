@@ -1,4 +1,6 @@
 using Games.Challenges.Application.Handlers;
+using BotFramework.Rendering;
+using Games.Horse.Rendering;
 
 namespace Games.Challenges.Telegram;
 
@@ -7,7 +9,9 @@ public sealed class ChallengeTelegramModule : IModule
     public string Id => "challenges";
     public string DisplayName => "PvP Challenges";
     public string Version => "1.0.0";
-    public void ConfigureServices(IModuleServiceCollection services) => services.AddHandler<ChallengeHandler>();
+    public void ConfigureServices(IModuleServiceCollection services) => services
+        .AddScoped<IRenderJob<HorseRaceRenderSpec>, HorseRaceRenderJob>()
+        .AddHandler<ChallengeHandler>();
     public IModuleMigrations? GetMigrations() => null;
 
     public IReadOnlyList<BotCommand> GetBotCommands() =>

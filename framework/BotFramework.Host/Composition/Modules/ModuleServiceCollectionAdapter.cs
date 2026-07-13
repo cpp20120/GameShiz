@@ -20,6 +20,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using BotFramework.Scheduling.Abstractions;
+using BotFramework.Host.Configuration.Validation;
+using BotFramework.Sdk.Configuration;
 
 namespace BotFramework.Host.Composition.Modules;
 
@@ -30,7 +32,15 @@ public sealed class ModuleServiceCollectionAdapter(
 {
     public IModuleServiceCollection BindOptions<TOptions>(string configSection) where TOptions : class
     {
-        services.Configure<TOptions>(configuration.GetSection(configSection));
+        services.AddRegisteredConfigurationSection<TOptions>(configuration, configSection);
+        return this;
+    }
+
+    public IModuleServiceCollection BindOptions<TOptions, TValidator>(string configSection)
+        where TOptions : class
+        where TValidator : class, IConfigurationValidator<TOptions>
+    {
+        services.AddRegisteredConfigurationSection<TOptions, TValidator>(configuration, configSection);
         return this;
     }
 

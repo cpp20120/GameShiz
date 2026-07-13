@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Games.Horse.Rendering\Games.Horse.Rendering.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Rendering\BotFramework.Rendering.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Microsoft.Extensions.Logging" />

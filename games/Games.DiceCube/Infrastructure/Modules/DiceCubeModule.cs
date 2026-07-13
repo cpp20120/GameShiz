@@ -5,6 +5,7 @@ using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.DiceCube.Application.Execution;
 using Games.DiceCube.Infrastructure.Persistence;
+using Games.DiceCube.Infrastructure.Configuration;
 
 public sealed class DiceCubeModule : IModule
 {
@@ -15,7 +16,7 @@ public sealed class DiceCubeModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<DiceCubeOptions>(DiceCubeOptions.SectionName)
+            .BindOptions<DiceCubeOptions, DiceCubeOptionsValidator>(DiceCubeOptions.SectionName)
             .AddScoped<IDiceCubeService, DiceCubeService>()
             .AddScoped<IGameAction<DiceCubePlaceBetCommand, DiceCubePlaceBetState, CubeBetResult>, DiceCubePlaceBetAction>()
             .AddScoped<GameExecutionDescriptor<DiceCubePlaceBetCommand, DiceCubePlaceBetState, CubeBetResult>, DiceCubePlaceBetDescriptor>()

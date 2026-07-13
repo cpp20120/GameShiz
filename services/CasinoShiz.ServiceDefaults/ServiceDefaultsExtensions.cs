@@ -16,6 +16,7 @@ public static class ServiceDefaultsExtensions
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics => metrics
                 .AddMeter("CasinoShiz.GameExecution")
+                .AddMeter("CasinoShiz.Rendering")
                 .AddRuntimeInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddAspNetCoreInstrumentation()

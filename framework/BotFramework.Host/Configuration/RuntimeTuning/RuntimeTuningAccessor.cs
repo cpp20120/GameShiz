@@ -8,6 +8,7 @@ namespace BotFramework.Host.Configuration.RuntimeTuning;
 public sealed partial class RuntimeTuningAccessor(
     IConfiguration configuration,
     INpgsqlConnectionFactory connections,
+    IServiceProvider services,
     ILogger<RuntimeTuningAccessor> logger)
     : IRuntimeTuningAccessor, IHostedService
 {
@@ -37,7 +38,27 @@ public sealed partial class RuntimeTuningAccessor(
         {
             try
             {
-                nextPatch = JsonNode.Parse(row) as JsonObject;
+                var validator = services.GetService<RuntimeConfigurationValidator>();
+                if (validator is null)
+                {
+                    nextPatch = JsonNode.Parse(row) is JsonObject parsed
+                        ? RuntimeTuningPayloadSanitizer.Sanitize(parsed)
+                        : null;
+                }
+                else
+                {
+                    var validation = validator.Validate(row);
+                    if (validation.IsValid)
+                    {
+                        nextPatch = JsonNode.Parse(validation.NormalizedPatchJson) as JsonObject;
+                    }
+                    else
+                    {
+                        LogRuntimeTuningValidationFailed(
+                            logger,
+                            string.Join("; ", validation.Issues.Select(static issue => $"{issue.Path}: {issue.Message}")));
+                    }
+                }
             }
             catch (JsonException ex)
             {
@@ -77,4 +98,8 @@ public sealed partial class RuntimeTuningAccessor(
     [LoggerMessage(EventId = 1200, Level = LogLevel.Warning,
         Message = "runtime_tuning.payload is invalid JSON; ignoring DB overrides")]
     private static partial void LogRuntimeTuningPayloadInvalid(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 1201, Level = LogLevel.Warning,
+        Message = "runtime_tuning.payload failed semantic validation; ignoring DB overrides: {Issues}")]
+    private static partial void LogRuntimeTuningValidationFailed(ILogger logger, string issues);
 }

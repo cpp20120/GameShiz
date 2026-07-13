@@ -43,6 +43,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CasinoShiz.Host.Pages.Admin;
 using CasinoShiz.ServiceDefaults;
+using BotFramework.Rendering;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options =>
@@ -127,6 +128,7 @@ app.MapPokerGrpcTransport();
 app.MapSecretHitlerGrpcTransport();
 app.MapMetaGrpcTransport();
 app.MapAdminGrpcTransport();
+app.MapRenderHistory();
 app.MapOperationsGrpcTransport();
 app.MapRazorPages();
 if (!walletRemote) app.MapWalletGrpcTransport();

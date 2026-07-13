@@ -4,6 +4,7 @@ namespace Games.Poker.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Poker.Application.Execution;
+using Games.Poker.Infrastructure.Configuration;
 
 public sealed class PokerModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class PokerModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<PokerOptions>(PokerOptions.SectionName)
+            .BindOptions<PokerOptions, PokerOptionsValidator>(PokerOptions.SectionName)
             .AddScoped<IPokerService, PokerService>()
             .AddScoped<IPokerTableStore, PokerTableStore>()
             .AddScoped<IPokerSeatStore, PokerSeatStore>()

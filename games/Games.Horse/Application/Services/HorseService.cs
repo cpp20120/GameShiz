@@ -3,6 +3,8 @@ using System.Text;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Horse.Application.Execution;
+using BotFramework.Rendering;
+using Games.Horse.Rendering;
 using Microsoft.Extensions.Options;
 
 namespace Games.Horse.Application.Services;
@@ -13,6 +15,9 @@ public sealed class HorseService(
     IHorseResultStore resultStore,
     IAtomicGameExecutor<HorsePlaceBetCommand, HorseBetState, BetResult> betExecutor,
     IAtomicGameExecutor<HorseRunCommand, HorseRaceState, RaceOutcome> runExecutor,
+    IRenderQueue renders,
+    IRenderHistory renderHistory,
+    TimeProvider timeProvider,
     IOptions<HorseOptions> options) : IHorseService
 {
     private readonly HorseOptions opts = options.Value;
@@ -76,13 +81,26 @@ public sealed class HorseService(
             .ConfigureAwait(false);
         if (outcome.Error != HorseError.None) return outcome;
 
-        var gif = await Task.Run(() =>
-        {
-            var speeds = SpeedGenerator.CreateSpeeds(opts.HorseCount, outcome.Winner);
-            var (frames, height, width) = HorseRaceRenderer.DrawHorses(speeds);
-            return GifEncoder.RenderFramesToGif(frames, width, height);
-        }, ct).ConfigureAwait(false);
-        return outcome with { GifBytes = gif };
+        var variants = Math.Max(1, opts.RenderVariants);
+        var variant = SHA256.HashData(Encoding.UTF8.GetBytes(commandId))[0] % variants;
+        var artifact = await renders.GetOrRenderAsync(
+            new HorseRaceRenderSpec(opts.HorseCount, outcome.Winner, variant),
+            RenderPriority.Interactive,
+            ct).ConfigureAwait(false);
+        await renderHistory.RecordAsync(new RenderHistoryEntry(
+            "horse",
+            resultScope.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            commandId,
+            artifact.Key,
+            timeProvider.GetUtcNow(),
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["race_date"] = raceDate,
+                ["winner"] = outcome.Winner.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["kind"] = kind.ToString(),
+                ["variant"] = variant.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            }), ct).ConfigureAwait(false);
+        return outcome with { GifBytes = artifact.Content };
     }
 
     public static Dictionary<int, double> GetKoefs(Dictionary<int, int> stakes) =>

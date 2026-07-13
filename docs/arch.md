@@ -11,6 +11,7 @@ framework/
   BotFramework.Contracts/   transport-neutral messaging contracts
   BotFramework.Sdk/         module and domain abstractions
   BotFramework.Host/        backend infrastructure and composition
+  BotFramework.Rendering/   bounded render queues + media artifact/history ports
   BotFramework.Telegram/    Telegram ingress, routing and delivery
 games/
   Games.X.Contracts/        logical interfaces and portable DTOs
@@ -523,6 +524,76 @@ The legacy `IEconomicsService` remains a compatibility facade for non-command
 and administrative paths. New game mutations should use the execution kernel;
 read-only queries should continue to use owning-context read services directly.
 
+## Render Runtime And Match Media
+
+GIF and image generation is isolated from the atomic executor. The executor
+commits rules, balances, state and effects before any CPU-heavy render begins.
+Both deployment shapes compose `BotFramework.Rendering`; split processes share
+the same content-addressed MinIO bucket.
+
+```mermaid
+flowchart LR
+    result["Committed game result"]
+    spec["Immutable render spec"]
+    key["Renderer + version<br/>canonical content hash"]
+    inflight{"In-process<br/>in-flight hit?"}
+    minio{"MinIO artifact<br/>exists?"}
+    iq["Interactive TPL queue"]
+    bq["Background / prewarm<br/>TPL queue"]
+    slots["Shared CPU semaphore<br/>MaxParallelism"]
+    renderer["IRenderJob.RenderAsync"]
+    artifact[("Immutable GIF / PNG")]
+    history[("JSON history manifest")]
+
+    result --> spec --> key --> inflight
+    inflight -->|"yes"| artifact
+    inflight -->|"no"| minio
+    minio -->|"hit"| artifact
+    minio -->|"interactive miss"| iq
+    minio -->|"prewarm miss"| bq
+    iq --> slots
+    bq --> slots
+    slots --> renderer --> artifact
+    artifact --> history
+```
+
+The two bounded `ActionBlock` queues provide backpressure and priority separation,
+while one semaphore enforces the process-wide render CPU budget. Identical work
+inside a process shares one task. Across processes the stable object key makes
+duplicate output harmless and subsequent requests become cache hits.
+
+```mermaid
+sequenceDiagram
+    participant Quartz
+    participant Queue as TPL render queue
+    participant Store as MinIO
+    participant Game as Live game request
+
+    Quartz->>Queue: Horse winner × variant matrix
+    loop bounded prewarm
+        Queue->>Store: find(content key)
+        alt missing
+            Queue->>Queue: render in shared CPU slot
+            Queue->>Store: put immutable GIF
+        end
+    end
+    Game->>Queue: selected deterministic variant
+    Queue->>Store: find(content key)
+    Store-->>Game: cached GIF
+```
+
+Horse prewarming is a Quartz recurring scheduled command, not an unbounded
+background loop. Poker board images use on-demand content deduplication. Match
+history stores manifests referencing immutable objects, so repeated views do not
+duplicate media bytes. Admin history/artifact reads are exposed only under the
+existing protected `/admin` surface.
+
+MinIO is deliberately outside PostgreSQL transactions. If it is unavailable,
+the current request receives a transient freshly rendered artifact, storage
+failures are metered/logged, and the committed game result is not rolled back.
+Artifact history therefore has operational durability, not domain consistency;
+PostgreSQL remains the source of truth for wallets, ledgers and match state.
+
 ## Wallet And Ledger
 
 The logical wallet/protection ports live in `BotFramework.Contracts`. Identity uses
@@ -767,8 +838,10 @@ flowchart LR
     file["appsettings.json"]
     env["Environment variables"]
     admin["Admin structured forms<br/>or JSON patch"]
-    sanitizer["RuntimeTuningPayloadSanitizer"]
-    validation["Typed merge validation"]
+    registry["Registered typed sections"]
+    strict["Strict JSON merge<br/>unknown fields rejected"]
+    validation["IConfigurationValidator&lt;T&gt;<br/>FluentValidation adapter"]
+    adminEffects["AdminEffectPlan<br/>transaction + mandatory audit"]
     table[("runtime_tuning.payload")]
     accessor["RuntimeTuningAccessor"]
     effective["Effective typed options"]
@@ -776,9 +849,11 @@ flowchart LR
 
     file --> accessor
     env --> accessor
-    admin --> sanitizer
-    sanitizer --> validation
-    validation --> table
+    registry --> strict
+    admin --> strict
+    strict --> validation
+    validation --> adminEffects
+    adminEffects --> table
     table --> accessor
     accessor --> effective
     effective --> games
@@ -790,9 +865,20 @@ Precedence is:
 2. environment variables;
 3. whitelisted database patch.
 
-Saving from `/admin/settings` sanitizes keys, validates typed sections, writes the
-JSONB patch, reloads the accessor, and appends an admin audit record. Services that
-read `IRuntimeTuningAccessor` receive changes without process restart.
+`BindOptions<TOptions, TValidator>` registers one section for both startup and
+runtime validation. The SDK owns only `IConfigurationValidator<TOptions>` and
+structured issues; the Host supplies a FluentValidation bridge and
+`ValidateOnStart`. Admin JSON is not a loose property bag: the registry rejects
+unregistered sections, strict deserialization rejects unknown nested properties,
+and semantic validators run against the fully merged effective options. Preview
+and apply therefore share exactly the same validation path.
+
+Saving from `/admin/settings` produces a `RuntimeConfigurationPatchEffect`. The
+admin execution kernel applies that effect and appends `admin_audit` in the same
+PostgreSQL transaction; after commit the runtime accessor reloads the normalized
+patch. Services that read `IRuntimeTuningAccessor` receive changes without process
+restart. Failed validation performs no writes, and a failed effect rolls back both
+the mutation and audit.
 
 ## Admin And HTTP Surface
 
@@ -835,7 +921,13 @@ flowchart TB
     jobs --> jobState
     recovery --> pg
     auditPage --> audit
-    pages -->|"write actions"| audit
+    adminPlan["Typed AdminEffectPlan"]
+    adminExecutor["Admin effect executor<br/>one transaction"]
+
+    pages -->|"write actions"| adminPlan
+    adminPlan --> adminExecutor
+    adminExecutor --> pg
+    adminExecutor --> audit
 ```
 
 Read-only admins can inspect operational pages but mutation handlers return `403`.

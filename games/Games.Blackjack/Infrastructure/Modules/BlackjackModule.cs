@@ -5,6 +5,7 @@ using BotFramework.Host.Execution;
 using BotFramework.Scheduling.Abstractions;
 using BotFramework.Sdk.Execution;
 using Games.Blackjack.Application.Execution;
+using Games.Blackjack.Infrastructure.Configuration;
 
 public sealed class BlackjackModule : IModule
 {
@@ -15,7 +16,7 @@ public sealed class BlackjackModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<BlackjackOptions>(BlackjackOptions.SectionName)
+            .BindOptions<BlackjackOptions, BlackjackOptionsValidator>(BlackjackOptions.SectionName)
             .AddScoped<IBlackjackService, BlackjackService>()
             .AddScoped<IBlackjackClient, LocalBlackjackClient>()
             .AddScoped<IBlackjackStateReader, BlackjackStateReader>()

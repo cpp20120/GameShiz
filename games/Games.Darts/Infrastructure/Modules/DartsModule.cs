@@ -4,6 +4,7 @@ namespace Games.Darts.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Darts.Application.Execution;
+using Games.Darts.Infrastructure.Configuration;
 
 public sealed class DartsModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class DartsModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<DartsOptions>(DartsOptions.SectionName)
+            .BindOptions<DartsOptions, DartsOptionsValidator>(DartsOptions.SectionName)
             .AddSingleton<IDartsRollQueue, DartsRollQueue>()
             .AddScoped<IDartsRoundStore, DartsRoundStore>()
             .AddScoped<IDartsService, DartsService>()

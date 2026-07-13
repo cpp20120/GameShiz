@@ -12,6 +12,7 @@ using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using BotFramework.Rendering;
 
 namespace Games.Poker.Application.Handlers;
 
@@ -21,6 +22,9 @@ public sealed partial class PokerHandler(
     IPokerService service,
     ILocalizer localizer,
     IRuntimeTuningAccessor tuning,
+    IRenderQueue renders,
+    IRenderHistory renderHistory,
+    TimeProvider timeProvider,
     ILogger<PokerHandler> logger) : IUpdateHandler
 {
     public async Task HandleAsync(UpdateContext ctx)
@@ -342,9 +346,29 @@ public sealed partial class PokerHandler(
 
     private async Task SendOrEditStateUsingBotAsync(ITelegramBotClient bot, TableSnapshot snapshot, CancellationToken ct)
     {
-        var board = PokerBoardRenderer.Render(snapshot, localizer);
+        var artifact = await renders.GetOrRenderAsync(
+            new PokerBoardRenderSpec(snapshot),
+            RenderPriority.Interactive,
+            ct);
+        var board = artifact.Content;
         var caption = PokerBoardRenderer.Caption(snapshot.Table, localizer);
         InlineKeyboardMarkup? markup = BuildGroupMarkup(snapshot);
+
+        if (snapshot.Table.Status is PokerTableStatus.HandComplete or PokerTableStatus.Closed)
+        {
+            await renderHistory.RecordAsync(new RenderHistoryEntry(
+                "poker",
+                snapshot.Table.InviteCode,
+                $"{snapshot.Table.InviteCode}:{snapshot.Table.LastActionAt}",
+                artifact.Key,
+                timeProvider.GetUtcNow(),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["chat_id"] = snapshot.Table.ChatId.ToString(CultureInfo.InvariantCulture),
+                    ["phase"] = snapshot.Table.Phase.ToString(),
+                    ["pot"] = snapshot.Table.Pot.ToString(CultureInfo.InvariantCulture),
+                }), ct);
+        }
 
         if (snapshot.Table.StateMessageId.HasValue)
         {

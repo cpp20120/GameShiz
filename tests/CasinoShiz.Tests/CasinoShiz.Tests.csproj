@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Rendering\BotFramework.Rendering.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Telegram\BotFramework.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack\Games.Blackjack.csproj" />
     <ProjectReference Include="..\..\games\Games.Horse\Games.Horse.csproj" />

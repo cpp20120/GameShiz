@@ -8,6 +8,7 @@
     <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Dapper" Version="2.1.79" />
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="DotNetCore.CAP" Version="10.0.1" />
     <PackageVersion Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
     <PackageVersion Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
@@ -26,6 +27,7 @@
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.9" />
+    <PackageVersion Include="Minio" Version="7.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />

@@ -4,6 +4,7 @@ namespace Games.Pick.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Pick.Application.Execution;
+using Games.Pick.Infrastructure.Configuration;
 
 public sealed class PickModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class PickModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<PickOptions>(PickOptions.SectionName)
+            .BindOptions<PickOptions, PickOptionsValidator>(PickOptions.SectionName)
 
             // single-player /pick
             .AddSingleton<PickChainStore>()

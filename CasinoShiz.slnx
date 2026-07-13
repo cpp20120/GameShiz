@@ -8,6 +8,7 @@
     <Project Path="framework\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
     <Project Path="framework\BotFramework.Scheduling.Abstractions\BotFramework.Scheduling.Abstractions.csproj" />
     <Project Path="framework\BotFramework.Scheduling.Quartz\BotFramework.Scheduling.Quartz.csproj" />
+    <Project Path="framework\BotFramework.Rendering\BotFramework.Rendering.csproj" />
   </Folder>
   <Folder Name="/games/">
     <Project Path="games\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />

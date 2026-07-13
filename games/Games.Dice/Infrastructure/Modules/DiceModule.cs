@@ -23,6 +23,7 @@ using Games.Dice.Infrastructure.Messaging;
 using Games.Dice.Application.Execution;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
+using Games.Dice.Infrastructure.Configuration;
 
 public sealed class DiceModule : IModule
 {
@@ -33,7 +34,7 @@ public sealed class DiceModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<DiceOptions>(DiceOptions.SectionName)
+            .BindOptions<DiceOptions, DiceOptionsValidator>(DiceOptions.SectionName)
             .AddScoped<IDiceService, DiceService>()
             .AddScoped<IGameAction<DiceCommand, NoGameState, DicePlayResult>, DiceAction>()
             .AddScoped<GameExecutionDescriptor<DiceCommand, NoGameState, DicePlayResult>, DiceExecutionDescriptor>()

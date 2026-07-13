@@ -4,14 +4,21 @@ using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using BotFramework.Rendering;
+using Games.Horse.Rendering;
+using Microsoft.Extensions.Logging;
 
 namespace Games.Challenges.Application.Handlers;
 
 [Command("/challenge")]
 [CallbackPrefix("ch:")]
-public sealed class ChallengeHandler(
+public sealed partial class ChallengeHandler(
     IChallengeService service,
-    ILocalizer localizer) : IUpdateHandler
+    ILocalizer localizer,
+    IRenderQueue renders,
+    IRenderHistory renderHistory,
+    TimeProvider timeProvider,
+    ILogger<ChallengeHandler> logger) : IUpdateHandler
 {
     private static readonly TimeSpan HorseGifFrameDelay = TimeSpan.FromMilliseconds(60);
     private static readonly TimeSpan HorseResultDelayBuffer = TimeSpan.FromSeconds(1);
@@ -180,20 +187,45 @@ public sealed class ChallengeHandler(
     private async Task RaceAndSettleAsync(UpdateContext ctx, Challenge challenge, int? replyToMessageId)
     {
         var reply = replyToMessageId is null ? null : new ReplyParameters { MessageId = replyToMessageId.Value };
+        var winner = SpeedGenerator.GenPlaces(2);
+        var challengerScore = winner == 0 ? 2 : 1;
+        var targetScore = winner == 1 ? 2 : 1;
+        ChallengeAcceptResult result;
 
         try
         {
-            var winner = SpeedGenerator.GenPlaces(2);
-            var frameCount = 0;
-            var gifBytes = await Task.Run(() =>
-            {
-                var speeds = SpeedGenerator.CreateSpeeds(2, winner);
-                var (frames, height, width) = HorseRaceRenderer.DrawHorses(speeds);
-                frameCount = frames.Length;
-                return GifEncoder.RenderFramesToGif(frames, width, height);
-            }, ctx.Ct);
+            // Settle the atomic game command before optional CPU/network media work.
+            result = await service.CompleteAcceptedAsync(challenge, challengerScore, targetScore, ctx.Ct);
+        }
+        catch
+        {
+            await service.FailAcceptedAsync(challenge, CancellationToken.None);
+            await ctx.Bot.SendMessage(challenge.ChatId, Loc("roll.failed"), cancellationToken: CancellationToken.None);
+            return;
+        }
 
-            await using var stream = new MemoryStream(gifBytes);
+        try
+        {
+            const int variants = 3;
+            var variant = challenge.Id.ToByteArray()[0] % variants;
+            var spec = new HorseRaceRenderSpec(2, winner, variant);
+            var artifact = await renders.GetOrRenderAsync(spec, RenderPriority.Interactive, ctx.Ct);
+            var frameCount = HorseRaceRenderJob.EstimateFrameCount(spec);
+            await renderHistory.RecordAsync(new RenderHistoryEntry(
+                "challenges",
+                challenge.ChatId.ToString(CultureInfo.InvariantCulture),
+                challenge.Id.ToString("N"),
+                artifact.Key,
+                timeProvider.GetUtcNow(),
+                new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["game"] = "horse",
+                    ["winner"] = winner.ToString(CultureInfo.InvariantCulture),
+                    ["challenger"] = challenge.ChallengerId.ToString(CultureInfo.InvariantCulture),
+                    ["target"] = challenge.TargetId.ToString(CultureInfo.InvariantCulture),
+                }), ctx.Ct);
+
+            await using var stream = new MemoryStream(artifact.Content);
             await ctx.Bot.SendAnimation(
                 challenge.ChatId,
                 InputFile.FromStream(stream, "challenge-horse.gif"),
@@ -204,18 +236,19 @@ public sealed class ChallengeHandler(
                 replyParameters: reply,
                 cancellationToken: ctx.Ct);
 
-            var challengerScore = winner == 0 ? 2 : 1;
-            var targetScore = winner == 1 ? 2 : 1;
-            var result = await service.CompleteAcceptedAsync(challenge, challengerScore, targetScore, ctx.Ct);
             await Task.Delay((HorseGifFrameDelay * frameCount) + HorseResultDelayBuffer, ctx.Ct);
-            await ctx.Bot.SendMessage(challenge.ChatId, HorseResultText(result),
-                parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
         }
-        catch
+        catch (OperationCanceledException) when (ctx.Ct.IsCancellationRequested)
         {
-            await service.FailAcceptedAsync(challenge, CancellationToken.None);
-            await ctx.Bot.SendMessage(challenge.ChatId, Loc("roll.failed"), cancellationToken: CancellationToken.None);
+            return;
         }
+        catch (Exception ex)
+        {
+            LogHorseMediaFailed(challenge.Id, ex);
+        }
+
+        await ctx.Bot.SendMessage(challenge.ChatId, HorseResultText(result),
+            parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
     }
 
     private async Task BlackjackAndSettleAsync(UpdateContext ctx, Challenge challenge)
@@ -434,6 +467,9 @@ public sealed class ChallengeHandler(
         string? text = null,
         bool alert = false) =>
         ctx.Bot.AnswerCallbackQuery(cbq.Id, text, showAlert: alert, cancellationToken: ctx.Ct);
+
+    [LoggerMessage(EventId = 7210, Level = LogLevel.Warning, Message = "challenge horse media failed challenge_id={ChallengeId}; settlement remains committed")]
+    private partial void LogHorseMediaFailed(Guid challengeId, Exception exception);
 
     private sealed record BlackjackDuel(
         string[] ChallengerCards,

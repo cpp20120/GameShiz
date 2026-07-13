@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using BotFramework.Sdk.Configuration;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,10 +8,9 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace CasinoShiz.Host.Pages.Admin;
 
 public sealed class SettingsModel(
-    IConfiguration configuration,
     INpgsqlConnectionFactory connections,
     IRuntimeTuningAccessor tuning,
-    IAdminAuditLog audit,
+    IRuntimeConfigurationService runtimeConfiguration,
     ILogger<SettingsModel> logger) : PageModel
 {
     [BindProperty]
@@ -42,12 +42,10 @@ public sealed class SettingsModel(
             return RedirectToPage("/Admin/Login");
 
         CanEdit = actor.Role == AdminRole.SuperAdmin;
-        await using var conn = await connections.OpenAsync(ct);
-        var row = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
-            "SELECT payload::text FROM runtime_tuning WHERE id = 1",
-            cancellationToken: ct));
-        PatchJson = string.IsNullOrWhiteSpace(row) ? "{}" : FormatJson(row);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
+        var snapshot = await runtimeConfiguration.GetAsync(ct);
+        PatchJson = FormatJson(snapshot.PatchJson);
+        EffectivePreviewJson = FormatJson(snapshot.EffectiveJson);
+        Error = FormatIssues(snapshot.Issues);
         LoadAllStructuredSettings();
         await LoadRedeemDropStatsAsync(ct);
         return Page();
@@ -61,60 +59,26 @@ public sealed class SettingsModel(
         if (actor.Role != AdminRole.SuperAdmin)
             return StatusCode(403);
 
-        JsonObject? parsed;
-        try
+        var result = await runtimeConfiguration.ApplyAsync(
+            PatchJson,
+            actor.UserId,
+            actor.Name,
+            "runtime_tuning.save",
+            null,
+            ct);
+        if (!result.Applied)
         {
-            parsed = JsonNode.Parse(PatchJson) as JsonObject;
-        }
-        catch (JsonException ex)
-        {
-            Error = ex.Message;
+            Error = FormatIssues(result.Issues);
             CanEdit = true;
-            EffectivePreviewJson = FormatJson(BuildEffectiveExport());
+            EffectivePreviewJson = FormatJson(result.EffectiveJson);
             LoadAllStructuredSettings();
             await LoadRedeemDropStatsAsync(ct);
             return Page();
         }
 
-        if (parsed is null)
-        {
-            Error = "Payload must be a JSON object.";
-            CanEdit = true;
-            EffectivePreviewJson = FormatJson(BuildEffectiveExport());
-            LoadAllStructuredSettings();
-            await LoadRedeemDropStatsAsync(ct);
-            return Page();
-        }
-
-        var sanitized = RuntimeTuningPayloadSanitizer.Sanitize(parsed);
-        var err = ValidateMerged(configuration, sanitized);
-        if (err is not null)
-        {
-            Error = err;
-            CanEdit = true;
-            EffectivePreviewJson = FormatJson(BuildEffectiveExport());
-            LoadAllStructuredSettings();
-            await LoadRedeemDropStatsAsync(ct);
-            return Page();
-        }
-
-        var compact = sanitized.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
-        await using var conn = await connections.OpenAsync(ct);
-        await conn.ExecuteAsync(new CommandDefinition(
-            """
-            UPDATE runtime_tuning
-            SET payload = @payload::jsonb, updated_at = now()
-            WHERE id = 1
-            """,
-            new { payload = compact },
-            cancellationToken: ct));
-
-        await tuning.ReloadFromDatabaseAsync(ct);
-        await audit.LogAsync(actor.UserId, actor.Name, "runtime_tuning.save",
-            new { bytes = compact.Length }, ct);
         Flash = "Saved. Live settings reloaded.";
-        PatchJson = FormatJson(compact);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
+        PatchJson = FormatJson(result.PatchJson);
+        EffectivePreviewJson = FormatJson(result.EffectiveJson);
         LoadAllStructuredSettings();
         await LoadRedeemDropStatsAsync(ct);
         CanEdit = true;
@@ -167,27 +131,9 @@ public sealed class SettingsModel(
         SetDropChance(games, "basketball", StickerGames.BasketballDropChance);
         SetDropChance(games, "bowling", StickerGames.BowlingDropChance);
 
-        var sanitized = RuntimeTuningPayloadSanitizer.Sanitize(patch);
-        var err = ValidateMerged(configuration, sanitized);
-        if (err is not null)
-        {
-            Error = err;
-            return await ReloadPageForErrorAsync(ct);
-        }
-
-        var compact = sanitized.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
-        await SavePatchAsync(compact, ct);
-        await tuning.ReloadFromDatabaseAsync(ct);
-        await audit.LogAsync(actor.UserId, actor.Name, "runtime_tuning.sticker_games.save",
-            new { games = StickerGames.All.Select(g => g.GameId).ToArray() }, ct);
-
-        Flash = "Sticker game drop chances and daily limits saved.";
-        PatchJson = FormatJson(compact);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
-        LoadAllStructuredSettings();
-        await LoadRedeemDropStatsAsync(ct);
-        CanEdit = true;
-        return Page();
+        return await SaveAndReloadAsync(actor, patch, "runtime_tuning.sticker_games.save",
+            new { games = StickerGames.All.Select(g => g.GameId).ToArray() },
+            "Sticker game drop chances and daily limits saved.", ct);
     }
 
     public async Task<IActionResult> OnPostPokerAsync(CancellationToken ct)
@@ -211,27 +157,8 @@ public sealed class SettingsModel(
         var poker = (JsonObject)games["poker"]!;
         poker["BuyIn"] = PokerGame.BuyIn;
 
-        var sanitized = RuntimeTuningPayloadSanitizer.Sanitize(patch);
-        var err = ValidateMerged(configuration, sanitized);
-        if (err is not null)
-        {
-            Error = err;
-            return await ReloadPageForErrorAsync(ct);
-        }
-
-        var compact = sanitized.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
-        await SavePatchAsync(compact, ct);
-        await tuning.ReloadFromDatabaseAsync(ct);
-        await audit.LogAsync(actor.UserId, actor.Name, "runtime_tuning.poker.save",
-            new { PokerGame.BuyIn }, ct);
-
-        Flash = "Poker settings saved.";
-        PatchJson = FormatJson(compact);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
-        LoadAllStructuredSettings();
-        await LoadRedeemDropStatsAsync(ct);
-        CanEdit = true;
-        return Page();
+        return await SaveAndReloadAsync(actor, patch, "runtime_tuning.poker.save",
+            new { PokerGame.BuyIn }, "Poker settings saved.", ct);
     }
 
     public async Task<IActionResult> OnPostPickAsync(CancellationToken ct)
@@ -325,31 +252,12 @@ public sealed class SettingsModel(
         daily["DrawHourLocal"] = PickGame.DailyDrawHourLocal;
         daily["TimezoneOffsetHoursOverride"] = PickGame.DailyTimezoneOffsetHoursOverride;
 
-        var sanitized = RuntimeTuningPayloadSanitizer.Sanitize(patch);
-        var err = ValidateMerged(configuration, sanitized);
-        if (err is not null)
-        {
-            Error = err;
-            return await ReloadPageForErrorAsync(ct);
-        }
-
-        var compact = sanitized.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
-        await SavePatchAsync(compact, ct);
-        await tuning.ReloadFromDatabaseAsync(ct);
-        await audit.LogAsync(actor.UserId, actor.Name, "runtime_tuning.pick.save",
+        return await SaveAndReloadAsync(actor, patch, "runtime_tuning.pick.save",
             new
             {
                 PickGame.DefaultBet, PickGame.MaxBet, PickGame.HouseEdge,
                 PickGame.LotteryDurationSeconds, PickGame.DailyTicketPrice, PickGame.DailyDrawHourLocal,
-            }, ct);
-
-        Flash = "Pick / lottery / daily-lottery settings saved.";
-        PatchJson = FormatJson(compact);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
-        LoadAllStructuredSettings();
-        await LoadRedeemDropStatsAsync(ct);
-        CanEdit = true;
-        return Page();
+            }, "Pick / lottery / daily-lottery settings saved.", ct);
     }
 
     public async Task<IActionResult> OnPostChallengeAsync(CancellationToken ct)
@@ -481,67 +389,29 @@ public sealed class SettingsModel(
         AdminSession actor, JsonObject patch, string auditAction, object auditPayload,
         string flashOnSuccess, CancellationToken ct)
     {
-        var sanitized = RuntimeTuningPayloadSanitizer.Sanitize(patch);
-        var err = ValidateMerged(configuration, sanitized);
-        if (err is not null)
+        var result = await runtimeConfiguration.ApplyAsync(
+            patch.ToJsonString(), actor.UserId, actor.Name, auditAction, auditPayload, ct);
+        if (!result.Applied)
         {
-            Error = err;
+            Error = FormatIssues(result.Issues);
             return await ReloadPageForErrorAsync(ct);
         }
 
-        var compact = sanitized.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
-        await SavePatchAsync(compact, ct);
-        await tuning.ReloadFromDatabaseAsync(ct);
-        await audit.LogAsync(actor.UserId, actor.Name, auditAction, auditPayload, ct);
-
         Flash = flashOnSuccess;
-        PatchJson = FormatJson(compact);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
+        PatchJson = FormatJson(result.PatchJson);
+        EffectivePreviewJson = FormatJson(result.EffectiveJson);
         LoadAllStructuredSettings();
         await LoadRedeemDropStatsAsync(ct);
         CanEdit = true;
         return Page();
     }
 
-    private JsonObject BuildEffectiveExport()
-    {
-        var bot = new JsonObject
-        {
-            ["DailyBonus"] = JsonSerializer.SerializeToNode(tuning.DailyBonus),
-            ["TelegramDiceDailyLimit"] = JsonSerializer.SerializeToNode(tuning.TelegramDiceDailyLimit),
-        };
-        var games = new JsonObject
-        {
-            ["dice"] = JsonSerializer.SerializeToNode(tuning.GetSection<DiceOptions>(DiceOptions.SectionName)),
-            ["dicecube"] = JsonSerializer.SerializeToNode(tuning.GetSection<DiceCubeOptions>(DiceCubeOptions.SectionName)),
-            ["darts"] = JsonSerializer.SerializeToNode(tuning.GetSection<DartsOptions>(DartsOptions.SectionName)),
-            ["football"] = JsonSerializer.SerializeToNode(tuning.GetSection<FootballOptions>(FootballOptions.SectionName)),
-            ["basketball"] = JsonSerializer.SerializeToNode(tuning.GetSection<BasketballOptions>(BasketballOptions.SectionName)),
-            ["bowling"] = JsonSerializer.SerializeToNode(tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName)),
-            ["horse"] = JsonSerializer.SerializeToNode(tuning.GetSection<HorseOptions>(HorseOptions.SectionName)),
-            ["poker"] = JsonSerializer.SerializeToNode(tuning.GetSection<PokerOptions>(PokerOptions.SectionName)),
-            ["blackjack"] = JsonSerializer.SerializeToNode(tuning.GetSection<BlackjackOptions>(BlackjackOptions.SectionName)),
-            ["sh"] = JsonSerializer.SerializeToNode(tuning.GetSection<SecretHitlerOptions>(SecretHitlerOptions.SectionName)),
-            ["pick"] = JsonSerializer.SerializeToNode(tuning.GetSection<PickOptions>(PickOptions.SectionName)),
-            ["challenges"] = JsonSerializer.SerializeToNode(tuning.GetSection<ChallengeOptions>(ChallengeOptions.SectionName)),
-            ["transfer"] = JsonSerializer.SerializeToNode(tuning.GetSection<TransferOptions>(TransferOptions.SectionName)),
-            ["pixelbattle"] = JsonSerializer.SerializeToNode(tuning.GetSection<PixelBattleOptions>(PixelBattleOptions.SectionName)),
-            ["redeem"] = JsonSerializer.SerializeToNode(tuning.GetSection<RedeemOptions>(RedeemOptions.SectionName)),
-            ["leaderboard"] = JsonSerializer.SerializeToNode(tuning.GetSection<LeaderboardOptions>(LeaderboardOptions.SectionName)),
-            ["meta"] = JsonSerializer.SerializeToNode(tuning.GetSection<MetaOptions>(MetaOptions.SectionName)),
-        };
-        return new JsonObject { ["Bot"] = bot, ["Games"] = games };
-    }
-
     private async Task<IActionResult> ReloadPageForErrorAsync(CancellationToken ct)
     {
         CanEdit = true;
-        await using var conn = await connections.OpenAsync(ct);
-        var row = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
-            "SELECT payload::text FROM runtime_tuning WHERE id = 1",
-            cancellationToken: ct));
-        PatchJson = string.IsNullOrWhiteSpace(row) ? "{}" : FormatJson(row);
-        EffectivePreviewJson = FormatJson(BuildEffectiveExport());
+        var snapshot = await runtimeConfiguration.GetAsync(ct);
+        PatchJson = FormatJson(snapshot.PatchJson);
+        EffectivePreviewJson = FormatJson(snapshot.EffectiveJson);
         LoadAllStructuredSettings();
         await LoadRedeemDropStatsAsync(ct);
         return Page();
@@ -549,28 +419,8 @@ public sealed class SettingsModel(
 
     private async Task<JsonObject> LoadPatchObjectAsync(CancellationToken ct)
     {
-        await using var conn = await connections.OpenAsync(ct);
-        var row = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
-            "SELECT payload::text FROM runtime_tuning WHERE id = 1",
-            cancellationToken: ct));
-
-        if (string.IsNullOrWhiteSpace(row))
-            return new JsonObject();
-
-        return JsonNode.Parse(row) as JsonObject ?? new JsonObject();
-    }
-
-    private async Task SavePatchAsync(string compactJson, CancellationToken ct)
-    {
-        await using var conn = await connections.OpenAsync(ct);
-        await conn.ExecuteAsync(new CommandDefinition(
-            """
-            UPDATE runtime_tuning
-            SET payload = @payload::jsonb, updated_at = now()
-            WHERE id = 1
-            """,
-            new { payload = compactJson },
-            cancellationToken: ct));
+        var snapshot = await runtimeConfiguration.GetAsync(ct);
+        return JsonNode.Parse(snapshot.PatchJson) as JsonObject ?? new JsonObject();
     }
 
     private async Task LoadRedeemDropStatsAsync(CancellationToken ct)
@@ -729,56 +579,6 @@ public sealed class SettingsModel(
         _ => gameId,
     };
 
-    private static string? ValidateMerged(IConfiguration configuration, JsonObject sanitized)
-    {
-        try
-        {
-            void TryMerge<T>(JsonObject g, string key, string path) where T : class, new()
-            {
-                if (g.TryGetPropertyValue(key, out var node) && node is not null)
-                    RuntimeTuningMerge.MergeSection<T>(configuration, path, node);
-            }
-
-            if (sanitized["Bot"] is JsonObject bot)
-            {
-                if (bot["DailyBonus"] is { } n)
-                    RuntimeTuningMerge.MergeSection<DailyBonusOptions>(configuration, DailyBonusOptions.SectionName, n);
-                if (bot["TelegramDiceDailyLimit"] is { } n2)
-                {
-                    RuntimeTuningMerge.MergeSection<TelegramDiceDailyLimitOptions>(
-                        configuration, TelegramDiceDailyLimitOptions.SectionName, n2);
-                }
-            }
-
-            if (sanitized["Games"] is JsonObject games)
-            {
-                TryMerge<DiceOptions>(games, "dice", DiceOptions.SectionName);
-                TryMerge<DiceCubeOptions>(games, "dicecube", DiceCubeOptions.SectionName);
-                TryMerge<DartsOptions>(games, "darts", DartsOptions.SectionName);
-                TryMerge<FootballOptions>(games, "football", FootballOptions.SectionName);
-                TryMerge<BasketballOptions>(games, "basketball", BasketballOptions.SectionName);
-                TryMerge<BowlingOptions>(games, "bowling", BowlingOptions.SectionName);
-                TryMerge<HorseOptions>(games, "horse", HorseOptions.SectionName);
-                TryMerge<PokerOptions>(games, "poker", PokerOptions.SectionName);
-                TryMerge<BlackjackOptions>(games, "blackjack", BlackjackOptions.SectionName);
-                TryMerge<SecretHitlerOptions>(games, "sh", SecretHitlerOptions.SectionName);
-                TryMerge<PickOptions>(games, "pick", PickOptions.SectionName);
-                TryMerge<ChallengeOptions>(games, "challenges", ChallengeOptions.SectionName);
-                TryMerge<TransferOptions>(games, "transfer", TransferOptions.SectionName);
-                TryMerge<PixelBattleOptions>(games, "pixelbattle", PixelBattleOptions.SectionName);
-                TryMerge<RedeemOptions>(games, "redeem", RedeemOptions.SectionName);
-                TryMerge<LeaderboardOptions>(games, "leaderboard", LeaderboardOptions.SectionName);
-                TryMerge<MetaOptions>(games, "meta", MetaOptions.SectionName);
-            }
-        }
-        catch (Exception ex)
-        {
-            return ex.Message;
-        }
-
-        return null;
-    }
-
     private static string FormatJson(string json)
     {
         try
@@ -792,8 +592,11 @@ public sealed class SettingsModel(
         }
     }
 
-    private static string FormatJson(JsonObject obj) =>
-        obj.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    private static string? FormatIssues(IReadOnlyList<ConfigurationValidationIssue> issues) =>
+        issues.Count == 0
+            ? null
+            : string.Join(Environment.NewLine, issues.Select(static issue =>
+                $"{issue.Path}: {issue.Message} ({issue.Code})"));
 
     public sealed class StickerGameSettingsInput
     {

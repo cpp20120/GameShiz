@@ -1,5 +1,7 @@
 namespace Games.Darts.Infrastructure.Modules;
 
+using Games.Darts.Infrastructure.Configuration;
+
 /// <summary>Backend composition without Telegram roll-delivery worker.</summary>
 public sealed class DartsRemoteModule : IModule
 {
@@ -10,7 +12,7 @@ public sealed class DartsRemoteModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<DartsOptions>(DartsOptions.SectionName)
+            .BindOptions<DartsOptions, DartsOptionsValidator>(DartsOptions.SectionName)
             .AddSingleton<IDartsRollQueue, ClientDeliveredDartsRollQueue>()
             .AddScoped<IDartsRoundStore, DartsRoundStore>()
             .AddScoped<IDartsService, DartsService>();

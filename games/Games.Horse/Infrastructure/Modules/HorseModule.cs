@@ -4,6 +4,9 @@ namespace Games.Horse.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Horse.Application.Execution;
+using BotFramework.Rendering;
+using Games.Horse.Rendering;
+using Games.Horse.Infrastructure.Configuration;
 
 public sealed class HorseModule : IModule
 {
@@ -14,7 +17,7 @@ public sealed class HorseModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<HorseOptions>(HorseOptions.SectionName)
+            .BindOptions<HorseOptions, HorseOptionsValidator>(HorseOptions.SectionName)
             .AddScoped<IHorseService, HorseService>()
             .AddScoped<IHorseRaceNotifier, IntegrationEventHorseRaceNotifier>()
             .AddScoped<IHorseBetStore, HorseBetStore>()
@@ -25,7 +28,9 @@ public sealed class HorseModule : IModule
             .AddScoped<IGameAction<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunAction>()
             .AddScoped<GameExecutionDescriptor<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunDescriptor>()
             .AddScoped<IGameStateStore<HorseRunCommand, HorseRaceState>, HorseRunStateStore>()
-            .AddRecurringScheduledCommand<HorseRaceScheduledCommand>();
+            .AddScoped<IRenderJob<HorseRaceRenderSpec>, HorseRaceRenderJob>()
+            .AddRecurringScheduledCommand<HorseRaceScheduledCommand>()
+            .AddRecurringScheduledCommand<HorseRenderPrewarmScheduledCommand>();
     }
 
     public IModuleMigrations GetMigrations() => new HorseMigrations();

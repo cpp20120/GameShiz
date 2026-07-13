@@ -11,6 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Rendering\BotFramework.Rendering.csproj" />
     <ProjectReference Include="..\Games.Poker.Contracts\Games.Poker.Contracts.csproj" />
   </ItemGroup>
   <ItemGroup>

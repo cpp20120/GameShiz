@@ -24,6 +24,14 @@ public interface IModuleServiceCollection
     /// </summary>
     IModuleServiceCollection BindOptions<TOptions>(string configSection) where TOptions : class;
 
+    /// <summary>
+    /// Binds and validates a configuration section. The Host runs the validator
+    /// during startup and for every admin runtime-configuration patch.
+    /// </summary>
+    IModuleServiceCollection BindOptions<TOptions, TValidator>(string configSection)
+        where TOptions : class
+        where TValidator : class, IConfigurationValidator<TOptions>;
+
     IModuleServiceCollection AddScoped<TService, TImpl>()
         where TService : class
         where TImpl : class, TService;

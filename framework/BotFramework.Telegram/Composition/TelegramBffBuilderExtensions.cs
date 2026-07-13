@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using BotFramework.Rendering;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -21,6 +22,7 @@ public static class TelegramBffBuilderExtensions
     {
         var services = builder.Services;
         var configuration = builder.Configuration;
+        services.AddBotFrameworkRendering(configuration);
         services.Configure<BotFrameworkOptions>(
             builder.Configuration.GetSection(BotFrameworkOptions.SectionName));
         services.AddSingleton<ITelegramBotClient>(sp =>

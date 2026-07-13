@@ -70,6 +70,16 @@ public static class RuntimeTuningPayloadSanitizer
         return result;
     }
 
+    public static bool IsAllowedSectionPath(string sectionPath)
+    {
+        var parts = sectionPath.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 2
+            && (string.Equals(parts[0], "Bot", StringComparison.Ordinal)
+                && AllowedBotKeys.Contains(parts[1])
+                || string.Equals(parts[0], "Games", StringComparison.Ordinal)
+                && AllowedGameKeys.Contains(parts[1]));
+    }
+
     private static JsonObject SanitizeSection(
         JsonObject source,
         IReadOnlySet<string> allowedKeys)

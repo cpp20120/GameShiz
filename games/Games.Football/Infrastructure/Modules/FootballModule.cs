@@ -4,6 +4,7 @@ namespace Games.Football.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Football.Application.Execution;
+using Games.Football.Infrastructure.Configuration;
 
 public sealed class FootballModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class FootballModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<FootballOptions>(FootballOptions.SectionName)
+            .BindOptions<FootballOptions, FootballOptionsValidator>(FootballOptions.SectionName)
             .AddScoped<IFootballService, FootballService>()
             .AddScoped<IGameAction<FootballPlaceBetCommand, FootballBetState, FootballBetResult>, FootballPlaceBetAction>()
             .AddScoped<GameExecutionDescriptor<FootballPlaceBetCommand, FootballBetState, FootballBetResult>, FootballPlaceBetDescriptor>()

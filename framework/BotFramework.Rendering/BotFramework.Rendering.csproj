@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>BotFramework.Rendering</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Rendering</PackageId>
+    <Description>Bounded TPL Dataflow rendering workers and content-addressed MinIO artifacts for BotFramework.</Description>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Minio" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CasinoShiz.Tests" />
+  </ItemGroup>
+</Project>

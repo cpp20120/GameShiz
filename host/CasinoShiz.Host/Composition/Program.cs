@@ -34,6 +34,7 @@ using CasinoShiz.Identity;
 using Games.Poker.Telegram;
 using Games.SecretHitler.Telegram;
 using BotFramework.Telegram.Composition;
+using BotFramework.Rendering;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -100,6 +101,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseBotFramework();
+app.MapRenderHistory();
 app.UseStaticFiles();
 app.MapRazorPages();
 app.MapPixelBattle();

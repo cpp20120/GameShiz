@@ -16,6 +16,9 @@ using BotFramework.Host.Events.Replay;
 using BotFramework.Host.Fairness;
 using BotFramework.Host.Games;
 using BotFramework.Host.Execution;
+using BotFramework.Rendering;
+using BotFramework.Host.Configuration.Validation;
+using BotFramework.Host.Admin.Execution;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -29,6 +32,7 @@ public static class BotFrameworkBuilderExtensions
         DapperTypeHandlers.Register();
 
         services.TryAddSingleton(TimeProvider.System);
+        services.AddBotFrameworkRendering(configuration);
 
         services.AddRazorPages();
         services.AddMemoryCache();
@@ -166,7 +170,9 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<IDistributedGameLock, PostgresDistributedGameLock>();
         services.AddSingleton<IMiniGameSessionStore, PostgresMiniGameSessionStore>();
         services.AddSingleton<IMiniGameRollGateStore, PostgresMiniGameRollGateStore>();
-        services.Configure<DailyBonusOptions>(configuration.GetSection(DailyBonusOptions.SectionName));
+        services.AddRegisteredConfigurationSection<DailyBonusOptions, DailyBonusOptionsValidator>(
+            configuration,
+            DailyBonusOptions.SectionName);
         services.AddSingleton<IDailyBonusService, DailyBonusService>();
         services.AddSingleton<IPlayerProtectionService, PlayerProtectionService>();
         services.AddScoped<PostgresGameAvailabilityService>();
@@ -174,12 +180,17 @@ public static class BotFrameworkBuilderExtensions
         services.AddScoped<IGameAvailabilityClient>(sp => sp.GetRequiredService<PostgresGameAvailabilityService>());
         services.AddScoped<GameAvailabilityGrpcInterceptor>();
 
-        services.Configure<TelegramDiceDailyLimitOptions>(
-            configuration.GetSection(TelegramDiceDailyLimitOptions.SectionName));
+        services.AddRegisteredConfigurationSection<TelegramDiceDailyLimitOptions, TelegramDiceDailyLimitOptionsValidator>(
+            configuration,
+            TelegramDiceDailyLimitOptions.SectionName);
         services.AddSingleton<ITelegramDiceDailyRollLimiter, TelegramDiceDailyRollLimiter>();
 
         services.AddSingleton<RuntimeTuningAccessor>();
         services.AddSingleton<IRuntimeTuningAccessor>(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
+        services.AddSingleton<RuntimeConfigurationValidator>();
+        services.AddScoped<IRuntimeConfigurationService, RuntimeConfigurationService>();
+        services.AddScoped<IAdminEffectExecutor, AdminEffectExecutor>();
+        services.AddScoped<IAdminEffectHandler, RuntimeConfigurationPatchEffectHandler>();
 
         services.AddOptions<ClickHouseOptions>()
             .Bind(configuration.GetSection(ClickHouseOptions.SectionName))

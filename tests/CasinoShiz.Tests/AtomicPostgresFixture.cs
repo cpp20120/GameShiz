@@ -84,6 +84,7 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
             TRUNCATE TABLE
                 game_event_outbox,
                 game_schedule_outbox,
+                admin_audit,
                 game_command_idempotency,
                 game_aggregate_states,
                 dice_rolls,
@@ -116,6 +117,9 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
                 blackjack_hands
             RESTART IDENTITY CASCADE
             """).ConfigureAwait(false);
+        await connection.ExecuteAsync(
+            "UPDATE runtime_tuning SET payload = '{}'::jsonb, updated_at = now() WHERE id = 1")
+            .ConfigureAwait(false);
     }
 
     public async Task<T> ScalarAsync<T>(string sql, object? parameters = null)

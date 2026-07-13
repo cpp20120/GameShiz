@@ -4,6 +4,7 @@ namespace Games.Challenges.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Challenges.Application.Execution;
+using Games.Challenges.Infrastructure.Configuration;
 
 public sealed class ChallengeModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class ChallengeModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<ChallengeOptions>(ChallengeOptions.SectionName)
+            .BindOptions<ChallengeOptions, ChallengeOptionsValidator>(ChallengeOptions.SectionName)
             .AddScoped<ChallengeDbContext>()
             .AddScoped<IChallengeStore, ChallengeStore>()
             .AddChallengeExecution<ChallengeCreateCommand, ChallengeCreateResult, ChallengeCreateAction, ChallengeCreateDescriptor>()

@@ -4,6 +4,7 @@ namespace Games.SecretHitler.Infrastructure.Modules;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.SecretHitler.Application.Execution;
+using Games.SecretHitler.Infrastructure.Configuration;
 
 public sealed class SecretHitlerModule : IModule
 {
@@ -14,7 +15,7 @@ public sealed class SecretHitlerModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<SecretHitlerOptions>(SecretHitlerOptions.SectionName)
+            .BindOptions<SecretHitlerOptions, SecretHitlerOptionsValidator>(SecretHitlerOptions.SectionName)
             .AddScoped<SecretHitlerDbContext>()
             .AddScoped<ISecretHitlerService, SecretHitlerService>()
             .AddScoped<ISecretHitlerGameStore, SecretHitlerGameStore>()

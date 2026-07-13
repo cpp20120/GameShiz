@@ -1,5 +1,7 @@
 namespace Games.Meta.Infrastructure.Modules;
 
+using Games.Meta.Infrastructure.Configuration;
+
 public sealed class MetaModule : IModule
 {
     public string Id => "meta";
@@ -9,6 +11,7 @@ public sealed class MetaModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
+            .BindOptions<MetaOptions, MetaOptionsValidator>(MetaOptions.SectionName)
             .AddScoped<IMetaHistoryStore, MetaHistoryStore>()
             .AddScoped<IMetaReconstructionStore, MetaReconstructionStore>()
             .AddScoped<IMetaStore, MetaStore>()
