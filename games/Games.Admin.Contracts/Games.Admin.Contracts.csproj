@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="..\Games.Admin\Domain\**\*.cs" Link="Domain\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Games.Admin\Application\Results\**\*.cs" Link="Application\Results\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\Games.Admin\Application\Services\IAdminService.cs" Link="Application\Services\IAdminService.cs" />
+    <Compile Include="..\Games.Admin\Infrastructure\Persistence\IChatsStore.cs" Link="Infrastructure\Persistence\IChatsStore.cs" />
+    <Compile Include="..\Games.Admin\Infrastructure\Persistence\KnownChatRow.cs" Link="Infrastructure\Persistence\KnownChatRow.cs" />
+  </ItemGroup>
+</Project>

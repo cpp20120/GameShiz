@@ -89,7 +89,8 @@ public sealed partial class ClickHouseAnalyticsService(
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _flushTimer?.Dispose();
-        await _loopCts?.CancelAsync()!;
+        if (_loopCts is not null)
+            await _loopCts.CancelAsync();
         if (_flushLoop != null)
         {
             try { await _flushLoop; }
@@ -102,6 +103,8 @@ public sealed partial class ClickHouseAnalyticsService(
         await FlushBufferAsync();
         if (_connection != null) await _connection.DisposeAsync();
         _connection = null;
+        _loopCts?.Dispose();
+        _loopCts = null;
     }
 
     public void Track(string moduleId, string eventName, IReadOnlyDictionary<string, object?> tags)
@@ -228,11 +231,17 @@ public sealed partial class ClickHouseAnalyticsService(
             using var document = JsonDocument.Parse(payload);
             foreach (var candidate in new[] { property, ToPascalCase(property) })
             {
-                if (document.RootElement.TryGetProperty(candidate, out var value) && value.ValueKind == JsonValueKind.String)
+                if (document.RootElement.TryGetProperty(candidate, out var value) &&
+                    value.ValueKind == JsonValueKind.String)
+                {
                     return value.GetString() ?? fallback;
+                }
             }
         }
-        catch (JsonException) { }
+        catch (JsonException)
+        {
+            throw JsonSerializer.Deserialize<JsonException>(payload)!;
+        }
         return fallback;
     }
 
@@ -255,12 +264,16 @@ public sealed partial class ClickHouseAnalyticsService(
     {
         foreach (var key in new[] { "user_id", "UserId", "host_user_id", "HostUserId" })
         {
-            if (tags.TryGetValue(key, out var v) && v is not null)
+            if (!tags.TryGetValue(key, out var v) || v is null) continue;
+            switch (v)
             {
-                if (v is long l) return l;
-                if (v is int i) return i;
-                if (long.TryParse(v.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
+                case long l:
+                    return l;
+                case int i:
+                    return i;
             }
+
+            if (long.TryParse(v.ToString(), System.Globalization.CultureInfo.InvariantCulture, out var parsed)) return parsed;
         }
         return 0;
     }

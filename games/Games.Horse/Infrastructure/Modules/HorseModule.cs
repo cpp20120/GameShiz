@@ -1,6 +1,13 @@
 
 namespace Games.Horse.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Horse.Application.Execution;
+using BotFramework.Rendering;
+using Games.Horse.Rendering;
+using Games.Horse.Infrastructure.Configuration;
+
 public sealed class HorseModule : IModule
 {
     public string Id => "horse";
@@ -10,13 +17,20 @@ public sealed class HorseModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<HorseOptions>(HorseOptions.SectionName)
+            .BindOptions<HorseOptions, HorseOptionsValidator>(HorseOptions.SectionName)
             .AddScoped<IHorseService, HorseService>()
-            .AddScoped<IHorseRaceNotifier, HorseRaceNotifier>()
+            .AddScoped<IHorseRaceNotifier, IntegrationEventHorseRaceNotifier>()
             .AddScoped<IHorseBetStore, HorseBetStore>()
             .AddScoped<IHorseResultStore, HorseResultStore>()
-            .AddHandler<HorseHandler>()
-            .AddBackgroundJob<HorseScheduledRaceJob>();
+            .AddScoped<IGameAction<HorsePlaceBetCommand, HorseBetState, BetResult>, HorsePlaceBetAction>()
+            .AddScoped<GameExecutionDescriptor<HorsePlaceBetCommand, HorseBetState, BetResult>, HorsePlaceBetDescriptor>()
+            .AddScoped<IGameStateStore<HorsePlaceBetCommand, HorseBetState>, HorsePlaceBetStateStore>()
+            .AddScoped<IGameAction<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunAction>()
+            .AddScoped<GameExecutionDescriptor<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunDescriptor>()
+            .AddScoped<IGameStateStore<HorseRunCommand, HorseRaceState>, HorseRunStateStore>()
+            .AddScoped<IRenderJob<HorseRaceRenderSpec>, HorseRaceRenderJob>()
+            .AddRecurringScheduledCommand<HorseRaceScheduledCommand>()
+            .AddRecurringScheduledCommand<HorseRenderPrewarmScheduledCommand>();
     }
 
     public IModuleMigrations GetMigrations() => new HorseMigrations();

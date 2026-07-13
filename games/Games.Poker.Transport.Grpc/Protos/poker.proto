@@ -1,0 +1,16 @@
+syntax = "proto3";
+option csharp_namespace = "Games.Poker.Transport.Grpc.Wire";
+package casinoshiz.poker.v1;
+message ContractCall { string payload_json = 1; }
+message ContractReply { string payload_json = 1; }
+service PokerApi {
+  rpc FindMyTable(ContractCall) returns (ContractReply);
+  rpc CreateTable(ContractCall) returns (ContractReply);
+  rpc JoinTable(ContractCall) returns (ContractReply);
+  rpc StartHand(ContractCall) returns (ContractReply);
+  rpc ApplyAction(ContractCall) returns (ContractReply);
+  rpc RunAutoAction(ContractCall) returns (ContractReply);
+  rpc LeaveTable(ContractCall) returns (ContractReply);
+  rpc SetStateMessage(ContractCall) returns (ContractReply);
+  rpc ListStuckCodes(ContractCall) returns (ContractReply);
+}

@@ -1,176 +1,94 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// BowlingService — place a 🎳 bet, resolve on roll.
-// Telegram bowling dice values 1–6:
-//   1 = gutter, 2–3 = few pins, 4 = several pins, 5 = most pins, 6 = strike.
-// Payout: 4→x1, 5→x2, 6 (strike)→x2 (uniform d6 EV 5/6 of stake; house +EV).
-// ─────────────────────────────────────────────────────────────────────────────
-
-
 using System.Globalization;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Bowling.Application.Execution;
 
 namespace Games.Bowling.Application.Services;
 
 public sealed class BowlingService(
-    IEconomicsService economics,
-    IAnalyticsService analytics,
     IBowlingBetStore bets,
-    IDomainEventBus events,
     IRuntimeTuningAccessor tuning,
     IMiniGameSessionGhostHeal ghostHeal,
-    ITelegramDiceDailyRollLimiter telegramDiceRolls,
+    IAtomicGameExecutor<BowlingPlaceBetCommand, BowlingBetState, BowlingBetResult> placeExecutor,
+    IAtomicGameExecutor<BowlingRollCommand, BowlingBetState, BowlingRollResult> rollExecutor,
+    IAtomicGameExecutor<BowlingAbortCommand, BowlingBetState, BowlingAbortResult> abortExecutor,
     IMiniGameSessionStore? sessions = null) : IBowlingService
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
+    private BowlingOptions Options => tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName);
+    public static IReadOnlyDictionary<int, int> Multipliers => BowlingRules.Multipliers;
 
-    public static readonly IReadOnlyDictionary<int, int> Multipliers = new Dictionary<int, int>
+    public async Task<BowlingBetResult> PlaceBetAsync(
+        long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct)
     {
-        [1] = 0, [2] = 0, [3] = 0, [4] = 1, [5] = 2, [6] = 2,
-    };
-
-    public Task<BowlingBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, CancellationToken ct) =>
-        PlaceBetAsync(userId, displayName, chatId, amount, sourceMessageId: 0, ct);
-
-    public async Task<BowlingBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct)
-    {
-        var maxBet = tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName).MaxBet;
-        if (amount <= 0 || amount > maxBet) return BowlingBetResult.Fail(BowlingBetError.InvalidAmount);
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-        if (amount > balance) return BowlingBetResult.Fail(BowlingBetError.NotEnoughCoins, balance);
-
-        var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
-            userId,
-            chatId,
-            MiniGameIds.Bowling,
-            async c =>
-            {
-                if (await bets.FindAsync(userId, chatId, c) == null)
+        var options = Options;
+        string? blocker = null;
+        var claimed = false;
+        if (amount > 0 && amount <= options.MaxBet)
+        {
+            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+                userId, chatId, MiniGameIds.Bowling,
+                async c =>
                 {
-                    BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-                    await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, c);
-                }
-            },
-            ghostHeal,
-            Sessions,
-            ct);
-        if (!session.Ok)
-            return new BowlingBetResult(BowlingBetError.BusyOtherGame, 0, balance, 0, session.Blocker, 0, 0);
-
-        var existing = await bets.FindAsync(userId, chatId, ct);
-        if (existing != null) return BowlingBetResult.Fail(BowlingBetError.AlreadyPending, balance, existing.Amount);
-
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Bowling, ct);
-        if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
-        {
-            return new BowlingBetResult(
-                BowlingBetError.DailyRollLimit, 0, balance, 0, BlockingGameId: null, gate.UsedToday, gate.Limit);
+                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) is null)
+                    {
+                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, c).ConfigureAwait(false);
+                    }
+                }, ghostHeal, Sessions, ct).ConfigureAwait(false);
+            claimed = session.Ok;
+            blocker = session.Ok ? null : session.Blocker;
         }
-
-        var betOperationId = string.Create(CultureInfo.InvariantCulture, $"bowling:bet:{chatId}:{sourceMessageId}:{userId}");
-        var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "bowling.bet", betOperationId, ct);
-        if (debit.Rejected)
+        var commandId = sourceMessageId != 0
+            ? $"bowling:bet:{chatId}:{sourceMessageId}:{userId}"
+            : $"bowling:bet:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await placeExecutor.ExecuteAsync(new(new(
+            userId, displayName, chatId, amount, commandId, options.MaxBet, blocker)), ct).ConfigureAwait(false);
+        if (result.Error == BowlingBetError.None)
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Bowling, ct);
-            return BowlingBetResult.Fail(BowlingBetError.NotEnoughCoins, balance);
+            BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Bowling);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
         }
-
-        var createdAt = DateTimeOffset.UtcNow;
-        if (!await bets.InsertAsync(new BowlingBet(userId, chatId, amount, createdAt), ct))
+        else if (claimed && result.Error != BowlingBetError.AlreadyPending)
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Bowling, ct);
-            await economics.CreditOnceAsync(userId, chatId, amount, "bowling.bet.refund", $"{betOperationId}:insert-refund", ct);
-            return BowlingBetResult.Fail(BowlingBetError.AlreadyPending, balance);
+            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
         }
-
-        BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Bowling);
-        await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Bowling, ct);
-
-        analytics.Track("bowling", "bet", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount,
-        });
-
-        return new BowlingBetResult(BowlingBetError.None, amount, debit.NewBalance, 0, BlockingGameId: null, 0, 0);
+        return result;
     }
 
-    public async Task<BowlingRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct)
+    public Task<BowlingRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct) =>
+        RollAsync(userId, displayName, chatId, face, 0, ct);
+
+    public async Task<BowlingRollResult> RollAsync(
+        long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct)
     {
-        var bet = await bets.FindAsync(userId, chatId, ct);
-        if (bet == null) return new BowlingRollResult(BowlingRollOutcome.NoBet);
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var multiplier = Multipliers.TryGetValue(face, out var m) ? m : 0;
-        var payout = bet.Amount * multiplier;
-
-        if (payout > 0)
-            await economics.CreditOnceAsync(userId, chatId, payout, "bowling.payout", BuildBetOperationId(bet, "payout"), ct);
-
-        await bets.DeleteAsync(userId, chatId, ct);
-        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-
-        analytics.Track("bowling", "roll", new Dictionary<string, object?>
-(StringComparer.Ordinal)
+        var commandId = sourceMessageId != 0
+            ? $"bowling:roll:{chatId}:{sourceMessageId}:{userId}"
+            : $"bowling:roll:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await rollExecutor.ExecuteAsync(new(new(
+            userId, displayName, chatId, face, commandId, Options.RedeemDropChance)), ct).ConfigureAwait(false);
+        if (result.Outcome == BowlingRollOutcome.Rolled)
         {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
-            ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
-        });
-
-        var bowling = tuning.GetSection<BowlingOptions>(BowlingOptions.SectionName);
-        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await events.PublishAsync(
-            new BowlingRollCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
-            ct);
-        await events.PublishAsync(
-            new GameCompletedMetaEvent(
-                ChatId: chatId,
-                UserId: userId,
-                DisplayName: displayName,
-                GameKey: MiniGameIds.Bowling,
-                Stake: bet.Amount,
-                Payout: payout,
-                IsWin: payout > bet.Amount,
-                Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
-                OccurredAt: occurredAt),
-            ct);
-        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
-            events, bowling.RedeemDropChance, userId, chatId, MiniGameIds.Bowling, occurredAt, ct);
-
-        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.Bowling, ct);
-        return new BowlingRollResult(
-            BowlingRollOutcome.Rolled,
-            face,
-            bet.Amount,
-            multiplier,
-            payout,
-            balance,
-            daily.UsedToday,
-            daily.Limit);
+            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
+        }
+        return result;
     }
 
-    public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct)
+    public Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct) =>
+        AbortPendingBetAfterSendDiceFailedAsync(
+            userId, string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}"), chatId, 0, ct);
+
+    public async Task AbortPendingBetAfterSendDiceFailedAsync(
+        long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct)
     {
-        var bet = await bets.FindAsync(userId, chatId, ct);
-        if (bet == null) return;
-
-        await economics.CreditOnceAsync(userId, chatId, bet.Amount, "bowling.send_dice_failed", BuildBetOperationId(bet, "send-dice-failed"), ct);
-        await bets.DeleteAsync(userId, chatId, ct);
+        var commandId = sourceMessageId != 0
+            ? $"bowling:abort:{chatId}:{sourceMessageId}:{userId}"
+            : $"bowling:abort:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await abortExecutor.ExecuteAsync(new(new(userId, displayName, chatId, commandId)), ct).ConfigureAwait(false);
+        if (!result.Aborted) return;
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct);
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Bowling, ct);
-
-        analytics.Track("bowling", "bet_aborted", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId,
-            ["chat_id"] = chatId,
-            ["amount"] = bet.Amount,
-        });
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
     }
-
-    private static string BuildBetOperationId(BowlingBet bet, string action) =>
-        $"bowling:{action}:{bet.UserId}:{bet.ChatId}:{bet.CreatedAt.ToUnixTimeMilliseconds()}";
 }

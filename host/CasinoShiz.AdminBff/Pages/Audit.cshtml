@@ -1,0 +1,20 @@
+@page "/admin/audit"
+@model AuditModel
+@{ ViewData["Title"] = "Audit"; }
+<h1>Admin audit</h1>
+<form method="get">
+    <label>Actor <input asp-for="Actor" /></label>
+    <label>Action <input asp-for="Action" /></label>
+    <label>Details <input asp-for="Details" /></label>
+    <label>From <input asp-for="From" type="datetime-local" /></label>
+    <label>Until <input asp-for="Until" type="datetime-local" /></label>
+    <button type="submit">Filter</button>
+</form>
+<p>
+    <a asp-page-handler="Csv" asp-route-actor="@Model.Actor" asp-route-action="@Model.Action" asp-route-details="@Model.Details" asp-route-from="@Model.From" asp-route-until="@Model.Until">CSV</a> ·
+    <a asp-page-handler="Json" asp-route-actor="@Model.Actor" asp-route-action="@Model.Action" asp-route-details="@Model.Details" asp-route-from="@Model.From" asp-route-until="@Model.Until">JSON</a>
+</p>
+@if (Model.Error is not null) { <p class="error">@Model.Error</p> }
+<table><tr><th>Time</th><th>Actor</th><th>Action</th><th>Details</th></tr>
+@foreach (var x in Model.Rows) { <tr><td>@x.OccurredAt</td><td>@x.ActorName (@x.ActorId)</td><td>@x.Action</td><td><code>@x.DetailsJson</code></td></tr> }
+</table>

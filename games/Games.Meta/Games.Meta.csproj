@@ -1,23 +1,47 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+
+
+
     <RootNamespace>Games.Meta</RootNamespace>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
     <NuGetAuditMode>direct</NuGetAuditMode>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Dapper" Version="2.1.79" />
-    <PackageReference Include="Telegram.Bot" Version="22.10.1" />
-    <PackageReference Update="Meziantou.Analyzer" Version="3.0.115" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Update="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\Games.Meta.Contracts\Games.Meta.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Domain\**\*.cs" />
+    <Compile Include="Domain\Achievements\AchievementRegistry.cs" />
+    <Compile Include="Domain\Quests\QuestRegistry.cs" />
+    <Compile Include="Domain\Streaks\GameStreakRegistry.cs" />
+    <Compile Include="Domain\Quests\QuestCandidate.cs" />
+    <Compile Include="Domain\Quests\QuestCatalogState.cs" />
+    <Compile Include="Domain\Quests\QuestCondition.cs" />
+    <Compile Include="Domain\Quests\QuestSlot.cs" />
+    <Compile Include="Domain\Seasons\PreparedSeasonPlan.cs" />
+    <Compile Include="Domain\Seasons\SeasonPlanFactory.cs" />
+    <Compile Include="Domain\Seasons\SeasonTheme.cs" />
+    <Compile Remove="Application\Meta\IMetaService.cs" />
+    <Compile Remove="Application\Quests\IQuestService.cs" />
+    <Compile Remove="Application\Clans\IClanService.cs" />
+    <Compile Remove="Application\Tournaments\ITournamentService.cs" />
+    <Compile Remove="Application\Risk\IRiskService.cs" />
+    <Compile Remove="Application\Meta\MetaHandler.cs" />
+    <Compile Remove="Application\Meta\MetaMenuHandler.cs" />
+    <Compile Remove="Application\Meta\MyStatsHandler.cs" />
+    <Compile Remove="Application\Tournaments\TournamentHandler.cs" />
+    <Compile Remove="Application\Risk\RiskHandler.cs" />
   </ItemGroup>
 
   <ItemGroup>

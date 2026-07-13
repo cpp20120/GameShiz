@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+
+
+    <RootNamespace>Games.Dice.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,175 +1,120 @@
+using System.Text.Json;
+using BotFramework.Sdk.Execution;
+using Games.Football.Application.Execution;
 using Xunit;
 
 namespace CasinoShiz.Tests;
 
-[Collection("MiniGameSession")]
-public class FootballServiceTests
+public sealed class FootballServiceTests
 {
-    public FootballServiceTests() => BotMiniGameSession.DangerousResetAllForTests();
+    private static readonly DateTimeOffset Now = new(2026, 7, 13, 10, 0, 0, TimeSpan.Zero);
 
-    private static FootballService MakeService(
-        FakeEconomicsService? economics = null,
-        InMemoryFootballBetStore? bets = null,
-        IMiniGameSessionGhostHeal? ghostHeal = null) =>
-        new(
-            economics ?? new FakeEconomicsService(),
-            new NullAnalyticsService(),
-            bets ?? new InMemoryFootballBetStore(),
-            new NullEventBus(),
-            new FakeRuntimeTuning(),
-            ghostHeal ?? new NullMiniGameSessionGhostHeal(),
-            new NullTelegramDiceDailyRollLimiter());
-
-    [Theory]
-    [InlineData(1, 0)]
-    [InlineData(2, 0)]
-    [InlineData(3, 0)]
-    [InlineData(4, 2)]
-    [InlineData(5, 2)]
-    public async Task ThrowAsync_ReturnsCorrectMultiplier(int face, int expectedMultiplier)
+    [Fact]
+    public void PlaceBet_AcceptsDebitQuotaStateAndEventAsOneDecision()
     {
-        var bets = new InMemoryFootballBetStore();
-        var svc = MakeService(bets: bets);
-        await svc.PlaceBetAsync(1, "u", 100, 50, default);
-        var result = await svc.ThrowAsync(1, "u", 100, face, default);
-        Assert.Equal(expectedMultiplier, result.Multiplier);
-    }
+        var decision = Place(amount: 25, balance: 100);
 
-    [Theory]
-    [InlineData(1, 0)]
-    [InlineData(2, 0)]
-    [InlineData(3, 0)]
-    [InlineData(4, 100)]
-    [InlineData(5, 100)]
-    public async Task ThrowAsync_ReturnsCorrectPayout(int face, int expectedPayout)
-    {
-        var bets = new InMemoryFootballBetStore();
-        var svc = MakeService(bets: bets);
-        await svc.PlaceBetAsync(1, "u", 100, 50, default);
-        var result = await svc.ThrowAsync(1, "u", 100, face, default);
-        Assert.Equal(expectedPayout, result.Payout);
-    }
-
-    [Theory]
-    [InlineData(4)]
-    [InlineData(5)]
-    public async Task ThrowAsync_WinningFace_CreditsPayout(int face)
-    {
-        var econ = new FakeEconomicsService();
-        var bets = new InMemoryFootballBetStore();
-        var svc = MakeService(economics: econ, bets: bets);
-        await svc.PlaceBetAsync(1, "u", 100, 50, default);
-        await svc.ThrowAsync(1, "u", 100, face, default);
-        Assert.Single(econ.Credits);
-    }
-
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    public async Task ThrowAsync_LosingFace_NoCredit(int face)
-    {
-        var econ = new FakeEconomicsService();
-        var bets = new InMemoryFootballBetStore();
-        var svc = MakeService(economics: econ, bets: bets);
-        await svc.PlaceBetAsync(1, "u", 100, 50, default);
-        await svc.ThrowAsync(1, "u", 100, face, default);
-        Assert.Empty(econ.Credits);
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(25, decision.NewState.PendingBet!.Amount);
+        Assert.Equal(75, decision.Result.Balance);
+        Assert.Equal([EconomyEffect.Debit(25, "football.bet")], decision.Economy);
+        Assert.Equal([QuotaEffect.Consume(FootballPlaceBetAction.DailyRollQuota)], decision.Quotas);
+        Assert.Single(decision.Events.OfType<FootballBetPlaced>());
     }
 
     [Fact]
-    public async Task ThrowAsync_UnknownFace_NoPayout()
+    public void PlaceBet_RejectsInsufficientBalanceWithoutEffects()
     {
-        var bets = new InMemoryFootballBetStore();
-        var svc = MakeService(bets: bets);
-        await svc.PlaceBetAsync(1, "u", 100, 50, default);
-        var result = await svc.ThrowAsync(1, "u", 100, 99, default);
-        Assert.Equal(0, result.Payout);
-        Assert.Equal(0, result.Multiplier);
+        var decision = Place(amount: 25, balance: 10);
+
+        Assert.Equal(FootballBetError.NotEnoughCoins, decision.Result.Error);
+        Assert.Empty(decision.Economy);
+        Assert.Empty(decision.Quotas);
     }
 
     [Fact]
-    public async Task ThrowAsync_PublishesThrowCompletedEvent()
+    public void PlaceBet_RejectsDailyLimitWithoutDebit()
     {
-        var bus = new NullEventBus();
-        var bets = new InMemoryFootballBetStore();
-        var svc = new FootballService(new FakeEconomicsService(), new NullAnalyticsService(), bets, bus,
-            new FakeRuntimeTuning(), new NullMiniGameSessionGhostHeal(), new NullTelegramDiceDailyRollLimiter());
-        await svc.PlaceBetAsync(1, "u", 100, 50, default);
-        await svc.ThrowAsync(1, "u", 100, 4, default);
-        Assert.Single(bus.Published.OfType<FootballThrowCompleted>());
-        Assert.Single(bus.Published.OfType<GameCompletedMetaEvent>());
+        var decision = Place(amount: 25, balance: 100, quotaUsed: 10, quotaLimit: 10);
+
+        Assert.Equal(FootballBetError.DailyRollLimit, decision.Result.Error);
+        Assert.Empty(decision.Economy);
+        Assert.Empty(decision.Quotas);
     }
 
     [Fact]
-    public void Multipliers_ContainsAllFiveFaces()
+    public void Throw_MaterializesPayoutEventsAndClearedState()
     {
-        for (var face = 1; face <= 5; face++)
-            Assert.True(FootballService.Multipliers.ContainsKey(face));
+        var decision = Throw(face: 5, amount: 25, entropy: 0.9, dropChance: 0.1);
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Null(decision.NewState.PendingBet);
+        Assert.Equal(2, decision.Result.Multiplier);
+        Assert.Equal(50, decision.Result.Payout);
+        Assert.Equal([EconomyEffect.Credit(50, "football.payout")], decision.Economy);
+        Assert.Single(decision.Events.OfType<FootballThrowCompleted>());
+        Assert.Single(decision.Events.OfType<GameCompletedMetaEvent>());
     }
 
     [Fact]
-    public async Task PlaceBetAsync_InsufficientBalance_ReturnsBalance()
+    public void Throw_SameInputAndEntropyProducesEqualDecision()
     {
-        var economics = new FakeEconomicsService { StartingBalance = 5 };
-        var result = await MakeService(economics).PlaceBetAsync(1, "u", 100, 6, default);
-        Assert.Equal(FootballBetError.NotEnoughCoins, result.Error);
-        Assert.Equal(5, result.Balance);
+        var first = Throw(face: 4, amount: 25, entropy: 0.01, dropChance: 0.1);
+        var second = Throw(face: 4, amount: 25, entropy: 0.01, dropChance: 0.1);
+
+        Assert.Equal(JsonSerializer.SerializeToUtf8Bytes(first), JsonSerializer.SerializeToUtf8Bytes(second));
+        Assert.Single(first.Events.OfType<TelegramMiniGameRedeemCodeDropRequested>());
     }
 
     [Fact]
-    public async Task PlaceBetAsync_DailyLimit_ReturnsGateStatus()
+    public void Throw_WithoutBetRejectsWithoutEffects()
     {
-        var service = new FootballService(
-            new FakeEconomicsService(), new NullAnalyticsService(), new InMemoryFootballBetStore(),
-            new NullEventBus(), new FakeRuntimeTuning(), new NullMiniGameSessionGhostHeal(),
-            new RejectingTelegramDiceDailyRollLimiter());
+        var decision = new FootballThrowAction().Decide(Input(
+            new FootballThrowCommand(1, "u", 10, 5, "throw", 0),
+            new FootballBetState(null), 100, 0, 10, 0.5));
 
-        var result = await service.PlaceBetAsync(1, "u", 100, 10, default);
-        Assert.Equal(FootballBetError.DailyRollLimit, result.Error);
-        Assert.Equal(3, result.DailyRollUsed);
-        Assert.Equal(10, result.DailyRollLimit);
+        Assert.Equal(FootballThrowOutcome.NoBet, decision.Result.Outcome);
+        Assert.Empty(decision.Economy);
+        Assert.Empty(decision.Events);
     }
 
     [Fact]
-    public async Task ThrowAsync_WithoutBet_ReturnsNoBet()
+    public void Abort_RefundsStakeRestoresQuotaAndClearsState()
     {
-        var result = await MakeService().ThrowAsync(1, "u", 100, 5, default);
-        Assert.Equal(FootballThrowOutcome.NoBet, result.Outcome);
+        var decision = new FootballAbortAction().Decide(Input(
+            new FootballAbortCommand(1, "u", 10, "abort"), ActiveState(30), 70, 1, 10));
+
+        Assert.True(decision.Result.Aborted);
+        Assert.Null(decision.NewState.PendingBet);
+        Assert.Equal([EconomyEffect.Credit(30, "football.send_dice_failed")], decision.Economy);
+        Assert.Equal([QuotaEffect.Restore(FootballPlaceBetAction.DailyRollQuota)], decision.Quotas);
+        Assert.Single(decision.Events.OfType<FootballBetAborted>());
     }
 
-    [Fact]
-    public async Task ThrowAsync_TracksStructuredAnalytics()
-    {
-        var analytics = new RecordingAnalyticsService();
-        var bets = new InMemoryFootballBetStore();
-        var service = new FootballService(
-            new FakeEconomicsService(), analytics, bets, new NullEventBus(), new FakeRuntimeTuning(),
-            new NullMiniGameSessionGhostHeal(), new NullTelegramDiceDailyRollLimiter());
+    private static GameDecision<FootballBetState, FootballBetResult> Place(
+        int amount, int balance, int quotaUsed = 0, int quotaLimit = 10) =>
+        new FootballPlaceBetAction().Decide(Input(
+            new FootballPlaceBetCommand(1, "u", 10, amount, "bet", 10_000, null),
+            new FootballBetState(null), balance, quotaUsed, quotaLimit));
 
-        await service.PlaceBetAsync(1, "u", 100, 20, default);
-        await service.ThrowAsync(1, "u", 100, 4, default);
-        Assert.Contains(analytics.Events, x => x.ModuleId == "football" && x.EventName == "bet");
-        Assert.Contains(analytics.Events, x => x.ModuleId == "football" && x.EventName == "throw");
-    }
+    private static GameDecision<FootballBetState, FootballThrowResult> Throw(
+        int face, int amount, double entropy, double dropChance) =>
+        new FootballThrowAction().Decide(Input(
+            new FootballThrowCommand(1, "u", 10, face, "throw", dropChance),
+            ActiveState(amount), 100, 1, 10, entropy));
 
-    [Fact]
-    public async Task AbortPendingBet_RefundsDeletesAndTracks()
-    {
-        var economics = new FakeEconomicsService();
-        var analytics = new RecordingAnalyticsService();
-        var bets = new InMemoryFootballBetStore();
-        var rolls = new RecordingTelegramDiceDailyRollLimiter();
-        var service = new FootballService(
-            economics, analytics, bets, new NullEventBus(), new FakeRuntimeTuning(),
-            new NullMiniGameSessionGhostHeal(), rolls);
+    private static GameActionInput<FootballBetState, TCommand> Input<TCommand>(
+        TCommand command, FootballBetState state, int balance, int used, int limit, double entropy = 0.5) =>
+        new(command, state, new WalletSnapshot(balance),
+            new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+            {
+                [FootballPlaceBetAction.DailyRollQuota] = new(used, limit),
+            },
+            new EntropyValue(new Dictionary<string, double>(StringComparer.Ordinal)
+            {
+                [FootballThrowAction.RedeemDropEntropy] = entropy,
+            }), Now);
 
-        await service.PlaceBetAsync(1, "u", 100, 20, default);
-        await service.AbortPendingBetAfterSendDiceFailedAsync(1, 100, default);
-
-        Assert.Contains(economics.Credits, x => x.Amount == 20 && x.Reason == "football.send_dice_failed");
-        Assert.Null(await bets.FindAsync(1, 100, default));
-        Assert.Equal(1, rolls.RefundCount);
-        Assert.Contains(analytics.Events, x => x.EventName == "bet_aborted");
-    }
+    private static FootballBetState ActiveState(int amount) =>
+        new(new FootballPendingBet(1, 10, amount, Now));
 }

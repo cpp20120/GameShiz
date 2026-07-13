@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><IsPackable>true</IsPackable><PackageId>BotFramework.Scheduling.Abstractions</PackageId></PropertyGroup>
+</Project>

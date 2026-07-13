@@ -1,0 +1,4 @@
+@page "/admin/login"
+@model LoginModel
+@{ ViewData["Title"] = "Login"; }
+<div class="card"><h1>Admin login</h1><form method="post"><input asp-for="Token" type="password" autofocus/><button>Sign in</button></form>@if(Model.Error is not null){<p class="error">@Model.Error</p>}</div>

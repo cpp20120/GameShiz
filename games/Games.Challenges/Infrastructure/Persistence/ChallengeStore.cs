@@ -1,148 +1,43 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
 
 namespace Games.Challenges.Infrastructure.Persistence;
 
-public sealed class ChallengeStore(INpgsqlConnectionFactory connections) : IChallengeStore
+public sealed class ChallengeStore(
+    ChallengeDbContext db,
+    IPlayerDirectory players,
+    IWalletReadService wallets) : IChallengeStore
 {
     public async Task<ChallengeUser?> FindKnownUserByUsernameAsync(long chatId, string username, CancellationToken ct)
     {
-        await using var conn = await connections.OpenAsync(ct);
-        return await conn.QuerySingleOrDefaultAsync<ChallengeUser>(new CommandDefinition("""
-            SELECT telegram_user_id AS UserId,
-                   display_name AS DisplayName
-            FROM users
-            WHERE balance_scope_id = @chatId
-              AND lower(display_name) = lower(@username)
-            ORDER BY updated_at DESC
-            LIMIT 1
-            """,
-            new { chatId, username },
-            cancellationToken: ct));
+        var identity = await players.FindByUsernameAsync(username, ct);
+        return identity is null || await wallets.GetAsync(identity.UserId, chatId, ct) is null
+            ? null : new ChallengeUser(identity.UserId, identity.DisplayName);
     }
 
-    public async Task<bool> HasPendingAsync(long challengerId, long targetId, long chatId, CancellationToken ct)
-    {
-        await using var conn = await connections.OpenAsync(ct);
-        return await conn.ExecuteScalarAsync<bool>(new CommandDefinition("""
-            SELECT EXISTS (
-                SELECT 1
-                FROM challenge_duels
-                WHERE chat_id = @chatId
-                  AND status = 'Pending'
-                  AND expires_at > now()
-                  AND (
-                      (challenger_id = @challengerId AND target_id = @targetId)
-                      OR (challenger_id = @targetId AND target_id = @challengerId)
-                  )
-            )
-            """,
-            new { challengerId, targetId, chatId },
-            cancellationToken: ct));
-    }
+    public Task<bool> HasPendingAsync(long challengerId, long targetId, long chatId, CancellationToken ct) =>
+        db.Challenges.AsNoTracking().AnyAsync(x => x.ChatId == chatId && x.Status == "Pending"
+            && x.ExpiresAt > DateTimeOffset.UtcNow
+            && ((x.ChallengerId == challengerId && x.TargetId == targetId)
+                || (x.ChallengerId == targetId && x.TargetId == challengerId)), ct);
 
     public async Task InsertAsync(Challenge challenge, CancellationToken ct)
     {
-        await using var conn = await connections.OpenAsync(ct);
-        await conn.ExecuteAsync(new CommandDefinition("""
-            INSERT INTO challenge_duels (
-                id, chat_id, challenger_id, challenger_name, target_id, target_name,
-                amount, game, status, created_at, expires_at
-            )
-            VALUES (
-                @Id, @ChatId, @ChallengerId, @ChallengerName, @TargetId, @TargetName,
-                @Amount, @Game, @Status, @CreatedAt, @ExpiresAt
-            )
-            """,
-            ToRow(challenge),
-            cancellationToken: ct));
+        db.Challenges.Add(ChallengeEntity.From(challenge));
+        await db.SaveChangesAsync(ct);
     }
 
-    public async Task<Challenge?> FindAsync(Guid id, CancellationToken ct)
-    {
-        await using var conn = await connections.OpenAsync(ct);
-        var row = await conn.QuerySingleOrDefaultAsync<ChallengeRow>(new CommandDefinition("""
-            SELECT id AS Id,
-                   chat_id AS ChatId,
-                   challenger_id AS ChallengerId,
-                   challenger_name AS ChallengerName,
-                   target_id AS TargetId,
-                   target_name AS TargetName,
-                   amount AS Amount,
-                   game AS Game,
-                   status AS Status,
-                   created_at AS CreatedAt,
-                   expires_at AS ExpiresAt
-            FROM challenge_duels
-            WHERE id = @id
-            """,
-            new { id },
-            cancellationToken: ct));
-        return row?.ToChallenge();
-    }
+    public async Task<Challenge?> FindAsync(Guid id, CancellationToken ct) =>
+        (await db.Challenges.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct))?.ToDomain();
 
     public async Task<bool> TryMarkStatusAsync(Guid id, ChallengeStatus expected, ChallengeStatus next, CancellationToken ct)
     {
-        await using var conn = await connections.OpenAsync(ct);
-        var rows = await conn.ExecuteAsync(new CommandDefinition("""
-            UPDATE challenge_duels
-            SET status = @next,
-                responded_at = COALESCE(responded_at, now()),
-                completed_at = CASE
-                    WHEN @next IN ('Completed', 'Failed', 'Declined') THEN now()
-                    ELSE completed_at
-                END
-            WHERE id = @id
-              AND status = @expected
-            """,
-            new
-            {
-                id,
-                expected = expected.ToString(),
-                next = next.ToString(),
-            },
-            cancellationToken: ct));
-        return rows > 0;
-    }
-
-    private static object ToRow(Challenge challenge) => new
-    {
-        challenge.Id,
-        challenge.ChatId,
-        challenge.ChallengerId,
-        challenge.ChallengerName,
-        challenge.TargetId,
-        challenge.TargetName,
-        challenge.Amount,
-        Game = challenge.Game.ToString(),
-        Status = challenge.Status.ToString(),
-        challenge.CreatedAt,
-        challenge.ExpiresAt,
-    };
-
-    private sealed record ChallengeRow(
-        Guid Id,
-        long ChatId,
-        long ChallengerId,
-        string ChallengerName,
-        long TargetId,
-        string TargetName,
-        int Amount,
-        string Game,
-        string Status,
-        DateTimeOffset CreatedAt,
-        DateTimeOffset ExpiresAt)
-    {
-        public Challenge ToChallenge() => new(
-            Id,
-            ChatId,
-            ChallengerId,
-            ChallengerName,
-            TargetId,
-            TargetName,
-            Amount,
-            Enum.Parse<ChallengeGame>(Game),
-            Enum.Parse<ChallengeStatus>(Status),
-            CreatedAt,
-            ExpiresAt);
+        var now = DateTimeOffset.UtcNow;
+        var terminal = next is ChallengeStatus.Completed or ChallengeStatus.Failed or ChallengeStatus.Declined;
+        var changed = await db.Challenges.Where(x => x.Id == id && x.Status == expected.ToString())
+            .ExecuteUpdateAsync(update => update
+                .SetProperty(x => x.Status, next.ToString())
+                .SetProperty(x => x.RespondedAt, x => x.RespondedAt ?? now)
+                .SetProperty(x => x.CompletedAt, x => terminal ? now : x.CompletedAt), ct);
+        return changed > 0;
     }
 }

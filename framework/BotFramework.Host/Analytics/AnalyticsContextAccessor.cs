@@ -1,6 +1,6 @@
 namespace BotFramework.Host.Analytics;
 
-internal static class AnalyticsContextAccessor
+public static class AnalyticsContextAccessor
 {
     private static readonly AsyncLocal<IReadOnlyDictionary<string, object?>?> CurrentContext = new();
 

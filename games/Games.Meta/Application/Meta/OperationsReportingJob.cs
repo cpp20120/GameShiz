@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net;
 using Dapper;
 using Microsoft.Extensions.Options;
-using Telegram.Bot.Types.Enums;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Meta.Application.Meta;
 
@@ -11,36 +11,27 @@ public sealed partial class OperationsReportingJob(
     ITelegramOutbox outbox,
     IOptions<BotFrameworkOptions> botOptions,
     IAnalyticsService analytics,
-    ILogger<OperationsReportingJob> logger) : IBackgroundJob
+    IWalletAnalyticsService walletAnalytics,
+    ILogger<OperationsReportingJob> logger) : IRecurringScheduledCommand
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(15);
     private readonly BotFrameworkOptions _bot = botOptions.Value;
 
-    public string Name => "meta.operations_reporting";
+    public string Key => "meta.operations_reporting";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(Interval);
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
+            if (_bot.Admins.Count > 0)
             {
-                if (_bot.Admins.Count > 0)
-                {
-                    await SendWeeklySummaryIfDueAsync(stoppingToken);
-                    await SendEconomyAlertsAsync(stoppingToken);
-                }
+                await SendWeeklySummaryIfDueAsync(ct);
+                await SendEconomyAlertsAsync(ct);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception ex)
-            {
-                LogReportingFailed(ex);
-            }
-
-            await Task.Delay(Interval, stoppingToken);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { LogReportingFailed(ex); }
     }
 
     private async Task SendWeeklySummaryIfDueAsync(CancellationToken ct)
@@ -55,14 +46,9 @@ public sealed partial class OperationsReportingJob(
         await using var conn = await connections.OpenAsync(ct);
         const string sql = """
             SELECT
-                (SELECT count(DISTINCT telegram_user_id) FROM economics_ledger WHERE created_at >= @from AND created_at < @to) AS ActiveUsers,
-                (SELECT count(*) FROM users WHERE created_at >= @from AND created_at < @to) AS NewWallets,
-                (SELECT COALESCE(sum(-delta), 0) FROM economics_ledger
-                  WHERE delta < 0 AND created_at >= @from AND created_at < @to
-                    AND reason NOT LIKE 'admin.%' AND reason NOT LIKE 'transfer.%' AND reason NOT LIKE '%.rollback') AS Stake,
-                (SELECT COALESCE(sum(delta), 0) FROM economics_ledger
-                  WHERE delta > 0 AND created_at >= @from AND created_at < @to
-                    AND reason ~ '(payout|prize|\.win$|winnings|settle)$') AS Payout,
+                0::bigint AS ActiveUsers,
+                0::bigint AS NewWallets,
+                0::bigint AS Stake, 0::bigint AS Payout,
                 (SELECT count(*) FROM processed_updates WHERE started_at >= @from AND started_at < @to) AS Updates,
                 (SELECT count(*) FROM event_dispatch_failures WHERE created_at >= @from AND created_at < @to) AS DispatchFailures,
                 (SELECT count(*) FROM telegram_outbox WHERE status = 'failed' AND created_at >= @from AND created_at < @to) AS DeliveryFailures,
@@ -71,16 +57,15 @@ public sealed partial class OperationsReportingJob(
             """;
         var row = await conn.QuerySingleAsync<WeeklySummary>(new CommandDefinition(
             sql, new { from, to }, cancellationToken: ct));
-        var topGames = (await conn.QueryAsync<GameVolume>(new CommandDefinition("""
-            SELECT split_part(reason, '.', 1) AS Module,
-                   sum(-delta)::bigint AS Stake
-            FROM economics_ledger
-            WHERE delta < 0 AND created_at >= @from AND created_at < @to
-              AND reason NOT LIKE 'admin.%' AND reason NOT LIKE 'transfer.%' AND reason NOT LIKE '%.rollback'
-            GROUP BY split_part(reason, '.', 1)
-            ORDER BY Stake DESC
-            LIMIT 5
-            """, new { from, to }, cancellationToken: ct))).AsList();
+        var period = await walletAnalytics.GetPeriodSummaryAsync(from, to, 5, ct);
+        row = row with
+        {
+            NewWallets = await walletAnalytics.CountCreatedAsync(from, to, ct),
+            ActiveUsers = period.ActiveUsers,
+            Stake = period.Stake,
+            Payout = period.Payout,
+        };
+        var topGames = period.TopGames.Select(x => new GameVolume(x.Module, x.Stake)).ToList();
 
         var games = topGames.Count == 0
             ? "нет ставок"
@@ -120,23 +105,16 @@ public sealed partial class OperationsReportingJob(
     private async Task SendEconomyAlertsAsync(CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
-        var health = await conn.QuerySingleAsync<EconomyHealth>(new CommandDefinition("""
-            WITH latest AS (
-                SELECT DISTINCT ON (telegram_user_id, balance_scope_id)
-                       telegram_user_id, balance_scope_id, balance_after
-                FROM economics_ledger
-                ORDER BY telegram_user_id, balance_scope_id, id DESC
-            )
-            SELECT
-                (SELECT count(*) FROM users WHERE coins < 0) AS NegativeWallets,
-                (SELECT count(*) FROM users u
-                  LEFT JOIN latest l USING (telegram_user_id, balance_scope_id)
-                  WHERE l.balance_after IS NULL OR l.balance_after <> u.coins) AS MismatchedWallets,
-                (SELECT COALESCE(max(abs(delta)), 0) FROM economics_ledger
-                  WHERE created_at >= now() - interval '15 minutes') AS LargestMutation,
-                (SELECT count(*) FROM economics_ledger
-                  WHERE created_at >= now() - interval '15 minutes' AND abs(delta) >= 100000) AS HugeMutations
-            """, cancellationToken: ct));
+        var health = new EconomyHealth(0, 0, 0, 0);
+        var walletHealth = await walletAnalytics.GetHealthAsync(ct);
+        var mutations = await walletAnalytics.GetMutationHealthAsync(15, 100_000, ct);
+        health = health with
+        {
+            NegativeWallets = walletHealth.NegativeWallets,
+            MismatchedWallets = walletHealth.MismatchedWallets,
+            LargestMutation = mutations.LargestMutation,
+            HugeMutations = mutations.HugeMutations,
+        };
 
         var issues = new List<string>();
         if (health.NegativeWallets > 0) issues.Add($"отрицательных кошельков: <b>{health.NegativeWallets}</b>");
@@ -167,7 +145,7 @@ public sealed partial class OperationsReportingJob(
     {
         foreach (var adminId in _bot.Admins.Distinct())
             await outbox.EnqueueAsync(new TelegramOutboxMessage(
-                adminId, text, $"{dedupePrefix}:{adminId}", ParseMode.Html), ct);
+                adminId, text, $"{dedupePrefix}:{adminId}", OutboundParseMode.Html), ct);
     }
 
     private async Task<bool> IsSentAsync(string reportKey, string periodKey, CancellationToken ct)

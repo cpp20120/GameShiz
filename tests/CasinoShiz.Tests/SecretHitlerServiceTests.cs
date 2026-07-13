@@ -1,247 +1,141 @@
-using Games.SecretHitler.Application.Services;
-using Games.SecretHitler.Domain.Configuration;
+using BotFramework.Sdk.Execution;
+using Games.SecretHitler.Application.Execution;
 using Games.SecretHitler.Domain.Entities;
-using Games.SecretHitler.Domain.Events;
 using Games.SecretHitler.Domain.Results;
-using Games.SecretHitler.Infrastructure.Persistence;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CasinoShiz.Tests;
 
 public sealed class SecretHitlerServiceTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
+
     [Fact]
-    public async Task FindMyGameAsync_ReturnsEmptyForMissingOrStalePlayer()
+    public void CreateDecision_DebitsBuyInAndIsDeterministic()
     {
-        var players = new MemoryPlayers();
-        var service = MakeService(players: players);
+        var command = new ShCreateCommand(1, "alice", -100, 1, "create", 50, [new(1, 1)]);
+        var input = Input(command, new(null, [], 100, false, false),
+            new Dictionary<string, double> { [SecretHitlerExecutionRules.InviteEntropy] = 0.5 });
 
-        Assert.Null((await service.FindMyGameAsync(1, default)).Snapshot);
+        var first = new ShCreateAction().Decide(input);
+        var second = new ShCreateAction().Decide(input);
 
-        players.Items.Add(Player("MISSING", 1, 0));
-        Assert.Null((await service.FindMyGameAsync(1, default)).Snapshot);
+        Assert.Equal(first.Result, second.Result);
+        Assert.Equal(DecisionStatus.Accepted, first.Status);
+        Assert.Equal(50, Assert.IsType<WalletEconomyEffect>(Assert.Single(first.CustomEffects!)).Amount);
+        Assert.Single(first.NewState.Players);
+        Assert.Single(first.Events);
+    }
+
+    [Theory]
+    [InlineData(49, false, false, ShError.NotEnoughCoins)]
+    [InlineData(100, true, false, ShError.AlreadyInGame)]
+    [InlineData(100, false, true, ShError.GameInProgress)]
+    public void CreateDecision_RejectsInvalidState(int balance, bool member, bool chatBusy, ShError error)
+    {
+        var command = new ShCreateCommand(1, "alice", -100, 1, "create", 50, [new(1, 1)]);
+        var decision = new ShCreateAction().Decide(Input(command,
+            new(null, [], balance, member, chatBusy),
+            new Dictionary<string, double> { [SecretHitlerExecutionRules.InviteEntropy] = 0.5 }));
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(error, decision.Result.Error);
+        Assert.Null(decision.CustomEffects);
     }
 
     [Fact]
-    public async Task FindMyGameAsync_ReturnsSnapshotAndCurrentPlayer()
+    public void JoinDecision_UsesFirstFreePositionAndDebitsAtomically()
     {
-        var games = new MemoryGames();
-        var players = new MemoryPlayers();
-        games.Items["ABCD"] = Game("ABCD", 1);
-        players.Items.Add(Player("ABCD", 1, 0));
-        players.Items.Add(Player("ABCD", 2, 1));
+        var state = Lobby();
+        state.Players.Add(Player(3, 2));
+        var command = new ShJoinCommand("ABCDE", 2, "bob", -100, 2, "join", 50, [new(2, 2)]);
 
-        var result = await MakeService(games, players).FindMyGameAsync(2, default);
+        var decision = new ShJoinAction().Decide(Input(command, state));
 
-        Assert.Equal("ABCD", result.Snapshot?.Game.InviteCode);
-        Assert.Equal(2, result.Snapshot?.Players.Count);
-        Assert.Equal(2, result.Me?.UserId);
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(1, decision.NewState.Players.Single(player => player.UserId == 2).Position);
+        Assert.Equal(100, decision.NewState.Game!.Pot);
+        Assert.Single(decision.CustomEffects!);
     }
 
     [Fact]
-    public async Task CreateGameAsync_RejectsBalanceMembershipAndExistingChatGame()
+    public void StartDecision_UsesFrameworkEntropyForRolesAndDeck()
     {
-        var poor = new FakeEconomicsService { StartingBalance = 49 };
-        Assert.Equal(ShError.NotEnoughCoins,
-            (await MakeService(economics: poor).CreateGameAsync(1, "a", -1, 1, default)).Error);
+        var state = Lobby();
+        for (var user = 2; user <= 5; user++) state.Players.Add(Player(user, (int)user - 1));
+        var command = new ShStartCommand("ABCDE", 1, "p1", -100, 1, "start", []);
+        var entropy = SecretHitlerExecutionRules.RoleEntropyNames
+            .Concat(SecretHitlerExecutionRules.DeckEntropyNames)
+            .ToDictionary(name => name, _ => 0.25);
 
-        var players = new MemoryPlayers();
-        players.Items.Add(Player("OLD", 1, 0));
-        Assert.Equal(ShError.AlreadyInGame,
-            (await MakeService(players: players).CreateGameAsync(1, "a", -1, 1, default)).Error);
+        var first = new ShStartAction().Decide(Input(command, state, entropy));
+        var second = new ShStartAction().Decide(Input(command, state, entropy));
 
-        var games = new MemoryGames();
-        games.Items["OPEN"] = Game("OPEN", 2, chatId: -1);
-        Assert.Equal(ShError.GameInProgress,
-            (await MakeService(games: games).CreateGameAsync(1, "a", -1, 1, default)).Error);
+        Assert.Equal(DecisionStatus.Accepted, first.Status);
+        Assert.Equal(first.NewState.Game!.DeckState, second.NewState.Game!.DeckState);
+        Assert.Equal(first.NewState.Players.Select(player => player.Role),
+            second.NewState.Players.Select(player => player.Role));
+        Assert.Contains(first.NewState.Players, player => player.Role == ShRole.Hitler);
     }
 
     [Fact]
-    public async Task CreateGameAsync_DebitsPersistsTracksAndPublishes()
+    public void LeaveDecision_RefundsAndClosesLastPlayerAtomically()
     {
-        var games = new MemoryGames();
-        var players = new MemoryPlayers();
-        var economics = new FakeEconomicsService();
-        var analytics = new RecordingAnalyticsService();
-        var events = new NullEventBus();
+        var state = Lobby();
+        var command = new ShLeaveCommand("ABCDE", 1, "p1", -100, 1, "leave", [new(1, 1)]);
 
-        var result = await MakeService(games, players, economics, analytics, events)
-            .CreateGameAsync(1, "alice", -100, 1, default);
+        var decision = new ShLeaveAction().Decide(Input(command, state));
 
-        Assert.Equal(ShError.None, result.Error);
-        Assert.Equal(50, result.BuyIn);
-        Assert.Single(games.Items);
-        Assert.Single(players.Items);
-        Assert.Single(economics.Debits);
-        Assert.Contains(analytics.Events, x => x.EventName == "create");
-        Assert.Single(events.Published.OfType<SecretHitlerGameCreated>());
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.True(decision.Result.GameClosed);
+        Assert.Equal(ShStatus.Closed, decision.NewState.Game!.Status);
+        Assert.Equal(50, Assert.IsType<WalletEconomyEffect>(Assert.Single(decision.CustomEffects!)).Amount);
     }
 
     [Fact]
-    public async Task JoinGameAsync_RejectsMissingAndNonLobbyGames()
+    public void EnactDecision_CompletesGameAndSplitsPotAcrossWinningWallets()
     {
-        Assert.Equal(ShError.GameNotFound,
-            (await MakeService().JoinGameAsync(2, "bob", 2, "missing", default)).Error);
+        var state = Lobby();
+        state.Game!.Status = ShStatus.Active;
+        state.Game.Phase = ShPhase.LegislativeChancellor;
+        state.Game.FascistPolicies = 5;
+        state.Game.NominatedChancellorPosition = 1;
+        state.Game.ChancellorReceived = "FL";
+        state.Game.Pot = 101;
+        state.Players[0].Role = ShRole.Fascist;
+        state.Players.Add(Player(2, 1));
+        state.Players[1].Role = ShRole.Hitler;
+        var command = new ShEnactCommand("ABCDE", 2, "p2", -100, 2, "enact", 0,
+            [new(1, 1), new(2, 2)]);
 
-        var games = new MemoryGames();
-        games.Items["ABCD"] = Game("ABCD", 1, status: ShStatus.Active);
-        Assert.Equal(ShError.GameInProgress,
-            (await MakeService(games: games).JoinGameAsync(2, "bob", 2, "abcd", default)).Error);
+        var decision = new ShEnactAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(ShStatus.Completed, decision.NewState.Game!.Status);
+        Assert.Equal(0, decision.NewState.Game.Pot);
+        Assert.Equal(2, decision.CustomEffects!.Count);
+        Assert.Equal(101, decision.CustomEffects.Cast<WalletEconomyEffect>().Sum(effect => effect.Amount));
+        Assert.Single(decision.Events);
     }
 
-    [Fact]
-    public async Task JoinGameAsync_UsesFirstFreePositionAndUpdatesPot()
+    private static SecretHitlerExecutionState Lobby() => new(
+        new SecretHitlerGame
+        {
+            InviteCode = "ABCDE", HostUserId = 1, ChatId = -100,
+            Status = ShStatus.Lobby, BuyIn = 50, Pot = 50,
+            CreatedAt = Now.ToUnixTimeMilliseconds(), LastActionAt = Now.ToUnixTimeMilliseconds(),
+        },
+        [Player(1, 0)], 100, false, false);
+
+    private static SecretHitlerPlayer Player(long userId, int position) => new()
     {
-        var games = new MemoryGames();
-        var players = new MemoryPlayers();
-        var events = new NullEventBus();
-        games.Items["ABCD"] = Game("ABCD", 1);
-        players.Items.Add(Player("ABCD", 1, 0));
-        players.Items.Add(Player("ABCD", 3, 2));
-
-        var result = await MakeService(games, players, events: events)
-            .JoinGameAsync(2, "bob", 2, "abcd", default);
-
-        Assert.Equal(ShError.None, result.Error);
-        Assert.Contains(players.Items, x => x.UserId == 2 && x.Position == 1);
-        Assert.Equal(100, games.Items["ABCD"].Pot);
-        Assert.Single(events.Published.OfType<SecretHitlerPlayerJoined>());
-    }
-
-    [Fact]
-    public async Task StartGameAsync_ValidatesMembershipHostAndPlayerCount()
-    {
-        Assert.Equal(ShError.NotInGame, (await MakeService().StartGameAsync(1, default)).Error);
-
-        var games = new MemoryGames();
-        var players = new MemoryPlayers();
-        games.Items["ABCD"] = Game("ABCD", 1);
-        players.Items.Add(Player("ABCD", 1, 0));
-        players.Items.Add(Player("ABCD", 2, 1));
-
-        Assert.Equal(ShError.NotHost,
-            (await MakeService(games, players).StartGameAsync(2, default)).Error);
-        Assert.Equal(ShError.NotEnoughPlayers,
-            (await MakeService(games, players).StartGameAsync(1, default)).Error);
-    }
-
-    [Fact]
-    public async Task StartGameAsync_AssignsRolesPersistsAndPublishes()
-    {
-        var games = new MemoryGames();
-        var players = new MemoryPlayers();
-        var events = new NullEventBus();
-        games.Items["ABCD"] = Game("ABCD", 1);
-        for (var i = 0; i < 5; i++) players.Items.Add(Player("ABCD", i + 1, i));
-
-        var result = await MakeService(games, players, events: events).StartGameAsync(1, default);
-
-        Assert.Equal(ShError.None, result.Error);
-        Assert.Equal(ShStatus.Active, result.Snapshot?.Game.Status);
-        Assert.Equal(ShPhase.Nomination, result.Snapshot?.Game.Phase);
-        Assert.Contains(players.Items, x => x.Role == ShRole.Hitler);
-        Assert.Single(events.Published.OfType<SecretHitlerGameStarted>());
-    }
-
-    private static SecretHitlerService MakeService(
-        MemoryGames? games = null,
-        MemoryPlayers? players = null,
-        FakeEconomicsService? economics = null,
-        RecordingAnalyticsService? analytics = null,
-        NullEventBus? events = null) =>
-        new(games ?? new MemoryGames(), players ?? new MemoryPlayers(),
-            economics ?? new FakeEconomicsService(), new ImmediateGameLock(),
-            analytics ?? new RecordingAnalyticsService(), events ?? new NullEventBus(),
-            Options.Create(new SecretHitlerOptions()), NullLogger<SecretHitlerService>.Instance);
-
-    private static SecretHitlerGame Game(
-        string code, long host, long chatId = -100, ShStatus status = ShStatus.Lobby) => new()
-    {
-        InviteCode = code,
-        HostUserId = host,
-        ChatId = chatId,
-        Status = status,
-        BuyIn = 50,
-        Pot = 50,
-        CreatedAt = 1,
-        LastActionAt = 1,
+        InviteCode = "ABCDE", UserId = userId, Position = position,
+        DisplayName = $"p{userId}", ChatId = userId, IsAlive = true,
+        JoinedAt = Now.ToUnixTimeMilliseconds(),
     };
 
-    private static SecretHitlerPlayer Player(string code, long userId, int position) => new()
-    {
-        InviteCode = code,
-        UserId = userId,
-        Position = position,
-        DisplayName = $"u{userId}",
-        ChatId = userId,
-        JoinedAt = 1,
-    };
-
-    private sealed class ImmediateGameLock : IDistributedGameLock
-    {
-        public Task<IAsyncDisposable> AcquireAsync(string resource, CancellationToken ct) =>
-            Task.FromResult<IAsyncDisposable>(new Releaser());
-
-        private sealed class Releaser : IAsyncDisposable
-        {
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-        }
-    }
-
-    private sealed class MemoryGames : ISecretHitlerGameStore
-    {
-        public Dictionary<string, SecretHitlerGame> Items { get; } = new(StringComparer.Ordinal);
-        public Task<SecretHitlerGame?> FindAsync(string inviteCode, CancellationToken ct) =>
-            Task.FromResult(Items.GetValueOrDefault(inviteCode));
-        public Task<SecretHitlerGame?> FindOpenByChatAsync(long chatId, CancellationToken ct) =>
-            Task.FromResult(Items.Values.FirstOrDefault(x => x.ChatId == chatId && x.Status is ShStatus.Lobby or ShStatus.Active));
-        public Task<bool> CodeExistsAsync(string inviteCode, CancellationToken ct) =>
-            Task.FromResult(Items.ContainsKey(inviteCode));
-        public Task InsertAsync(SecretHitlerGame game, CancellationToken ct)
-        {
-            Items.Add(game.InviteCode, game);
-            return Task.CompletedTask;
-        }
-        public Task UpdateAsync(SecretHitlerGame game, CancellationToken ct)
-        {
-            Items[game.InviteCode] = game;
-            return Task.CompletedTask;
-        }
-        public Task UpsertStateMessageAsync(string inviteCode, int messageId, CancellationToken ct)
-        {
-            Items[inviteCode].StateMessageId = messageId;
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class MemoryPlayers : ISecretHitlerPlayerStore
-    {
-        public List<SecretHitlerPlayer> Items { get; } = [];
-        public Task<SecretHitlerPlayer?> FindByUserAsync(long userId, CancellationToken ct) =>
-            Task.FromResult(Items.FirstOrDefault(x => x.UserId == userId));
-        public Task<List<SecretHitlerPlayer>> ListByGameAsync(string inviteCode, CancellationToken ct) =>
-            Task.FromResult(Items.Where(x => x.InviteCode == inviteCode).OrderBy(x => x.Position).ToList());
-        public Task<bool> AnyForUserAsync(long userId, CancellationToken ct) =>
-            Task.FromResult(Items.Any(x => x.UserId == userId));
-        public Task<int> CountByGameAsync(string inviteCode, CancellationToken ct) =>
-            Task.FromResult(Items.Count(x => x.InviteCode == inviteCode));
-        public Task InsertAsync(SecretHitlerPlayer player, CancellationToken ct)
-        {
-            Items.Add(player);
-            return Task.CompletedTask;
-        }
-        public Task UpdateAsync(SecretHitlerPlayer player, CancellationToken ct) => Task.CompletedTask;
-        public Task DeleteAsync(string inviteCode, int position, CancellationToken ct)
-        {
-            Items.RemoveAll(x => x.InviteCode == inviteCode && x.Position == position);
-            return Task.CompletedTask;
-        }
-        public Task UpsertStateMessageAsync(long userId, int messageId, CancellationToken ct)
-        {
-            Items.First(x => x.UserId == userId).StateMessageId = messageId;
-            return Task.CompletedTask;
-        }
-    }
+    private static GameActionInput<SecretHitlerExecutionState, TCommand> Input<TCommand>(
+        TCommand command, SecretHitlerExecutionState state,
+        IReadOnlyDictionary<string, double>? entropy = null) =>
+        new(command, state, new WalletSnapshot(0), new Dictionary<string, QuotaSnapshot>(),
+            new EntropyValue(entropy ?? new Dictionary<string, double>()), Now);
 }

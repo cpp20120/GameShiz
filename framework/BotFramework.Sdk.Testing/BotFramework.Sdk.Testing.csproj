@@ -1,10 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+
+
+
     <RootNamespace>BotFramework.Sdk.Testing</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Testing</PackageId>
+    <Description>Test fixtures and fakes for BotFramework contracts.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="Meziantou.Analyzer" Version="3.0.115" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <PackageReference Update="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
 </Project>

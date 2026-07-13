@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+
+
+    <RootNamespace>BotFramework.Contracts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediatR" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\BotFramework.Host\Contracts\Economics\**\*.cs" Link="Wallet\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\BotFramework.Host\Contracts\ResponsibleGaming\**\*.cs" Link="Wallet\ResponsibleGaming\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

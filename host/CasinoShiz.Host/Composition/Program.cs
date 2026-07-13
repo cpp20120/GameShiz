@@ -13,6 +13,28 @@
 
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Builder;
+using Games.Dice.Telegram;
+using Games.DiceCube.Telegram;
+using Games.Darts.Telegram;
+using Games.Darts.Telegram.Delivery;
+using Games.Football.Telegram;
+using Games.Basketball.Telegram;
+using Games.Bowling.Telegram;
+using Games.Transfer.Telegram;
+using Games.Redeem.Telegram;
+using Games.Leaderboard.Telegram;
+using Games.PixelBattle.Telegram;
+using Games.Pick.Telegram;
+using Games.Blackjack.Telegram;
+using Games.Horse.Telegram;
+using Games.Challenges.Telegram;
+using Games.Meta.Telegram;
+using Games.Admin.Telegram;
+using CasinoShiz.Identity;
+using Games.Poker.Telegram;
+using Games.SecretHitler.Telegram;
+using BotFramework.Telegram.Composition;
+using BotFramework.Rendering;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,23 +45,43 @@ builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>(
 builder.AddBotFramework()
     .AddModule<DebugModule>()
     .AddModule<DiceModule>()
+    .AddModule<DiceTelegramModule>()
     .AddModule<DiceCubeModule>()
+    .AddModule<DiceCubeTelegramModule>()
     .AddModule<DartsModule>()
+    .AddModule<DartsTelegramModule>()
+    .AddModule<DartsDeliveryTelegramModule>()
     .AddModule<FootballModule>()
+    .AddModule<FootballTelegramModule>()
     .AddModule<BasketballModule>()
+    .AddModule<BasketballTelegramModule>()
     .AddModule<BowlingModule>()
+    .AddModule<BowlingTelegramModule>()
     .AddModule<ChallengeModule>()
+    .AddModule<ChallengeTelegramModule>()
     .AddModule<BlackjackModule>()
+    .AddModule<BlackjackTelegramModule>()
     .AddModule<HorseModule>()
+    .AddModule<HorseTelegramModule>()
     .AddModule<PokerModule>()
+    .AddModule<PokerTelegramModule>()
     .AddModule<SecretHitlerModule>()
+    .AddModule<SecretHitlerTelegramModule>()
     .AddModule<RedeemModule>()
+    .AddModule<RedeemTelegramModule>()
     .AddModule<LeaderboardModule>()
+    .AddModule<LeaderboardTelegramModule>()
     .AddModule<TransferModule>()
+    .AddModule<TransferTelegramModule>()
     .AddModule<PixelBattleModule>()
+    .AddModule<PixelBattleTelegramModule>()
     .AddModule<PickModule>()
+    .AddModule<PickTelegramModule>()
     .AddModule<MetaModule>()
-    .AddModule<AdminModule>();
+    .AddModule<MetaTelegramModule>()
+    .AddModule<AdminModule>()
+    .AddModule<AdminTelegramModule>()
+    .AddModule<IdentityModule>();
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -59,6 +101,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseBotFramework();
+app.MapRenderHistory();
 app.UseStaticFiles();
 app.MapRazorPages();
 app.MapPixelBattle();

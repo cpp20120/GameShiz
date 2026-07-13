@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup><PackageReference Include="Telegram.Bot" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" /><ProjectReference Include="..\Games.Admin.Contracts\Games.Admin.Contracts.csproj" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="AdminTelegramModule.cs" />
+    <Compile Include="..\Games.Admin\Application\Handlers\**\*.cs" Link="Handlers\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

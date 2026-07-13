@@ -1,6 +1,10 @@
 
 namespace Games.PixelBattle.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.PixelBattle.Application.Execution;
+
 public sealed class PixelBattleModule : IModule
 {
     public string Id => "pixelbattle";
@@ -11,10 +15,17 @@ public sealed class PixelBattleModule : IModule
     {
         services
             .BindOptions<PixelBattleOptions>(PixelBattleOptions.SectionName)
-            .AddSingleton<IPixelBattleStore, PixelBattleStore>()
+            .AddScoped<IPixelBattleStore, PixelBattleStore>()
+            .AddScoped<IPixelBattleService, PixelBattleService>()
+            .AddScoped<IPixelBattleCommandService, PixelBattleService>()
+            .AddScoped<IGameAction<PixelBattleCommand, PixelBattleExecutionState, PixelUpdateResult>,
+                PixelBattleAction>()
+            .AddScoped<GameExecutionDescriptor<PixelBattleCommand, PixelBattleExecutionState, PixelUpdateResult>,
+                PixelBattleDescriptor>()
+            .AddScoped<IGameStateStore<PixelBattleCommand, PixelBattleExecutionState>,
+                PixelBattleExecutionStateStore>()
             .AddSingleton<ITelegramWebAppInitDataValidator, TelegramWebAppInitDataValidator>()
-            .AddSingleton<PixelBattleBroadcaster>()
-            .AddHandler<PixelBattleHandler>();
+            .AddSingleton<PixelBattleBroadcaster>();
     }
 
     public IModuleMigrations GetMigrations() => new PixelBattleMigrations();

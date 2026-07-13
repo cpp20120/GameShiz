@@ -17,6 +17,60 @@ services:
       retries: 20
       start_period: 10s
 
+  backend-postgres:
+    profiles: ["microservices"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: backend
+      POSTGRES_USER: backend
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - backend_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U backend -d backend"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  identity-postgres:
+    profiles: ["microservices"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: identity
+      POSTGRES_USER: identity
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - identity_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  wallet-postgres:
+    profiles: ["microservices"]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wallet
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - wallet_postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wallet -d wallet"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
   clickhouse:
     image: clickhouse/clickhouse-server:24.8-alpine
     restart: unless-stopped
@@ -54,6 +108,27 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - internal
 
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
@@ -133,20 +208,28 @@ services:
       - internal
 
   cazino-bot:
+    profiles: ["monolith"]
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.Host/CasinoShiz.Host.csproj
+        APP_DLL: CasinoShiz.Host.dll
     ports:
-      - "4000:3000"
+      - "4000:8080"
     extra_hosts:
       - "api.telegram.org:149.154.167.220"
     env_file:
       - .env
     environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "true"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
       ClickHouse__ConnectionString: "clickhouse://default:${CLICKHOUSE_PASSWORD}@clickhouse:8123"
+      Rendering__Minio__Enabled: "true"
+      Rendering__Minio__Endpoint: "minio:9000"
+      Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
       DOTNET_DiagnosticPorts: "/diag/dotnet-monitor.sock,nosuspend"
     volumes:
       - bot_app_data:/app/data
@@ -160,9 +243,173 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - internal
+
+  backend:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.Backend/CasinoShiz.Backend.csproj
+        APP_DLL: CasinoShiz.Backend.dll
+    env_file: [.env]
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      Redis__Enabled: "true"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      TelegramOutbox__Transport: "Cap"
+      ClickHouse__Enabled: "false"
+      Bot__Enabled: "false"
+      Services__Identity__Mode: "Grpc"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Mode: "Grpc"
+      Services__Wallet__Address: "http://wallet:8081"
+      Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+      Rendering__Minio__Enabled: "true"
+      Rendering__Minio__Endpoint: "minio:9000"
+      Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    ports: ["5081:8080"]
+    depends_on:
+      backend-postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks: [internal]
+
+  identity:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: services/CasinoShiz.IdentityService/CasinoShiz.IdentityService.csproj
+        APP_DLL: CasinoShiz.IdentityService.dll
+    environment:
+      ConnectionStrings__Postgres: "Host=identity-postgres;Port=5432;Database=identity;Username=identity;Password=${POSTGRES_PASSWORD}"
+      Redis__Enabled: "false"
+      ClickHouse__Enabled: "false"
+      Bot__Enabled: "false"
+    ports: ["5082:8080"]
+    depends_on:
+      identity-postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks: [internal]
+
+  wallet:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: services/CasinoShiz.WalletService/CasinoShiz.WalletService.csproj
+        APP_DLL: CasinoShiz.WalletService.dll
+    environment:
+      ConnectionStrings__Postgres: "Host=wallet-postgres;Port=5432;Database=wallet;Username=wallet;Password=${POSTGRES_PASSWORD}"
+      Redis__Enabled: "false"
+      ClickHouse__Enabled: "false"
+      Bot__Enabled: "false"
+    ports: ["5083:8080"]
+    depends_on:
+      wallet-postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+    networks: [internal]
+
+  telegram-bff:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.TelegramBff/CasinoShiz.TelegramBff.csproj
+        APP_DLL: CasinoShiz.TelegramBff.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://backend:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
+      Bot__Enabled: "true"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      TelegramOutbox__Transport: "Cap"
+      Rendering__Minio__Enabled: "true"
+      Rendering__Minio__Endpoint: "minio:9000"
+      Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    ports: ["5084:8080"]
+    extra_hosts: ["api.telegram.org:149.154.167.220"]
+    depends_on:
+      backend: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+      backend-postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  admin-bff:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.AdminBff/CasinoShiz.AdminBff.csproj
+        APP_DLL: CasinoShiz.AdminBff.dll
+    environment:
+      Services__Backend__Address: "http://backend:8080"
+      Services__Backend__GrpcAddress: "http://backend:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
+      Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+      Admin__SuperAdminToken: "${ADMIN_SUPERADMIN_TOKEN}"
+      Admin__ReadOnlyToken: "${ADMIN_READONLY_TOKEN:-}"
+      Admin__ActorId: "${ADMIN_ACTOR_ID:-1}"
+      Admin__DisplayName: "${ADMIN_DISPLAY_NAME:-Admin}"
+    ports: ["5085:8080"]
+    depends_on:
+      backend: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
 
   grafana:
     image: grafana/grafana:11.2.0
@@ -210,9 +457,13 @@ networks:
 
 volumes:
   postgres_data:
+  backend_postgres_data:
+  identity_postgres_data:
+  wallet_postgres_data:
   clickhouse_data:
   redis_data:
   bot_app_data:
   grafana_data:
   prometheus_data:
   dotnet_monitor_diag:
+  minio_data:

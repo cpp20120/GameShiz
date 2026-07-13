@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+
+
+    <RootNamespace>BotFramework.Telegram</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Telegram</PackageId>
+    <Description>Telegram runtime adapter for BotFramework.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Telegram.Bot" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="DotNetCore.CAP" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <ProjectReference Include="..\BotFramework.Sdk\BotFramework.Sdk.csproj" />
+    <ProjectReference Include="..\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
+    <ProjectReference Include="..\BotFramework.Host\BotFramework.Host.csproj" />
+  </ItemGroup>
+
+</Project>

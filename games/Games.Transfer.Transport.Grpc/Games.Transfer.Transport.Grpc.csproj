@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+
+
+
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+    <PackageReference Include="Google.Protobuf" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Games.Transfer.Contracts\Games.Transfer.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="Protos\transfer.proto" GrpcServices="Both" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" /></ItemGroup>
+</Project>

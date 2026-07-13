@@ -1,540 +1,162 @@
-using System.Collections.Concurrent;
 using System.Globalization;
+using BotFramework.Host.Execution;
+using Games.SecretHitler.Application.Execution;
 using Microsoft.Extensions.Options;
 using static Games.SecretHitler.Domain.Rules.ShResultHelpers;
 
 namespace Games.SecretHitler.Application.Services;
 
-public sealed partial class SecretHitlerService(
+/// <summary>Compatibility facade over the atomic Secret Hitler aggregate.</summary>
+public sealed class SecretHitlerService(
     ISecretHitlerGameStore games,
     ISecretHitlerPlayerStore players,
-    IEconomicsService economics,
-    IDistributedGameLock distributedLocks,
-    IAnalyticsService analytics,
-    IDomainEventBus events,
-    IOptions<SecretHitlerOptions> options,
-    ILogger<SecretHitlerService> logger) : ISecretHitlerService
+    IAtomicGameExecutor<ShCreateCommand, SecretHitlerExecutionState, ShCreateResult> createExecutor,
+    IAtomicGameExecutor<ShJoinCommand, SecretHitlerExecutionState, ShJoinResult> joinExecutor,
+    IAtomicGameExecutor<ShStartCommand, SecretHitlerExecutionState, ShStartResult> startExecutor,
+    IAtomicGameExecutor<ShNominateCommand, SecretHitlerExecutionState, ShNominateResult> nominateExecutor,
+    IAtomicGameExecutor<ShVoteCommand, SecretHitlerExecutionState, ShVoteResult> voteExecutor,
+    IAtomicGameExecutor<ShDiscardCommand, SecretHitlerExecutionState, ShDiscardResult> discardExecutor,
+    IAtomicGameExecutor<ShEnactCommand, SecretHitlerExecutionState, ShEnactResult> enactExecutor,
+    IAtomicGameExecutor<ShLeaveCommand, SecretHitlerExecutionState, ShLeaveResult> leaveExecutor,
+    IAtomicGameExecutor<ShPlayerMessageCommand, SecretHitlerExecutionState, bool> playerMessageExecutor,
+    IAtomicGameExecutor<ShPublicMessageCommand, SecretHitlerExecutionState, bool> publicMessageExecutor,
+    IOptions<SecretHitlerOptions> options) : ISecretHitlerService
 {
-    private static readonly ConcurrentDictionary<string, Gate> Gates = new(StringComparer.Ordinal);
+    private readonly SecretHitlerOptions settings = options.Value;
 
-    private static SemaphoreSlim GetGate(string key)
+    public async Task<(ShGameSnapshot? Snapshot, SecretHitlerPlayer? Me)> FindMyGameAsync(
+        long userId, CancellationToken ct)
     {
-        var g = Gates.GetOrAdd(key, _ => new Gate());
-        Volatile.Write(ref g.LastUsedTick, Environment.TickCount64);
-        return g.Semaphore;
+        var player = await players.FindByUserAsync(userId, ct).ConfigureAwait(false);
+        if (player is null) return (null, null);
+        var game = await games.FindAsync(player.InviteCode, ct).ConfigureAwait(false);
+        if (game is null) return (null, null);
+        var list = await players.ListByGameAsync(game.InviteCode, ct).ConfigureAwait(false);
+        return (new(game, list), list.First(item => item.UserId == userId));
     }
 
-    internal static void PruneGates(long idleMs)
-    {
-        var cutoff = Environment.TickCount64 - idleMs;
-        foreach (var (key, g) in Gates)
-        {
-            if (Volatile.Read(ref g.LastUsedTick) < cutoff && g.Semaphore.CurrentCount == 1)
-                Gates.TryRemove(key, out _);
-        }
-    }
-
-    private sealed class Gate
-    {
-        public readonly SemaphoreSlim Semaphore = new(1, 1);
-        public long LastUsedTick = Environment.TickCount64;
-    }
-
-    private readonly SecretHitlerOptions _opts = options.Value;
-
-    public async Task<(ShGameSnapshot? Snapshot, SecretHitlerPlayer? Me)> FindMyGameAsync(long userId, CancellationToken ct)
-    {
-        var player = await players.FindByUserAsync(userId, ct);
-        if (player == null) return (null, null);
-        var game = await games.FindAsync(player.InviteCode, ct);
-        if (game == null) return (null, null);
-        var list = await players.ListByGameAsync(game.InviteCode, ct);
-        return (new ShGameSnapshot(game, list), list.First(p => p.UserId == userId));
-    }
-
-    public async Task<ShCreateResult> CreateGameAsync(
+    public Task<ShCreateResult> CreateGameAsync(
         long userId, string displayName, long publicChatId, long playerChatId, CancellationToken ct)
     {
-        var gate = GetGate(string.Create(CultureInfo.InvariantCulture, $"u:{userId}"));
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync(string.Create(CultureInfo.InvariantCulture, $"sh:u:{userId}"), ct);
-            var buyIn = _opts.BuyIn;
-            await economics.EnsureUserAsync(userId, playerChatId, displayName, ct);
-            var balance = await economics.GetBalanceAsync(userId, playerChatId, ct);
-            if (balance < buyIn) return CreateFail(ShError.NotEnoughCoins);
-            if (await players.AnyForUserAsync(userId, ct)) return CreateFail(ShError.AlreadyInGame);
-            if (await games.FindOpenByChatAsync(publicChatId, ct) != null) return CreateFail(ShError.GameInProgress);
-
-            var code = await GenerateUniqueCodeAsync(ct);
-            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            var game = new SecretHitlerGame
-            {
-                InviteCode = code,
-                HostUserId = userId,
-                ChatId = publicChatId,
-                Status = ShStatus.Lobby,
-                Phase = ShPhase.None,
-                BuyIn = buyIn,
-                Pot = buyIn,
-                CreatedAt = now,
-                LastActionAt = now,
-            };
-            var player = new SecretHitlerPlayer
-            {
-                InviteCode = code,
-                Position = 0,
-                UserId = userId,
-                DisplayName = displayName,
-                ChatId = playerChatId,
-                IsAlive = true,
-                JoinedAt = now,
-            };
-
-            if (!await economics.TryDebitAsync(userId, playerChatId, buyIn, "sh.create", ct))
-                return CreateFail(ShError.NotEnoughCoins);
-
-            await games.InsertAsync(game, ct);
-            await players.InsertAsync(player, ct);
-
-            LogShCreated(code, userId, buyIn);
-            analytics.Track("sh", "create", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["user_id"] = userId,
-                ["invite_code"] = code,
-                ["buy_in"] = buyIn,
-            });
-            await events.PublishAsync(new SecretHitlerGameCreated(code, userId, buyIn, now), ct);
-
-            return new ShCreateResult(ShError.None, code, buyIn);
-        }
-        finally { gate.Release(); }
+        var id = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+        return createExecutor.ExecuteAsync(new(new ShCreateCommand(userId, displayName,
+            publicChatId, playerChatId, $"sh:create:{publicChatId}:{userId}:{id}", settings.BuyIn,
+            [new(userId, playerChatId)])), ct);
     }
 
     public async Task<ShJoinResult> JoinGameAsync(
         long userId, string displayName, long playerChatId, string code, CancellationToken ct)
     {
         code = code.ToUpperInvariant();
-        var gate = GetGate(code);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{code}", ct);
-            var buyIn = _opts.BuyIn;
-            await economics.EnsureUserAsync(userId, playerChatId, displayName, ct);
-            var balance = await economics.GetBalanceAsync(userId, playerChatId, ct);
-            if (balance < buyIn) return JoinFail(ShError.NotEnoughCoins);
-            if (await players.AnyForUserAsync(userId, ct)) return JoinFail(ShError.AlreadyInGame);
-
-            var game = await games.FindAsync(code, ct);
-            if (game == null || game.Status == ShStatus.Closed || game.Status == ShStatus.Completed)
-                return JoinFail(ShError.GameNotFound);
-            if (game.Status != ShStatus.Lobby) return JoinFail(ShError.GameInProgress);
-
-            var list = await players.ListByGameAsync(code, ct);
-            if (list.Count >= ShRoleDealer.MaxPlayers) return JoinFail(ShError.GameFull);
-
-            int position = 0;
-            var used = list.Select(p => p.Position).ToHashSet();
-            while (used.Contains(position)) position++;
-
-            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            var newPlayer = new SecretHitlerPlayer
-            {
-                InviteCode = code,
-                Position = position,
-                UserId = userId,
-                DisplayName = displayName,
-                ChatId = playerChatId,
-                IsAlive = true,
-                JoinedAt = now,
-            };
-            if (!await economics.TryDebitAsync(userId, playerChatId, buyIn, "sh.join", ct))
-                return JoinFail(ShError.NotEnoughCoins);
-
-            await players.InsertAsync(newPlayer, ct);
-            game.Pot += buyIn;
-            game.LastActionAt = now;
-            await games.UpdateAsync(game, ct);
-
-            list.Add(newPlayer);
-            LogShJoined(code, userId, position, list.Count);
-            analytics.Track("sh", "join", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["user_id"] = userId,
-                ["invite_code"] = code,
-                ["position"] = position,
-                ["seated"] = list.Count,
-                ["buy_in"] = buyIn,
-            });
-            await events.PublishAsync(new SecretHitlerPlayerJoined(code, userId, position, buyIn, now), ct);
-
-            return new ShJoinResult(ShError.None, new ShGameSnapshot(game, list), list.Count, ShRoleDealer.MaxPlayers);
-        }
-        finally { gate.Release(); }
+        var game = await games.FindAsync(code, ct).ConfigureAwait(false);
+        var publicChatId = game?.ChatId ?? playerChatId;
+        var expected = await ExpectedWalletsAsync(code, ct).ConfigureAwait(false);
+        expected.Add(new(userId, playerChatId));
+        var revision = game?.LastActionAt ?? 0;
+        return await joinExecutor.ExecuteAsync(new(new ShJoinCommand(code, userId, displayName,
+            publicChatId, playerChatId, $"sh:join:{code}:{revision}:{userId}", settings.BuyIn, expected)), ct)
+            .ConfigureAwait(false);
     }
 
     public async Task<ShStartResult> StartGameAsync(long userId, CancellationToken ct)
     {
-        var precheck = await players.FindByUserAsync(userId, ct);
-        if (precheck == null) return StartFail(ShError.NotInGame);
-
-        var gate = GetGate(precheck.InviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{precheck.InviteCode}", ct);
-            var me = await players.FindByUserAsync(userId, ct);
-            if (me == null) return StartFail(ShError.NotInGame);
-            var game = await games.FindAsync(me.InviteCode, ct);
-            if (game == null) return StartFail(ShError.NotInGame);
-            if (game.HostUserId != userId) return StartFail(ShError.NotHost);
-            if (game.Status != ShStatus.Lobby) return StartFail(ShError.GameInProgress);
-
-            var list = await players.ListByGameAsync(game.InviteCode, ct);
-            if (list.Count < ShRoleDealer.MinPlayers) return StartFail(ShError.NotEnoughPlayers);
-
-            ShTransitions.StartGame(game, list);
-            game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            await games.UpdateAsync(game, ct);
-            foreach (var p in list) await players.UpdateAsync(p, ct);
-
-            LogShStarted(game.InviteCode, list.Count);
-            analytics.Track("sh", "start", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["invite_code"] = game.InviteCode,
-                ["players"] = list.Count,
-            });
-            await events.PublishAsync(
-                new SecretHitlerGameStarted(game.InviteCode, list.Count, game.LastActionAt), ct);
-
-            return new ShStartResult(ShError.None, new ShGameSnapshot(game, list));
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return StartFail(ShError.NotInGame);
+        var (game, actor, expected) = loaded.Value;
+        return await startExecutor.ExecuteAsync(new(new ShStartCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:start:{game.InviteCode}:{game.LastActionAt}:{userId}", expected)), ct).ConfigureAwait(false);
     }
 
-    public async Task<ShNominateResult> NominateAsync(long userId, int chancellorPosition, CancellationToken ct)
+    public async Task<ShNominateResult> NominateAsync(
+        long userId, int chancellorPosition, CancellationToken ct)
     {
-        var precheck = await players.FindByUserAsync(userId, ct);
-        if (precheck == null) return NominateFail(ShError.NotInGame);
-
-        var gate = GetGate(precheck.InviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{precheck.InviteCode}", ct);
-            var me = await players.FindByUserAsync(userId, ct);
-            if (me == null) return NominateFail(ShError.NotInGame);
-            var game = await games.FindAsync(me.InviteCode, ct);
-            if (game == null) return NominateFail(ShError.NotInGame);
-            var list = await players.ListByGameAsync(game.InviteCode, ct);
-
-            var v = ShTransitions.ValidateNomination(game, me, chancellorPosition, list);
-            if (v != ShValidation.Ok) return NominateFail(MapValidation(v));
-
-            ShTransitions.ApplyNomination(game, chancellorPosition, list);
-            game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            await games.UpdateAsync(game, ct);
-            foreach (var p in list) await players.UpdateAsync(p, ct);
-
-            LogShNominated(game.InviteCode, userId, chancellorPosition);
-            analytics.Track("sh", "nominate", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["invite_code"] = game.InviteCode,
-                ["president_id"] = userId,
-                ["chancellor_pos"] = chancellorPosition,
-            });
-            return new ShNominateResult(ShError.None, new ShGameSnapshot(game, list));
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return NominateFail(ShError.NotInGame);
+        var (game, actor, expected) = loaded.Value;
+        return await nominateExecutor.ExecuteAsync(new(new ShNominateCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:nominate:{game.InviteCode}:{game.LastActionAt}:{userId}:{chancellorPosition}",
+            chancellorPosition, expected)), ct).ConfigureAwait(false);
     }
 
     public async Task<ShVoteResult> VoteAsync(long userId, ShVote vote, CancellationToken ct)
     {
-        var precheck = await players.FindByUserAsync(userId, ct);
-        if (precheck == null) return VoteFail(ShError.NotInGame);
-
-        var gate = GetGate(precheck.InviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{precheck.InviteCode}", ct);
-            var me = await players.FindByUserAsync(userId, ct);
-            if (me == null) return VoteFail(ShError.NotInGame);
-            var game = await games.FindAsync(me.InviteCode, ct);
-            if (game == null) return VoteFail(ShError.NotInGame);
-            var list = await players.ListByGameAsync(game.InviteCode, ct);
-            me = list.First(p => p.UserId == userId);
-
-            var v = ShTransitions.ValidateVote(game, me);
-            if (v != ShValidation.Ok) return VoteFail(MapValidation(v));
-
-            var after = ShTransitions.ApplyVote(game, me, vote, list);
-            game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            IReadOnlyList<SecretHitlerPayout> payouts = [];
-            if (game.Status == ShStatus.Completed)
-                payouts = await SettlePotAsync(game, list, ct);
-
-            await games.UpdateAsync(game, ct);
-            foreach (var p in list) await players.UpdateAsync(p, ct);
-
-            LogShVoted(game.InviteCode, userId, vote, after?.Kind);
-            analytics.Track("sh", "vote", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["invite_code"] = game.InviteCode,
-                ["user_id"] = userId,
-                ["vote"] = vote.ToString(),
-                ["resolved"] = after?.Kind.ToString(),
-            });
-
-            if (game.Status == ShStatus.Completed)
-            {
-                await events.PublishAsync(
-                    new SecretHitlerGameEnded(game.InviteCode, game.Winner, game.WinReason, payouts, game.LastActionAt),
-                    ct);
-            }
-
-            return new ShVoteResult(ShError.None, new ShGameSnapshot(game, list), after);
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return VoteFail(ShError.NotInGame);
+        var (game, actor, expected) = loaded.Value;
+        return await voteExecutor.ExecuteAsync(new(new ShVoteCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:vote:{game.InviteCode}:{game.LastActionAt}:{userId}:{vote}", vote, expected)), ct)
+            .ConfigureAwait(false);
     }
 
-    public async Task<ShDiscardResult> PresidentDiscardAsync(long userId, int discardIndex, CancellationToken ct)
+    public async Task<ShDiscardResult> PresidentDiscardAsync(
+        long userId, int discardIndex, CancellationToken ct)
     {
-        var precheck = await players.FindByUserAsync(userId, ct);
-        if (precheck == null) return DiscardFail(ShError.NotInGame);
-
-        var gate = GetGate(precheck.InviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{precheck.InviteCode}", ct);
-            var me = await players.FindByUserAsync(userId, ct);
-            if (me == null) return DiscardFail(ShError.NotInGame);
-            var game = await games.FindAsync(me.InviteCode, ct);
-            if (game == null) return DiscardFail(ShError.NotInGame);
-            var list = await players.ListByGameAsync(game.InviteCode, ct);
-            me = list.First(p => p.UserId == userId);
-
-            var v = ShTransitions.ValidatePresidentDiscard(game, me, discardIndex);
-            if (v != ShValidation.Ok) return DiscardFail(MapValidation(v));
-
-            ShTransitions.ApplyPresidentDiscard(game, discardIndex);
-            game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            await games.UpdateAsync(game, ct);
-
-            LogShPresidentDiscard(game.InviteCode, userId, discardIndex);
-            analytics.Track("sh", "president_discard", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["invite_code"] = game.InviteCode,
-                ["president_id"] = userId,
-                ["discard_index"] = discardIndex,
-            });
-            return new ShDiscardResult(ShError.None, new ShGameSnapshot(game, list));
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return DiscardFail(ShError.NotInGame);
+        var (game, actor, expected) = loaded.Value;
+        return await discardExecutor.ExecuteAsync(new(new ShDiscardCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:discard:{game.InviteCode}:{game.LastActionAt}:{userId}:{discardIndex}",
+            discardIndex, expected)), ct).ConfigureAwait(false);
     }
 
-    public async Task<ShEnactResult> ChancellorEnactAsync(long userId, int enactIndex, CancellationToken ct)
+    public async Task<ShEnactResult> ChancellorEnactAsync(
+        long userId, int enactIndex, CancellationToken ct)
     {
-        var precheck = await players.FindByUserAsync(userId, ct);
-        if (precheck == null) return EnactFail(ShError.NotInGame);
-
-        var gate = GetGate(precheck.InviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{precheck.InviteCode}", ct);
-            var me = await players.FindByUserAsync(userId, ct);
-            if (me == null) return EnactFail(ShError.NotInGame);
-            var game = await games.FindAsync(me.InviteCode, ct);
-            if (game == null) return EnactFail(ShError.NotInGame);
-            var list = await players.ListByGameAsync(game.InviteCode, ct);
-            me = list.First(p => p.UserId == userId);
-
-            var v = ShTransitions.ValidateChancellorEnact(game, me, enactIndex);
-            if (v != ShValidation.Ok) return EnactFail(MapValidation(v));
-
-            var after = ShTransitions.ApplyChancellorEnact(game, enactIndex, list);
-            game.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            IReadOnlyList<SecretHitlerPayout> payouts = [];
-            if (game.Status == ShStatus.Completed)
-                payouts = await SettlePotAsync(game, list, ct);
-
-            await games.UpdateAsync(game, ct);
-            foreach (var p in list) await players.UpdateAsync(p, ct);
-
-            LogShChancellorEnact(game.InviteCode, userId, enactIndex, after.Enacted);
-            analytics.Track("sh", "chancellor_enact", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["invite_code"] = game.InviteCode,
-                ["chancellor_id"] = userId,
-                ["enact_index"] = enactIndex,
-                ["policy"] = after.Enacted.ToString(),
-                ["kind"] = after.Kind.ToString(),
-            });
-
-            if (game.Status == ShStatus.Completed)
-            {
-                await events.PublishAsync(
-                    new SecretHitlerGameEnded(game.InviteCode, game.Winner, game.WinReason, payouts, game.LastActionAt),
-                    ct);
-            }
-
-            return new ShEnactResult(ShError.None, new ShGameSnapshot(game, list), after);
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return EnactFail(ShError.NotInGame);
+        var (game, actor, expected) = loaded.Value;
+        return await enactExecutor.ExecuteAsync(new(new ShEnactCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:enact:{game.InviteCode}:{game.LastActionAt}:{userId}:{enactIndex}",
+            enactIndex, expected)), ct).ConfigureAwait(false);
     }
 
     public async Task<ShLeaveResult> LeaveAsync(long userId, CancellationToken ct)
     {
-        var precheck = await players.FindByUserAsync(userId, ct);
-        if (precheck == null) return LeaveFail(ShError.NotInGame);
-
-        var gate = GetGate(precheck.InviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{precheck.InviteCode}", ct);
-            var me = await players.FindByUserAsync(userId, ct);
-            if (me == null) return LeaveFail(ShError.NotInGame);
-            var game = await games.FindAsync(me.InviteCode, ct);
-            if (game == null) return LeaveFail(ShError.NotInGame);
-
-            if (game.Status == ShStatus.Active) return LeaveFail(ShError.GameInProgress);
-
-            await economics.CreditAsync(userId, me.ChatId, game.BuyIn, "sh.leave", ct);
-            game.Pot = Math.Max(0, game.Pot - game.BuyIn);
-
-            await players.DeleteAsync(me.InviteCode, me.Position, ct);
-
-            var remainingCount = await players.CountByGameAsync(game.InviteCode, ct);
-            bool closed = false;
-            if (remainingCount == 0)
-            {
-                game.Status = ShStatus.Closed;
-                closed = true;
-            }
-            await games.UpdateAsync(game, ct);
-
-            var remaining = closed
-                ? []
-                : await players.ListByGameAsync(game.InviteCode, ct);
-
-            LogShLeft(game.InviteCode, userId, closed);
-            analytics.Track("sh", "leave", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["invite_code"] = game.InviteCode,
-                ["user_id"] = userId,
-                ["refunded"] = game.BuyIn,
-                ["closed"] = closed,
-            });
-            return new ShLeaveResult(ShError.None, closed ? null : new ShGameSnapshot(game, remaining), closed);
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return LeaveFail(ShError.NotInGame);
+        var (game, actor, expected) = loaded.Value;
+        return await leaveExecutor.ExecuteAsync(new(new ShLeaveCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:leave:{game.InviteCode}:{userId}:{actor.JoinedAt}", expected)), ct).ConfigureAwait(false);
     }
 
     public async Task SetStateMessageIdAsync(long userId, int messageId, CancellationToken ct)
     {
-        var gate = GetGate($"u:{userId}");
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:u:{userId}", ct);
-            await players.UpsertStateMessageAsync(userId, messageId, ct);
-        }
-        finally { gate.Release(); }
+        var loaded = await LoadActorGameAsync(userId, ct).ConfigureAwait(false);
+        if (loaded is null) return;
+        var (game, actor, expected) = loaded.Value;
+        await playerMessageExecutor.ExecuteAsync(new(new ShPlayerMessageCommand(game.InviteCode, userId,
+            actor.DisplayName, game.ChatId, actor.ChatId,
+            $"sh:player-message:{game.InviteCode}:{userId}:{messageId}", messageId, expected)), ct)
+            .ConfigureAwait(false);
     }
 
     public async Task SetPublicStateMessageIdAsync(string inviteCode, int messageId, CancellationToken ct)
     {
-        var gate = GetGate(inviteCode);
-        await gate.WaitAsync(ct);
-        try
-        {
-            await using var distributedLock = await distributedLocks.AcquireAsync($"sh:{inviteCode}", ct);
-            await games.UpsertStateMessageAsync(inviteCode, messageId, ct);
-        }
-        finally { gate.Release(); }
+        var game = await games.FindAsync(inviteCode, ct).ConfigureAwait(false);
+        if (game is null) return;
+        var expected = await ExpectedWalletsAsync(inviteCode, ct).ConfigureAwait(false);
+        await publicMessageExecutor.ExecuteAsync(new(new ShPublicMessageCommand(inviteCode,
+            game.HostUserId, "sh", game.ChatId, game.ChatId,
+            $"sh:public-message:{inviteCode}:{messageId}", messageId, expected)), ct).ConfigureAwait(false);
     }
 
-    private async Task<IReadOnlyList<SecretHitlerPayout>> SettlePotAsync(
-        SecretHitlerGame game, List<SecretHitlerPlayer> list, CancellationToken ct)
+    private async Task<(SecretHitlerGame Game, SecretHitlerPlayer Actor,
+        List<SecretHitlerWalletRef> Expected)?> LoadActorGameAsync(long userId, CancellationToken ct)
     {
-        var winners = game.Winner switch
-        {
-            ShWinner.Liberals => list.Where(p => p.Role == ShRole.Liberal).ToList(),
-            ShWinner.Fascists => list.Where(p => p.Role == ShRole.Fascist || p.Role == ShRole.Hitler).ToList(),
-            _ => [],
-        };
-
-        if (winners.Count == 0 || game.Pot == 0) return [];
-
-        var share = game.Pot / winners.Count;
-        var remainder = game.Pot - (share * winners.Count);
-        var payouts = new List<SecretHitlerPayout>(winners.Count);
-        foreach (var w in winners)
-        {
-            var payout = share + (remainder > 0 ? 1 : 0);
-            if (remainder > 0) remainder--;
-            await economics.CreditAsync(w.UserId, w.ChatId, payout, "sh.winnings", ct);
-            payouts.Add(new SecretHitlerPayout(w.UserId, payout));
-        }
-        game.Pot = 0;
-        return payouts;
+        var actor = await players.FindByUserAsync(userId, ct).ConfigureAwait(false);
+        if (actor is null) return null;
+        var game = await games.FindAsync(actor.InviteCode, ct).ConfigureAwait(false);
+        if (game is null) return null;
+        return (game, actor, await ExpectedWalletsAsync(game.InviteCode, ct).ConfigureAwait(false));
     }
 
-    private async Task<string> GenerateUniqueCodeAsync(CancellationToken ct)
-    {
-        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-        for (int attempt = 0; attempt < 20; attempt++)
-        {
-            var chars = new char[5];
-            for (int i = 0; i < chars.Length; i++)
-                chars[i] = alphabet[Random.Shared.Next(alphabet.Length)];
-            string code = new(chars);
-            if (!await games.CodeExistsAsync(code, ct))
-                return code;
-        }
-        throw new InvalidOperationException("Failed to generate unique invite code");
-    }
-
-    [LoggerMessage(LogLevel.Information, "sh.create code={Code} host={UserId} buy_in={BuyIn}")]
-    partial void LogShCreated(string code, long userId, int buyIn);
-
-    [LoggerMessage(LogLevel.Information, "sh.join code={Code} user={UserId} pos={Pos} players={N}")]
-    partial void LogShJoined(string code, long userId, int pos, int n);
-
-    [LoggerMessage(LogLevel.Information, "sh.start code={Code} players={N}")]
-    partial void LogShStarted(string code, int n);
-
-    [LoggerMessage(LogLevel.Information, "sh.nominate code={Code} president={UserId} chancellor_pos={Pos}")]
-    partial void LogShNominated(string code, long userId, int pos);
-
-    [LoggerMessage(LogLevel.Information, "sh.vote code={Code} user={UserId} vote={Vote} kind={Kind}")]
-    partial void LogShVoted(string code, long userId, ShVote vote, ShAfterVoteKind? kind);
-
-    [LoggerMessage(LogLevel.Information, "sh.president_discard code={Code} user={UserId} idx={Idx}")]
-    partial void LogShPresidentDiscard(string code, long userId, int idx);
-
-    [LoggerMessage(LogLevel.Information, "sh.chancellor_enact code={Code} user={UserId} idx={Idx} policy={Policy}")]
-    partial void LogShChancellorEnact(string code, long userId, int idx, ShPolicy policy);
-
-    [LoggerMessage(LogLevel.Information, "sh.leave code={Code} user={UserId} closed={Closed}")]
-    partial void LogShLeft(string code, long userId, bool closed);
+    private async Task<List<SecretHitlerWalletRef>> ExpectedWalletsAsync(string code, CancellationToken ct) =>
+        (await players.ListByGameAsync(code, ct).ConfigureAwait(false))
+        .Select(player => new SecretHitlerWalletRef(player.UserId, player.ChatId)).ToList();
 }

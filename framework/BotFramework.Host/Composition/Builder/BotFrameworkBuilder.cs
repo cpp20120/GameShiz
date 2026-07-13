@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace BotFramework.Host.Composition.Builder;
 
-internal sealed class BotFrameworkBuilder : IBotFrameworkBuilder
+public sealed class BotFrameworkBuilder : IBotFrameworkBuilder
 {
     private readonly List<IModule> _modules = [];
     private readonly Dictionary<string, Dictionary<string, string>> _locales = new(StringComparer.Ordinal);

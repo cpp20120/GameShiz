@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+
+
+
+    <RootNamespace>CasinoShiz.TelegramBff</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DotNetCore.CAP.PostgreSql" />
+    <PackageReference Include="DotNetCore.CAP.RedisStreams" />
+    <ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\services\CasinoShiz.Identity.Transport.Grpc\CasinoShiz.Identity.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\services\CasinoShiz.Wallet.Transport.Grpc\CasinoShiz.Wallet.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Telegram\BotFramework.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Dice.Telegram\Games.Dice.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Dice.Transport.Grpc\Games.Dice.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.NativeDice.Transport.Grpc\Games.NativeDice.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.DiceCube.Telegram\Games.DiceCube.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Darts.Telegram\Games.Darts.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Football.Telegram\Games.Football.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Basketball.Telegram\Games.Basketball.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Bowling.Telegram\Games.Bowling.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Telegram\Games.Transfer.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Transport.Grpc\Games.Transfer.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Telegram\Games.Redeem.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Transport.Grpc\Games.Redeem.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Leaderboard.Telegram\Games.Leaderboard.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Leaderboard.Transport.Grpc\Games.Leaderboard.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Telegram\Games.PixelBattle.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Telegram\Games.Pick.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Transport.Grpc\Games.Pick.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Telegram\Games.Blackjack.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Transport.Grpc\Games.Blackjack.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Telegram\Games.Horse.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Transport.Grpc\Games.Horse.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Telegram\Games.Challenges.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Transport.Grpc\Games.Challenges.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Telegram\Games.Meta.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Transport.Grpc\Games.Meta.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Telegram\Games.Admin.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Transport.Grpc\Games.Admin.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Poker.Telegram\Games.Poker.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Poker.Transport.Grpc\Games.Poker.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Telegram\Games.SecretHitler.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Transport.Grpc\Games.SecretHitler.Transport.Grpc.csproj" />
+  </ItemGroup>
+
+</Project>

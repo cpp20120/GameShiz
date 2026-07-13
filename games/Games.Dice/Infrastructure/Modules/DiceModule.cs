@@ -3,7 +3,7 @@
 // end-to-end. Exercises:
 //
 //   • BindOptions  — Games:dice section bound into DiceOptions
-//   • AddScoped    — the application service + history-store
+//   • AddScoped    — compatibility facade + atomic action/state/record adapters
 //   • AddHandler   — UpdateRouter picks up [MessageDice("🎰")] reflectively
 //   • GetMigrations — per-module schema for dice_rolls
 //   • GetLocales   — Russian strings keyed under "dice.*" in the host localizer
@@ -16,6 +16,15 @@
 
 namespace Games.Dice.Infrastructure.Modules;
 
+using BotFramework.Contracts.Messaging;
+using Games.Dice.Application.Requests;
+using Games.Dice.Contracts.Play;
+using Games.Dice.Infrastructure.Messaging;
+using Games.Dice.Application.Execution;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Dice.Infrastructure.Configuration;
+
 public sealed class DiceModule : IModule
 {
     public string Id => "dice";
@@ -25,10 +34,15 @@ public sealed class DiceModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<DiceOptions>(DiceOptions.SectionName)
+            .BindOptions<DiceOptions, DiceOptionsValidator>(DiceOptions.SectionName)
             .AddScoped<IDiceService, DiceService>()
-            .AddScoped<IDiceHistoryStore, DiceHistoryStore>()
-            .AddHandler<DiceHandler>();
+            .AddScoped<IGameAction<DiceCommand, NoGameState, DicePlayResult>, DiceAction>()
+            .AddScoped<GameExecutionDescriptor<DiceCommand, NoGameState, DicePlayResult>, DiceExecutionDescriptor>()
+            .AddScoped<IGameStateStore<DiceCommand, NoGameState>, DiceStateStore>()
+            .AddScoped<IGameRecordWriter, DiceRollRecordWriter>()
+            .AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
+            .AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
+            .AddScoped<IDiceClient, InProcessDiceClient>();
     }
 
     public IModuleMigrations GetMigrations() => new DiceMigrations();

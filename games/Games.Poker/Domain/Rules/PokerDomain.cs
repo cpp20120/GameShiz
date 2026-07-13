@@ -3,6 +3,9 @@ namespace Games.Poker.Domain.Rules;
 public static class PokerDomain
 {
     public static void StartHand(PokerTable table, List<PokerSeat> allSeats)
+        => StartHand(table, allSeats, Deck.BuildShuffled(), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+    public static void StartHand(PokerTable table, List<PokerSeat> allSeats, string shuffledDeck, long now)
     {
         var playable = allSeats.Where(s => s.Stack > 0).OrderBy(s => s.Position).ToList();
 
@@ -15,7 +18,7 @@ public static class PokerDomain
             s.Status = s.Stack > 0 ? PokerSeatStatus.Seated : PokerSeatStatus.SittingOut;
         }
 
-        var deck = Deck.BuildShuffled();
+        var deck = shuffledDeck;
 
         foreach (var s in playable)
         {
@@ -36,7 +39,7 @@ public static class PokerDomain
         table.MinRaise = table.BigBlind;
         table.Phase = PokerPhase.PreFlop;
         table.Status = PokerTableStatus.HandActive;
-        table.LastActionAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        table.LastActionAt = now;
 
         int sbPos, bbPos, utgPos;
         if (playable.Count == 2)

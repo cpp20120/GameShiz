@@ -4,6 +4,33 @@ This document is a diagram-first view of the current CasinoShiz architecture.
 For feature details and configuration keys, see [docs.md](docs.md). For operational
 procedures, see [operations.md](operations.md).
 
+## Repository Boundaries
+
+```text
+framework/
+  BotFramework.Contracts/   transport-neutral messaging contracts
+  BotFramework.Sdk/         module and domain abstractions
+  BotFramework.Host/        backend infrastructure and composition
+  BotFramework.Rendering/   bounded render queues + media artifact/history ports
+  BotFramework.Telegram/    Telegram ingress, routing and delivery
+games/
+  Games.X.Contracts/        logical interfaces and portable DTOs
+  Games.X/                  backend application/domain/infrastructure
+  Games.X.Telegram/         Telegram presentation adapter
+  Games.X.Transport.Grpc/   protobuf and remote adapters
+host/
+  CasinoShiz.Host/          combined compatibility deployment + Razor admin
+  CasinoShiz.Backend/       Telegram-free backend process
+  CasinoShiz.TelegramBff/   Telegram client process
+  CasinoShiz.AdminBff/      browser admin BFF without database access
+tests/CasinoShiz.Tests/     behavior and dependency-boundary tests
+```
+
+Not every context requires every optional project. PixelBattle uses HTTP/SSE for
+its WebApp, native-dice contexts share `Games.NativeDice.Transport.Grpc`, and
+Horse rendering is isolated in `Games.Horse.Rendering`. See
+[`games/README.md`](../games/README.md) for the ownership rules.
+
 ## System Context
 
 ```mermaid
@@ -13,8 +40,10 @@ flowchart LR
     telegram["Telegram Bot API"]
 
     subgraph system["CasinoShiz"]
-        host["ASP.NET Core host<br/>Telegram bot + admin UI"]
-        modules["Game modules"]
+        bff["Telegram BFF<br/>client adapters"]
+        backend["Backend<br/>game services + persistence"]
+        legacy["Legacy Host<br/>combined deployment + admin UI"]
+        contracts["Logical contracts<br/>interfaces + events"]
         webapp["PixelBattle WebApp"]
     end
 
@@ -24,37 +53,53 @@ flowchart LR
     monitoring["Prometheus + Grafana"]
 
     player <-->|"commands, callbacks, dice"| telegram
-    telegram <-->|"polling or webhook"| host
+    telegram <-->|"polling or webhook"| bff
+    telegram <-->|"legacy mode"| legacy
     player <-->|"Telegram WebApp"| webapp
-    admin -->|"HTTPS /admin"| host
+    admin -->|"HTTPS /admin"| legacy
 
-    host --> modules
-    host --> webapp
-    host <--> postgres
-    host <--> redis
-    host --> clickhouse
-    monitoring -->|"scrape and query"| host
+    bff --> contracts
+    backend --> contracts
+    legacy --> contracts
+    bff -->|"gRPC adapters"| backend
+    backend --> webapp
+    legacy --> webapp
+    backend <--> postgres
+    legacy <--> postgres
+    bff <--> redis
+    legacy <--> redis
+    backend --> clickhouse
+    legacy --> clickhouse
+    monitoring -->|"scrape and query"| backend
+    monitoring -->|"scrape and query"| legacy
     monitoring --> redis
     monitoring --> postgres
     monitoring --> clickhouse
 ```
 
-The ASP.NET Core process is the composition root and runtime boundary. Game modules
-do not host separate processes; they register handlers, services, migrations,
-locales, projections, event subscribers, jobs, and Telegram commands into the host.
+The repository supports two deployment shapes. `CasinoShiz.Host` is the compatible
+modular-monolith composition. The split composition runs `CasinoShiz.Backend` and
+`CasinoShiz.TelegramBff`; both depend on logical contracts while gRPC stays inside
+transport projects. A bounded context can therefore remain in-process or cross the
+process boundary without changing its application-facing interface.
 
 ## Runtime Containers
 
 ```mermaid
 flowchart TB
-    subgraph aspnet["CasinoShiz.Host process"]
-        http["ASP.NET endpoints<br/>webhook, health, admin, PixelBattle"]
-        driver["BotHostedService<br/>polling and command registration"]
+    subgraph bffProcess["CasinoShiz.TelegramBff process"]
+        webhook["webhook / polling"]
         pipeline["UpdatePipeline"]
         router["UpdateRouter"]
-        framework["Shared framework services<br/>economics, tuning, events, analytics"]
-        games["Game and utility modules"]
-        jobs["Hosted jobs<br/>migrations, catch-up, sweepers"]
+        adapters["Games.*.Telegram adapters"]
+        clients["contract interfaces<br/>gRPC implementations"]
+    end
+    subgraph backendProcess["CasinoShiz.Backend process"]
+        grpc["gRPC endpoints"]
+        services["game application services"]
+        framework["economics, events, analytics"]
+        jobs["migrations, projections, sweepers"]
+        http["health + PixelBattle HTTP/SSE"]
     end
 
     pg[("PostgreSQL")]
@@ -62,37 +107,39 @@ flowchart TB
     ch[("ClickHouse")]
     tg["Telegram Bot API"]
 
-    tg --> driver
-    tg --> http
-    driver --> pipeline
-    http --> pipeline
+    tg --> webhook
+    webhook --> pipeline
     pipeline --> router
-    router --> games
-    games --> framework
-    jobs --> games
+    router --> adapters
+    adapters --> clients
+    clients --> grpc
+    grpc --> services
+    services --> framework
+    jobs --> services
     jobs --> framework
 
     framework <--> pg
-    games <--> pg
+    services <--> pg
     framework <--> rd
     framework --> ch
-    games --> tg
+    adapters --> tg
 ```
 
 ## Host Composition
 
-`Program.cs` selects the distribution by listing modules. Each module owns its
-internal DI registration and contributes metadata to the shared host.
+Each composition root selects backend modules, Telegram adapter modules, or both.
+Backend modules own persistence/migrations/jobs; adapter modules own handlers and
+client presentation. Transport registration belongs only to Backend/BFF programs.
 
 ```mermaid
 flowchart LR
     program["Program.cs"]
-    builder["AddBotFramework()"]
+    builder["AddBotFramework()<br/>or AddBackendFramework()<br/>or AddTelegramBff()"]
     addmodule["AddModule&lt;T&gt;()"]
 
     subgraph framework["Framework registration"]
-        telegram["Telegram client"]
-        update["Update pipeline + router"]
+        telegram["Telegram runtime<br/>(adapter composition only)"]
+        update["Update pipeline + router<br/>(adapter composition only)"]
         economics["Economics + daily limits"]
         tuning["Runtime tuning"]
         events["Event store + event bus"]
@@ -101,11 +148,11 @@ flowchart LR
     end
 
     subgraph contribution["Module contribution"]
-        handlers["IUpdateHandler"]
+        handlers["IUpdateHandler<br/>(Telegram module)"]
         services["Module services"]
         commands["BotCommand"]
         locales["LocaleBundle"]
-        migrations["IModuleMigrations"]
+        migrations["IModuleMigrations<br/>(backend module)"]
         projections["Projections/subscribers"]
         modulejobs["Background jobs"]
     end
@@ -131,8 +178,9 @@ Current module families:
 
 ## Telegram Update Flow
 
-Polling and webhook delivery use the same processing pipeline. Redis changes the
-transport between ingestion and processing, not the handler model.
+Inside `BotFramework.Telegram`, polling and webhook delivery use the same processing
+pipeline. This runs in `CasinoShiz.TelegramBff` or in the combined legacy Host.
+Redis changes ingestion delivery, not the handler or logical client contracts.
 
 ```mermaid
 flowchart TD
@@ -258,7 +306,10 @@ Most command paths follow the same dependency direction:
 flowchart LR
     route["Route attribute"]
     handler["Application handler"]
-    service["Application service"]
+    contract["Contract interface"]
+    transport{"Composition"}
+    grpc["gRPC client adapter"]
+    service["Backend application service"]
     domain["Domain model / rules"]
     store["Store or repository"]
     shared["Shared host services"]
@@ -266,7 +317,11 @@ flowchart LR
     telegram["Telegram Bot API"]
 
     route --> handler
-    handler --> service
+    handler --> contract
+    contract --> transport
+    transport -->|"legacy Host"| service
+    transport -->|"split BFF"| grpc
+    grpc --> service
     service --> domain
     service --> store
     service --> shared
@@ -275,12 +330,340 @@ flowchart LR
     handler --> telegram
 ```
 
-Handlers parse Telegram input and render responses. Services own use-case
-orchestration. Domain objects own game rules where a game has a DDD split.
-Stores and repositories own persistence. Cross-cutting balance, analytics, tuning,
-locking, and event behavior belongs to framework services.
+Handlers live in `Games.*.Telegram`, parse Telegram input, and render responses.
+They know a logical interface, not whether it is local or remote. Backend services
+own orchestration; domain objects own rules; stores own persistence. Protobuf,
+generated clients, and channels remain in `Games.*.Transport.Grpc`. Cross-cutting
+balance, analytics, tuning, locking, and event behavior belongs to framework services.
+
+## Atomic Execution Kernel And Effect System
+
+The module contract and registration  are documented in
+[`framework/README.md`](../framework/README.md#atomic-game-execution-and-effects).
+
+Game and economy commands use one linear execution kernel. Deployment transport
+does not change the command semantics: monolith calls and BFF-to-gRPC calls both
+arrive at the same `IAtomicGameExecutor<TCommand,TState,TResult>`.
+
+```mermaid
+flowchart LR
+    request["Telegram / gRPC / HTTP request"]
+    envelope["Framework envelope<br/>stable command id"]
+    transaction["PostgreSQL transaction"]
+    locks["Sorted advisory locks<br/>command + aggregate + wallets + quotas"]
+    inbox{"Command inbox"}
+    snapshots["State + wallet + quota snapshots<br/>UTC time + named entropy"]
+    decide["Pure IGameAction.Decide"]
+    plan["Materialized GameEffectPlan<br/>validation + grouping"]
+    apply["Deterministic effect pipeline"]
+    commit["Inbox result + commit"]
+    delivery["Outbox dispatch<br/>events + schedules"]
+
+    request --> envelope --> transaction --> locks --> inbox
+    inbox -->|"duplicate"| commit
+    inbox -->|"new"| snapshots --> decide --> plan --> apply --> commit
+    commit --> delivery
+```
+
+The game action is synchronous and has no infrastructure dependencies. It sees
+only the command, loaded state, snapshots, named entropy and framework time. It
+returns a `GameDecision` containing the new state, public result and complete
+materialized effect lists. Randomness, clocks, database reads, analytics calls,
+Telegram sends and service resolution do not occur inside `Decide`.
+
+```mermaid
+flowchart TB
+    input["GameActionInput"]
+    command["Command"]
+    state["Current state"]
+    wallet["WalletSnapshot"]
+    quotas["QuotaSnapshot map"]
+    entropy["Named EntropyValue"]
+    time["UtcNow"]
+
+    action["IGameAction.Decide<br/>pure synchronous rules"]
+
+    decision["GameDecision"]
+    newState["NewState"]
+    result["Result"]
+    effects["Materialized effects"]
+
+    command --> input
+    state --> input
+    wallet --> input
+    quotas --> input
+    entropy --> input
+    time --> input
+    input --> action --> decision
+    decision --> newState
+    decision --> result
+    decision --> effects
+```
+
+### Effect lanes
+
+Effects are typed data, not callbacks, tasks, or lazy streams. Before the first
+mutation, `GameEffectPlan` verifies that effects are valid for the decision,
+declared quotas exist, and record/custom effect types each have exactly one
+registered writer or handler.
+
+```mermaid
+flowchart LR
+    decision["Accepted GameDecision"]
+
+    protection["Player protection"]
+    primary["EconomyEffect<br/>primary wallet + ledger"]
+    quota["QuotaEffect<br/>consume / restore / grant"]
+    aggregate["Aggregate state store"]
+    records["IGameRecord writers"]
+    custom["Typed custom effects<br/>including multi-wallet"]
+    eventOutbox["Domain event outbox"]
+    scheduleOutbox["Schedule outbox"]
+    inboxResult["Serialized inbox result"]
+    pg["COMMIT"]
+
+    decision --> protection --> primary --> quota --> aggregate --> records --> custom
+    custom --> eventOutbox --> scheduleOutbox --> inboxResult --> pg
+```
+
+The lanes have distinct ownership:
+
+| Lane | Owner and invariant |
+|---|---|
+| `EconomyEffect` | Framework primary wallet; protected debit, balance and append-only ledger stay consistent |
+| `WalletEconomyEffect` | Framework multi-wallet handler; all target wallet locks are declared before `Decide` |
+| `QuotaEffect` | Framework quota store; configured capacity and usage change atomically with the command |
+| aggregate state | Module state store operating through `IGameExecutionContext` |
+| `IGameRecord` | Module history writer; preserves synchronous history consistency where required |
+| custom `IGameEffect` | One explicitly registered typed handler; no raw connection/transaction exposure |
+| `IDomainEvent` | Framework outbox; analytics and remote reactions happen after commit |
+| `ScheduleEffect` | Framework schedule outbox; Quartz work is created or cancelled durably |
+
+`IAsyncEnumerable<IGameEffect>` is intentionally not used. A lazy effect stream
+could throw after partial enumeration, depend on I/O timing, or produce different
+effects on retry. The decision is a finite value that can be validated before
+mutation. Npgsql work inside one transaction remains sequential; concurrency is
+achieved between independent commands rather than by issuing simultaneous
+operations on one connection.
+
+### Workflow effects and Quartz semantics
+
+Workflow mutations that do not have a user-facing `IGameAction` (quest progress/claims,
+tournament lifecycle transitions and season payouts) use the SDK's
+`IAtomicEffect` plus Host `IAtomicEffectExecutor`. The executor takes stable locks,
+checks the command inbox, resolves one typed handler per effect, and commits the
+result, ledger/history changes and outbox rows in one PostgreSQL transaction.
+Handlers receive a restricted `IAtomicEffectContext`; they never receive a
+connection, transaction or DI container. This keeps scheduled settlement and
+interactive commands on the same idempotent mutation path.
+
+Quartz is deliberately only the trigger and persistent schedule coordinator. A
+`ScheduleExecutionPolicy` is attached to a schedule rather than encoded in a job:
+
+| Policy | Meaning |
+| --- | --- |
+| `Misfire` | `FireOnce` catches up once, `Ignore` replays missed fires, `DoNothing` skips them |
+| `Concurrency` | `Disallow` serializes one job key; `Allow` permits overlapping runs |
+| `BatchSize` | bounded work hint passed to the scheduled command as `batch-size` |
+| `MaxAttempts` / `RetryBackoff` | bounded Quartz job retries before the failure is surfaced |
+
+The command must still use an atomic/effect executor. Quartz retries therefore
+retry the same idempotent command semantics, while rendering, ClickHouse analytics
+and Telegram delivery remain asynchronous post-commit consumers.
+
+### Aggregate and lock scope
+
+The descriptor maps a command to its consistency boundary. Commands sharing any
+lock serialize; commands with disjoint lock sets can execute in parallel.
+
+```mermaid
+flowchart TD
+    command["Command"]
+    descriptor["GameExecutionDescriptor"]
+
+    userKey["user game<br/>game:{chat}:{user}"]
+    tableKey["turn-based table<br/>table:{inviteCode}"]
+    tileKey["PixelBattle cell<br/>tile:{index}"]
+    walletKeys["all affected wallet keys"]
+    quotaKeys["declared quota keys"]
+
+    command --> descriptor
+    descriptor --> userKey
+    descriptor --> tableKey
+    descriptor --> tileKey
+    descriptor --> walletKeys
+    descriptor --> quotaKeys
+```
+
+Examples:
+
+- Dice uses a user/game aggregate plus its wallet and daily quota.
+- Challenges, Transfer, Horse and completed table games declare every debit or
+  payout wallet, allowing a single atomic multi-wallet commit.
+- Blackjack, Poker and Secret Hitler serialize transitions by table/game id.
+- PixelBattle uses a tile aggregate. Writes to one tile are ordered while writes
+  to different tiles remain parallel; the full grid is a read model, not a
+  global mutation lock.
+
+### Commit, retry and external work
+
+```mermaid
+sequenceDiagram
+    participant Transport
+    participant Executor
+    participant Inbox
+    participant Action
+    participant PG as PostgreSQL
+    participant Outbox
+
+    Transport->>Executor: command + stable commandId
+    Executor->>PG: BEGIN + sorted advisory locks
+    Executor->>Inbox: GetOrBegin(commandId)
+    alt completed duplicate
+        Inbox-->>Executor: stored TResult
+        Executor->>PG: COMMIT
+        Executor-->>Transport: same TResult
+    else new command
+        Executor->>Action: Decide(materialized input)
+        Action-->>Executor: GameDecision
+        Executor->>PG: state + effects + inbox result + outbox rows
+        Executor->>PG: COMMIT
+        Executor-->>Transport: TResult
+        Outbox-->>Outbox: deliver events/schedules asynchronously
+    end
+```
+
+Cancellation or failure before commit rolls back every transactional lane. If a
+response is lost after commit, retrying the same command id returns the stored
+result without repeating effects. A fresh command id is a new command, so the
+stable id should come from Telegram update identity, callback identity, gRPC
+metadata, or an HTTP idempotency header.
+
+Analytics, ClickHouse writes, CAP publication, Telegram notifications and other
+remote operations are not transactional custom effects. They consume committed
+domain events/outbox records. Live transports may broadcast after the executor
+returns; PixelBattle additionally sends periodic full-grid snapshots so an
+ephemeral SSE broadcast loss self-heals.
+
+The legacy `IEconomicsService` remains a compatibility facade for non-command
+and administrative paths. New game mutations should use the execution kernel;
+read-only queries should continue to use owning-context read services directly.
+
+## Render Runtime And Match Media
+
+GIF and image generation is isolated from the atomic executor. The executor
+commits rules, balances, state and effects before any CPU-heavy render begins.
+Both deployment shapes compose `BotFramework.Rendering`; split processes share
+the same content-addressed MinIO bucket.
+
+```mermaid
+flowchart LR
+    result["Committed game result"]
+    spec["Immutable render spec"]
+    key["Renderer + version<br/>canonical content hash"]
+    inflight{"In-process<br/>in-flight hit?"}
+    minio{"MinIO artifact<br/>exists?"}
+    iq["Interactive TPL queue"]
+    bq["Background / prewarm<br/>TPL queue"]
+    slots["Shared CPU semaphore<br/>MaxParallelism"]
+    renderer["IRenderJob.RenderAsync"]
+    artifact[("Immutable GIF / PNG")]
+    history[("JSON history manifest")]
+
+    result --> spec --> key --> inflight
+    inflight -->|"yes"| artifact
+    inflight -->|"no"| minio
+    minio -->|"hit"| artifact
+    minio -->|"interactive miss"| iq
+    minio -->|"prewarm miss"| bq
+    iq --> slots
+    bq --> slots
+    slots --> renderer --> artifact
+    artifact --> history
+```
+
+The two bounded `ActionBlock` queues provide backpressure and priority separation,
+while one semaphore enforces the process-wide render CPU budget. Identical work
+inside a process shares one task. Across processes the stable object key makes
+duplicate output harmless and subsequent requests become cache hits.
+
+```mermaid
+sequenceDiagram
+    participant Quartz
+    participant Queue as TPL render queue
+    participant Store as MinIO
+    participant Game as Live game request
+
+    Quartz->>Queue: Horse winner × variant matrix
+    loop bounded prewarm
+        Queue->>Store: find(content key)
+        alt missing
+            Queue->>Queue: render in shared CPU slot
+            Queue->>Store: put immutable GIF
+        end
+    end
+    Game->>Queue: selected deterministic variant
+    Queue->>Store: find(content key)
+    Store-->>Game: cached GIF
+```
+
+Horse prewarming is a Quartz recurring scheduled command, not an unbounded
+background loop. Poker board images use on-demand content deduplication. Match
+history stores manifests referencing immutable objects, so repeated views do not
+duplicate media bytes. Admin history/artifact reads are exposed only under the
+existing protected `/admin` surface.
+
+MinIO is deliberately outside PostgreSQL transactions. If it is unavailable,
+the current request receives a transient freshly rendered artifact, storage
+failures are metered/logged, and the committed game result is not rolled back.
+Artifact history therefore has operational durability, not domain consistency;
+PostgreSQL remains the source of truth for wallets, ledgers and match state.
 
 ## Wallet And Ledger
+
+The logical wallet/protection ports live in `BotFramework.Contracts`. Identity uses
+the separate `IPlayerDirectory` port. Composition chooses their implementation:
+
+- combined host/backend: local PostgreSQL services;
+- split deployment: `CasinoShiz.IdentityService` and `CasinoShiz.WalletService`
+  reached through adapters in `*.Transport.Grpc`;
+- Telegram BFF: always consumes the logical ports and does not know whether their
+  target is the main backend or a dedicated service.
+
+Backend selection is configured with `Services:{Identity|Wallet}:Mode` (`Local` or
+`Grpc`) and `Address`. The BFF accepts independent
+`Services:{Identity|Wallet}:Address` values and falls back to
+`Backend:GrpcAddress`. Transport choice therefore stays in composition roots.
+
+Wallet account reads now cross `IWalletReadService`; ledger and operational
+aggregates cross `IWalletAnalyticsService`. Game contexts no longer query the
+compatibility `users` or `economics_ledger` tables. SQL for those tables is confined
+to wallet-owned infrastructure. Legacy Razor admin pages are compiled into Backend
+as a compatibility surface. In a split deployment the browser reaches them only
+through Admin BFF, so the existing operator UI remains intact while pages migrate
+to owning-context contracts incrementally.
+
+## Admin BFF
+
+`CasinoShiz.AdminBff` owns browser login/session state and registers no database
+connection. After authentication it reverse-proxies `/admin/*` (except login and
+logout) to Backend, adding the internal operations key and authenticated actor.
+Backend validates those headers, creates the legacy server session, and executes
+the original Razor pages and their antiforgery-protected actions.
+
+The proxy implementation is YARP. External gRPC clients are created through the
+shared resilient client factory in `CasinoShiz.ServiceDefaults`; composition roots
+also use that project for OpenTelemetry and common health registration.
+
+The first migrated vertical slice contains wallet inspection, idempotent balance
+adjustment and identity lookup. Each rendered adjustment carries a stable operation
+ID, so repeating the same browser POST cannot apply the ledger mutation twice.
+Service failures are reported per page rather than taking down unrelated sections.
+
+The old `CasinoShiz.Host/Pages/Admin` remains the single compatibility UI source and
+is linked into Backend at build time; it is not duplicated in AdminBff. A page can
+later move behind an owning-context contract after its read/mutation contract and
+server-side audit semantics exist.
 
 Wallet identity is `(telegram_user_id, balance_scope_id)`. The balance scope is
 normally the Telegram chat id, so one person has independent balances in different
@@ -405,21 +788,36 @@ flowchart LR
     subscriber["Event subscriber / job"]
     api["ITelegramOutbox"]
     table[("telegram_outbox")]
-    dispatcher["TelegramOutboxDispatcherService"]
+    mode{"TelegramOutbox:Transport"}
+    dispatcher["Local dispatcher"]
+    relay["Backend CAP relay"]
+    cap["CAP / Redis"]
+    bff["Telegram BFF"]
     bot["Telegram Bot API"]
 
     subscriber -->|"EnqueueAsync<br/>optional dedupe_key"| api
     api --> table
+    table --> mode
+    mode -->|"Local"| dispatcher
+    mode -->|"Cap"| relay
     dispatcher -->|"claim due rows<br/>FOR UPDATE SKIP LOCKED"| table
     dispatcher -->|"SendMessage"| bot
     bot -->|"message id"| dispatcher
     dispatcher -->|"mark sent / schedule retry"| table
+    relay -->|"claim due rows"| table
+    relay -->|"delivery command"| cap
+    cap --> bff
+    bff -->|"SendMessage"| bot
+    bff -->|"delivery receipt"| cap
+    cap -->|"mark sent"| table
 ```
 
-`dedupe_key` suppresses duplicate enqueues from repeated event handling. The
-dispatcher records `telegram_message_id` on success and applies exponential retry
-metadata on failure. Live handler replies, validation errors, menus, and other
-immediate user interactions still use direct `ctx.Bot.SendMessage(...)` calls.
+`dedupe_key` suppresses duplicate enqueues from repeated event handling. Both
+delivery modes reclaim expired leases; the CAP mode records `telegram_message_id`
+only after the Telegram BFF receipt. Telegram itself has no idempotency key, so
+notifications must still tolerate at-least-once delivery. Live handler replies,
+validation errors, menus, and other immediate user interactions still use direct
+`ctx.Bot.SendMessage(...)` calls.
 
 ## Seasonal Meta Projections
 
@@ -465,8 +863,10 @@ flowchart LR
     file["appsettings.json"]
     env["Environment variables"]
     admin["Admin structured forms<br/>or JSON patch"]
-    sanitizer["RuntimeTuningPayloadSanitizer"]
-    validation["Typed merge validation"]
+    registry["Registered typed sections"]
+    strict["Strict JSON merge<br/>unknown fields rejected"]
+    validation["IConfigurationValidator&lt;T&gt;<br/>FluentValidation adapter"]
+    adminEffects["AdminEffectPlan<br/>transaction + mandatory audit"]
     table[("runtime_tuning.payload")]
     accessor["RuntimeTuningAccessor"]
     effective["Effective typed options"]
@@ -474,9 +874,11 @@ flowchart LR
 
     file --> accessor
     env --> accessor
-    admin --> sanitizer
-    sanitizer --> validation
-    validation --> table
+    registry --> strict
+    admin --> strict
+    strict --> validation
+    validation --> adminEffects
+    adminEffects --> table
     table --> accessor
     accessor --> effective
     effective --> games
@@ -488,9 +890,64 @@ Precedence is:
 2. environment variables;
 3. whitelisted database patch.
 
-Saving from `/admin/settings` sanitizes keys, validates typed sections, writes the
-JSONB patch, reloads the accessor, and appends an admin audit record. Services that
-read `IRuntimeTuningAccessor` receive changes without process restart.
+`BindOptions<TOptions, TValidator>` registers one section for both startup and
+runtime validation. The SDK owns only `IConfigurationValidator<TOptions>` and
+structured issues; the Host supplies a FluentValidation bridge and
+`ValidateOnStart`. Admin JSON is not a loose property bag: the registry rejects
+unregistered sections, strict deserialization rejects unknown nested properties,
+and semantic validators run against the fully merged effective options. Preview
+and apply therefore share exactly the same validation path.
+
+Saving from `/admin/settings` produces a `RuntimeConfigurationPatchEffect`. The
+admin execution kernel applies that effect and appends `admin_audit` in the same
+PostgreSQL transaction; after commit the runtime accessor reloads the normalized
+patch. Services that read `IRuntimeTuningAccessor` receive changes without process
+restart. Failed validation performs no writes, and a failed effect rolls back both
+the mutation and audit.
+
+## Administrative Effect Coverage
+
+Administrative commands use the same finite, typed-effect discipline as games. The
+Razor pages and `Games.Admin` Telegram service build an `AdminExecutionEnvelope`
+and `AdminEffectPlan<TResult>`; they do not open their own mutation connection or
+transaction. The Host resolves one handler per effect, applies it with the current
+transaction-aware context, appends `admin_audit`, and commits once.
+
+```mermaid
+flowchart LR
+    users["Users page"] --> wallet["WalletAdjustmentAdminEffect"]
+    ledger["Ledger page"] --> revert["LedgerRevertAdminEffect"]
+    admin["Games.Admin"] --> adminEffects["ClearChatBets / DisplayNameOverride"]
+    meta["Meta seasons / alerts / quests"] --> metaEffects["MetaSeason* / MetaAlertStatus / MetaQuestCatalog*"]
+    wallet --> executor["AdminEffectExecutor<br/>one PostgreSQL transaction"]
+    revert --> executor
+    adminEffects --> executor
+    metaEffects --> executor
+    executor --> state[("wallets, ledger, game/meta tables")]
+    executor --> history[("meta_event_log")]
+    executor --> audit[("admin_audit")]
+```
+
+The migrated administrative surface is intentionally explicit:
+
+- Users adjusts a wallet and appends its ledger line; `operation_id` makes retries
+  idempotent.
+- Ledger reversal locks the source and wallet rows, checks prior compensation, and
+  writes the correction atomically.
+- Games.Admin clears pending DiceCube/Darts/Football/Basketball/Bowling bets with
+  refunds, or changes a display-name override, without a second mutation path.
+- Meta season creation/preparation/activation/finish/configuration and player/clan
+  rewards are effects. Rewards use deterministic operation ids and write
+  `meta_event_log` in the same transaction. Alert status changes follow the same
+  history path.
+- Quest catalog save/reload are effects as well. Save uses a temp-file + atomic
+  replace for the existing file-backed catalog; that filesystem operation is not
+  rollbackable by PostgreSQL, so a database/object-store catalog remains the next
+  hardening step.
+
+Read-only queries may continue to use the existing stores and Dapper projections.
+They are deliberately outside the executor and therefore cannot accidentally
+create a partial admin mutation.
 
 ## Admin And HTTP Surface
 
@@ -533,7 +990,13 @@ flowchart TB
     jobs --> jobState
     recovery --> pg
     auditPage --> audit
-    pages -->|"write actions"| audit
+    adminPlan["Typed AdminEffectPlan"]
+    adminExecutor["Admin effect executor<br/>one transaction"]
+
+    pages -->|"write actions"| adminPlan
+    adminPlan --> adminExecutor
+    adminExecutor --> pg
+    adminExecutor --> audit
 ```
 
 Read-only admins can inspect operational pages but mutation handlers return `403`.
@@ -545,6 +1008,17 @@ JSON while keeping the same role boundary as the on-screen audit view.
 ## Deployment Topology
 
 ### Docker Compose
+
+The compose file exposes two explicit application profiles. `monolith` runs
+`CasinoShiz.Host`; `microservices` runs Backend, Identity, Wallet, TelegramBff,
+and AdminBff as separate containers. Both profiles reuse PostgreSQL and the
+observability infrastructure. Internal calls use service DNS names and gRPC;
+only composition/environment values differ between deployment modes.
+
+```bash
+docker compose --profile monolith up --build
+docker compose --profile microservices up --build
+```
 
 ```mermaid
 flowchart TB
@@ -624,7 +1098,7 @@ flowchart LR
     telegramOutbox[("telegram_outbox")]
     retry["Admin/debug retry"]
     replay["Event replay / projection rebuild"]
-    telegramRetry["Outbox dispatcher retry"]
+    telegramRetry["Local dispatcher or CAP relay retry"]
     adminRecovery["/admin/recovery<br/>SuperAdmin confirmation"]
     eventRetry["IEventDispatchRetryService"]
     outboxNow["Reschedule unsent row now"]
@@ -656,6 +1130,17 @@ retry. Event retry redispatches the persisted event. Outbox recovery preserves t
 payload, attempt count, deduplication key, and previous error while making an unsent
 record immediately eligible; sent, missing, or concurrently changed records are not
 mutated. Successful mutation attempts are appended to `admin_audit`.
+
+The browser admin is a separate `CasinoShiz.AdminBff` process and never reads
+PostgreSQL directly. It uses transport-neutral Identity, Wallet, and Operations
+contracts; gRPC is an adapter selected only by composition. `Admin:ReadOnlyToken`
+creates an inspection-only session and `Admin:SuperAdminToken` creates a session
+allowed to submit antiforgery-protected mutations. The Admin BFF and Backend must
+receive the same non-empty `Services:Operations:ApiKey` from deployment secrets;
+the Backend rejects every Operations gRPC call when the key is absent or invalid.
+Actor ID and name come from the authenticated server-side session, while the
+Backend owns execution and audit recording. Wallet adjustments therefore remain
+audited even when Wallet runs as a separate service.
 
 ## Dependency Rules
 

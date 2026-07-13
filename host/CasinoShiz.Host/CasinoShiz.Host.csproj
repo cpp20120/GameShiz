@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+
+
+
     <RootNamespace>CasinoShiz.Host</RootNamespace>
     <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
     <NuGetAuditMode>direct</NuGetAuditMode>
@@ -11,8 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\services\CasinoShiz.Identity\CasinoShiz.Identity.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Telegram\BotFramework.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Dice\Games.Dice.csproj" />
+    <ProjectReference Include="..\..\games\Games.Dice.Telegram\Games.Dice.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.DiceCube\Games.DiceCube.csproj" />
     <ProjectReference Include="..\..\games\Games.Darts\Games.Darts.csproj" />
     <ProjectReference Include="..\..\games\Games.Football\Games.Football.csproj" />
@@ -22,7 +25,9 @@
     <ProjectReference Include="..\..\games\Games.Blackjack\Games.Blackjack.csproj" />
     <ProjectReference Include="..\..\games\Games.Horse\Games.Horse.csproj" />
     <ProjectReference Include="..\..\games\Games.Poker\Games.Poker.csproj" />
+    <ProjectReference Include="..\..\games\Games.Poker.Telegram\Games.Poker.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.SecretHitler\Games.SecretHitler.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Telegram\Games.SecretHitler.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Redeem\Games.Redeem.csproj" />
     <ProjectReference Include="..\..\games\Games.Leaderboard\Games.Leaderboard.csproj" />
     <ProjectReference Include="..\..\games\Games.Transfer\Games.Transfer.csproj" />
@@ -30,6 +35,22 @@
     <ProjectReference Include="..\..\games\Games.Pick\Games.Pick.csproj" />
     <ProjectReference Include="..\..\games\Games.Meta\Games.Meta.csproj" />
     <ProjectReference Include="..\..\games\Games.Admin\Games.Admin.csproj" />
+    <ProjectReference Include="..\..\games\Games.DiceCube.Telegram\Games.DiceCube.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Darts.Telegram\Games.Darts.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Football.Telegram\Games.Football.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Basketball.Telegram\Games.Basketball.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Bowling.Telegram\Games.Bowling.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Darts.Telegram.Delivery\Games.Darts.Telegram.Delivery.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Telegram\Games.Transfer.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Telegram\Games.Redeem.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Leaderboard.Telegram\Games.Leaderboard.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Telegram\Games.PixelBattle.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Telegram\Games.Pick.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Telegram\Games.Blackjack.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Telegram\Games.Horse.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Telegram\Games.Challenges.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Telegram\Games.Meta.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Telegram\Games.Admin.Telegram.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,7 +61,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="Meziantou.Analyzer" Version="3.0.115" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <Content Include="..\..\games\Games.PixelBattle\wwwroot\pixelbattle\**\*" Link="wwwroot\pixelbattle\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
 </Project>

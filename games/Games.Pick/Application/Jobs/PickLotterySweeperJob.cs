@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PickLotterySweeperJob — IBackgroundJob that periodically settles expired
+// PickLotterySweeperJob — Quartz command that periodically settles expired
 // /picklottery pools and posts the outcome to the originating chat.
 //
 // Runs at PickLotteryOptions.SweeperIntervalSeconds. Each tick:
@@ -13,88 +13,41 @@
 // after the in-DB transition succeeds.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using System.Globalization;
 using Microsoft.Extensions.Options;
-using Telegram.Bot;
-using Telegram.Bot.Types.Enums;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Pick.Application.Jobs;
 
 public sealed partial class PickLotterySweeperJob(
     IPickLotteryStore store,
     IPickLotteryService service,
-    ITelegramBotClient bot,
-    ILocalizer localizer,
+    IPickAnnouncementPublisher announcements,
     IOptions<PickOptions> options,
-    ILogger<PickLotterySweeperJob> logger) : IBackgroundJob
+    ILogger<PickLotterySweeperJob> logger) : IRecurringScheduledCommand
 {
-    public string Name => "pick.lottery.sweeper";
+    public string Key => "pick.lottery.sweeper";
+    public ScheduleDescriptor Schedule =>
+        ScheduleDescriptor.Every(TimeSpan.FromSeconds(Math.Max(5, options.Value.Lottery.SweeperIntervalSeconds)));
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        var interval = TimeSpan.FromSeconds(Math.Max(5, options.Value.Lottery.SweeperIntervalSeconds));
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                var expired = await store.ListExpiredOpenAsync(limit: 16, stoppingToken);
-                foreach (var row in expired)
-                {
-                    if (stoppingToken.IsCancellationRequested) break;
-                    try
-                    {
-                        var result = await service.SettleAsync(row, stoppingToken);
-                        await PostResultAsync(result, stoppingToken);
-                    }
-                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
-                    catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
-                }
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception ex) { LogTickFailed(ex); }
-
-            try { await Task.Delay(interval, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-        }
-    }
-
-    private async Task PostResultAsync(LotterySettleResult result, CancellationToken ct)
-    {
-        var chatId = result.Row.ChatId;
-        string text;
-        if (result.Kind == LotterySettleKind.Cancelled)
-        {
-            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.cancelled"),
-                result.Entries.Count,
-                result.Row.Stake);
-        }
-        else
-        {
-            var winnerLabel = string.IsNullOrEmpty(result.WinnerName)
-                ? string.Create(CultureInfo.InvariantCulture, $"User ID: {result.WinnerId}"
-)
-                : System.Net.WebUtility.HtmlEncode(result.WinnerName);
-            text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("lottery.settled"),
-                winnerLabel,
-                result.Pot,
-                result.Fee,
-                result.Payout,
-                result.Entries.Count);
-        }
-
         try
         {
-            await bot.SendMessage(chatId, text,
-                parseMode: ParseMode.Html, cancellationToken: ct);
+            var expired = await store.ListExpiredOpenAsync(limit: 16, ct);
+            foreach (var row in expired)
+            {
+                try
+                {
+                    var result = await service.SettleAsync(row, ct);
+                    await announcements.PublishLotteryAsync(result, ct);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                catch (Exception ex) { LogSettleFailed(row.Id, row.ChatId, ex); }
+            }
         }
-        catch (Exception ex)
-        {
-            LogPostFailed(result.Row.Id, chatId, ex);
-        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { LogTickFailed(ex); }
     }
-
-    private string Loc(string key) => localizer.Get("pick", key);
 
     [LoggerMessage(EventId = 5931, Level = LogLevel.Error,
         Message = "pick.lottery.sweeper.tick_failed")]
@@ -104,7 +57,4 @@ public sealed partial class PickLotterySweeperJob(
         Message = "pick.lottery.sweeper.settle_failed lottery={LotteryId} chat={ChatId}")]
     partial void LogSettleFailed(Guid lotteryId, long chatId, Exception ex);
 
-    [LoggerMessage(EventId = 5933, Level = LogLevel.Warning,
-        Message = "pick.lottery.sweeper.post_failed lottery={LotteryId} chat={ChatId}")]
-    partial void LogPostFailed(Guid lotteryId, long chatId, Exception ex);
 }

@@ -1,0 +1,11 @@
+global using BotFramework.Host.Contracts.Localization;
+global using BotFramework.Sdk.Modules;
+global using BotFramework.Sdk.Modules.Migrations;
+global using BotFramework.Sdk.UpdateHandling;
+global using BotFramework.Sdk.UpdateHandling.Routes;
+global using Games.Horse.Application.Handlers;
+global using Games.Horse.Application.Services;
+global using Games.Horse.Domain.Configuration;
+global using Games.Horse.Domain.Models;
+global using Games.Horse.Domain.Results;
+global using Microsoft.Extensions.Logging;

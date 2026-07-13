@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Reflection;
 using BotFramework.Host.Contracts.Economics;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
 using BotFramework.Sdk.UpdateHandling;
+using Games.Meta.Application.Effects;
 using Games.Meta.Application.Meta;
 using Games.Meta.Application.Tournaments;
 using Games.Meta.Domain.Seasons;
@@ -189,6 +192,7 @@ public sealed class TournamentHandlerTests
         public Task<IReadOnlyList<TournamentInfo>> GetOpenAsync(long chatId, int limit, CancellationToken ct) => Task.FromResult(Open);
         public Task<IReadOnlyList<TournamentPlayerInfo>> GetPlayersAsync(long tournamentId, CancellationToken ct) => Task.FromResult(Players);
         public Task<IReadOnlyList<TournamentMatchInfo>> GetMatchesAsync(long tournamentId, CancellationToken ct) => Task.FromResult(Matches);
+        public Task<TournamentMatchInfo?> GetMatchAsync(long matchId, CancellationToken ct) => Task.FromResult(Matches.FirstOrDefault(x => x.Id == matchId));
 
         public Task<bool> StartAsync(long tournamentId, long userId, CancellationToken ct)
         {
@@ -275,7 +279,7 @@ public sealed class TournamentServiceTests
         var store = new TournamentStoreStub();
         var economics = new FakeEconomicsService();
         var history = new RecordingHistoryStore();
-        var service = new TournamentService(meta, store, economics, history);
+        var service = new TournamentService(meta, store, new TournamentAtomicEffectExecutor(meta, store, economics, history));
         var season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}");
         meta.Season = season;
 
@@ -328,7 +332,7 @@ public sealed class TournamentServiceTests
         var store = new TournamentStoreStub();
         var economics = new FakeEconomicsService();
         var history = new RecordingHistoryStore();
-        var service = new TournamentService(meta, store, economics, history);
+        var service = new TournamentService(meta, store, new TournamentAtomicEffectExecutor(meta, store, economics, history));
         var season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}");
         meta.Season = season;
 
@@ -414,6 +418,121 @@ public sealed class TournamentServiceTests
         public Task<IReadOnlyList<AchievementUnlock>> UnlockAchievementsAsync(long seasonId, long chatId, long userId, IEnumerable<AchievementDefinition> achievements, CancellationToken ct) => throw new NotImplementedException();
     }
 
+    private sealed class TournamentAtomicEffectExecutor(
+        MetaServiceStub meta,
+        TournamentStoreStub store,
+        FakeEconomicsService economics,
+        RecordingHistoryStore history) : IAtomicEffectExecutor
+    {
+        public async Task<TResult> ExecuteAsync<TResult>(
+            AtomicEffectExecutionEnvelope envelope,
+            AtomicEffectPlan<TResult> plan,
+            CancellationToken ct)
+        {
+            var outputs = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var effect in plan.Effects)
+            {
+                switch (effect)
+                {
+                    case TournamentCreateAtomicEffect create:
+                    {
+                        var result = await store.CreateAsync(meta.Season, create.ChatId, create.CreatedBy, create.GameKey, create.EntryFee, create.MaxPlayers, ct);
+                        if (result.Created && result.Tournament is not null)
+                            await AppendAsync("tournament.created", result.Tournament.Id, meta.Season.Id, create.ChatId, create.CreatedBy, result.Tournament, ct);
+                        outputs["result"] = result;
+                        break;
+                    }
+                    case TournamentJoinAtomicEffect join:
+                    {
+                        var tournament = await store.GetAsync(join.TournamentId, ct);
+                        TournamentJoinResult result;
+                        if (tournament is null)
+                            result = new(false, "Турнир не найден.");
+                        else if (tournament.ChatId != join.ChatId)
+                            result = new(false, "Этот турнир создан в другом чате.");
+                        else
+                        {
+                            await economics.EnsureUserAsync(join.UserId, join.ChatId, join.DisplayName, ct);
+                            var debitOk = tournament.EntryFee <= 0 || await economics.TryDebitAsync(join.UserId, join.ChatId, tournament.EntryFee, "tournament.entry_fee", ct);
+                            result = debitOk
+                                ? await store.JoinAsync(join.TournamentId, join.UserId, join.DisplayName, ct)
+                                : new(false, "Недостаточно монет для entry fee.", tournament);
+                            if (result.Joined)
+                                await AppendAsync("tournament.joined", tournament.Id, tournament.SeasonId, join.ChatId, join.UserId, result, ct);
+                            else if (tournament.EntryFee > 0)
+                                await economics.CreditAsync(join.UserId, join.ChatId, tournament.EntryFee, "tournament.entry_fee.refund", ct);
+                        }
+                        outputs["result"] = result;
+                        break;
+                    }
+                    case TournamentStartAtomicEffect start:
+                    {
+                        var before = await store.GetAsync(start.TournamentId, ct);
+                        var result = await store.StartAsync(start.TournamentId, start.UserId, ct);
+                        if (result && before is not null)
+                            await AppendAsync("tournament.started", before.Id, before.SeasonId, before.ChatId, start.UserId, await store.GetMatchesAsync(start.TournamentId, ct), ct);
+                        outputs["result"] = result;
+                        break;
+                    }
+                    case TournamentReportAtomicEffect report:
+                    {
+                        var result = await store.ReportMatchAsync(report.MatchId, report.ActorUserId, report.VictorUserId, ct);
+                        if (result.Updated && result.Match is not null)
+                        {
+                            var tournament = await store.GetAsync(result.Match.TournamentId, ct);
+                            if (tournament is not null)
+                            {
+                                await AppendAsync("tournament.match_reported", tournament.Id, tournament.SeasonId, tournament.ChatId, report.VictorUserId, result.Match, ct);
+                                if (result.Finished && result.Victor is not null)
+                                {
+                                    if (tournament.PrizePool > 0)
+                                        await economics.CreditAsync(result.Victor.UserId, tournament.ChatId, checked((int)tournament.PrizePool), "tournament.prize", ct);
+                                    await AppendAsync("tournament.finished", tournament.Id, tournament.SeasonId, tournament.ChatId, result.Victor.UserId, result.Victor, ct);
+                                }
+                            }
+                        }
+                        outputs["result"] = result;
+                        break;
+                    }
+                    case TournamentFinishAtomicEffect finish:
+                    {
+                        var before = await store.GetAsync(finish.TournamentId, ct);
+                        var result = before is null ? null : await store.FinishAsync(finish.TournamentId, finish.ActorUserId, finish.VictorUserId, ct);
+                        if (before is not null && result is not null)
+                        {
+                            if (before.PrizePool > 0)
+                                await economics.CreditAsync(result.UserId, before.ChatId, checked((int)before.PrizePool), "tournament.prize", ct);
+                            await AppendAsync("tournament.finished", before.Id, before.SeasonId, before.ChatId, result.UserId, result, ct);
+                        }
+                        outputs["result"] = result;
+                        break;
+                    }
+                    case TournamentCancelAtomicEffect cancel:
+                    {
+                        var before = await store.GetAsync(cancel.TournamentId, ct);
+                        var result = before is null ? null : await store.CancelAsync(cancel.TournamentId, cancel.ActorUserId, ct);
+                        if (before is not null && result is not null)
+                        {
+                            if (before.EntryFee > 0)
+                                foreach (var player in result)
+                                    await economics.CreditAsync(player.UserId, before.ChatId, before.EntryFee, "tournament.cancel.refund", ct);
+                            await AppendAsync("tournament.cancelled", before.Id, before.SeasonId, before.ChatId, cancel.ActorUserId, result, ct);
+                        }
+                        outputs["result"] = result;
+                        break;
+                    }
+                    default:
+                        throw new InvalidOperationException($"Unexpected test effect: {effect.GetType().Name}");
+                }
+            }
+
+            return plan.ResultFactory is { } factory ? factory(outputs) : plan.Result;
+        }
+
+        private Task AppendAsync(string eventType, long aggregateId, long seasonId, long? chatId, long? userId, object payload, CancellationToken ct) =>
+            history.AppendAsync(eventType, "tournament", aggregateId.ToString(CultureInfo.InvariantCulture), seasonId, chatId, userId, payload, ct);
+    }
+
     private sealed class TournamentStoreStub : ITournamentStore
     {
         public TournamentCreateResult CreateResult { get; set; } = new(Created: false, "create");
@@ -433,6 +552,7 @@ public sealed class TournamentServiceTests
         public Task<IReadOnlyList<TournamentInfo>> GetOpenAsync(MetaSeason season, long chatId, int limit, CancellationToken ct) => Task.FromResult(Open);
         public Task<IReadOnlyList<TournamentPlayerInfo>> GetPlayersAsync(long tournamentId, CancellationToken ct) => Task.FromResult(Players);
         public Task<IReadOnlyList<TournamentMatchInfo>> GetMatchesAsync(long tournamentId, CancellationToken ct) => Task.FromResult(Matches);
+        public Task<TournamentMatchInfo?> GetMatchAsync(long matchId, CancellationToken ct) => Task.FromResult(Matches.FirstOrDefault(x => x.Id == matchId));
         public Task<bool> StartAsync(long tournamentId, long userId, CancellationToken ct) => Task.FromResult(StartResult);
         public Task<TournamentReportResult> ReportMatchAsync(long matchId, long actorUserId, long victorUserId, CancellationToken ct) => Task.FromResult(ReportResult);
         public Task<TournamentPlayerInfo?> FinishAsync(long tournamentId, long actorUserId, long winnerUserId, CancellationToken ct) => Task.FromResult(FinishResult);

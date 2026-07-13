@@ -1,0 +1,11 @@
+global using BotFramework.Host.Configuration.RuntimeTuning;
+global using BotFramework.Host.Contracts.Localization;
+global using BotFramework.Sdk.MiniGames;
+global using BotFramework.Sdk.Modules;
+global using BotFramework.Sdk.Modules.Migrations;
+global using BotFramework.Sdk.UpdateHandling;
+global using BotFramework.Sdk.UpdateHandling.Routes;
+global using Games.Basketball.Application.Services;
+global using Games.Basketball.Domain.Configuration;
+global using Games.Basketball.Domain.Results;
+global using Microsoft.Extensions.Logging;

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+
+
+
+    <RootNamespace>Games.Football.Contracts</RootNamespace>
+  </PropertyGroup>
+</Project>

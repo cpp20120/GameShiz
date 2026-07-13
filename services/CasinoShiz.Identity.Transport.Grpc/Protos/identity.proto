@@ -1,0 +1,10 @@
+syntax = "proto3";
+option csharp_namespace = "CasinoShiz.Identity.Transport.Grpc.Wire";
+package casinoshiz.identity.v1;
+message IdentityCall { string payload_json = 1; }
+message IdentityReply { string payload_json = 1; }
+service IdentityApi {
+  rpc Upsert(IdentityCall) returns (IdentityReply);
+  rpc Get(IdentityCall) returns (IdentityReply);
+  rpc FindByUsername(IdentityCall) returns (IdentityReply);
+}

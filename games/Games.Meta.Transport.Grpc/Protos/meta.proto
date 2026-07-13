@@ -1,0 +1,6 @@
+syntax = "proto3";
+option csharp_namespace = "Games.Meta.Transport.Grpc.Wire";
+package casinoshiz.meta.v1;
+message MetaCall { string service = 1; string method = 2; string arguments_json = 3; }
+message MetaReply { string result_json = 1; }
+service MetaApi { rpc Invoke(MetaCall) returns (MetaReply); }

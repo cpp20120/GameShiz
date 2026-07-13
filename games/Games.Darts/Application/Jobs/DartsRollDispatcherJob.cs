@@ -7,7 +7,7 @@ namespace Games.Darts.Application.Jobs;
 public sealed partial class DartsRollDispatcherJob(
     IDartsRollQueue queue,
     IServiceProvider services,
-    DartsBotDiceSender sender,
+    IDartsRollDelivery sender,
     ILogger<DartsRollDispatcherJob> logger) : IBackgroundJob
 {
     public string Name => "darts.roll_dispatcher";

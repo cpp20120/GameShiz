@@ -15,8 +15,8 @@ public static class PixelBattleEndpointExtensions
         app.MapGet("/pixelbattle/", () => Results.Redirect("/pixelbattle/index.html", permanent: false));
 
         var api = app.MapGroup("/pixelbattle/api");
-        api.MapGet("/grid", async (IPixelBattleStore store, CancellationToken ct) =>
-            Results.Json(await store.GetGridAsync(ct), JsonOptions));
+        api.MapGet("/grid", async (IPixelBattleService service, CancellationToken ct) =>
+            Results.Json(await service.GetGridAsync(ct), JsonOptions));
         api.MapPost("/update", UpdateAsync);
         api.MapGet("/listen", ListenAsync);
 
@@ -27,7 +27,7 @@ public static class PixelBattleEndpointExtensions
         HttpContext context,
         JsonElement body,
         ITelegramWebAppInitDataValidator validator,
-        IPixelBattleStore store,
+        IPixelBattleCommandService service,
         PixelBattleBroadcaster broadcaster,
         IAnalyticsService analytics)
     {
@@ -43,28 +43,28 @@ public static class PixelBattleEndpointExtensions
             return Results.Json("invalid update", statusCode: StatusCodes.Status400BadRequest);
         }
 
-        if (!PixelBattleConstants.IsValidIndex(index))
+        var requestId = context.Request.Headers["X-Command-Id"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(requestId)) requestId = Guid.NewGuid().ToString("N");
+        var result = await service.UpdateAsync(
+            auth.User.Id, index, color, requestId, context.RequestAborted);
+        if (result.Status == PixelUpdateStatus.InvalidIndex)
         {
             TrackUpdate(analytics, auth.User.Id, "invalid_index");
             return Results.Json("invalid index", statusCode: StatusCodes.Status400BadRequest);
         }
-
-        if (!PixelBattleConstants.IsValidColor(color))
+        if (result.Status == PixelUpdateStatus.InvalidColor)
         {
             TrackUpdate(analytics, auth.User.Id, "invalid_color");
             return Results.Json("invalid color", statusCode: StatusCodes.Status400BadRequest);
         }
-
-        if (!await store.IsKnownUserAsync(auth.User.Id, context.RequestAborted))
+        if (result.Status == PixelUpdateStatus.UnknownUser)
         {
             TrackUpdate(analytics, auth.User.Id, "unknown_user");
             return Results.Json("unknown user", statusCode: StatusCodes.Status403Forbidden);
         }
 
-        var update = await store.UpdateTileAsync(index, color, auth.User.Id, context.RequestAborted);
+        var update = result.Update!;
         broadcaster.Broadcast(update);
-        TrackUpdate(analytics, auth.User.Id, "success", index, color, update.Versionstamp);
-
         return Results.Json(update.Versionstamp, JsonOptions);
     }
 
@@ -106,7 +106,7 @@ public static class PixelBattleEndpointExtensions
 
     private static async Task ListenAsync(
         HttpContext context,
-        IPixelBattleStore store,
+        IPixelBattleService service,
         PixelBattleBroadcaster broadcaster,
         IOptions<PixelBattleOptions> options)
     {
@@ -116,7 +116,7 @@ public static class PixelBattleEndpointExtensions
         context.Response.ContentType = "text/event-stream; charset=utf-8";
 
         await context.Response.WriteAsync("retry: 1000\n\n", ct);
-        await WriteFullGridAsync(context, store, ct);
+        await WriteFullGridAsync(context, service, ct);
 
         using var subscription = broadcaster.Subscribe();
         using var timer = new PeriodicTimer(options.Value.FullUpdateInterval);
@@ -145,7 +145,7 @@ public static class PixelBattleEndpointExtensions
                 if (!await timerTask)
                     break;
 
-                await WriteFullGridAsync(context, store, ct);
+                await WriteFullGridAsync(context, service, ct);
                 timerTask = timer.WaitForNextTickAsync(ct).AsTask();
             }
         }
@@ -154,9 +154,9 @@ public static class PixelBattleEndpointExtensions
         }
     }
 
-    private static async Task WriteFullGridAsync(HttpContext context, IPixelBattleStore store, CancellationToken ct)
+    private static async Task WriteFullGridAsync(HttpContext context, IPixelBattleService service, CancellationToken ct)
     {
-        var grid = await store.GetGridAsync(ct);
+        var grid = await service.GetGridAsync(ct);
         var updates = new PixelBattleUpdate[grid.Tiles.Length];
         for (var i = 0; i < grid.Tiles.Length; i++)
             updates[i] = new PixelBattleUpdate(i, grid.Tiles[i], grid.Versionstamps[i]);

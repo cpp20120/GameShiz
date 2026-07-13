@@ -1,6 +1,11 @@
 
 namespace Games.SecretHitler.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.SecretHitler.Application.Execution;
+using Games.SecretHitler.Infrastructure.Configuration;
+
 public sealed class SecretHitlerModule : IModule
 {
     public string Id => "sh";
@@ -10,12 +15,21 @@ public sealed class SecretHitlerModule : IModule
     public void ConfigureServices(IModuleServiceCollection services)
     {
         services
-            .BindOptions<SecretHitlerOptions>(SecretHitlerOptions.SectionName)
+            .BindOptions<SecretHitlerOptions, SecretHitlerOptionsValidator>(SecretHitlerOptions.SectionName)
+            .AddScoped<SecretHitlerDbContext>()
             .AddScoped<ISecretHitlerService, SecretHitlerService>()
             .AddScoped<ISecretHitlerGameStore, SecretHitlerGameStore>()
             .AddScoped<ISecretHitlerPlayerStore, SecretHitlerPlayerStore>()
-            .AddHandler<SecretHitlerHandler>()
-            .AddBackgroundJob<SecretHitlerGateCleanupJob>();
+            .AddShExecution<ShCreateCommand, ShCreateResult, ShCreateAction, ShCreateDescriptor>()
+            .AddShExecution<ShJoinCommand, ShJoinResult, ShJoinAction, ShJoinDescriptor>()
+            .AddShExecution<ShStartCommand, ShStartResult, ShStartAction, ShStartDescriptor>()
+            .AddShExecution<ShNominateCommand, ShNominateResult, ShNominateAction, ShNominateDescriptor>()
+            .AddShExecution<ShVoteCommand, ShVoteResult, ShVoteAction, ShVoteDescriptor>()
+            .AddShExecution<ShDiscardCommand, ShDiscardResult, ShDiscardAction, ShDiscardDescriptor>()
+            .AddShExecution<ShEnactCommand, ShEnactResult, ShEnactAction, ShEnactDescriptor>()
+            .AddShExecution<ShLeaveCommand, ShLeaveResult, ShLeaveAction, ShLeaveDescriptor>()
+            .AddShExecution<ShPlayerMessageCommand, bool, ShPlayerMessageAction, ShPlayerMessageDescriptor>()
+            .AddShExecution<ShPublicMessageCommand, bool, ShPublicMessageAction, ShPublicMessageDescriptor>();
     }
 
     public IModuleMigrations GetMigrations() => new SecretHitlerMigrations();
@@ -119,4 +133,18 @@ public sealed class SecretHitlerModule : IModule
             ["err.generic"] = "Ошибка.",
         }),
     ];
+}
+
+internal static class SecretHitlerExecutionRegistration
+{
+    public static IModuleServiceCollection AddShExecution<TCommand, TResult, TAction, TDescriptor>(
+        this IModuleServiceCollection services)
+        where TCommand : ISecretHitlerExecutionCommand
+        where TAction : class, IGameAction<TCommand, SecretHitlerExecutionState, TResult>
+        where TDescriptor : GameExecutionDescriptor<TCommand, SecretHitlerExecutionState, TResult> =>
+        services
+            .AddScoped<IGameAction<TCommand, SecretHitlerExecutionState, TResult>, TAction>()
+            .AddScoped<GameExecutionDescriptor<TCommand, SecretHitlerExecutionState, TResult>, TDescriptor>()
+            .AddScoped<IGameStateStore<TCommand, SecretHitlerExecutionState>,
+                SecretHitlerExecutionStateStore<TCommand>>();
 }

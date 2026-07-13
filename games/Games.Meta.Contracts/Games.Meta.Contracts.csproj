@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+
+
+
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="GlobalUsings.cs" />
+    <Compile Include="..\Games.Meta\Domain\**\*.cs" Link="Domain\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Remove="..\Games.Meta\Domain\Achievements\AchievementRegistry.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Quests\QuestRegistry.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Streaks\GameStreakRegistry.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Quests\QuestCandidate.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Quests\QuestCatalogState.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Quests\QuestCondition.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Quests\QuestSlot.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Seasons\PreparedSeasonPlan.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Seasons\SeasonPlanFactory.cs" />
+    <Compile Remove="..\Games.Meta\Domain\Seasons\SeasonTheme.cs" />
+    <Compile Include="..\Games.Meta\Application\Meta\IMetaService.cs" Link="Application\Meta\IMetaService.cs" />
+    <Compile Include="..\Games.Meta\Application\Quests\IQuestService.cs" Link="Application\Quests\IQuestService.cs" />
+    <Compile Include="..\Games.Meta\Application\Clans\IClanService.cs" Link="Application\Clans\IClanService.cs" />
+    <Compile Include="..\Games.Meta\Application\Tournaments\ITournamentService.cs" Link="Application\Tournaments\ITournamentService.cs" />
+    <Compile Include="..\Games.Meta\Application\Risk\IRiskService.cs" Link="Application\Risk\IRiskService.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
+  </ItemGroup>
+</Project>

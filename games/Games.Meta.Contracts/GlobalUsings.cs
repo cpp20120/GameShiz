@@ -1,0 +1,8 @@
+global using BotFramework.Sdk.Events.Meta;
+global using Games.Meta.Domain.Achievements;
+global using Games.Meta.Domain.Clans;
+global using Games.Meta.Domain.Quests;
+global using Games.Meta.Domain.Risk;
+global using Games.Meta.Domain.Seasons;
+global using Games.Meta.Domain.Streaks;
+global using Games.Meta.Domain.Tournaments;

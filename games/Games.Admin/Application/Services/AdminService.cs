@@ -1,11 +1,15 @@
 
 using System.Globalization;
+using BotFramework.Host.Admin.Execution;
+using BotFramework.Sdk.Admin.Execution;
+using BotFramework.Sdk.Admin.Effects;
+using Games.Admin.Application.Effects;
 
 namespace Games.Admin.Application.Services;
 
 public sealed partial class AdminService(
     IAdminStore store,
-    IEconomicsService economics,
+    IAdminEffectExecutor effects,
     IAnalyticsService analytics,
     ILogger<AdminService> logger,
     IMiniGameSessionStore? sessions = null,
@@ -13,6 +17,10 @@ public sealed partial class AdminService(
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
     private IMiniGameRollGateStore RollGates => rollGates ?? NullMiniGameRollGateStore.Instance;
+
+    /// <summary>Compatibility overload for callers that do not have a Telegram actor id.</summary>
+    public Task<RenameResult> RenameAsync(string oldName, string newName, CancellationToken ct) =>
+        RenameAsync(0, oldName, newName, ct);
 
     public async Task<int> UserSyncAsync(long callerId, CancellationToken ct)
     {
@@ -36,7 +44,7 @@ public sealed partial class AdminService(
             ["count"] = users.Count,
         });
 
-        LogUsersync(callerId, users.Count);
+        LogUserSync(callerId, users.Count);
         return users.Count;
     }
 
@@ -45,16 +53,22 @@ public sealed partial class AdminService(
     {
         var before = await store.FindUserAsync(targetUserId, balanceScopeId, ct);
         var displayName = before?.DisplayName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {targetUserId}");
-        await economics.EnsureUserAsync(targetUserId, balanceScopeId, displayName, ct);
-
-        if (amount > 0)
-        {
-            await economics.CreditAsync(targetUserId, balanceScopeId, amount, "admin.pay", ct);
-        }
-        else if (amount < 0)
-        {
-            await economics.DebitAsync(targetUserId, balanceScopeId, -amount, "admin.pay", ct);
-        }
+        var newBalance = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(
+                new(callerId, string.Create(CultureInfo.InvariantCulture, $"telegram:{callerId}")),
+                "admin.pay",
+                new { targetUserId, balanceScopeId, amount }),
+            new AdminEffectPlan<int>(
+                before?.Coins ?? 0,
+                [new WalletAdjustmentAdminEffect(
+                    targetUserId,
+                    balanceScopeId,
+                    amount,
+                    "admin.pay",
+                    DisplayName: displayName,
+                    AllowNegative: false)],
+                outputs => (int)outputs["balance"]!),
+            ct).ConfigureAwait(false);
 
         var after = await store.FindUserAsync(targetUserId, balanceScopeId, ct);
         if (after == null) return null;
@@ -69,7 +83,7 @@ public sealed partial class AdminService(
         });
 
         var oldCoins = before?.Coins ?? 0;
-        return new PayResult(after.DisplayName, oldCoins, after.Coins, amount);
+        return new PayResult(after.DisplayName, oldCoins, newBalance, amount);
     }
 
     public Task<UserSummary?> GetUserAsync(long targetUserId, long balanceScopeId, CancellationToken ct) =>
@@ -77,10 +91,18 @@ public sealed partial class AdminService(
 
     public async Task<ClearChatBetsResult> ClearChatBetsAsync(long callerId, long chatId, CancellationToken ct)
     {
-        var deleted = await store.DeletePendingMiniGameBetsAsync(chatId, ct);
+        var deleted = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(
+                new(callerId, string.Create(CultureInfo.InvariantCulture, $"telegram:{callerId}")),
+                "admin.clearbets",
+                new { chatId }),
+            new AdminEffectPlan<IReadOnlyList<Games.Admin.Infrastructure.Models.PendingChatBet>>(
+                [],
+                [new ClearChatBetsAdminEffect(chatId)],
+                outputs => (IReadOnlyList<Games.Admin.Infrastructure.Models.PendingChatBet>)outputs["bets"]!),
+            ct).ConfigureAwait(false);
         foreach (var bet in deleted)
         {
-            await economics.CreditAsync(bet.UserId, bet.ChatId, bet.Amount, $"admin.clearbets.{bet.GameId}", ct);
             BotMiniGameSession.ClearCompletedRound(bet.UserId, bet.ChatId, bet.GameId);
             await Sessions.ClearCompletedRoundAsync(bet.UserId, bet.ChatId, bet.GameId, ct);
             switch (bet.GameId)
@@ -106,7 +128,6 @@ public sealed partial class AdminService(
                     await RollGates.ClearAsync("darts", bet.UserId, bet.ChatId, ct);
                     if (bet.BotMessageId is { } botMessageId)
                     {
-                        DartsDiceRoundBinding.Unbind(bet.ChatId, botMessageId);
                         BotMiniGameDiceOwner.MarkCompleted(bet.ChatId, botMessageId);
                     }
                     break;
@@ -126,18 +147,34 @@ public sealed partial class AdminService(
         return new ClearChatBetsResult(deleted.Count, refunded);
     }
 
-    public async Task<RenameResult> RenameAsync(string oldName, string newName, CancellationToken ct)
+    public async Task<RenameResult> RenameAsync(long callerId, string oldName, string newName, CancellationToken ct)
     {
         var existing = await store.GetOverrideAsync(oldName, ct);
 
         if (string.Equals(newName, "*", StringComparison.Ordinal))
         {
             if (existing == null) return new RenameResult(RenameOp.NoChange, oldName, newName);
-            await store.DeleteOverrideAsync(oldName, ct);
+            await effects.ExecuteAsync(
+                new AdminExecutionEnvelope(
+                    new(callerId, string.Create(CultureInfo.InvariantCulture, $"telegram:{callerId}")),
+                    "admin.rename.clear",
+                    new { oldName }),
+                new AdminEffectPlan<bool>(
+                    true,
+                    [new DisplayNameOverrideAdminEffect(oldName, null)]),
+                ct).ConfigureAwait(false);
             return new RenameResult(RenameOp.Cleared, oldName, newName);
         }
 
-        await store.UpsertOverrideAsync(oldName, newName, ct);
+        await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(
+                new(callerId, string.Create(CultureInfo.InvariantCulture, $"telegram:{callerId}")),
+                "admin.rename.set",
+                new { oldName, newName }),
+            new AdminEffectPlan<bool>(
+                true,
+                [new DisplayNameOverrideAdminEffect(oldName, newName)]),
+            ct).ConfigureAwait(false);
         return new RenameResult(RenameOp.Set, oldName, newName);
     }
 
@@ -164,5 +201,5 @@ public sealed partial class AdminService(
     }
 
     [LoggerMessage(LogLevel.Information, "admin.usersync caller={CallerId} count={Count}")]
-    partial void LogUsersync(long callerId, int count);
+    partial void LogUserSync(long callerId, int count);
 }

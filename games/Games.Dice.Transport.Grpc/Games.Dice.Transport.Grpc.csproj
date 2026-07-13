@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+
+
+    <RootNamespace>Games.Dice.Transport.Grpc</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <ProjectReference Include="..\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Protos\dice.proto" GrpcServices="Both" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CasinoShiz.Tests" />
+  </ItemGroup>
+
+  <ItemGroup><ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" /></ItemGroup>
+</Project>

@@ -18,7 +18,7 @@
         <label>Game:</label>
         <select name="Game" onchange="this.form.submit()">
             <option value="">(all)</option>
-            @foreach (var g in ChallengesModel.Games)
+            @foreach (var g in CasinoShiz.Host.Pages.Admin.ChallengesModel.Games)
             {
                 <option value="@g" selected="@(Model.Game == g)">@g</option>
             }
@@ -26,7 +26,7 @@
         <label>Status:</label>
         <select name="Status" onchange="this.form.submit()">
             <option value="">(all)</option>
-            @foreach (var s in ChallengesModel.Statuses)
+            @foreach (var s in CasinoShiz.Host.Pages.Admin.ChallengesModel.Statuses)
             {
                 <option value="@s" selected="@(Model.Status == s)">@s</option>
             }

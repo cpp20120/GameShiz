@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>BotFramework.Discord</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Discord</PackageId>
+    <Description>Discord runtime adapter for BotFramework.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Discord.Net" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+  </ItemGroup>
+</Project>

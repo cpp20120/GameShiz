@@ -1,0 +1,3 @@
+syntax="proto3"; option csharp_namespace="Games.Horse.Transport.Grpc.Wire"; package casinoshiz.horse.v1;
+message ContractCall{string payload_json=1;} message ContractReply{string payload_json=1;}
+service HorseApi{rpc PlaceBet(ContractCall)returns(ContractReply);rpc GetInfo(ContractCall)returns(ContractReply);rpc GetResult(ContractCall)returns(ContractReply);rpc RunRace(ContractCall)returns(ContractReply);rpc SaveFile(ContractCall)returns(ContractReply);}

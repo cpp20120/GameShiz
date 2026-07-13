@@ -3,10 +3,8 @@
 // domain mutates PokerTable/PokerSeat instances in place, so updates
 // overwrite every field from the in-memory object.
 //
-// Concurrency: PokerService serializes all mutating operations behind a
-// process-local SemaphoreSlim (same shape as the monolith). Distributed hosts
-// would require a proper per-table lock or optimistic concurrency — out of
-// scope for this port.
+// Mutations use PokerExecutionStateStore in the executor transaction. This
+// store remains the read-side facade used by handlers and jobs.
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Dapper;

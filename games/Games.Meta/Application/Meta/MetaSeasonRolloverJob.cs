@@ -1,26 +1,37 @@
 using Dapper;
+using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Meta.Application.Meta;
 
 public sealed partial class MetaSeasonRolloverJob(
     IServiceScopeFactory scopes,
-    ILogger<MetaSeasonRolloverJob> logger) : IBackgroundJob
+    ILogger<MetaSeasonRolloverJob> logger) : IRecurringScheduledCommand
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
-    public string Name => "meta.season_rollover";
-
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public string Key => "meta.season_rollover";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(Interval) with
     {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await TickAsync(stoppingToken);
-            await Task.Delay(Interval, stoppingToken);
-        }
+        Policy = new ScheduleExecutionPolicy(
+            Misfire: ScheduleMisfirePolicy.DoNothing,
+            Concurrency: ScheduleConcurrencyPolicy.Disallow,
+            BatchSize: 30,
+            MaxAttempts: 5,
+            RetryBackoff: TimeSpan.FromSeconds(10)),
+    };
+
+    public Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
+    {
+        var batchSize = data.TryGetValue("batch-size", out var raw)
+            && int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? Math.Clamp(parsed, 1, 100)
+            : 30;
+        return TickAsync(batchSize, ct);
     }
 
-    private async Task TickAsync(CancellationToken ct)
+    private async Task TickAsync(int batchSize, CancellationToken ct)
     {
         using var scope = scopes.CreateScope();
         var meta = scope.ServiceProvider.GetRequiredService<IMetaStore>();
@@ -38,8 +49,9 @@ public sealed partial class MetaSeasonRolloverJob(
             WHERE status = 'finished'
               AND ends_at >= now() - interval '90 days'
             ORDER BY ends_at DESC, id DESC
-            LIMIT 30
+            LIMIT @batchSize
             """,
+            new { batchSize },
             cancellationToken: ct))).ToArray();
 
         foreach (var seasonId in seasonIds)

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+
+
+
+    <RootNamespace>Games.Darts.Telegram</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Telegram.Bot" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\Games.Darts.Contracts\Games.Darts.Contracts.csproj" />
+  </ItemGroup>
+</Project>

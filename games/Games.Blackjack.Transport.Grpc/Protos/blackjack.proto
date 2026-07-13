@@ -1,0 +1,10 @@
+syntax = "proto3";
+option csharp_namespace = "Games.Blackjack.Transport.Grpc.Wire";
+package casinoshiz.blackjack.v1;
+message ContractCall { string payload_json = 1; }
+message ContractReply { string payload_json = 1; }
+service BlackjackApi {
+ rpc Start(ContractCall) returns(ContractReply); rpc Hit(ContractCall) returns(ContractReply);
+ rpc Stand(ContractCall) returns(ContractReply); rpc Double(ContractCall) returns(ContractReply);
+ rpc GetState(ContractCall) returns(ContractReply); rpc SetMessage(ContractCall) returns(ContractReply);
+}

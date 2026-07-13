@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Options;
+using BotFramework.Contracts.Caching;
+using System.Text.Json;
 using LeaderboardModel = Games.Leaderboard.Domain.Models.Leaderboard;
 
 namespace Games.Leaderboard.Application.Services;
@@ -7,39 +9,40 @@ public sealed class LeaderboardService(
     ILeaderboardStore store,
     IEconomicsService economics,
     IAnalyticsService analytics,
-    IOptions<LeaderboardOptions> options) : ILeaderboardService
+    IOptions<LeaderboardOptions> options,
+    ICacheStore? distributedCache = null) : ILeaderboardService
 {
     private readonly LeaderboardOptions _opts = options.Value;
+    private static readonly JsonSerializerOptions CacheJson = new(JsonSerializerDefaults.Web);
 
     public async Task<LeaderboardModel> GetTopAsync(int limit, long balanceScopeId, CancellationToken ct)
     {
-        var since = ActiveSinceUnixMs();
-
-        var active = await store.ListActiveAsync(since, balanceScopeId, ct);
-        if (active.Count == 0)
-        {
-            TrackQuery("chat_top", balanceScopeId, limit, 0, false);
-            return new LeaderboardModel([], Truncated: false);
-        }
-
-        var places = new List<LeaderboardPlace>();
-        var lastBalance = active[0].Coins + 1;
-
-        for (var i = 0; i < active.Count && (places.Count < limit || limit == 0); i++)
-        {
-            var user = active[i];
-            if (user.Coins < lastBalance)
+        var result = await GetOrCreateCachedAsync(
+            $"leaderboard:v1:chat:{balanceScopeId}:{limit}",
+            async () =>
             {
-                lastBalance = user.Coins;
-                places.Add(new LeaderboardPlace(places.Count + 1, []));
-            }
-            places[^1].Users.Add(user);
-        }
+                var active = await store.ListActiveAsync(ActiveSinceUnixMs(), balanceScopeId, ct);
+                if (active.Count == 0) return new LeaderboardModel([], Truncated: false);
 
-        var shown = places.Sum(p => p.Users.Count);
-        var truncated = limit > 0 && places.Count >= limit && active.Count > shown;
-        TrackQuery("chat_top", balanceScopeId, limit, shown, truncated);
-        return new LeaderboardModel(places, truncated);
+                var places = new List<LeaderboardPlace>();
+                var lastBalance = active[0].Coins + 1;
+                for (var i = 0; i < active.Count && (places.Count < limit || limit == 0); i++)
+                {
+                    var user = active[i];
+                    if (user.Coins < lastBalance)
+                    {
+                        lastBalance = user.Coins;
+                        places.Add(new LeaderboardPlace(places.Count + 1, []));
+                    }
+                    places[^1].Users.Add(user);
+                }
+
+                var shown = places.Sum(p => p.Users.Count);
+                return new LeaderboardModel(places, limit > 0 && places.Count >= limit && active.Count > shown);
+            }, ct);
+
+        TrackQuery("chat_top", balanceScopeId, limit, result.Places.Sum(p => p.Users.Count), result.Truncated);
+        return result;
     }
 
     public async Task<BalanceInfo> GetBalanceAsync(
@@ -60,65 +63,61 @@ public sealed class LeaderboardService(
 
     public async Task<GlobalLeaderboard> GetGlobalTopAsync(int limit, CancellationToken ct)
     {
-        var since = ActiveSinceUnixMs();
-        var (users, totalUsers) = await store.ListGlobalAggregateAsync(since, limit, ct);
-
-        if (users.Count == 0)
-        {
-            TrackQuery("global_top", 0, limit, 0, false);
-            return new GlobalLeaderboard([], Truncated: false, TotalUsers: 0);
-        }
-
-        var places = new List<GlobalLeaderboardPlace>();
-        var lastBalance = users[0].TotalCoins + 1;
-
-        foreach (var user in users)
-        {
-            if (user.TotalCoins < lastBalance)
+        var result = await GetOrCreateCachedAsync(
+            $"leaderboard:v1:global:{limit}",
+            async () =>
             {
-                lastBalance = user.TotalCoins;
-                places.Add(new GlobalLeaderboardPlace(places.Count + 1, []));
-            }
-            places[^1].Users.Add(user);
-        }
+                var (users, totalUsers) = await store.ListGlobalAggregateAsync(ActiveSinceUnixMs(), limit, ct);
+                if (users.Count == 0) return new GlobalLeaderboard([], Truncated: false, TotalUsers: 0);
 
-        var truncated = limit > 0 && totalUsers > users.Count;
-        TrackQuery("global_top", 0, limit, users.Count, truncated);
-        return new GlobalLeaderboard(places, truncated, totalUsers);
+                var places = new List<GlobalLeaderboardPlace>();
+                var lastBalance = users[0].TotalCoins + 1;
+                foreach (var user in users)
+                {
+                    if (user.TotalCoins < lastBalance)
+                    {
+                        lastBalance = user.TotalCoins;
+                        places.Add(new GlobalLeaderboardPlace(places.Count + 1, []));
+                    }
+                    places[^1].Users.Add(user);
+                }
+
+                return new GlobalLeaderboard(places, limit > 0 && totalUsers > users.Count, totalUsers);
+            }, ct);
+
+        TrackQuery("global_top", 0, limit, result.Places.Sum(p => p.Users.Count), result.Truncated);
+        return result;
     }
 
     public async Task<MultiChatLeaderboard> GetTopByChatAsync(int perChatLimit, CancellationToken ct)
     {
-        var since = ActiveSinceUnixMs();
-        var rows = await store.ListGlobalSplitAsync(since, perChatLimit, ct);
-        if (rows.Count == 0)
-        {
-            TrackQuery("split_top", 0, perChatLimit, 0, false, chatCount: 0);
-            return new MultiChatLeaderboard([]);
-        }
-
-        var grouped = rows
-            .GroupBy(r => r.ChatId)
-            .Select(g =>
+        var result = await GetOrCreateCachedAsync(
+            $"leaderboard:v1:split:{perChatLimit}",
+            async () =>
             {
-                var first = g.First();
-                var places = BuildPlaces(g.Select(x => x.User).ToList());
-                return (
-                    Chat: new ChatLeaderboard(
-                        ChatId: first.ChatId,
-                        Title: first.Title,
-                        ChatType: first.ChatType,
-                        Places: places,
-                        Truncated: false),
-                    TopCoins: g.Max(x => x.User.Coins));
-            })
-            .OrderByDescending(x => x.TopCoins)
-            .ThenBy(x => x.Chat.ChatId)
-            .Select(x => x.Chat)
-            .ToList();
+                var rows = await store.ListGlobalSplitAsync(ActiveSinceUnixMs(), perChatLimit, ct);
+                if (rows.Count == 0) return new MultiChatLeaderboard([]);
 
-        TrackQuery("split_top", 0, perChatLimit, rows.Count, false, grouped.Count);
-        return new MultiChatLeaderboard(grouped);
+                var grouped = rows
+                    .GroupBy(r => r.ChatId)
+                    .Select(g =>
+                    {
+                        var first = g.First();
+                        var places = BuildPlaces(g.Select(x => x.User).ToList());
+                        return (
+                            Chat: new ChatLeaderboard(first.ChatId, first.Title, first.ChatType, places, Truncated: false),
+                            TopCoins: g.Max(x => x.User.Coins));
+                    })
+                    .OrderByDescending(x => x.TopCoins)
+                    .ThenBy(x => x.Chat.ChatId)
+                    .Select(x => x.Chat)
+                    .ToList();
+
+                return new MultiChatLeaderboard(grouped);
+            }, ct);
+
+        TrackQuery("split_top", 0, perChatLimit, result.Chats.Sum(c => c.Places.Sum(p => p.Users.Count)), false, result.Chats.Count);
+        return result;
     }
 
     private void TrackQuery(
@@ -153,7 +152,27 @@ public sealed class LeaderboardService(
         return now - ((long)_opts.DaysOfInactivityToHide * 24 * 60 * 60 * 1000);
     }
 
-    private static List<LeaderboardPlace> BuildPlaces(IReadOnlyList<LeaderboardUser> sortedDesc)
+    private async Task<T> GetOrCreateCachedAsync<T>(string key, Func<Task<T>> factory, CancellationToken ct)
+    {
+        if (distributedCache is null) return await factory();
+
+        var cached = await distributedCache.GetStringAsync(key, ct);
+        if (!string.IsNullOrEmpty(cached))
+        {
+            var value = JsonSerializer.Deserialize<T>(cached, CacheJson);
+            if (value is not null) return value;
+        }
+
+        var fresh = await factory();
+        await distributedCache.SetStringAsync(
+            key,
+            JsonSerializer.Serialize(fresh, CacheJson),
+            TimeSpan.FromSeconds(Math.Clamp(_opts.CacheSeconds, 1, 300)),
+            ct);
+        return fresh;
+    }
+
+    private static List<LeaderboardPlace> BuildPlaces(List<LeaderboardUser> sortedDesc)
     {
         var places = new List<LeaderboardPlace>();
         if (sortedDesc.Count == 0) return places;

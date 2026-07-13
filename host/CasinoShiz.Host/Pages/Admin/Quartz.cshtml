@@ -1,0 +1,28 @@
+@page "/admin/quartz"
+@model CasinoShiz.Host.Pages.Admin.QuartzModel
+@{ ViewData["Title"] = "Quartz schedules"; }
+
+<h2>Quartz schedules <span class="pill">read-only</span></h2>
+<p class="muted">Persistent game schedules from the shared Quartz ADO store. Refreshes on page load.</p>
+
+<div class="card">
+    <table>
+        <thead><tr><th>Schedule</th><th>Command</th><th>State</th><th>Previous fire</th><th>Next fire</th></tr></thead>
+        <tbody>
+        @foreach (var job in Model.Jobs)
+        {
+            <tr>
+                <td><code>@job.ScheduleId</code></td>
+                <td><code>@job.JobKey</code></td>
+                <td><span class="pill">@job.State</span></td>
+                <td>@(job.PreviousFireTime?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—") UTC</td>
+                <td>@(job.NextFireTime?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—") UTC</td>
+            </tr>
+        }
+        @if (Model.Jobs.Count == 0)
+        {
+            <tr><td colspan="5" class="muted">No persistent Quartz schedules were found.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>

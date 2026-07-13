@@ -1,123 +1,58 @@
+using BotFramework.Host.Execution;
+using Games.Redeem.Application.Execution;
 using Microsoft.Extensions.Options;
 
 namespace Games.Redeem.Application.Services;
 
 public sealed partial class RedeemService(
     IRedeemStore store,
-    IEconomicsService economics,
-    ITelegramDiceDailyRollLimiter telegramDiceRolls,
-    IAnalyticsService analytics,
-    IDomainEventBus events,
+    IAtomicGameExecutor<RedeemIssueCommand, RedeemExecutionState, Guid> issueExecutor,
+    IAtomicGameExecutor<RedeemCompleteCommand, RedeemExecutionState, CompleteRedeemResult> completeExecutor,
     IOptions<RedeemOptions> options,
     ILogger<RedeemService> logger) : IRedeemService
 {
-    private readonly RedeemOptions _opts = options.Value;
+    private readonly RedeemOptions redeemOptions = options.Value;
 
-    public async Task<Guid> IssueAdminCodeAsync(long userId, CancellationToken ct, string? freeSpinGameId = null)
+    public async Task<Guid> IssueAdminCodeAsync(
+        long userId, CancellationToken ct, string? freeSpinGameId = null)
     {
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var code = new RedeemCode
-        {
-            Code = Guid.NewGuid(),
-            Active = true,
-            IssuedBy = userId,
-            IssuedAt = now,
-            FreeSpinGameId = string.IsNullOrWhiteSpace(freeSpinGameId) ? _opts.FreeSpinGameId : freeSpinGameId,
-        };
-        await store.InsertAsync(code, ct);
-
-        analytics.Track("redeem", "issued", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId,
-            ["code"] = code.Code.ToString(),
-            ["free_spin_game_id"] = code.FreeSpinGameId,
-        });
-
-        await events.PublishAsync(new RedeemCodeIssued(code.Code, userId, code.FreeSpinGameId, now), ct);
-        LogIssued(userId, code.Code);
-        return code.Code;
+        var code = Guid.NewGuid();
+        var gameId = string.IsNullOrWhiteSpace(freeSpinGameId)
+            ? redeemOptions.FreeSpinGameId : freeSpinGameId;
+        var result = await issueExecutor.ExecuteAsync(new(new RedeemIssueCommand(
+            code, userId, gameId, $"redeem:issue:{code:N}")), ct).ConfigureAwait(false);
+        LogIssued(userId, result);
+        return result;
     }
 
     public async Task<BeginRedeemResult> BeginRedeemAsync(
         long userId, long balanceScopeId, string displayName, string codeText, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(codeText) || !Guid.TryParse(codeText, out var codeGuid))
-        {
-            analytics.Track("redeem", "invalid_code", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["user_id"] = userId,
-                ["code_text"] = codeText,
-            });
-            return new BeginRedeemResult(RedeemError.InvalidCode);
-        }
-
-        var code = await store.FindAsync(codeGuid, ct);
-        if (code?.Active != true)
-        {
-            analytics.Track("redeem", "already_redeemed", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["user_id"] = userId,
-                ["code"] = codeGuid.ToString(),
-            });
-            return new BeginRedeemResult(RedeemError.AlreadyRedeemed);
-        }
-
-        if (code.IssuedBy == userId)
-        {
-            analytics.Track("redeem", "self_redeem", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-            {
-                ["user_id"] = userId,
-                ["code"] = codeGuid.ToString(),
-            });
-            return new BeginRedeemResult(RedeemError.SelfRedeem);
-        }
-
-        await economics.EnsureUserAsync(userId, balanceScopeId, displayName, ct);
-
-        var captcha = CaptchaService.CreateCaptcha(codeText, _opts.CaptchaItems);
-        return new BeginRedeemResult(RedeemError.None, codeGuid, captcha);
+            return new(RedeemError.InvalidCode);
+        var code = await store.FindAsync(codeGuid, ct).ConfigureAwait(false);
+        if (code?.Active != true) return new(RedeemError.AlreadyRedeemed);
+        if (code.IssuedBy == userId) return new(RedeemError.SelfRedeem);
+        return new(RedeemError.None, codeGuid,
+            CaptchaService.CreateCaptcha(codeText, redeemOptions.CaptchaItems));
     }
 
     public async Task<CompleteRedeemResult> CompleteRedeemAsync(
         long userId, long balanceScopeId, Guid codeGuid, CancellationToken ct)
     {
-        var code = await store.FindAsync(codeGuid, ct);
-        if (code?.Active != true)
-            return new CompleteRedeemResult(RedeemError.AlreadyRedeemed);
-
-        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var claimed = await store.MarkRedeemedAsync(codeGuid, userId, now, ct);
-        if (!claimed) return new CompleteRedeemResult(RedeemError.AlreadyRedeemed);
-
-        await telegramDiceRolls.GrantExtraRollAsync(userId, balanceScopeId, code.FreeSpinGameId, ct);
-
-        analytics.Track("redeem", "success", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId,
-            ["code"] = codeGuid.ToString(),
-            ["free_spin_game_id"] = code.FreeSpinGameId,
-            ["redeem_interval_ms"] = now - code.IssuedAt,
-        });
-
-        await events.PublishAsync(new RedeemCodeRedeemed(codeGuid, code.IssuedBy, userId, code.FreeSpinGameId, now), ct);
-        LogRedeemed(userId, codeGuid, code.FreeSpinGameId);
-        return new CompleteRedeemResult(RedeemError.None, code.FreeSpinGameId);
+        var code = await store.FindAsync(codeGuid, ct).ConfigureAwait(false);
+        if (code?.Active != true) return new(RedeemError.AlreadyRedeemed);
+        var result = await completeExecutor.ExecuteAsync(new(new RedeemCompleteCommand(
+            codeGuid, userId, balanceScopeId, code.FreeSpinGameId,
+            $"redeem:complete:{codeGuid:N}:{userId}")), ct).ConfigureAwait(false);
+        if (result.Error == RedeemError.None)
+            LogRedeemed(userId, codeGuid, result.FreeSpinGameId);
+        return result;
     }
 
     public void ReportCaptcha(long userId, string codeText, string pattern, bool passed)
     {
-        analytics.Track("redeem", passed ? "captcha_succeed" : "captcha_failed", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId,
-            ["code_text"] = codeText,
-            ["pattern"] = pattern,
-        });
+        // Captcha telemetry is intentionally outside the mutation path.
     }
 
     [LoggerMessage(LogLevel.Information, "redeem.issued user={UserId} code={Code}")]

@@ -1,4 +1,5 @@
 using System.Globalization;
+using BotFramework.Contracts.Caching;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -31,6 +32,26 @@ public class LeaderboardServiceTests
         var lb = await svc.GetTopAsync(10, ChatScope, default);
         Assert.Empty(lb.Places);
         Assert.False(lb.Truncated);
+    }
+
+    [Fact]
+    public async Task GetTopAsync_DistributedCache_AvoidsSecondReadModelQuery()
+    {
+        var store = new InMemoryLeaderboardStore();
+        store.Seed(1, ChatScope, "Alice", 500, RecentMs);
+        var cache = new RecordingCacheStore();
+        var service = new LeaderboardService(
+            store,
+            new FakeEconomicsService(),
+            new NullAnalyticsService(),
+            Options.Create(new LeaderboardOptions()),
+            cache);
+
+        await service.GetTopAsync(10, ChatScope, default);
+        await service.GetTopAsync(10, ChatScope, default);
+
+        Assert.Equal(1, store.ListActiveCallCount);
+        Assert.Single(cache.Values);
     }
 
     [Fact]
@@ -304,5 +325,19 @@ public class LeaderboardServiceTests
         Assert.Contains(analytics.Events, x => x.EventName == "viewed" && Equals(x.Tags["mode"], "split_top"));
         Assert.Contains(analytics.Events, x => x.EventName == "balance_viewed" && Equals(x.Tags["found"], true));
         Assert.All(analytics.Events, x => Assert.Equal("leaderboard", x.ModuleId));
+    }
+}
+
+file sealed class RecordingCacheStore : ICacheStore
+{
+    public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);
+
+    public Task<string?> GetStringAsync(string key, CancellationToken ct) =>
+        Task.FromResult(Values.GetValueOrDefault(key));
+
+    public Task SetStringAsync(string key, string value, TimeSpan ttl, CancellationToken ct)
+    {
+        Values[key] = value;
+        return Task.CompletedTask;
     }
 }

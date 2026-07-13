@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+
+
+    <RootNamespace>Games.Dice.Telegram</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Telegram.Bot" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

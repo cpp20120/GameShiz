@@ -1,10 +1,11 @@
 using BotFramework.Host.Contracts.Telegram;
 using Dapper;
-using Telegram.Bot.Types.Enums;
 
 namespace BotFramework.Host.TelegramOutbox;
 
-public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connections) : ITelegramOutboxStore
+public sealed class PostgresTelegramOutboxStore(
+    INpgsqlConnectionFactory connections,
+    IServiceProvider services) : ITelegramOutboxStore, ITelegramOutboxMonitor
 {
     private const int MaxTextLength = 4096;
     private const int MaxErrorLength = 8000;
@@ -43,6 +44,21 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
             },
             cancellationToken: ct));
         return rows.ToList();
+    }
+
+    public async Task<TelegramOutboxSummary> GetSummaryAsync(CancellationToken ct)
+    {
+        await using var conn = await connections.OpenAsync(ct);
+        return await conn.QuerySingleAsync<TelegramOutboxSummary>(new CommandDefinition(
+            """
+            SELECT count(*) FILTER (WHERE status = 'pending')::int AS PendingCount,
+                   count(*) FILTER (WHERE status = 'sending')::int AS SendingCount,
+                   count(*) FILTER (WHERE status = 'pending' AND next_attempt_at <= now())::int AS DueCount,
+                   count(*) FILTER (WHERE status = 'sending' AND locked_until <= now())::int AS ExpiredLeaseCount,
+                   min(created_at) FILTER (WHERE status IN ('pending', 'sending')) AS OldestUnsentAt
+            FROM telegram_outbox
+            """,
+            cancellationToken: ct));
     }
 
     public async Task<TelegramOutboxRescheduleResult> RescheduleNowAsync(long id, CancellationToken ct)
@@ -92,6 +108,8 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
         }
 
         await tx.CommitAsync(ct);
+        if (result.Success)
+            services.GetService<TelegramOutboxCapRelayService>()?.Signal();
         return result;
     }
 
@@ -134,6 +152,10 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
                 parseMode = ToDb(message.ParseMode),
             },
             cancellationToken: ct));
+
+        // A local dispatcher polls as a fallback; the CAP relay additionally
+        // receives an immediate in-process signal in split deployment.
+        services.GetService<TelegramOutboxCapRelayService>()?.Signal();
     }
 
     public async Task<IReadOnlyList<TelegramOutboxRow>> ClaimDueAsync(int limit, TimeSpan lease, CancellationToken ct)
@@ -146,9 +168,11 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
             WITH due AS (
                 SELECT id
                 FROM telegram_outbox
-                WHERE status = 'pending'
-                  AND next_attempt_at <= now()
-                  AND (locked_until IS NULL OR locked_until <= now())
+                WHERE (status = 'pending'
+                       AND next_attempt_at <= now()
+                       AND (locked_until IS NULL OR locked_until <= now()))
+                   OR (status = 'sending'
+                       AND locked_until <= now())
                 ORDER BY next_attempt_at, id
                 LIMIT @limit
                 FOR UPDATE SKIP LOCKED
@@ -222,16 +246,16 @@ public sealed class PostgresTelegramOutboxStore(INpgsqlConnectionFactory connect
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
 
-    private static string ToDb(ParseMode parseMode) =>
-        parseMode == ParseMode.None ? "" : parseMode.ToString();
+    private static string ToDb(OutboundParseMode parseMode) =>
+        parseMode == OutboundParseMode.None ? "" : parseMode.ToString();
 
-    private static ParseMode FromDb(string? parseMode)
+    private static OutboundParseMode FromDb(string? parseMode)
     {
-        if (string.IsNullOrWhiteSpace(parseMode)) return ParseMode.None;
+        if (string.IsNullOrWhiteSpace(parseMode)) return OutboundParseMode.None;
 
-        return Enum.TryParse<ParseMode>(parseMode, ignoreCase: true, out var parsed)
+        return Enum.TryParse<OutboundParseMode>(parseMode, ignoreCase: true, out var parsed)
             ? parsed
-            : ParseMode.None;
+            : OutboundParseMode.None;
     }
 
     private sealed record TelegramOutboxDbRow(

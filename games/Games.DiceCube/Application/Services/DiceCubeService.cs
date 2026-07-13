@@ -12,20 +12,25 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Globalization;
+using BotFramework.Contracts.Caching;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.DiceCube.Application.Execution;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace Games.DiceCube.Application.Services;
 
 public sealed class DiceCubeService(
-    IEconomicsService economics,
-    IAnalyticsService analytics,
     IDiceCubeBetStore bets,
-    IDomainEventBus events,
     IMemoryCache cache,
     IRuntimeTuningAccessor tuning,
     IMiniGameSessionGhostHeal ghostHeal,
-    ITelegramDiceDailyRollLimiter telegramDiceRolls,
-    IMiniGameSessionStore? sessions = null) : IDiceCubeService
+    IAtomicGameExecutor<DiceCubePlaceBetCommand, DiceCubePlaceBetState, CubeBetResult> placeBetExecutor,
+    IAtomicGameExecutor<DiceCubeRollCommand, DiceCubePlaceBetState, CubeRollResult> rollExecutor,
+    IAtomicGameExecutor<DiceCubeAbortCommand, DiceCubePlaceBetState, DiceCubeAbortResult> abortExecutor,
+    IMiniGameSessionStore? sessions = null,
+    ICacheStore? distributedCache = null)
+    : IDiceCubeService
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
 
@@ -46,178 +51,207 @@ public sealed class DiceCubeService(
     public Task<CubeBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, CancellationToken ct) =>
         PlaceBetAsync(userId, displayName, chatId, amount, sourceMessageId: 0, ct);
 
-    public async Task<CubeBetResult> PlaceBetAsync(long userId, string displayName, long chatId, int amount, int sourceMessageId, CancellationToken ct)
+    public Task<CubeBetResult> PlaceBetAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int amount,
+        int sourceMessageId,
+        CancellationToken ct) =>
+        PlaceBetAtomicAsync(userId, displayName, chatId, amount, sourceMessageId, ct);
+
+    private async Task<CubeBetResult> PlaceBetAtomicAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int amount,
+        int sourceMessageId,
+        CancellationToken ct)
     {
         var cube = Cube;
-        if (amount <= 0 || amount > cube.MaxBet) return CubeBetResult.Fail(CubeBetError.InvalidAmount);
+        var cooldownSeconds = 0;
+        string? blockingGameId = null;
+        var canEnterSession = amount > 0 && amount <= cube.MaxBet;
 
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-        if (amount > balance) return CubeBetResult.Fail(CubeBetError.NotEnoughCoins, balance);
-
-        if (cube.MinSecondsBetweenBets > 0
-            && cache.TryGetValue(CooldownCacheKey(userId, chatId), out DateTimeOffset lastRoll))
+        if (canEnterSession && cube.MinSecondsBetweenBets > 0
+            && await GetCooldownLastRollAsync(userId, chatId, ct).ConfigureAwait(false) is { } lastRoll)
         {
             var wait = (lastRoll + TimeSpan.FromSeconds(cube.MinSecondsBetweenBets)) - DateTimeOffset.UtcNow;
-            if (wait > TimeSpan.Zero)
-            {
-                var sec = (int)Math.Ceiling(wait.TotalSeconds);
-                return CubeBetResult.CooldownWait(balance, sec);
-            }
+            cooldownSeconds = wait > TimeSpan.Zero ? Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)) : 0;
         }
 
-        var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+        if (canEnterSession && cooldownSeconds == 0)
+        {
+            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+                userId,
+                chatId,
+                MiniGameIds.DiceCube,
+                async c =>
+                {
+                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) == null)
+                    {
+                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, c)
+                            .ConfigureAwait(false);
+                    }
+                },
+                ghostHeal,
+                Sessions,
+                ct).ConfigureAwait(false);
+            if (!session.Ok) blockingGameId = session.Blocker;
+        }
+
+        var operationId = sourceMessageId != 0
+            ? $"dicecube:bet:{chatId}:{sourceMessageId}:{userId}"
+            : $"dicecube:bet:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var command = new DiceCubePlaceBetCommand(
             userId,
+            displayName,
             chatId,
-            MiniGameIds.DiceCube,
-            async c =>
-            {
-                if (await bets.FindAsync(userId, chatId, c) == null)
-                {
-                    BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
-                    await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, c);
-                }
-            },
-            ghostHeal,
-            Sessions,
-            ct);
-        if (!session.Ok)
-            return new CubeBetResult(CubeBetError.BusyOtherGame, 0, balance, 0, 0, session.Blocker, 0, 0);
+            amount,
+            operationId,
+            cube.MaxBet,
+            cube.Mult4,
+            cube.Mult5,
+            cube.Mult6,
+            cooldownSeconds,
+            blockingGameId);
+        var result = await placeBetExecutor
+            .ExecuteAsync(new GameExecutionEnvelope<DiceCubePlaceBetCommand>(command), ct)
+            .ConfigureAwait(false);
 
-        var existing = await bets.FindAsync(userId, chatId, ct);
-        if (existing != null) return CubeBetResult.Fail(CubeBetError.AlreadyPending, balance, existing.Amount);
-
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-        if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
+        if (result.Error == CubeBetError.None)
         {
-            return new CubeBetResult(
-                CubeBetError.DailyRollLimit, 0, balance, 0, 0, BlockingGameId: null, gate.UsedToday, gate.Limit);
+            BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.DiceCube);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.DiceCube, ct).ConfigureAwait(false);
         }
-
-        var betOperationId = $"dicecube:bet:{chatId}:{sourceMessageId}:{userId}";
-        var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "dicecube.bet", betOperationId, ct);
-        if (debit.Rejected)
-        {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-            return CubeBetResult.Fail(CubeBetError.NotEnoughCoins, balance);
-        }
-
-        cube = Cube;
-        var createdAt = DateTimeOffset.UtcNow;
-        if (!await bets.InsertAsync(
-                new DiceCubeBet(
-                    userId,
-                    chatId,
-                    amount,
-                    createdAt,
-                    cube.Mult4,
-                    cube.Mult5,
-                    cube.Mult6),
-                ct))
-        {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-            await economics.CreditOnceAsync(userId, chatId, amount, "dicecube.bet.refund", $"{betOperationId}:insert-refund", ct);
-            return CubeBetResult.Fail(CubeBetError.AlreadyPending, balance);
-        }
-
-        BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.DiceCube);
-        await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-
-        analytics.Track("dicecube", "bet", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount,
-        });
-
-        return new CubeBetResult(CubeBetError.None, amount, debit.NewBalance, 0, 0, BlockingGameId: null, 0, 0);
+        return result;
     }
 
-    public async Task<CubeRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct)
+    public Task<CubeRollResult> RollAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int face,
+        CancellationToken ct) =>
+        RollAsync(userId, displayName, chatId, face, sourceMessageId: 0, ct);
+
+    public Task<CubeRollResult> RollAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int face,
+        int sourceMessageId,
+        CancellationToken ct) =>
+        RollAtomicAsync(userId, displayName, chatId, face, sourceMessageId, ct);
+
+    private async Task<CubeRollResult> RollAtomicAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int face,
+        int sourceMessageId,
+        CancellationToken ct)
     {
-        var bet = await bets.FindAsync(userId, chatId, ct);
-        if (bet == null) return new CubeRollResult(CubeRollOutcome.NoBet);
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var rule = new DiceCubeOptions
-        {
-            Mult4 = bet.Mult4,
-            Mult5 = bet.Mult5,
-            Mult6 = bet.Mult6,
-        };
-        var mults = BuildMultipliers(rule);
-        var multiplier = mults.TryGetValue(face, out var m) ? m : 0;
-        var payout = bet.Amount * multiplier;
-
-        if (payout > 0)
-            await economics.CreditOnceAsync(userId, chatId, payout, "dicecube.payout", BuildBetOperationId(bet, "payout"), ct);
-
-        await bets.DeleteAsync(userId, chatId, ct);
-        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
+        var operationId = sourceMessageId != 0
+            ? $"dicecube:roll:{chatId}:{sourceMessageId}:{userId}"
+            : $"dicecube:roll:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
         var cube = Cube;
+        var command = new DiceCubeRollCommand(
+            userId,
+            displayName,
+            chatId,
+            face,
+            operationId,
+            cube.RedeemDropChance);
+        var result = await rollExecutor
+            .ExecuteAsync(new GameExecutionEnvelope<DiceCubeRollCommand>(command), ct)
+            .ConfigureAwait(false);
+        if (result.Outcome != CubeRollOutcome.Rolled) return result;
+
+        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct).ConfigureAwait(false);
         if (cube.MinSecondsBetweenBets > 0)
+            await SetCooldownLastRollAsync(userId, chatId, DateTimeOffset.UtcNow, CooldownTtl(cube), ct)
+                .ConfigureAwait(false);
+        return result;
+    }
+
+    public Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct) =>
+        AbortPendingBetAfterSendDiceFailedAsync(
+            userId,
+            string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}"),
+            chatId,
+            sourceMessageId: 0,
+            ct);
+
+    public Task AbortPendingBetAfterSendDiceFailedAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int sourceMessageId,
+        CancellationToken ct) =>
+        AbortAtomicAsync(userId, displayName, chatId, sourceMessageId, ct);
+
+    private async Task AbortAtomicAsync(
+        long userId,
+        string displayName,
+        long chatId,
+        int sourceMessageId,
+        CancellationToken ct)
+    {
+        var operationId = sourceMessageId != 0
+            ? $"dicecube:abort:{chatId}:{sourceMessageId}:{userId}"
+            : $"dicecube:abort:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
+        var result = await abortExecutor
+            .ExecuteAsync(
+                new GameExecutionEnvelope<DiceCubeAbortCommand>(
+                    new DiceCubeAbortCommand(userId, displayName, chatId, operationId)),
+                ct)
+            .ConfigureAwait(false);
+        if (!result.Aborted) return;
+
+        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct).ConfigureAwait(false);
+    }
+
+    private async Task<DateTimeOffset?> GetCooldownLastRollAsync(long userId, long chatId, CancellationToken ct)
+    {
+        var key = CooldownCacheKey(userId, chatId);
+        if (distributedCache is not null)
         {
-            cache.Set(
-                CooldownCacheKey(userId, chatId),
-                DateTimeOffset.UtcNow,
-                new MemoryCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(6),
-                });
+            var value = await distributedCache.GetStringAsync(key, ct);
+            if (long.TryParse(value, CultureInfo.InvariantCulture, out var unixMilliseconds))
+                return DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds);
         }
 
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
+        return cache.TryGetValue(key, out DateTimeOffset lastRoll) ? lastRoll : null;
+    }
 
-        analytics.Track("dicecube", "roll", new Dictionary<string, object?>
-(StringComparer.Ordinal)
+    private async Task SetCooldownLastRollAsync(
+        long userId,
+        long chatId,
+        DateTimeOffset lastRoll,
+        TimeSpan ttl,
+        CancellationToken ct)
+    {
+        var key = CooldownCacheKey(userId, chatId);
+        cache.Set(key, lastRoll, new MemoryCacheEntryOptions
         {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
-            ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout,
+            AbsoluteExpirationRelativeToNow = ttl,
         });
 
-        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await events.PublishAsync(
-            new DiceCubeRollCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
-            ct);
-        await events.PublishAsync(
-            new GameCompletedMetaEvent(
-                ChatId: chatId,
-                UserId: userId,
-                DisplayName: displayName,
-                GameKey: MiniGameIds.DiceCube,
-                Stake: bet.Amount,
-                Payout: payout,
-                IsWin: payout > bet.Amount,
-                Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
-                OccurredAt: occurredAt),
-            ct);
-        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
-            events, cube.RedeemDropChance, userId, chatId, MiniGameIds.DiceCube, occurredAt, ct);
-
-        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-        return new CubeRollResult(
-            CubeRollOutcome.Rolled,
-            face,
-            bet.Amount,
-            multiplier,
-            payout,
-            balance,
-            daily.UsedToday,
-            daily.Limit);
+        if (distributedCache is not null)
+            await distributedCache.SetStringAsync(
+                key,
+                lastRoll.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture),
+                ttl,
+                ct);
     }
 
-    public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct)
-    {
-        var bet = await bets.FindAsync(userId, chatId, ct);
-        if (bet == null) return;
-
-        await economics.CreditOnceAsync(userId, chatId, bet.Amount, "dicecube.bot_dice.failed", BuildBetOperationId(bet, "bot-dice-failed"), ct);
-        await bets.DeleteAsync(userId, chatId, ct);
-        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.DiceCube, ct);
-    }
-
-    private static string BuildBetOperationId(DiceCubeBet bet, string action) =>
-        $"dicecube:{action}:{bet.UserId}:{bet.ChatId}:{bet.CreatedAt.ToUnixTimeMilliseconds()}";
+    private static TimeSpan CooldownTtl(DiceCubeOptions options) =>
+        TimeSpan.FromSeconds(Math.Clamp(
+            Math.Max(options.CooldownCacheTtlSeconds, options.MinSecondsBetweenBets + 5),
+            1,
+            86_400));
 }

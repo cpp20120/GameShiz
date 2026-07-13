@@ -10,6 +10,18 @@ namespace CasinoShiz.Tests;
 public sealed class ClickHouseAnalyticsServiceTests
 {
     [Fact]
+    public async Task StopAsync_WhenDisabled_DoesNotThrow()
+    {
+        var service = new ClickHouseAnalyticsService(
+            Options.Create(new ClickHouseOptions { Enabled = false }),
+            NullLogger<ClickHouseAnalyticsService>.Instance);
+
+        await service.StartAsync(CancellationToken.None);
+        await service.StopAsync(CancellationToken.None);
+        Assert.Empty(service.SnapshotBufferedEvents());
+    }
+
+    [Fact]
     public void Track_EnrichesAndNormalizesBufferedEvent()
     {
         var service = CreateService();

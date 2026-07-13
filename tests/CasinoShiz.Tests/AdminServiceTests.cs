@@ -10,14 +10,18 @@ public class AdminServiceTests
         FakeEconomicsService? economics = null,
         IAnalyticsService? analytics = null,
         IMiniGameSessionStore? sessions = null,
-        IMiniGameRollGateStore? rollGates = null) =>
-        new(
-            store ?? new InMemoryAdminStore(),
-            economics ?? new FakeEconomicsService(),
+        IMiniGameRollGateStore? rollGates = null)
+    {
+        var fakeEconomics = economics ?? new FakeEconomicsService();
+        var adminStore = store ?? new InMemoryAdminStore(fakeEconomics);
+        return new(
+            adminStore,
+            new TestAdminEffectExecutor(fakeEconomics, adminStore),
             analytics ?? new NullAnalyticsService(),
             NullLogger<AdminService>.Instance,
             sessions,
             rollGates);
+    }
 
     private const long TestScope = 200;
 
@@ -115,14 +119,15 @@ public class AdminServiceTests
     {
         var econ = new FakeEconomicsService();
         var store = new InMemoryAdminStore(econ);
-        // No user seeded — after credit the store still has nothing, so PayAsync returns null
+        // No user seeded — the wallet effect creates the user row with a stable fallback name.
         var svc = MakeService(store, econ);
 
         var result = await svc.PayAsync(99, targetUserId: 77, TestScope, amount: 50, default);
 
         // Credits still happen even if store returns null after
         Assert.Single(econ.Credits);
-        Assert.Null(result); // store FindUserAsync returns null after pay
+        Assert.NotNull(result);
+        Assert.Equal("User ID: 77", result!.DisplayName);
     }
 
     [Fact]

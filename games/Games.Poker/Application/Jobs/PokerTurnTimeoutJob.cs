@@ -3,43 +3,33 @@
 // PokerOptions.TurnTimeoutMs. Each idle table gets an auto-action (check if
 // nothing to call, otherwise fold) applied and a notification broadcast.
 //
-// Ported from src/CasinoShiz.Core/Services/PokerTurnTimeoutService.cs. The
-// 5-second warm-up gives the host time to finish migrations before we start
-// poking at tables.
+// Ported from src/CasinoShiz.Core/Services/PokerTurnTimeoutService.cs and
+// scheduled every 10 seconds by Quartz after module migrations have completed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
+using BotFramework.Scheduling.Abstractions;
 
 namespace Games.Poker.Application.Jobs;
 
 public sealed partial class PokerTurnTimeoutJob(
     IServiceProvider services,
     IRuntimeTuningAccessor tuning,
-    ILogger<PokerTurnTimeoutJob> logger) : IBackgroundJob
+    ILogger<PokerTurnTimeoutJob> logger) : IRecurringScheduledCommand
 {
-    public string Name => "poker.turn_timeout";
+    public string Key => "poker.turn_timeout";
+    public ScheduleDescriptor Schedule => ScheduleDescriptor.Every(TimeSpan.FromSeconds(10));
 
-    public async Task RunAsync(CancellationToken stoppingToken)
+    public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        try { await Task.Delay(5_000, stoppingToken); }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try { await SweepAsync(stoppingToken); }
-            catch (Exception ex) { LogPokerTimeoutSweepFailed(ex); }
-
-            try { await Task.Delay(10_000, stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-        }
+        try { await SweepAsync(ct); }
+        catch (Exception ex) { LogPokerTimeoutSweepFailed(ex); }
     }
 
     private async Task SweepAsync(CancellationToken ct)
     {
         var opts = tuning.GetSection<PokerOptions>(PokerOptions.SectionName);
-        PokerService.PruneGates((long)opts.TurnTimeoutMs * 3);
-
         using var scope = services.CreateScope();
         var bot = scope.ServiceProvider.GetRequiredService<ITelegramBotClient>();
         var service = scope.ServiceProvider.GetRequiredService<IPokerService>();

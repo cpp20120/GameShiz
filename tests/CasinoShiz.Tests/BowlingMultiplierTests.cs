@@ -1,11 +1,13 @@
-using Microsoft.Extensions.Caching.Memory;
+using System.Text.Json;
+using BotFramework.Sdk.Execution;
+using Games.Bowling.Application.Execution;
 using Xunit;
 
 namespace CasinoShiz.Tests;
-[Collection("MiniGameSession")]
-public class BowlingMultiplierTests
+
+public sealed class BowlingMultiplierTests
 {
-    public BowlingMultiplierTests() => BotMiniGameSession.DangerousResetAllForTests();
+    private static readonly DateTimeOffset Now = new(2026, 7, 13, 10, 0, 0, TimeSpan.Zero);
 
     [Theory]
     [InlineData(1, 0)]
@@ -14,44 +16,97 @@ public class BowlingMultiplierTests
     [InlineData(4, 1)]
     [InlineData(5, 2)]
     [InlineData(6, 2)]
-    public void Multipliers_CorrectByFace(int face, int expected)
-    {
+    public void Multipliers_CorrectByFace(int face, int expected) =>
         Assert.Equal(expected, BowlingService.Multipliers[face]);
+
+    [Fact]
+    public void PlaceBet_AcceptsDebitQuotaStateAndEventAsOneDecision()
+    {
+        var decision = Place(amount: 50, balance: 100);
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(50, decision.NewState.PendingBet!.Amount);
+        Assert.Equal([EconomyEffect.Debit(50, "bowling.bet")], decision.Economy);
+        Assert.Equal([QuotaEffect.Consume(BowlingPlaceBetAction.DailyRollQuota)], decision.Quotas);
+        Assert.Single(decision.Events.OfType<BowlingBetPlaced>());
     }
 
     [Fact]
-    public async Task RollAsync_Strike_CreditsX2()
+    public void PlaceBet_RejectsBalanceAndQuotaWithoutMutationEffects()
     {
-        var econ = new FakeEconomicsService();
-        var store = new InMemoryBowlingBetStore();
-        var svc = new BowlingService(econ, new NullAnalyticsService(), store, new NullEventBus(),
-            new FakeRuntimeTuning(), new NullMiniGameSessionGhostHeal(), new NullTelegramDiceDailyRollLimiter());
-        await svc.PlaceBetAsync(1, "u", 100, amount: 50, default);
-        var result = await svc.RollAsync(1, "u", 100, face: 6, default);
-        Assert.Equal(BowlingRollOutcome.Rolled, result.Outcome);
-        Assert.Equal(100, result.Payout);
+        var balance = Place(amount: 50, balance: 10);
+        var quota = Place(amount: 50, balance: 100, used: 10, limit: 10);
+
+        Assert.Equal(BowlingBetError.NotEnoughCoins, balance.Result.Error);
+        Assert.Equal(BowlingBetError.DailyRollLimit, quota.Result.Error);
+        Assert.Empty(balance.Economy);
+        Assert.Empty(quota.Economy);
+        Assert.Empty(quota.Quotas);
+    }
+
+    [Theory]
+    [InlineData(4, 1, 50)]
+    [InlineData(6, 2, 100)]
+    public void Roll_CreditsExpectedPayoutAndClearsState(int face, int multiplier, int payout)
+    {
+        var decision = Roll(face, amount: 50, entropy: 0.9, dropChance: 0.1);
+
+        Assert.Equal(BowlingRollOutcome.Rolled, decision.Result.Outcome);
+        Assert.Equal(multiplier, decision.Result.Multiplier);
+        Assert.Equal(payout, decision.Result.Payout);
+        Assert.Null(decision.NewState.PendingBet);
+        Assert.Equal([EconomyEffect.Credit(payout, "bowling.payout")], decision.Economy);
+        Assert.Single(decision.Events.OfType<BowlingRollCompleted>());
+        Assert.Single(decision.Events.OfType<GameCompletedMetaEvent>());
     }
 
     [Fact]
-    public async Task PlaceBetAsync_DoubleBet_ReturnsAlreadyPending()
+    public void Roll_SameInputAndEntropyProducesEqualDecision()
     {
-        var store = new InMemoryBowlingBetStore();
-        var svc = new BowlingService(new FakeEconomicsService(), new NullAnalyticsService(),
-            store, new NullEventBus(), new FakeRuntimeTuning(), new NullMiniGameSessionGhostHeal(), new NullTelegramDiceDailyRollLimiter());
-        await svc.PlaceBetAsync(1, "u", 100, amount: 50, default);
-        var result = await svc.PlaceBetAsync(1, "u", 100, amount: 50, default);
-        Assert.Equal(BowlingBetError.AlreadyPending, result.Error);
+        var first = Roll(6, 50, 0.01, 0.1);
+        var second = Roll(6, 50, 0.01, 0.1);
+
+        Assert.Equal(JsonSerializer.SerializeToUtf8Bytes(first), JsonSerializer.SerializeToUtf8Bytes(second));
+        Assert.Single(first.Events.OfType<TelegramMiniGameRedeemCodeDropRequested>());
     }
 
     [Fact]
-    public async Task PlaceBetAsync_StaleBasketballSession_GhostHeal_AllowsBet()
+    public void Abort_RefundsStakeRestoresQuotaAndClearsState()
     {
-        BotMiniGameSession.RegisterPlacedBet(1, 100, MiniGameIds.Basketball);
-        var basketStore = new InMemoryBasketballBetStore();
-        var heal = new LocalMiniGameSessionGhostHeal(basketball: basketStore);
-        var svc = new BowlingService(new FakeEconomicsService(), new NullAnalyticsService(),
-            new InMemoryBowlingBetStore(), new NullEventBus(), new FakeRuntimeTuning(), heal, new NullTelegramDiceDailyRollLimiter());
-        var result = await svc.PlaceBetAsync(1, "u", 100, amount: 10, default);
-        Assert.Equal(BowlingBetError.None, result.Error);
+        var decision = new BowlingAbortAction().Decide(Input(
+            new BowlingAbortCommand(1, "u", 10, "abort"), ActiveState(30), 70, 1, 10));
+
+        Assert.True(decision.Result.Aborted);
+        Assert.Null(decision.NewState.PendingBet);
+        Assert.Equal([EconomyEffect.Credit(30, "bowling.send_dice_failed")], decision.Economy);
+        Assert.Equal([QuotaEffect.Restore(BowlingPlaceBetAction.DailyRollQuota)], decision.Quotas);
+        Assert.Single(decision.Events.OfType<BowlingBetAborted>());
     }
+
+    private static GameDecision<BowlingBetState, BowlingBetResult> Place(
+        int amount, int balance, int used = 0, int limit = 10) =>
+        new BowlingPlaceBetAction().Decide(Input(
+            new BowlingPlaceBetCommand(1, "u", 10, amount, "bet", 10_000, null),
+            new BowlingBetState(null), balance, used, limit));
+
+    private static GameDecision<BowlingBetState, BowlingRollResult> Roll(
+        int face, int amount, double entropy, double dropChance) =>
+        new BowlingRollAction().Decide(Input(
+            new BowlingRollCommand(1, "u", 10, face, "roll", dropChance),
+            ActiveState(amount), 100, 1, 10, entropy));
+
+    private static GameActionInput<BowlingBetState, TCommand> Input<TCommand>(
+        TCommand command, BowlingBetState state, int balance, int used, int limit, double entropy = 0.5) =>
+        new(command, state, new WalletSnapshot(balance),
+            new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+            {
+                [BowlingPlaceBetAction.DailyRollQuota] = new(used, limit),
+            },
+            new EntropyValue(new Dictionary<string, double>(StringComparer.Ordinal)
+            {
+                [BowlingRollAction.RedeemDropEntropy] = entropy,
+            }), Now);
+
+    private static BowlingBetState ActiveState(int amount) =>
+        new(new BowlingPendingBet(1, 10, amount, Now));
 }

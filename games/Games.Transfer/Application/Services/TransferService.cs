@@ -1,11 +1,12 @@
 
 using System.Globalization;
+using BotFramework.Host.Execution;
+using Games.Transfer.Application.Execution;
 
 namespace Games.Transfer.Application.Services;
 
 public sealed class TransferService(
-    IEconomicsService economics,
-    IAnalyticsService analytics,
+    IAtomicGameExecutor<TransferCommand, TransferState, TransferAttemptResult> executor,
     IRuntimeTuningAccessor tuning) : ITransferService
 {
     public Task<TransferAttemptResult> TryTransferAsync(
@@ -41,53 +42,11 @@ public sealed class TransferService(
         var fee = TransferOptions.ComputeFeeCoins(netToRecipient, opts.FeePercent, opts.MinFeeCoins);
         var total = netToRecipient + fee;
 
-        await economics.EnsureUserAsync(fromUserId, chatId, senderDisplayName, ct);
-        await economics.EnsureUserAsync(toUserId, chatId, recipientDisplayName, ct);
-
-        var operationId = string.Create(CultureInfo.InvariantCulture, $"peer:{chatId}:{sourceMessageId}:{fromUserId}:{toUserId}");
-        var result = await economics.TryPeerTransferOnceAsync(
-            fromUserId,
-            toUserId,
-            chatId,
-            total,
-            netToRecipient,
-            "transfer.send",
-            "transfer.receive",
-            operationId,
-            ct);
-
-        if (!result.Ok)
-        {
-            var err = result.Failure switch
-            {
-                PeerTransferFailure.SameUser => TransferError.SameUser,
-                PeerTransferFailure.SenderMissing => TransferError.SenderMissing,
-                PeerTransferFailure.RecipientMissing => TransferError.RecipientMissing,
-                PeerTransferFailure.InsufficientFunds => TransferError.InsufficientFunds,
-                _ => TransferError.SenderMissing,
-            };
-            var bal = await economics.GetBalanceAsync(fromUserId, chatId, ct);
-            return new TransferAttemptResult(err, netToRecipient, fee, total, bal, 0);
-        }
-
-        analytics.Track("transfer", "completed", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["from_user_id"] = fromUserId,
-            ["to_user_id"] = toUserId,
-            ["chat_id"] = chatId,
-            ["net"] = netToRecipient,
-            ["fee"] = fee,
-            ["total"] = total,
-        });
-
-        return new TransferAttemptResult(
-            TransferError.None,
-            netToRecipient,
-            fee,
-            total,
-            result.SenderNewBalance,
-            result.RecipientNewBalance);
+        var commandId = string.Create(CultureInfo.InvariantCulture,
+            $"peer:{chatId}:{sourceMessageId}:{fromUserId}:{toUserId}");
+        return await executor.ExecuteAsync(new(new TransferCommand(
+            fromUserId, toUserId, chatId, senderDisplayName, recipientDisplayName,
+            netToRecipient, fee, total, commandId)), ct).ConfigureAwait(false);
     }
 
     private static TransferAttemptResult Fail(TransferError error, int net) =>

@@ -1,4 +1,7 @@
 using BotFramework.Host.Contracts.Economics;
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Meta.Application.Effects;
 using Games.Meta.Application.Meta;
 using Games.Meta.Application.Quests;
 using Games.Meta.Application.Risk;
@@ -24,7 +27,7 @@ public sealed class MetaServiceTests
         };
         var economics = new FakeEconomicsService();
         var history = new FakeHistoryStore();
-        var service = new QuestService(meta, quests, economics, history);
+        var service = new QuestService(meta, quests, new QuestAtomicEffectExecutor(meta, quests, economics, history));
 
         var result = await service.ClaimAsync(100, 42, "Alice", "quest-1", CancellationToken.None);
 
@@ -52,7 +55,7 @@ public sealed class MetaServiceTests
         };
         var economics = new FakeEconomicsService();
         var history = new FakeHistoryStore();
-        var service = new QuestService(meta, quests, economics, history);
+        var service = new QuestService(meta, quests, new QuestAtomicEffectExecutor(meta, quests, economics, history));
 
         var result = await service.ClaimAsync(100, 42, "Alice", "quest-1", CancellationToken.None);
 
@@ -74,7 +77,7 @@ public sealed class MetaServiceTests
             ApplyResult = [new QuestProgressUpdate("quest-1", 2, 5, Completed: false)],
             ActiveQuests = [new PlayerQuestView("quest-1", "Quest", "Desc", "daily", 2, 5, Completed: false, Claimed: false, 10, 20)],
         };
-        var service = new QuestService(meta, quests, new FakeEconomicsService(), new FakeHistoryStore());
+        var service = new QuestService(meta, quests, new QuestAtomicEffectExecutor(meta, quests, new FakeEconomicsService(), new FakeHistoryStore()));
         var ev = new GameCompletedMetaEvent(100, 42, "Alice", MiniGameIds.Dice, 10, 20, IsWin: true, 2, 1);
 
         var applied = await service.ApplyGameCompletedAsync(ev, CancellationToken.None);
@@ -167,6 +170,7 @@ public sealed class MetaServiceTests
         public int ActiveSeasonCalls { get; private set; }
         public int AddSeasonXpCalls { get; private set; }
         public long LastXpDelta { get; private set; }
+        public MetaSeason CurrentSeason => _season;
 
         public Task<MetaSeason> GetActiveSeasonAsync(CancellationToken ct)
         {
@@ -217,6 +221,55 @@ public sealed class MetaServiceTests
         {
             TryMarkClaimedCalls++;
             return Task.FromResult(ClaimResult);
+        }
+    }
+
+    private sealed class QuestAtomicEffectExecutor(
+        FakeMetaService meta,
+        FakeQuestStore quests,
+        FakeEconomicsService economics,
+        FakeHistoryStore history) : IAtomicEffectExecutor
+    {
+        public async Task<TResult> ExecuteAsync<TResult>(
+            AtomicEffectExecutionEnvelope envelope,
+            AtomicEffectPlan<TResult> plan,
+            CancellationToken ct)
+        {
+            var outputs = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var effect in plan.Effects)
+            {
+                switch (effect)
+                {
+                    case QuestProgressAtomicEffect progress:
+                        outputs["updates"] = await quests.ApplyGameCompletedAsync(meta.CurrentSeason, progress.ChatId, progress.UserId, progress.Completion, ct);
+                        break;
+                    case QuestClaimAtomicEffect claim:
+                    {
+                        var result = await quests.TryMarkClaimedAsync(
+                            meta.CurrentSeason,
+                            claim.ChatId,
+                            claim.UserId,
+                            claim.QuestId,
+                            claim.Now,
+                            ct);
+                        if (result is { Claimed: true })
+                        {
+                            await economics.EnsureUserAsync(claim.UserId, claim.ChatId, claim.DisplayName, ct);
+                            if (result.RewardCoins > 0)
+                                await economics.CreditAsync(claim.UserId, claim.ChatId, checked((int)result.RewardCoins), "quest.reward", ct);
+                            if (result.RewardXp > 0)
+                                await meta.AddSeasonXpAsync(claim.SeasonId, claim.ChatId, claim.UserId, claim.DisplayName, result.RewardXp, ct);
+                            await history.AppendAsync("quest.claimed", "player", $"{claim.SeasonId}:{claim.ChatId}:{claim.UserId}", claim.SeasonId, claim.ChatId, claim.UserId, result, ct);
+                        }
+                        outputs["result"] = result;
+                        break;
+                    }
+                    default:
+                        throw new InvalidOperationException($"Unexpected test effect: {effect.GetType().Name}");
+                }
+            }
+
+            return plan.ResultFactory is { } factory ? factory(outputs) : plan.Result;
         }
     }
 

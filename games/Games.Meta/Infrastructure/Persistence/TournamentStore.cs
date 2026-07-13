@@ -284,7 +284,7 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         await conn.ExecuteAsync(new CommandDefinition("UPDATE meta_tournaments SET status = 'finished', updated_at = now() WHERE id = @tournamentId", new { tournamentId }, transaction: tx, cancellationToken: ct));
     }
 
-    private async Task<TournamentMatchInfo?> GetMatchAsync(long matchId, CancellationToken ct)
+    public async Task<TournamentMatchInfo?> GetMatchAsync(long matchId, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         return await conn.QuerySingleOrDefaultAsync<TournamentMatchInfo>(new CommandDefinition(MatchSelectSql + " WHERE id = @matchId", new { matchId }, cancellationToken: ct));

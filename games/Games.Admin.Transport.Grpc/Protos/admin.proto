@@ -1,0 +1,6 @@
+syntax = "proto3";
+option csharp_namespace = "Games.Admin.Transport.Grpc.Wire";
+package casinoshiz.admin.v1;
+message AdminCall { string service = 1; string method = 2; string arguments_json = 3; }
+message AdminReply { string result_json = 1; }
+service AdminApi { rpc Invoke(AdminCall) returns (AdminReply); }

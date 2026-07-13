@@ -1,6 +1,10 @@
 
 namespace Games.Transfer.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Transfer.Application.Execution;
+
 public sealed class TransferModule : IModule
 {
     public string Id => "transfer";
@@ -11,8 +15,10 @@ public sealed class TransferModule : IModule
     {
         services
             .BindOptions<TransferOptions>(TransferOptions.SectionName)
-            .AddScoped<ITransferService, TransferService>()
-            .AddHandler<TransferHandler>();
+            .AddScoped<IGameAction<TransferCommand, TransferState, TransferAttemptResult>, TransferAction>()
+            .AddScoped<GameExecutionDescriptor<TransferCommand, TransferState, TransferAttemptResult>, TransferDescriptor>()
+            .AddScoped<IGameStateStore<TransferCommand, TransferState>, TransferStateStore>()
+            .AddScoped<ITransferService, TransferService>();
     }
 
     public IModuleMigrations GetMigrations() => new TransferMigrations();

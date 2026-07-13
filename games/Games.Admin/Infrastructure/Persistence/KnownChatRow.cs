@@ -8,8 +8,6 @@
 // for `known_chats` itself ship inside the framework.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using Dapper;
-
 namespace Games.Admin.Infrastructure.Persistence;
 
 public sealed record KnownChatRow(

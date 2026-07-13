@@ -51,6 +51,7 @@
 <div class="card">
     <h3>Telegram outbox</h3>
     <p class="muted">Reschedule makes an unsent record immediately eligible. It does not reset attempts, payload, deduplication data, or the previous error.</p>
+    <p class="muted">Pending: <b>@Model.OutboxSummary.PendingCount</b> · sending: <b>@Model.OutboxSummary.SendingCount</b> · due: <b>@Model.OutboxSummary.DueCount</b> · expired leases: <b>@Model.OutboxSummary.ExpiredLeaseCount</b> · oldest: <b>@(Model.OutboxSummary.OldestUnsentAt?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "—") UTC</b></p>
     <form method="get" class="inline">
         <input type="hidden" name="eventType" value="@Model.EventType" />
         <select name="outboxStatus">

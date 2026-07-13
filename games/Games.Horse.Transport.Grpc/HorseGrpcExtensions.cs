@@ -1,0 +1,3 @@
+using CasinoShiz.ServiceDefaults;
+using Games.Horse.Application.Services;using Games.Horse.Transport.Grpc.Wire;using Grpc.Net.Client;using Microsoft.AspNetCore.Builder;using Microsoft.AspNetCore.Routing;using Microsoft.Extensions.DependencyInjection;
+namespace Games.Horse.Transport.Grpc;public static class HorseGrpcExtensions{public static IServiceCollection AddHorseGrpcClient(this IServiceCollection s,Uri a){s.AddResilientGrpcClient<HorseApi.HorseApiClient>(a);s.AddScoped<IHorseService,GrpcHorseService>();return s;}public static IEndpointRouteBuilder MapHorseGrpcTransport(this IEndpointRouteBuilder e){e.MapGrpcService<HorseGrpcEndpoint>();return e;}}

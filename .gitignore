@@ -1,7 +1,7 @@
 bin/
 obj/
 bin
-objg
+obj
 *.db
 *.db-shm
 *.db-wal
@@ -15,12 +15,18 @@ data/
 *.DotSettings.user
 src/
 experiments/
+coverage-report
+coverage-results
+coverage-results2
+coverage-results3
 publish/
 *.dmp
 *.gcdump
 *.sql
 nvim.log
 coverage
+*.txt
+*.log
 
 **/values.secrets.yaml
 **/values.secrets.yml
@@ -41,5 +47,10 @@ TestResults/
 
 
 .cursor
+.codex/
 .vscode
 test.txt
+
+# Per-worktree .NET SDK fallback and first-run state.
+.dotnet/
+.dotnet-home/

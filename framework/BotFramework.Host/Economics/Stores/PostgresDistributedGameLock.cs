@@ -19,7 +19,7 @@ internal sealed class PostgresDistributedGameLock(INpgsqlConnectionFactory conne
     {
         const long offset = unchecked((long)1469598103934665603UL);
         const long prime = 1099511628211;
-        long hash = offset;
+        var hash = offset;
         foreach (var ch in key)
         {
             hash ^= ch;

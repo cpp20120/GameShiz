@@ -13,7 +13,7 @@ public sealed class LeaderboardModule : IModule
             .BindOptions<LeaderboardOptions>(LeaderboardOptions.SectionName)
             .AddScoped<ILeaderboardStore, LeaderboardStore>()
             .AddScoped<ILeaderboardService, LeaderboardService>()
-            .AddHandler<LeaderboardHandler>();
+            .AddScoped<ILeaderboardClient, LocalLeaderboardClient>();
     }
 
     public IReadOnlyList<BotCommand> GetBotCommands() =>

@@ -250,16 +250,27 @@ dotnet build
 dotnet run --project host/CasinoShiz.Host
 ```
 
-Run with the full stack:
+Run the full stack as a monolith:
 
 ```bash
-docker compose up --build
+docker compose --profile monolith up --build
+```
+
+Run the same application boundaries as separate processes:
+
+```bash
+# Also set OPERATIONS_API_KEY and ADMIN_SUPERADMIN_TOKEN in .env.
+docker compose --profile microservices up --build
 ```
 
 Useful local URLs:
 
--   Bot/admin host: `http://localhost:3000`
--   Admin login: `http://localhost:3000/admin/login`
+-   Monolith: `http://localhost:4000`
+-   Backend: `http://localhost:5081/health/live`
+-   Identity: `http://localhost:5082/health/live`
+-   Wallet: `http://localhost:5083/health/live`
+-   Telegram BFF: `http://localhost:5084/health/live`
+-   Admin BFF: `http://localhost:5085`
 -   Grafana: `http://localhost:3001`
 -   Prometheus: `http://localhost:9090`
 
@@ -433,6 +444,12 @@ Enables Redis-backed infrastructure.
 if enabled
 
 Redis connection string, for example `redis:6379`.
+
+`TelegramOutbox__Transport`
+
+no
+
+`Local` (default) sends through the monolith dispatcher. Set `Cap` for split Backend → Telegram BFF delivery; it requires PostgreSQL and Redis in both processes.
 
 `ClickHouse__Enabled`
 

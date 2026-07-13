@@ -24,6 +24,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate microservices Compose topology
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          REDIS_PASSWORD: ci-redis-password
+          CLICKHOUSE_PASSWORD: ci-clickhouse-password
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-password
+        run: |
+          cp .env.example .env
+          docker compose --profile microservices config --quiet
+
+      - name: Publish source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: .
+          include-hidden-files: true
+          retention-days: 1
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -34,7 +52,29 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet build --no-restore --configuration Release 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 1
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --verbosity normal
+        shell: bash
+        run: |
+          set -o pipefail
+          dotnet test --no-build --configuration Release --verbosity normal 2>&1 | tee test.log
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test.log
+          retention-days: 1

@@ -19,6 +19,9 @@
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using BotFramework.Scheduling.Abstractions;
+using BotFramework.Host.Configuration.Validation;
+using BotFramework.Sdk.Configuration;
 
 namespace BotFramework.Host.Composition.Modules;
 
@@ -29,7 +32,15 @@ public sealed class ModuleServiceCollectionAdapter(
 {
     public IModuleServiceCollection BindOptions<TOptions>(string configSection) where TOptions : class
     {
-        services.Configure<TOptions>(configuration.GetSection(configSection));
+        services.AddRegisteredConfigurationSection<TOptions>(configuration, configSection);
+        return this;
+    }
+
+    public IModuleServiceCollection BindOptions<TOptions, TValidator>(string configSection)
+        where TOptions : class
+        where TValidator : class, IConfigurationValidator<TOptions>
+    {
+        services.AddRegisteredConfigurationSection<TOptions, TValidator>(configuration, configSection);
         return this;
     }
 
@@ -38,6 +49,24 @@ public sealed class ModuleServiceCollectionAdapter(
         where TImpl : class, TService
     {
         services.AddScoped<TService, TImpl>();
+        return this;
+    }
+
+    public IModuleServiceCollection AddScoped<TImplementation>() where TImplementation : class
+    {
+        services.AddScoped<TImplementation>();
+        return this;
+    }
+
+    public IModuleServiceCollection AddAdminEffectHandler<THandler>() where THandler : class
+    {
+        services.AddScoped(typeof(BotFramework.Host.Admin.Execution.IAdminEffectHandler), typeof(THandler));
+        return this;
+    }
+
+    public IModuleServiceCollection AddAtomicEffectHandler<THandler>() where THandler : class
+    {
+        services.AddScoped(typeof(BotFramework.Host.Execution.IAtomicEffectHandler), typeof(THandler));
         return this;
     }
 
@@ -105,6 +134,15 @@ public sealed class ModuleServiceCollectionAdapter(
     {
         services.AddSingleton<TJob>();
         registrations.AddBackgroundJob<TJob>();
+        return this;
+    }
+
+    public IModuleServiceCollection AddRecurringScheduledCommand<TCommand>()
+        where TCommand : class, IRecurringScheduledCommand
+    {
+        services.AddScoped<TCommand>();
+        services.AddScoped<IRecurringScheduledCommand>(sp => sp.GetRequiredService<TCommand>());
+        services.AddScoped<IScheduledCommand>(sp => sp.GetRequiredService<TCommand>());
         return this;
     }
 

@@ -1,12 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Module-private persistence boundary. Stateless modules don't get an
-// IRepository<T> (no aggregate); they append audit rows directly through a
-// narrow write-only interface. Dapper keeps us free of DbContext coupling the
-// way the live codebase already prefers (see a3457e4 "move to postgres move
-// economics to dapper").
+// Legacy read shape retained for source compatibility. New writes use the
+// transaction-neutral DiceRollRecord through DiceRollRecordWriter.
 // ─────────────────────────────────────────────────────────────────────────────
-
-using Dapper;
 
 namespace Games.Dice.Infrastructure.Models;
 

@@ -1,4 +1,11 @@
 
+using BotFramework.Sdk.MiniGames;
+using Games.Basketball.Infrastructure.Persistence;
+using Games.Bowling.Infrastructure.Persistence;
+using Games.Darts.Infrastructure.Persistence;
+using Games.DiceCube.Infrastructure.Persistence;
+using Games.Football.Infrastructure.Persistence;
+
 namespace CasinoShiz.Host.Infrastructure;
 
 public sealed class MiniGameSessionGhostHeal(

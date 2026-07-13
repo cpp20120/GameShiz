@@ -1,0 +1,25 @@
+syntax = "proto3";
+option csharp_namespace = "Games.NativeDice.Transport.Grpc.Wire";
+package casinoshiz.native_dice.v1;
+
+message ContractCall { string payload_json = 1; }
+message ContractReply { string payload_json = 1; }
+
+service NativeDiceApi {
+  rpc DiceCubePlaceBet (ContractCall) returns (ContractReply);
+  rpc DiceCubeRoll (ContractCall) returns (ContractReply);
+  rpc DiceCubeAbort (ContractCall) returns (ContractReply);
+  rpc DartsPlaceBet (ContractCall) returns (ContractReply);
+  rpc DartsThrow (ContractCall) returns (ContractReply);
+  rpc DartsQuickThrow (ContractCall) returns (ContractReply);
+  rpc DartsAbort (ContractCall) returns (ContractReply);
+  rpc FootballPlaceBet (ContractCall) returns (ContractReply);
+  rpc FootballThrow (ContractCall) returns (ContractReply);
+  rpc FootballAbort (ContractCall) returns (ContractReply);
+  rpc BasketballPlaceBet (ContractCall) returns (ContractReply);
+  rpc BasketballThrow (ContractCall) returns (ContractReply);
+  rpc BasketballAbort (ContractCall) returns (ContractReply);
+  rpc BowlingPlaceBet (ContractCall) returns (ContractReply);
+  rpc BowlingRoll (ContractCall) returns (ContractReply);
+  rpc BowlingAbort (ContractCall) returns (ContractReply);
+}

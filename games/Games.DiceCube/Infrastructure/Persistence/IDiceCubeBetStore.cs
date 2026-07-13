@@ -11,6 +11,4 @@ namespace Games.DiceCube.Infrastructure.Persistence;
 public interface IDiceCubeBetStore
 {
     Task<DiceCubeBet?> FindAsync(long userId, long chatId, CancellationToken ct);
-    Task<bool> InsertAsync(DiceCubeBet bet, CancellationToken ct);
-    Task DeleteAsync(long userId, long chatId, CancellationToken ct);
 }

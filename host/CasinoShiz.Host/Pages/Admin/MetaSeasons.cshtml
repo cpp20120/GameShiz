@@ -109,8 +109,8 @@
                                         <label>Level base<input type="number" name="xpPerLevelSquaredBase" value="@progression.XpPerLevelSquaredBase" min="1" /></label>
                                         <label>Quest focus<input type="text" name="questFocus" value="@rotation.Focus" /></label>
                                         <label>Rarity bias<input type="text" name="questRarityBias" value="@rotation.RarityBias" /></label>
-                                        <label>Player top rewards<input type="text" name="playerTopRewards" value="@MetaSeasonsModel.RewardCsv(rewards.PlayerTop)" /></label>
-                                        <label>Clan top rewards<input type="text" name="clanTopRewards" value="@MetaSeasonsModel.RewardCsv(rewards.ClanTop)" /></label>
+                                        <label>Player top rewards<input type="text" name="playerTopRewards" value="@CasinoShiz.Host.Pages.Admin.MetaSeasonsModel.RewardCsv(rewards.PlayerTop)" /></label>
+                                        <label>Clan top rewards<input type="text" name="clanTopRewards" value="@CasinoShiz.Host.Pages.Admin.MetaSeasonsModel.RewardCsv(rewards.ClanTop)" /></label>
                                     </div>
                                 </div>
                                 <input type="hidden" name="ratingEnabled" value="false" />
@@ -160,8 +160,8 @@
                             <input type="hidden" name="seasonId" value="@s.Id" />
                             <button type="submit" class="ghost">Pay clan rewards</button>
                         </form>
-                        <div class="muted" style="font-size: 11px; margin-top: 4px">Player rewards: @MetaSeasonsModel.RewardCsv(rewards.PlayerTop)</div>
-                        <div class="muted" style="font-size: 11px">Clan owner rewards: @MetaSeasonsModel.RewardCsv(rewards.ClanTop)</div>
+                        <div class="muted" style="font-size: 11px; margin-top: 4px">Player rewards: @CasinoShiz.Host.Pages.Admin.MetaSeasonsModel.RewardCsv(rewards.PlayerTop)</div>
+                        <div class="muted" style="font-size: 11px">Clan owner rewards: @CasinoShiz.Host.Pages.Admin.MetaSeasonsModel.RewardCsv(rewards.ClanTop)</div>
                     </td>
                 }
             </tr>

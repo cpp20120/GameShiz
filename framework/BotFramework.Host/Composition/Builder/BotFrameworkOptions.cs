@@ -10,6 +10,13 @@ public sealed class BotFrameworkOptions
     public const string SectionName = "Bot";
 
     /// <summary>
+    /// Enables Telegram ingress and delivery hosted services. Backend-only
+    /// processes disable this and expose application requests through another
+    /// transport such as gRPC.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
     /// Telegram bot token. Required.
     /// </summary>
     public string Token { get; set; } = "";

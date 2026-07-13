@@ -1,0 +1,40 @@
+@page "/admin/recovery"
+@model OperationsModel
+@{ ViewData["Title"] = "Recovery"; }
+<h1>Failure recovery</h1>
+<p>Event retry redispatches the persisted event. Automatic outbox delivery remains authoritative.</p>
+@if (Model.Flash is not null) { <p class="@(Model.FlashError ? "error" : "ok")">@Model.Flash</p> }
+@if (Model.Error is not null) { <p class="error">@Model.Error</p> }
+@if (!Model.CanMutate) { <p>Read-only access. Retry actions require SuperAdmin.</p> }
+<form method="get">
+    <label>Event type <input asp-for="EventType" /></label>
+    <label>Outbox status
+        <select asp-for="OutboxStatus">
+            <option value="">pending + sending</option>
+            <option value="pending">pending</option>
+            <option value="sending">sending</option>
+        </select>
+    </label>
+    <button type="submit">Filter</button>
+</form>
+
+<h2>Event failures</h2>
+<table><tr><th>ID</th><th>Type/stage</th><th>Error</th><th></th></tr>
+@foreach (var x in Model.Failures) {
+    <tr><td>@x.Id</td><td>@x.EventType / @x.Stage</td><td>@x.Error</td><td>
+    @if (Model.CanMutate) { <form method="post" asp-page-handler="RetryEvent" onsubmit="return confirm('Redispatch persisted event #@x.Id?')"><input type="hidden" name="id" value="@x.Id"/><input type="hidden" asp-for="EventType"/><input type="hidden" asp-for="OutboxStatus"/><button>Retry</button></form> }
+    </td></tr>
+}</table>
+
+<h2>Telegram outbox</h2>
+<table><tr><th>ID</th><th>Chat/status</th><th>Attempts</th><th>Scheduled/lease</th><th>Message</th><th>Error</th><th></th></tr>
+@foreach (var x in Model.Outbox) {
+    <tr><td>@x.Id</td><td>@x.ChatId / @x.Status</td><td>@x.Attempts</td><td>@x.NextAttemptAt / @x.LockedUntil</td><td>@x.MessagePreview</td><td>@x.LastError</td><td>
+    @if (Model.CanMutate) { <form method="post" asp-page-handler="RescheduleOutbox" onsubmit="return confirm('Reschedule outbox #@x.Id now?')"><input type="hidden" name="id" value="@x.Id"/><input type="hidden" asp-for="EventType"/><input type="hidden" asp-for="OutboxStatus"/><button>Reschedule</button></form> }
+    </td></tr>
+}</table>
+
+<h2>Jobs</h2>
+<table><tr><th>Name</th><th>State</th><th>Last completed</th><th>Error</th></tr>
+@foreach (var x in Model.Jobs) { <tr><td>@x.Name</td><td>@x.State</td><td>@x.LastCompletedAt</td><td>@x.LastError</td></tr> }
+</table>

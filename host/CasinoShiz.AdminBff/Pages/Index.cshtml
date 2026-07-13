@@ -1,0 +1,23 @@
+@page "/admin"
+@model IndexModel
+@{ ViewData["Title"] = "Dashboard"; }
+<h2>Dashboard</h2>
+@if (Model.Error is not null) { <div class="flash error">@Model.Error</div> }
+<div class="card">
+    <h3>Current economy <span class="pill ok">live service snapshot</span></h3>
+    <p class="muted">Current values are read through the Wallet contract. <a href="/admin">refresh now</a></p>
+    <div class="cards">
+        <div class="stat"><div class="label">Wallet supply</div><div class="value">@Model.Totals.CoinSupply.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Wallets</div><div class="value">@Model.Totals.Wallets.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Median wallet</div><div class="value">@Model.Totals.P50Coins.ToString("N0")</div></div>
+        <div class="stat"><div class="label">P90 wallet</div><div class="value">@Model.Totals.P90Coins.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Top 1% coins</div><div class="value">@Model.Totals.Top1Coins.ToString("N0")</div></div>
+        <div class="stat"><div class="label">Active users 24h</div><div class="value">@Model.Engagement.TransactingUsers24H.ToString("N0")</div></div>
+    </div>
+</div>
+<div class="card">
+    <h3>Background / host jobs</h3>
+    <table><thead><tr><th>Name</th><th>Kind</th><th>State</th><th>Heartbeat</th><th>Next</th><th>Error</th></tr></thead><tbody>
+    @foreach (var job in Model.Jobs) { <tr><td><code>@job.Name</code></td><td>@job.Kind</td><td><span class="pill">@job.State</span></td><td class="muted">@job.LastHeartbeatAt</td><td class="muted">@job.NextRunAt</td><td class="muted">@(job.LastError ?? job.Note ?? "—")</td></tr> }
+    </tbody></table>
+</div>

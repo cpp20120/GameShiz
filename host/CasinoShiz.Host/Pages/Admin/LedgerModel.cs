@@ -1,4 +1,7 @@
 using System.Globalization;
+using BotFramework.Host.Admin.Execution;
+using BotFramework.Sdk.Admin.Execution;
+using BotFramework.Sdk.Admin.Effects;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,8 +10,7 @@ namespace CasinoShiz.Host.Pages.Admin;
 
 public sealed class LedgerModel(
     INpgsqlConnectionFactory connections,
-    IEconomicsService economics,
-    IAdminAuditLog audit) : PageModel
+    IAdminEffectExecutor effects) : PageModel
 {
     public IReadOnlyList<LedgerRow> Rows { get; private set; } = [];
     public AdminSession? Actor { get; private set; }
@@ -40,15 +42,19 @@ public sealed class LedgerModel(
 
         try
         {
-            var result = await economics.RevertLedgerEntryAsync(ledgerId, ct);
+            var result = await effects.ExecuteAsync(
+                new AdminExecutionEnvelope(
+                    new(actor.UserId, actor.Name),
+                    "ledger.revert",
+                    new { economicsLedgerId = ledgerId }),
+                new AdminEffectPlan<LedgerRevertResult>(
+                    new(LedgerRevertStatus.NotFound),
+                    [new LedgerRevertAdminEffect(ledgerId)],
+                    outputs => (LedgerRevertResult)outputs["result"]!),
+                ct);
             switch (result.Status)
             {
                 case LedgerRevertStatus.Ok:
-                    await audit.LogAsync(actor.UserId, actor.Name, "ledger.revert", new
-                    {
-                        economicsLedgerId = ledgerId,
-                        newBalance = result.NewBalance,
-                    }, ct);
                     TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Reverted ledger line #{ledgerId} — balance now {result.NewBalance}.");
                     break;
                 case LedgerRevertStatus.AlreadyReverted:

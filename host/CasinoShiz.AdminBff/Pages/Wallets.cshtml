@@ -1,0 +1,8 @@
+@page "/admin/users"
+@model WalletsModel
+@{ ViewData["Title"] = "Wallets"; }
+<h1>Wallets</h1><form method="get"><input asp-for="Query" placeholder="user, scope or name"/><button>Search</button></form>
+@if(Model.Error is not null){<p class="error">@Model.Error</p>}
+<table><thead><tr><th>User</th><th>Scope</th><th>Name</th><th>Coins</th><th>Updated</th><th>Adjustment</th></tr></thead><tbody>
+@foreach(var row in Model.Rows){<tr><td>@row.UserId</td><td>@row.BalanceScopeId</td><td>@row.DisplayName</td><td>@row.Coins</td><td>@row.UpdatedAt</td><td>@if(Model.CanMutate){<form method="post"><input type="hidden" name="userId" value="@row.UserId"/><input type="hidden" name="scopeId" value="@row.BalanceScopeId"/><input type="hidden" name="operationId" value="admin-bff:@Guid.NewGuid().ToString("N")"/><input name="delta" type="number" required/><button>Apply</button></form>}else{<span>Read-only</span>}</td></tr>}
+</tbody></table>
