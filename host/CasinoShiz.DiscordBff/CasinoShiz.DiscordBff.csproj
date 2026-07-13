@@ -17,5 +17,19 @@
     <ProjectReference Include="..\..\games\Games.Leaderboard.Transport.Grpc\Games.Leaderboard.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Discord\Games.Blackjack.Discord.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Transport.Grpc\Games.Blackjack.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Discord\Games.Horse.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Transport.Grpc\Games.Horse.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Discord\Games.Pick.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Transport.Grpc\Games.Pick.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Discord\Games.Redeem.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Transport.Grpc\Games.Redeem.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Discord\Games.Challenges.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Transport.Grpc\Games.Challenges.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Poker.Discord\Games.Poker.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Poker.Transport.Grpc\Games.Poker.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Discord\Games.SecretHitler.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Transport.Grpc\Games.SecretHitler.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Discord\Games.Meta.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Transport.Grpc\Games.Meta.Transport.Grpc.csproj" />
   </ItemGroup>
 </Project>

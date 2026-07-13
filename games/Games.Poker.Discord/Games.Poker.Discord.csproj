@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><RootNamespace>Games.Poker.Discord</RootNamespace></PropertyGroup><ItemGroup><ProjectReference Include="..\..\framework\BotFramework.Discord\BotFramework.Discord.csproj"/><ProjectReference Include="..\Games.Poker.Contracts\Games.Poker.Contracts.csproj"/></ItemGroup></Project>
