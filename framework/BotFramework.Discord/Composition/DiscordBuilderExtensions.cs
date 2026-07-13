@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using BotFramework.Discord.Hosting;
 using BotFramework.Discord.Routing;
+using BotFramework.Discord.Interactions;
 
 namespace BotFramework.Discord.Composition;
 
@@ -31,6 +32,8 @@ public static class DiscordBuilderExtensions
             });
         });
         builder.Services.AddScoped<DiscordMessageRouter>();
+        builder.Services.AddScoped<DiscordInteractionRouter>();
+        builder.Services.AddScoped<IDiscordInteractionHandler, DiscordCasinoMenuHandler>();
         builder.Services.AddScoped<IDiscordMessageHandler, BotFramework.Discord.Commands.DiscordHelpHandler>();
         builder.Services.AddHostedService<DiscordHostedService>();
         return builder;
