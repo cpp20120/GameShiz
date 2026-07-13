@@ -1,3 +1,7 @@
+using Games.Admin.Discord;
+using Games.Admin.Transport.Grpc;
+using Games.PixelBattle.Discord;
+using Games.PixelBattle.Transport.Grpc;
 using Games.Challenges.Discord;
 using Games.Challenges.Transport.Grpc;
 using Games.Horse.Discord;
@@ -49,6 +53,8 @@ builder.Services.AddChallengeGrpcClient(backendUri);
 builder.Services.AddPokerGrpcClient(backendUri);
 builder.Services.AddSecretHitlerGrpcClient(backendUri);
 builder.Services.AddMetaGrpcClients(backendUri);
+builder.Services.AddPixelBattleGrpcClient(backendUri);
+builder.Services.AddAdminGrpcClients(backendUri);
 
 builder.Services
     .AddDiceDiscord()
@@ -66,7 +72,9 @@ builder.Services
     .AddChallengesDiscord()
     .AddPokerDiscord()
     .AddSecretHitlerDiscord()
-    .AddMetaDiscord();
+    .AddMetaDiscord()
+    .AddPixelBattleDiscord()
+    .AddAdminDiscord();
 
 var app = builder.Build();
 app.UseDiscordBackend();
