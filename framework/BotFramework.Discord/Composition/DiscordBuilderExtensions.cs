@@ -31,6 +31,7 @@ public static class DiscordBuilderExtensions
             });
         });
         builder.Services.AddScoped<DiscordMessageRouter>();
+        builder.Services.AddScoped<IDiscordMessageHandler, BotFramework.Discord.Commands.DiscordHelpHandler>();
         builder.Services.AddHostedService<DiscordHostedService>();
         return builder;
     }

@@ -1,10 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <PropertyGroup>
-    <RootNamespace>CasinoShiz.DiscordBff</RootNamespace>
-  </PropertyGroup>
-
+  <PropertyGroup><RootNamespace>CasinoShiz.DiscordBff</RootNamespace></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\framework\BotFramework.Discord\BotFramework.Discord.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\games\Games.Dice.Discord\Games.Dice.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Dice.Transport.Grpc\Games.Dice.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.DiceCube.Discord\Games.DiceCube.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Darts.Discord\Games.Darts.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Football.Discord\Games.Football.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Basketball.Discord\Games.Basketball.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Bowling.Discord\Games.Bowling.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.NativeDice.Transport.Grpc\Games.NativeDice.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Discord\Games.Transfer.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Transport.Grpc\Games.Transfer.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Leaderboard.Discord\Games.Leaderboard.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Leaderboard.Transport.Grpc\Games.Leaderboard.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Discord\Games.Blackjack.Discord.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Transport.Grpc\Games.Blackjack.Transport.Grpc.csproj" />
   </ItemGroup>
 </Project>
