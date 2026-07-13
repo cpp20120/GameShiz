@@ -1,0 +1,219 @@
+diff --git a/Directory.Packages.props b/Directory.Packages.props
+index b5b0bb8..e5f0a3e 100644
+--- a/Directory.Packages.props
++++ b/Directory.Packages.props
+@@ -17,6 +17,7 @@
+     <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
+     <PackageVersion Include="Grpc.Net.ClientFactory" Version="2.80.0" />
+     <PackageVersion Include="Grpc.Tools" Version="2.80.0" />
++    <PackageVersion Include="MediatR" Version="13.1.0" />
+     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.115" />
+     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
+diff --git a/framework/BotFramework.Contracts/BotFramework.Contracts.csproj b/framework/BotFramework.Contracts/BotFramework.Contracts.csproj
+index adbf19c..0a086a3 100644
+--- a/framework/BotFramework.Contracts/BotFramework.Contracts.csproj
++++ b/framework/BotFramework.Contracts/BotFramework.Contracts.csproj
+@@ -7,6 +7,10 @@
+     <RootNamespace>BotFramework.Contracts</RootNamespace>
+   </PropertyGroup>
+ 
++  <ItemGroup>
++    <PackageReference Include="MediatR" />
++  </ItemGroup>
++
+   <ItemGroup>
+     <Compile Include="..\BotFramework.Host\Contracts\Economics\**\*.cs" Link="Wallet\%(RecursiveDir)%(Filename)%(Extension)" />
+     <Compile Include="..\BotFramework.Host\Contracts\ResponsibleGaming\**\*.cs" Link="Wallet\ResponsibleGaming\%(RecursiveDir)%(Filename)%(Extension)" />
+diff --git a/framework/BotFramework.Contracts/Messaging/IRequest.cs b/framework/BotFramework.Contracts/Messaging/IRequest.cs
+index 6b83332..a26e64c 100644
+--- a/framework/BotFramework.Contracts/Messaging/IRequest.cs
++++ b/framework/BotFramework.Contracts/Messaging/IRequest.cs
+@@ -1,10 +1,13 @@
++using MediatR;
++
+ namespace BotFramework.Contracts.Messaging;
+ 
+ /// <summary>
+ /// A transport-neutral request with exactly one logical handler.
+-/// Transports may carry it over gRPC in-process or across a network boundary.
++/// Transports may carry it over gRPC, in-process, or across a network boundary.
++/// MediatR is the in-process implementation detail; callers depend on IRequestClient.
+ /// </summary>
+-public interface IRequest<out TResponse>
++public interface IRequest<out TResponse> : MediatR.IRequest<TResponse>
+ {
+     string MessageType { get; }
+     Type ResponseType => typeof(TResponse);
+diff --git a/framework/BotFramework.Contracts/Messaging/IRequestHandler.cs b/framework/BotFramework.Contracts/Messaging/IRequestHandler.cs
+index 8675801..5de6f74 100644
+--- a/framework/BotFramework.Contracts/Messaging/IRequestHandler.cs
++++ b/framework/BotFramework.Contracts/Messaging/IRequestHandler.cs
+@@ -1,7 +1,16 @@
+ namespace BotFramework.Contracts.Messaging;
+ 
+-public interface IRequestHandler<in TRequest, TResponse>
++/// <summary>
++/// Compatibility-facing handler contract. MediatR invokes the default bridge,
++/// while existing handlers keep receiving transport metadata explicitly.
++/// </summary>
++public interface IRequestHandler<in TRequest, TResponse> : MediatR.IRequestHandler<TRequest, TResponse>
+     where TRequest : IRequest<TResponse>
+ {
+     Task<TResponse> HandleAsync(TRequest request, RequestMetadata metadata, CancellationToken ct);
++
++    Task<TResponse> MediatR.IRequestHandler<TRequest, TResponse>.Handle(
++        TRequest request,
++        CancellationToken cancellationToken) =>
++        HandleAsync(request, RequestMetadataContext.Current, cancellationToken);
+ }
+diff --git a/framework/BotFramework.Contracts/Messaging/RequestMetadataContext.cs b/framework/BotFramework.Contracts/Messaging/RequestMetadataContext.cs
+new file mode 100644
+index 0000000..e96f5b8
+--- /dev/null
++++ b/framework/BotFramework.Contracts/Messaging/RequestMetadataContext.cs
+@@ -0,0 +1,35 @@
++namespace BotFramework.Contracts.Messaging;
++
++/// <summary>
++/// Carries transport metadata across the MediatR dispatch boundary without
++/// contaminating every request DTO with delivery-specific fields.
++/// </summary>
++public static class RequestMetadataContext
++{
++    private static readonly AsyncLocal<Holder?> CurrentHolder = new();
++
++    public static RequestMetadata Current => CurrentHolder.Value?.Value
++        ?? throw new InvalidOperationException("Request metadata is unavailable outside an IRequestClient dispatch scope.");
++
++    public static IDisposable Push(RequestMetadata metadata)
++    {
++        ArgumentNullException.ThrowIfNull(metadata);
++        var previous = CurrentHolder.Value;
++        CurrentHolder.Value = new Holder(metadata);
++        return new PopScope(previous);
++    }
++
++    private sealed record Holder(RequestMetadata Value);
++
++    private sealed class PopScope(Holder? previous) : IDisposable
++    {
++        private bool _disposed;
++
++        public void Dispose()
++        {
++            if (_disposed) return;
++            CurrentHolder.Value = previous;
++            _disposed = true;
++        }
++    }
++}
+diff --git a/framework/BotFramework.Host/BotFramework.Host.csproj b/framework/BotFramework.Host/BotFramework.Host.csproj
+index 7508412..d7d80a2 100644
+--- a/framework/BotFramework.Host/BotFramework.Host.csproj
++++ b/framework/BotFramework.Host/BotFramework.Host.csproj
+@@ -31,6 +31,7 @@
+     <PackageReference Include="ClickHouse.Client" />
+     <PackageReference Include="SkiaSharp" />
+     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
++    <PackageReference Include="MediatR" />
+     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+     <PackageReference Include="Microsoft.Extensions.Options" />
+diff --git a/framework/BotFramework.Host/Composition/Builder/BotFrameworkBuilderExtensions.cs b/framework/BotFramework.Host/Composition/Builder/BotFrameworkBuilderExtensions.cs
+index 38171ef..0192af1 100644
+--- a/framework/BotFramework.Host/Composition/Builder/BotFrameworkBuilderExtensions.cs
++++ b/framework/BotFramework.Host/Composition/Builder/BotFrameworkBuilderExtensions.cs
+@@ -77,6 +77,8 @@ public static class BotFrameworkBuilderExtensions
+             .ValidateOnStart();
+ 
+         services.AddSingleton<ICommandBus, CommandBus>();
++        services.AddMediatR(configuration =>
++            configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
+         services.AddScoped<IRequestClient, LocalRequestClient>();
+         services.TryAddScoped<IIntegrationEventPublisher, LocalIntegrationEventPublisher>();
+ 
+diff --git a/framework/BotFramework.Host/Messaging/LocalRequestClient.cs b/framework/BotFramework.Host/Messaging/LocalRequestClient.cs
+index 59c566a..769b411 100644
+--- a/framework/BotFramework.Host/Messaging/LocalRequestClient.cs
++++ b/framework/BotFramework.Host/Messaging/LocalRequestClient.cs
+@@ -1,19 +1,21 @@
+ using BotFramework.Contracts.Messaging;
+-using Microsoft.Extensions.DependencyInjection;
++using MediatR;
+ 
+ namespace BotFramework.Host.Messaging;
+ 
+ /// <summary>
+-/// In-process request transport used while bounded contexts still share a process.
+-/// A gRPC client implements the same port when a context moves out of process.
++/// In-process request transport backed by MediatR. A gRPC client implements the
++/// same IRequestClient port when a bounded context moves out of process.
+ /// </summary>
+-public sealed class LocalRequestClient(IServiceProvider services) : IRequestClient
++public sealed class LocalRequestClient(ISender sender) : IRequestClient
+ {
+-    public Task<TResponse> SendAsync<TRequest, TResponse>(
++    public async Task<TResponse> SendAsync<TRequest, TResponse>(
+         TRequest request,
+         RequestMetadata metadata,
+         CancellationToken ct)
+-        where TRequest : IRequest<TResponse> =>
+-        services.GetRequiredService<IRequestHandler<TRequest, TResponse>>()
+-            .HandleAsync(request, metadata, ct);
++        where TRequest : IRequest<TResponse>
++    {
++        using var metadataScope = RequestMetadataContext.Push(metadata);
++        return await sender.Send(request, ct);
++    }
+ }
+diff --git a/games/Games.Dice/Infrastructure/Modules/DiceModule.cs b/games/Games.Dice/Infrastructure/Modules/DiceModule.cs
+index 117c637..55f8247 100644
+--- a/games/Games.Dice/Infrastructure/Modules/DiceModule.cs
++++ b/games/Games.Dice/Infrastructure/Modules/DiceModule.cs
+@@ -41,6 +41,7 @@ public sealed class DiceModule : IModule
+             .AddScoped<IGameStateStore<DiceCommand, NoGameState>, DiceStateStore>()
+             .AddScoped<IGameRecordWriter, DiceRollRecordWriter>()
+             .AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
++            .AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>()
+             .AddScoped<IDiceClient, InProcessDiceClient>();
+     }
+ 
+diff --git a/tests/CasinoShiz.Tests/DiceTransportParityTests.cs b/tests/CasinoShiz.Tests/DiceTransportParityTests.cs
+index 04c94d6..dcd5133 100644
+--- a/tests/CasinoShiz.Tests/DiceTransportParityTests.cs
++++ b/tests/CasinoShiz.Tests/DiceTransportParityTests.cs
+@@ -69,7 +69,9 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
+             Dice = new DiceOptions { Cost = 5, RedeemDropChance = 0 },
+         });
+         services.AddScoped<IDiceService, DiceService>();
++        services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
+         services.AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
++        services.AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
+         services.AddScoped<IRequestClient, LocalRequestClient>();
+         return services.BuildServiceProvider();
+     }
+@@ -85,7 +87,9 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
+             Dice = new DiceOptions { Cost = 5, RedeemDropChance = 0 },
+         });
+         builder.Services.AddScoped<IDiceService, DiceService>();
++        builder.Services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
+         builder.Services.AddScoped<IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
++        builder.Services.AddScoped<MediatR.IRequestHandler<DicePlayRequest, DicePlayResponse>, DicePlayRequestHandler>();
+         builder.Services.AddScoped<IRequestClient, LocalRequestClient>();
+         builder.Services.AddGrpc();
+ 
+diff --git a/tests/CasinoShiz.Tests/MessagingBoundaryTests.cs b/tests/CasinoShiz.Tests/MessagingBoundaryTests.cs
+index ef8dcc4..7e0db9f 100644
+--- a/tests/CasinoShiz.Tests/MessagingBoundaryTests.cs
++++ b/tests/CasinoShiz.Tests/MessagingBoundaryTests.cs
+@@ -424,7 +424,9 @@ public sealed class MessagingBoundaryTests
+     public async Task LocalRequestClient_DispatchesThroughTransportNeutralPort()
+     {
+         var services = new ServiceCollection();
++        services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
+         services.AddScoped<IRequestHandler<PingRequest, PingResponse>, PingHandler>();
++        services.AddScoped<MediatR.IRequestHandler<PingRequest, PingResponse>, PingHandler>();
+         services.AddScoped<IRequestClient, LocalRequestClient>();
+         await using var provider = services.BuildServiceProvider();
+         await using var scope = provider.CreateAsyncScope();
