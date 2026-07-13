@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\framework\BotFramework.Discord\BotFramework.Discord.csproj" />
+    <ProjectReference Include="..\Games.Admin.Contracts\Games.Admin.Contracts.csproj" />
+    <ProjectReference Include="..\Games.Admin\Games.Admin.csproj" />
+  </ItemGroup>
+</Project>
