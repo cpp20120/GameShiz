@@ -28,18 +28,18 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           fetch-depth: 0
 
-      - name: Apply staged Discord UX patch
+      - name: Apply staged Discord UX bundle
         if: hashFiles('.github/discord-ux.patch.gz.b64') != ''
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d .github/discord-ux.patch.gz.b64 | gzip -d > /tmp/discord-ux.patch
-          git apply --check --3way /tmp/discord-ux.patch || {
-            echo 'Patch check failed:'
-            git apply --check --verbose /tmp/discord-ux.patch || true
-            exit 1
-          }
-          git apply --3way --index /tmp/discord-ux.patch
+          base64 -d .github/discord-ux.patch.gz.b64 | tar -xz
+          git add framework/BotFramework.Discord \
+            games/Games.Blackjack.Discord \
+            games/Games.Leaderboard.Discord \
+            games/Games.Poker.Discord \
+            games/Games.Redeem.Discord \
+            games/Games.SecretHitler.Discord
           git rm .github/discord-ux.patch.gz.b64
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
