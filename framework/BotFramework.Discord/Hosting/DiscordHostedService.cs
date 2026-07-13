@@ -1,10 +1,11 @@
+using BotFramework.Discord.Interactions;
+using BotFramework.Discord.Routing;
 using Discord;
 using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using BotFramework.Discord.Routing;
 
 namespace BotFramework.Discord.Hosting;
 
@@ -26,7 +27,11 @@ public sealed partial class DiscordHostedService(
         }
 
         client.Log += OnDiscordLogAsync;
+        client.Ready += OnReadyAsync;
         client.MessageReceived += OnMessageReceivedAsync;
+        client.SlashCommandExecuted += OnInteractionAsync;
+        client.ButtonExecuted += OnInteractionAsync;
+        client.SelectMenuExecuted += OnInteractionAsync;
 
         await client.LoginAsync(TokenType.Bot, _options.Token);
         await client.StartAsync();
@@ -41,11 +46,39 @@ public sealed partial class DiscordHostedService(
         }
         finally
         {
+            client.SelectMenuExecuted -= OnInteractionAsync;
+            client.ButtonExecuted -= OnInteractionAsync;
+            client.SlashCommandExecuted -= OnInteractionAsync;
             client.MessageReceived -= OnMessageReceivedAsync;
+            client.Ready -= OnReadyAsync;
             client.Log -= OnDiscordLogAsync;
             await client.StopAsync();
             await client.LogoutAsync();
         }
+    }
+
+    private async Task OnReadyAsync()
+    {
+        if (!_options.RegisterApplicationCommands) return;
+
+        using var scope = scopeFactory.CreateScope();
+        var commands = scope.ServiceProvider.GetServices<IDiscordInteractionHandler>()
+            .SelectMany(handler => handler.BuildCommands())
+            .ToArray();
+
+        if (commands.Length == 0) return;
+
+        if (_options.ApplicationCommandsGuildId is { } guildId)
+        {
+            var guild = client.GetGuild(guildId)
+                ?? throw new InvalidOperationException($"Discord guild {guildId} is unavailable for command registration.");
+            await guild.BulkOverwriteApplicationCommandAsync(commands);
+            LogCommandsRegistered(logger, commands.Length, guildId);
+            return;
+        }
+
+        await client.BulkOverwriteGlobalApplicationCommandsAsync(commands);
+        LogCommandsRegistered(logger, commands.Length, null);
     }
 
     private async Task OnMessageReceivedAsync(SocketMessage message)
@@ -61,6 +94,16 @@ public sealed partial class DiscordHostedService(
             scope.ServiceProvider,
             lifetime.ApplicationStopping);
         await router.RouteAsync(context);
+    }
+
+    private async Task OnInteractionAsync(SocketInteraction interaction)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var router = scope.ServiceProvider.GetRequiredService<DiscordInteractionRouter>();
+        await router.RouteAsync(new DiscordInteractionContext(
+            interaction,
+            scope.ServiceProvider,
+            lifetime.ApplicationStopping));
     }
 
     private Task OnDiscordLogAsync(LogMessage message)
@@ -93,4 +136,7 @@ public sealed partial class DiscordHostedService(
 
     [LoggerMessage(LogLevel.Information, "Discord backend started as bot user {BotUserId}")]
     private static partial void LogStarted(ILogger logger, ulong botUserId);
+
+    [LoggerMessage(LogLevel.Information, "Registered {CommandCount} Discord application commands (guild {GuildId})")]
+    private static partial void LogCommandsRegistered(ILogger logger, int commandCount, ulong? guildId);
 }

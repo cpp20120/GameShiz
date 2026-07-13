@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AllowMissingPrunePackageData>true</AllowMissingPrunePackageData></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Grpc.AspNetCore" />
+    <PackageReference Include="Grpc.Net.Client" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+    <PackageReference Include="Google.Protobuf" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Games.PixelBattle.Contracts\Games.PixelBattle.Contracts.csproj" />
+    <ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
+  </ItemGroup>
+  <ItemGroup><Protobuf Include="Protos\pixelbattle.proto" GrpcServices="Both" /></ItemGroup>
+</Project>

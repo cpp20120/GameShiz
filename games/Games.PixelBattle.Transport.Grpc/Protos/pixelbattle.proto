@@ -1,0 +1,9 @@
+syntax = "proto3";
+option csharp_namespace = "Games.PixelBattle.Transport.Grpc.Wire";
+package casinoshiz.pixelbattle.v1;
+message PixelCall { string payload_json = 1; }
+message PixelReply { string payload_json = 1; }
+service PixelBattleApi {
+  rpc GetGrid (PixelCall) returns (PixelReply);
+  rpc Update (PixelCall) returns (PixelReply);
+}

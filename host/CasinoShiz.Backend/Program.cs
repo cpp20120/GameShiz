@@ -1,3 +1,4 @@
+using Games.PixelBattle.Transport.Grpc;
 using BotFramework.Host.Composition.Builder;
 using Games.Dice.Infrastructure.Modules;
 using Games.Dice.Transport.Grpc;
@@ -121,6 +122,7 @@ app.MapTransferGrpcTransport();
 app.MapRedeemGrpcTransport();
 app.MapLeaderboardGrpcTransport();
 app.MapPixelBattle();
+app.MapPixelBattleGrpcTransport();
 app.MapPickGrpcTransport();
 app.MapBlackjackGrpcTransport();
 app.MapHorseGrpcTransport();
