@@ -1,6 +1,10 @@
 
 namespace Games.Redeem.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Redeem.Application.Execution;
+
 public sealed class RedeemModule : IModule
 {
     public string Id => "redeem";
@@ -11,6 +15,12 @@ public sealed class RedeemModule : IModule
     {
         services
             .BindOptions<RedeemOptions>(RedeemOptions.SectionName)
+            .AddScoped<IGameAction<RedeemIssueCommand, RedeemExecutionState, Guid>, RedeemIssueAction>()
+            .AddScoped<GameExecutionDescriptor<RedeemIssueCommand, RedeemExecutionState, Guid>, RedeemIssueDescriptor>()
+            .AddScoped<IGameStateStore<RedeemIssueCommand, RedeemExecutionState>, RedeemIssueStateStore>()
+            .AddScoped<IGameAction<RedeemCompleteCommand, RedeemExecutionState, CompleteRedeemResult>, RedeemCompleteAction>()
+            .AddScoped<GameExecutionDescriptor<RedeemCompleteCommand, RedeemExecutionState, CompleteRedeemResult>, RedeemCompleteDescriptor>()
+            .AddScoped<IGameStateStore<RedeemCompleteCommand, RedeemExecutionState>, RedeemCompleteStateStore>()
             .AddScoped<IRedeemService, RedeemService>()
             .AddScoped<IRedeemClient, LocalRedeemClient>()
             .AddScoped<IRedeemStore, RedeemStore>()

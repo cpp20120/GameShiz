@@ -23,6 +23,13 @@ public static class ShPolicyDeck
         return Serialize(deck);
     }
 
+    public static string BuildShuffledDeck(IReadOnlyList<double> entropy)
+    {
+        var deck = NewDeck();
+        Shuffle(deck, entropy);
+        return Serialize(deck);
+    }
+
     public static string Serialize(IEnumerable<ShPolicy> policies) =>
         string.Join("", policies.Select(p => p == ShPolicy.Liberal ? 'L' : 'F'));
 
@@ -48,6 +55,42 @@ public static class ShPolicyDeck
         deck.RemoveRange(0, count);
         deckState = Serialize(deck);
         return drawn;
+    }
+
+    public static ShPolicy[] Draw(
+        ref string deckState, ref string discardState, int count, IReadOnlyList<double> entropy)
+    {
+        var deck = Parse(deckState);
+        if (deck.Count < count)
+        {
+            deck.AddRange(Parse(discardState));
+            Shuffle(deck, entropy);
+            discardState = "";
+        }
+        var drawn = deck.Take(count).ToArray();
+        deck.RemoveRange(0, count);
+        deckState = Serialize(deck);
+        return drawn;
+    }
+
+    private static List<ShPolicy> NewDeck()
+    {
+        var deck = new List<ShPolicy>(TotalLiberal + TotalFascist);
+        for (var i = 0; i < TotalLiberal; i++) deck.Add(ShPolicy.Liberal);
+        for (var i = 0; i < TotalFascist; i++) deck.Add(ShPolicy.Fascist);
+        return deck;
+    }
+
+    private static void Shuffle<T>(IList<T> list, IReadOnlyList<double> entropy)
+    {
+        if (entropy.Count < list.Count - 1)
+            throw new ArgumentException("Not enough entropy values.", nameof(entropy));
+        var entropyIndex = 0;
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = Math.Min(i, (int)(entropy[entropyIndex++] * (i + 1)));
+            (list[i], list[j]) = (list[j], list[i]);
+        }
     }
 
     public static ShPolicy PeekTop(string deckState, string discardState)

@@ -59,7 +59,7 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
                    reply_to_message_id AS ReplyToMessageId
             FROM darts_rounds
             WHERE status = @queued
-            ORDER BY id
+            ORDER BY created_at, id
             """,
             new { queued = (short)DartsRoundStatus.Queued },
             cancellationToken: ct));

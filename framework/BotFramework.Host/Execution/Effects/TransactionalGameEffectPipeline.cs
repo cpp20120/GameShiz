@@ -95,10 +95,13 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
         IGameExecutionSession session,
         CancellationToken ct)
     {
-        await playerProtection.EnforceAsync(wallet.UserId, plan.Effects.Economy, session, ct).ConfigureAwait(false);
-        var walletMutation = await economics.ApplyAsync(wallet, plan.Effects.Economy, session, ct).ConfigureAwait(false);
-        if (walletMutation.Rejected)
-            throw new InvalidOperationException("A decision accepted an economy mutation that the locked wallet rejected.");
+        if (plan.Effects.Economy.Count != 0)
+        {
+            await playerProtection.EnforceAsync(wallet.UserId, plan.Effects.Economy, session, ct).ConfigureAwait(false);
+            var walletMutation = await economics.ApplyAsync(wallet, plan.Effects.Economy, session, ct).ConfigureAwait(false);
+            if (walletMutation.Rejected)
+                throw new InvalidOperationException("A decision accepted an economy mutation that the locked wallet rejected.");
+        }
 
         foreach (var quota in quotas)
         {

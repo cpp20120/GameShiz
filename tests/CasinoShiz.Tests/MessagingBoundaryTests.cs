@@ -251,20 +251,21 @@ public sealed class MessagingBoundaryTests
     }
 
     [Fact]
-    public async Task PixelBattleService_ValidatesContractBeforeStoreMutation()
+    public async Task PixelBattleService_DelegatesMutationToAtomicExecutor()
     {
         var store = new PixelStoreStub();
-        var service = new Games.PixelBattle.Application.PixelBattleService(store);
+        var executor = new PixelExecutorStub();
+        var service = new Games.PixelBattle.Application.PixelBattleService(store, executor);
 
         var invalid = await service.UpdateAsync(42, -1, "#ffffff", default);
         var unknown = await service.UpdateAsync(42, 0, "#ffffff", default);
-        store.Known = true;
+        executor.Known = true;
         var updated = await service.UpdateAsync(42, 0, "#ffffff", default);
 
         Assert.Equal(Games.PixelBattle.Contracts.PixelUpdateStatus.InvalidIndex, invalid.Status);
         Assert.Equal(Games.PixelBattle.Contracts.PixelUpdateStatus.UnknownUser, unknown.Status);
         Assert.Equal(Games.PixelBattle.Contracts.PixelUpdateStatus.Updated, updated.Status);
-        Assert.Equal(1, store.UpdateCount);
+        Assert.Equal(3, executor.ExecuteCount);
     }
 
     [Fact]
@@ -596,16 +597,37 @@ public sealed class MessagingBoundaryTests
 
     private sealed class PixelStoreStub : Games.PixelBattle.Infrastructure.Persistence.IPixelBattleStore
     {
-        public bool Known { get; set; }
-        public int UpdateCount { get; private set; }
         public Task<Games.PixelBattle.Domain.Entities.PixelBattleGrid> GetGridAsync(CancellationToken ct) =>
             Task.FromResult(new Games.PixelBattle.Domain.Entities.PixelBattleGrid([], []));
-        public Task<bool> IsKnownUserAsync(long userId, CancellationToken ct) => Task.FromResult(Known);
-        public Task<Games.PixelBattle.Domain.Entities.PixelBattleUpdate> UpdateTileAsync(
-            int index, string color, long userId, CancellationToken ct)
+    }
+
+    private sealed class PixelExecutorStub : BotFramework.Host.Execution.IAtomicGameExecutor<
+        Games.PixelBattle.Application.Execution.PixelBattleCommand,
+        Games.PixelBattle.Application.Execution.PixelBattleExecutionState,
+        Games.PixelBattle.Contracts.PixelUpdateResult>
+    {
+        public Type StateType => typeof(Games.PixelBattle.Application.Execution.PixelBattleExecutionState);
+        public bool Known { get; set; }
+        public int ExecuteCount { get; private set; }
+
+        public Task<Games.PixelBattle.Contracts.PixelUpdateResult> ExecuteAsync(
+            BotFramework.Host.Execution.GameExecutionEnvelope<
+                Games.PixelBattle.Application.Execution.PixelBattleCommand> envelope,
+            CancellationToken ct)
         {
-            UpdateCount++;
-            return Task.FromResult(new Games.PixelBattle.Domain.Entities.PixelBattleUpdate(index, color, "1"));
+            ExecuteCount++;
+            var command = envelope.Command;
+            var status = !Games.PixelBattle.Domain.Models.PixelBattleConstants.IsValidIndex(command.Index)
+                ? Games.PixelBattle.Contracts.PixelUpdateStatus.InvalidIndex
+                : !Games.PixelBattle.Domain.Models.PixelBattleConstants.IsValidColor(command.Color)
+                    ? Games.PixelBattle.Contracts.PixelUpdateStatus.InvalidColor
+                    : !Known
+                        ? Games.PixelBattle.Contracts.PixelUpdateStatus.UnknownUser
+                        : Games.PixelBattle.Contracts.PixelUpdateStatus.Updated;
+            var update = status == Games.PixelBattle.Contracts.PixelUpdateStatus.Updated
+                ? new Games.PixelBattle.Domain.Entities.PixelBattleUpdate(command.Index, command.Color, "1")
+                : null;
+            return Task.FromResult(new Games.PixelBattle.Contracts.PixelUpdateResult(status, update));
         }
     }
 }

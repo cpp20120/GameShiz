@@ -54,7 +54,6 @@ global using BotFramework.Sdk.Projections;
 global using BotFramework.Sdk.Snapshots;
 global using BotFramework.Sdk.UpdateHandling;
 global using BotFramework.Sdk.UpdateHandling.Routes;
-global using Games.SecretHitler.Application.Jobs;
 global using Games.SecretHitler.Application.Services;
 global using Games.SecretHitler.Domain.Commands;
 global using Games.SecretHitler.Domain.Configuration;

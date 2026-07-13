@@ -4,4 +4,5 @@ public enum QuotaEffectKind
 {
     Consume,
     Restore,
+    Grant,
 }

@@ -2,15 +2,8 @@
 // PokerService — application service for /poker.
 //
 // Port of src/CasinoShiz.Core/Services/Poker/Application/PokerService.cs.
-// Differences vs. the monolith:
-//   • Dapper stores (IPokerTableStore / IPokerSeatStore) replace EF Core.
-//   • IEconomicsService is userId-based (no UserState entity round-trips).
-//   • Analytics goes through IAnalyticsService instead of ClickHouseReporter.
-//   • Domain events (PokerHandStarted / PokerHandEnded) are published on the
-//     IDomainEventBus for cross-module subscribers.
-//
-// Concurrency: per-table SemaphoreSlim gates keyed by invite code. Table-creating
-// operations gate by "u:{userId}" until a code is assigned.
+// Public compatibility contract. Mutation implementations run through the
+// framework atomic executor; reads remain on the Dapper projections.
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Collections.Concurrent;

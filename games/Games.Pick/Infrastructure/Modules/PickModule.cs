@@ -1,6 +1,10 @@
 
 namespace Games.Pick.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Pick.Application.Execution;
+
 public sealed class PickModule : IModule
 {
     public string Id => "pick";
@@ -13,19 +17,38 @@ public sealed class PickModule : IModule
             .BindOptions<PickOptions>(PickOptions.SectionName)
 
             // single-player /pick
-            .AddSingleton<PickStreakStore>()
             .AddSingleton<PickChainStore>()
             .AddScoped<IPickService, PickService>()
+            .AddScoped<IGameAction<PickCommand, PickGameState, PickResult>, PickAction>()
+            .AddScoped<GameExecutionDescriptor<PickCommand, PickGameState, PickResult>, PickExecutionDescriptor>()
+            .AddScoped<IGameStateStore<PickCommand, PickGameState>, PickGameStateStore>()
+            .AddScoped<IGameEffectHandler, PickChainOfferEffectHandler>()
+            .AddScoped<IGameEffectHandler, PickWalletCreditEffectHandler>()
             .AddScoped<IPickAnnouncementPublisher, IntegrationEventPickAnnouncementPublisher>()
 
             // multi-user 5-min lottery
             .AddSingleton<IPickLotteryStore, PickLotteryStore>()
-            .AddSingleton<IPickLotteryService, PickLotteryService>()
+            .AddScoped<IPickLotteryService, PickLotteryService>()
+            .AddScoped<IGameAction<QuickLotteryOpenCommand, QuickLotteryState, LotteryOpenResult>, QuickLotteryOpenAction>()
+            .AddScoped<GameExecutionDescriptor<QuickLotteryOpenCommand, QuickLotteryState, LotteryOpenResult>, QuickOpenDescriptor>()
+            .AddScoped<IGameStateStore<QuickLotteryOpenCommand, QuickLotteryState>, QuickLotteryOpenStateStore>()
+            .AddScoped<IGameAction<QuickLotteryJoinCommand, QuickLotteryState, LotteryJoinResult>, QuickLotteryJoinAction>()
+            .AddScoped<GameExecutionDescriptor<QuickLotteryJoinCommand, QuickLotteryState, LotteryJoinResult>, QuickJoinDescriptor>()
+            .AddScoped<IGameStateStore<QuickLotteryJoinCommand, QuickLotteryState>, QuickLotteryJoinStateStore>()
+            .AddScoped<IGameAction<QuickLotterySettleCommand, QuickLotteryState, LotterySettleResult>, QuickLotterySettleAction>()
+            .AddScoped<GameExecutionDescriptor<QuickLotterySettleCommand, QuickLotteryState, LotterySettleResult>, QuickSettleDescriptor>()
+            .AddScoped<IGameStateStore<QuickLotterySettleCommand, QuickLotteryState>, QuickLotterySettleStateStore>()
             .AddRecurringScheduledCommand<PickLotterySweeperJob>()
 
             // per-chat daily lottery
             .AddSingleton<IPickDailyLotteryStore, PickDailyLotteryStore>()
-            .AddSingleton<IPickDailyLotteryService, PickDailyLotteryService>()
+            .AddScoped<IPickDailyLotteryService, PickDailyLotteryService>()
+            .AddScoped<IGameAction<DailyBuyCommand, DailyLotteryState, DailyBuyResult>, DailyBuyAction>()
+            .AddScoped<GameExecutionDescriptor<DailyBuyCommand, DailyLotteryState, DailyBuyResult>, DailyBuyDescriptor>()
+            .AddScoped<IGameStateStore<DailyBuyCommand, DailyLotteryState>, DailyBuyStateStore>()
+            .AddScoped<IGameAction<DailySettleCommand, DailyLotteryState, DailySettleResult>, DailySettleAction>()
+            .AddScoped<GameExecutionDescriptor<DailySettleCommand, DailyLotteryState, DailySettleResult>, DailySettleDescriptor>()
+            .AddScoped<IGameStateStore<DailySettleCommand, DailyLotteryState>, DailySettleStateStore>()
             .AddScoped<IPickClient, LocalPickClient>()
             .AddRecurringScheduledCommand<PickDailyLotterySweeperJob>();
     }

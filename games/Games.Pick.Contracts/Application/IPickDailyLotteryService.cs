@@ -30,6 +30,7 @@ public interface IPickDailyLotteryService
 {
     Task<DailyBuyResult> BuyAsync(
         long userId, string displayName, long chatId, int count, CancellationToken ct);
+    Task<DailyBuyResult> BuyAsync(long userId, string displayName, long chatId, int count, int sourceMessageId, CancellationToken ct);
 
     Task<DailyInfoSnapshot?> InfoAsync(long chatId, long viewerId, CancellationToken ct);
 

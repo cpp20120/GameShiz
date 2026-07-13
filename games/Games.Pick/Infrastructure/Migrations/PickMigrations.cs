@@ -99,5 +99,28 @@ public sealed class PickMigrations : IModuleMigrations
             CREATE INDEX ix_pick_daily_tickets_lottery_user
                 ON pick_daily_lottery_tickets (lottery_id, user_id);
             """),
+        new Migration("003_atomic_pick", """
+            CREATE TABLE pick_streaks (
+                user_id     BIGINT      NOT NULL,
+                chat_id     BIGINT      NOT NULL,
+                streak      INTEGER     NOT NULL,
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (user_id, chat_id)
+            );
+
+            CREATE TABLE pick_chains (
+                id                   UUID        PRIMARY KEY,
+                user_id              BIGINT      NOT NULL,
+                chat_id              BIGINT      NOT NULL,
+                display_name         TEXT        NOT NULL,
+                stake_for_next       INTEGER     NOT NULL,
+                depth                INTEGER     NOT NULL,
+                variants_json        JSONB       NOT NULL,
+                backed_indices_json  JSONB       NOT NULL,
+                expires_at           TIMESTAMPTZ NOT NULL
+            );
+
+            CREATE INDEX ix_pick_chains_expires_at ON pick_chains (expires_at);
+            """),
     ];
 }

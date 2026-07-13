@@ -1,6 +1,10 @@
 
 namespace Games.Horse.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Horse.Application.Execution;
+
 public sealed class HorseModule : IModule
 {
     public string Id => "horse";
@@ -15,6 +19,12 @@ public sealed class HorseModule : IModule
             .AddScoped<IHorseRaceNotifier, IntegrationEventHorseRaceNotifier>()
             .AddScoped<IHorseBetStore, HorseBetStore>()
             .AddScoped<IHorseResultStore, HorseResultStore>()
+            .AddScoped<IGameAction<HorsePlaceBetCommand, HorseBetState, BetResult>, HorsePlaceBetAction>()
+            .AddScoped<GameExecutionDescriptor<HorsePlaceBetCommand, HorseBetState, BetResult>, HorsePlaceBetDescriptor>()
+            .AddScoped<IGameStateStore<HorsePlaceBetCommand, HorseBetState>, HorsePlaceBetStateStore>()
+            .AddScoped<IGameAction<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunAction>()
+            .AddScoped<GameExecutionDescriptor<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunDescriptor>()
+            .AddScoped<IGameStateStore<HorseRunCommand, HorseRaceState>, HorseRunStateStore>()
             .AddRecurringScheduledCommand<HorseRaceScheduledCommand>();
     }
 

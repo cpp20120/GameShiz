@@ -1,6 +1,10 @@
 
 namespace Games.Poker.Infrastructure.Modules;
 
+using BotFramework.Host.Execution;
+using BotFramework.Sdk.Execution;
+using Games.Poker.Application.Execution;
+
 public sealed class PokerModule : IModule
 {
     public string Id => "poker";
@@ -13,7 +17,14 @@ public sealed class PokerModule : IModule
             .BindOptions<PokerOptions>(PokerOptions.SectionName)
             .AddScoped<IPokerService, PokerService>()
             .AddScoped<IPokerTableStore, PokerTableStore>()
-            .AddScoped<IPokerSeatStore, PokerSeatStore>();
+            .AddScoped<IPokerSeatStore, PokerSeatStore>()
+            .AddPokerExecution<PokerCreateCommand, CreateResult, PokerCreateAction, PokerCreateDescriptor>()
+            .AddPokerExecution<PokerJoinCommand, JoinResult, PokerJoinAction, PokerJoinDescriptor>()
+            .AddPokerExecution<PokerStartCommand, StartResult, PokerStartAction, PokerStartDescriptor>()
+            .AddPokerExecution<PokerPlayerTurnCommand, ActionResult, PokerPlayerTurnAction, PokerPlayerTurnDescriptor>()
+            .AddPokerExecution<PokerAutoTurnCommand, ActionResult, PokerAutoTurnAction, PokerAutoTurnDescriptor>()
+            .AddPokerExecution<PokerLeaveCommand, LeaveResult, PokerLeaveAction, PokerLeaveDescriptor>()
+            .AddPokerExecution<PokerSetMessageCommand, bool, PokerSetMessageAction, PokerSetMessageDescriptor>();
     }
 
     public IModuleMigrations GetMigrations() => new PokerMigrations();
@@ -107,4 +118,17 @@ public sealed class PokerModule : IModule
             ["err.temporary_failure"] = "Покер временно занят или база не ответила. Попробуй ещё раз через пару секунд.",
         }),
     ];
+}
+
+internal static class PokerExecutionRegistration
+{
+    public static IModuleServiceCollection AddPokerExecution<TCommand, TResult, TAction, TDescriptor>(
+        this IModuleServiceCollection services)
+        where TCommand : IPokerExecutionCommand
+        where TAction : class, IGameAction<TCommand, PokerExecutionState, TResult>
+        where TDescriptor : GameExecutionDescriptor<TCommand, PokerExecutionState, TResult> =>
+        services
+            .AddScoped<IGameAction<TCommand, PokerExecutionState, TResult>, TAction>()
+            .AddScoped<GameExecutionDescriptor<TCommand, PokerExecutionState, TResult>, TDescriptor>()
+            .AddScoped<IGameStateStore<TCommand, PokerExecutionState>, PokerExecutionStateStore<TCommand>>();
 }

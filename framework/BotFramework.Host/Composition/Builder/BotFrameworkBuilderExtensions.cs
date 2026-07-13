@@ -146,6 +146,7 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<ITransactionalEventCollector, TransactionalEventCollector>();
         services.AddSingleton<ITransactionalScheduleCollector, TransactionalScheduleCollector>();
         services.AddSingleton<GameExecutionTelemetry>();
+        services.AddScoped<IGameEffectHandler, PostgresWalletEconomyEffectHandler>();
         services.AddSingleton<PostgresGameEventOutbox>();
         services.AddSingleton<PostgresGameScheduleOutbox>();
         services.AddScoped(typeof(IAtomicGameExecutor<,,>), typeof(AtomicGameExecutor<,,>));

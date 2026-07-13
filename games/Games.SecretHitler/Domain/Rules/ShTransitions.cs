@@ -32,6 +32,36 @@ public static class ShTransitions
         foreach (var p in players) p.LastVote = ShVote.None;
     }
 
+    public static void StartGame(
+        SecretHitlerGame game,
+        List<SecretHitlerPlayer> players,
+        IReadOnlyList<double> roleEntropy,
+        IReadOnlyList<double> deckEntropy)
+    {
+        ShRoleDealer.DealRoles(players, roleEntropy);
+        game.DeckState = ShPolicyDeck.BuildShuffledDeck(deckEntropy);
+        InitializeStartedGame(game, players);
+    }
+
+    private static void InitializeStartedGame(SecretHitlerGame game, List<SecretHitlerPlayer> players)
+    {
+        game.DiscardState = "";
+        game.LiberalPolicies = 0;
+        game.FascistPolicies = 0;
+        game.ElectionTracker = 0;
+        game.LastElectedPresidentPosition = -1;
+        game.LastElectedChancellorPosition = -1;
+        game.NominatedChancellorPosition = -1;
+        game.PresidentDraw = "";
+        game.ChancellorReceived = "";
+        game.Winner = ShWinner.None;
+        game.WinReason = ShWinReason.None;
+        game.Status = ShStatus.Active;
+        game.Phase = ShPhase.Nomination;
+        game.CurrentPresidentPosition = players.Where(p => p.IsAlive).OrderBy(p => p.Position).First().Position;
+        foreach (var player in players) player.LastVote = ShVote.None;
+    }
+
     public static ShValidation ValidateNomination(
         SecretHitlerGame game, SecretHitlerPlayer president, int chancellorPosition, List<SecretHitlerPlayer> players)
     {
@@ -115,6 +145,76 @@ public static class ShTransitions
         }
 
         return FailElection(game, players, ja, nein);
+    }
+
+    public static ShAfterVoteResult? ApplyVote(
+        SecretHitlerGame game,
+        SecretHitlerPlayer voter,
+        ShVote vote,
+        List<SecretHitlerPlayer> players,
+        IReadOnlyList<double> reshuffleEntropy)
+    {
+        voter.LastVote = vote;
+        var alive = players.Where(p => p.IsAlive).ToList();
+        if (alive.Exists(p => p.LastVote == ShVote.None)) return null;
+        var ja = alive.Count(p => p.LastVote == ShVote.Ja);
+        var nein = alive.Count(p => p.LastVote == ShVote.Nein);
+        if (ja <= nein) return FailElection(game, players, ja, nein, reshuffleEntropy);
+
+        var chancellor = players.First(p => p.Position == game.NominatedChancellorPosition);
+        if (game.FascistPolicies >= HitlerChancellorThreshold && chancellor.Role == ShRole.Hitler)
+        {
+            game.Phase = ShPhase.GameEnd;
+            game.Status = ShStatus.Completed;
+            game.Winner = ShWinner.Fascists;
+            game.WinReason = ShWinReason.HitlerElected;
+            return new ShAfterVoteResult(ShAfterVoteKind.HitlerElectedWin, ja, nein);
+        }
+        game.Phase = ShPhase.LegislativePresident;
+        game.ElectionTracker = 0;
+        game.LastElectedPresidentPosition = game.CurrentPresidentPosition;
+        game.LastElectedChancellorPosition = chancellor.Position;
+        var deck = game.DeckState;
+        var discard = game.DiscardState;
+        var drawn = ShPolicyDeck.Draw(ref deck, ref discard, 3, reshuffleEntropy);
+        game.DeckState = deck;
+        game.DiscardState = discard;
+        game.PresidentDraw = ShPolicyDeck.Serialize(drawn);
+        game.ChancellorReceived = "";
+        return new ShAfterVoteResult(ShAfterVoteKind.ElectionPassed, ja, nein);
+    }
+
+    private static ShAfterVoteResult FailElection(
+        SecretHitlerGame game, List<SecretHitlerPlayer> players, int ja, int nein,
+        IReadOnlyList<double> reshuffleEntropy)
+    {
+        game.ElectionTracker++;
+        game.NominatedChancellorPosition = -1;
+        if (game.ElectionTracker >= ElectionTrackerCap)
+        {
+            var deck = game.DeckState;
+            var discard = game.DiscardState;
+            var forced = ShPolicyDeck.Draw(ref deck, ref discard, 1, reshuffleEntropy)[0];
+            game.DeckState = deck;
+            game.DiscardState = discard;
+            EnactPolicyCore(game, forced);
+            game.ElectionTracker = 0;
+            game.LastElectedPresidentPosition = -1;
+            game.LastElectedChancellorPosition = -1;
+            var winKind = CheckWinAfterPolicy(game);
+            if (winKind != ShAfterEnactKind.NextRound)
+            {
+                game.Phase = ShPhase.GameEnd;
+                game.Status = ShStatus.Completed;
+                game.Winner = winKind == ShAfterEnactKind.LiberalsWin ? ShWinner.Liberals : ShWinner.Fascists;
+                game.WinReason = forced == ShPolicy.Liberal ? ShWinReason.LiberalPolicies : ShWinReason.FascistPolicies;
+                return new ShAfterVoteResult(ShAfterVoteKind.ElectionFailed, ja, nein);
+            }
+        }
+        AdvancePresident(game, players);
+        game.Phase = ShPhase.Nomination;
+        foreach (var player in players) player.LastVote = ShVote.None;
+        return new ShAfterVoteResult(ShAfterVoteKind.ElectionFailed, ja, nein);
     }
 
     private static ShAfterVoteResult FailElection(

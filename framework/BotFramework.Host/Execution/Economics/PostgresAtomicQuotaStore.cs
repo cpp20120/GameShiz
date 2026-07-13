@@ -52,6 +52,7 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
             {
                 QuotaEffectKind.Consume => checked(used + effect.Amount),
                 QuotaEffectKind.Restore => Math.Max(0, used - effect.Amount),
+                QuotaEffectKind.Grant => checked(used - effect.Amount),
                 _ => throw new ArgumentOutOfRangeException(nameof(effects), effect.Kind, "Unknown quota effect kind."),
             };
         }

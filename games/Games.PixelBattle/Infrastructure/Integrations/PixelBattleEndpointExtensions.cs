@@ -27,7 +27,7 @@ public static class PixelBattleEndpointExtensions
         HttpContext context,
         JsonElement body,
         ITelegramWebAppInitDataValidator validator,
-        IPixelBattleService service,
+        IPixelBattleCommandService service,
         PixelBattleBroadcaster broadcaster,
         IAnalyticsService analytics)
     {
@@ -43,7 +43,10 @@ public static class PixelBattleEndpointExtensions
             return Results.Json("invalid update", statusCode: StatusCodes.Status400BadRequest);
         }
 
-        var result = await service.UpdateAsync(auth.User.Id, index, color, context.RequestAborted);
+        var requestId = context.Request.Headers["X-Command-Id"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(requestId)) requestId = Guid.NewGuid().ToString("N");
+        var result = await service.UpdateAsync(
+            auth.User.Id, index, color, requestId, context.RequestAborted);
         if (result.Status == PixelUpdateStatus.InvalidIndex)
         {
             TrackUpdate(analytics, auth.User.Id, "invalid_index");
@@ -62,8 +65,6 @@ public static class PixelBattleEndpointExtensions
 
         var update = result.Update!;
         broadcaster.Broadcast(update);
-        TrackUpdate(analytics, auth.User.Id, "success", index, color, update.Versionstamp);
-
         return Results.Json(update.Versionstamp, JsonOptions);
     }
 

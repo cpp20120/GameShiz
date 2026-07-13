@@ -57,7 +57,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             transactionStartedAt = Stopwatch.GetTimestamp();
             observation.LockWaitStarted();
             var lockStartedAt = Stopwatch.GetTimestamp();
-            await session.AcquireLocksAsync(BuildLockKeys(commandId, aggregateId, wallet, quotas), ct)
+            await session.AcquireLocksAsync(BuildLockKeys(command, commandId, aggregateId, wallet, quotas), ct)
                 .ConfigureAwait(false);
             observation.Locked(Stopwatch.GetElapsedTime(lockStartedAt));
 
@@ -85,8 +85,12 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             if (!availabilityState.Enabled)
                 throw new GameUnavailableException(descriptor.GameId, chatId, availabilityState.Reason);
 
-            await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct).ConfigureAwait(false);
-            var walletSnapshot = await economics.LoadAsync(wallet, session, ct).ConfigureAwait(false);
+            var walletSnapshot = new WalletSnapshot(0);
+            if (descriptor.UsesPrimaryWallet)
+            {
+                await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct).ConfigureAwait(false);
+                walletSnapshot = await economics.LoadAsync(wallet, session, ct).ConfigureAwait(false);
+            }
             var executionContext = new GameExecutionContext(session);
             var state = await stateStore.LoadAsync(command, executionContext, ct).ConfigureAwait(false);
 
@@ -166,6 +170,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
     }
 
     private IEnumerable<string> BuildLockKeys(
+        TCommand command,
         string commandId,
         string aggregateId,
         WalletIdentity wallet,
@@ -173,7 +178,10 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
     {
         yield return $"command:{commandId}";
         yield return $"game:{descriptor.GameId}:{aggregateId}";
-        yield return wallet.LockKey;
+        if (descriptor.UsesPrimaryWallet)
+            yield return wallet.LockKey;
+        foreach (var lockKey in descriptor.AdditionalLockKeys(command))
+            yield return lockKey;
         foreach (var quota in quotas)
             yield return quota.LockKey;
     }

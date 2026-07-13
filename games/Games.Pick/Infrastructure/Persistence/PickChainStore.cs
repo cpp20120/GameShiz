@@ -1,32 +1,74 @@
-using System.Collections.Concurrent;
+using System.Text.Json;
+using Dapper;
+using Npgsql;
 
 namespace Games.Pick.Infrastructure.Persistence;
 
-/// <summary>
-/// Singleton coordinator for active chain offers. Atomic <see cref="TryClaim"/>
-/// ensures at most one callback can spend a given chain — repeated taps after
-/// a successful claim become no-ops.
-/// </summary>
-public sealed class PickChainStore
+public sealed class PickChainStore(INpgsqlConnectionFactory connections)
 {
-    private readonly ConcurrentDictionary<Guid, PickChainState> _pending = new();
-
-    public void Add(PickChainState state) => _pending[state.Id] = state;
-
-    /// <summary>
-    /// Atomically removes the entry and returns it. If the entry has expired,
-    /// it's still removed but null is returned. Re-entrant callbacks racing on
-    /// the same guid will see null after the first winner.
-    /// </summary>
-    public PickChainState? TryClaim(Guid id)
+    public async Task<PickChainState?> ClaimAsync(Guid id, CancellationToken ct)
     {
-        if (!_pending.TryRemove(id, out var state)) return null;
-        return state.ExpiresAt < DateTimeOffset.UtcNow ? null : state;
+        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        var row = await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(
+            """
+            WITH claimed AS (
+                DELETE FROM pick_chains
+                WHERE id = @id
+                RETURNING id, user_id, chat_id, display_name, stake_for_next, depth,
+                          variants_json, backed_indices_json, expires_at
+            )
+            SELECT id AS Id, user_id AS UserId, chat_id AS ChatId, display_name AS DisplayName,
+                   stake_for_next AS StakeForNext, depth AS Depth,
+                   variants_json::text AS VariantsJson, backed_indices_json::text AS BackedJson,
+                   expires_at AS ExpiresAt
+            FROM claimed
+            WHERE expires_at >= now()
+            """,
+            new { id }, cancellationToken: ct)).ConfigureAwait(false);
+        return row?.ToState();
     }
 
-    /// <summary>
-    /// Best-effort sweeper for stale entries. We don't run a background job
-    /// just for this — the dictionary stays tiny in practice.
-    /// </summary>
-    public void Forget(Guid id) => _pending.TryRemove(id, out _);
+    public async Task RestoreAsync(PickChainState state, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO pick_chains
+                (id, user_id, chat_id, display_name, stake_for_next, depth, variants_json, backed_indices_json, expires_at)
+            VALUES
+                (@Id, @UserId, @ChatId, @DisplayName, @StakeForNext, @Depth,
+                 CAST(@variantsJson AS jsonb), CAST(@backedJson AS jsonb), @ExpiresAt)
+            ON CONFLICT (id) DO UPDATE SET expires_at = EXCLUDED.expires_at
+            """,
+            new
+            {
+                state.Id,
+                state.UserId,
+                state.ChatId,
+                state.DisplayName,
+                state.StakeForNext,
+                state.Depth,
+                variantsJson = JsonSerializer.Serialize(state.Variants),
+                backedJson = JsonSerializer.Serialize(state.BackedIndices),
+                state.ExpiresAt,
+            }, cancellationToken: ct)).ConfigureAwait(false);
+    }
+
+    private sealed record Row(
+        Guid Id,
+        long UserId,
+        long ChatId,
+        string DisplayName,
+        int StakeForNext,
+        int Depth,
+        string VariantsJson,
+        string BackedJson,
+        DateTime ExpiresAt)
+    {
+        public PickChainState ToState() => new(
+            Id, UserId, ChatId, DisplayName, StakeForNext, Depth,
+            JsonSerializer.Deserialize<string[]>(VariantsJson) ?? [],
+            JsonSerializer.Deserialize<int[]>(BackedJson) ?? [],
+            new DateTimeOffset(DateTime.SpecifyKind(ExpiresAt, DateTimeKind.Utc)));
+    }
 }

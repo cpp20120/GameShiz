@@ -88,6 +88,7 @@ public sealed partial class PickHandler(
                 variants,
                 backedIndices,
                 reply,
+                msg.MessageId,
                 editMessageId: null);
         }
         catch (Exception ex)
@@ -155,12 +156,13 @@ public sealed partial class PickHandler(
         IReadOnlyList<string> variants,
         IReadOnlyList<int> backedIndices,
         ReplyParameters reply,
+        int sourceMessageId,
         int? editMessageId)
     {
         // Quick validate-locally for early errors that don't deserve a fancy
         // reveal (bad amount, bad choice, etc.).
         var preflight = await service.PickAsync(
-            userId, displayName, chatId, amount, variants, backedIndices, ctx.Ct);
+            userId, displayName, chatId, amount, variants, backedIndices, sourceMessageId, ctx.Ct);
         if (preflight.Error != PickError.None)
         {
             await SendErrorAsync(ctx, chatId, reply, preflight, depth: 0);

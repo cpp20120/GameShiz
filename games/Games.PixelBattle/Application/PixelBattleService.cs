@@ -1,23 +1,33 @@
+using System.Security.Cryptography;
+using System.Text;
+using BotFramework.Host.Execution;
+using Games.PixelBattle.Application.Execution;
 using Games.PixelBattle.Contracts;
 
 namespace Games.PixelBattle.Application;
 
-public sealed class PixelBattleService(IPixelBattleStore store) : IPixelBattleService
+public interface IPixelBattleCommandService
+{
+    Task<PixelUpdateResult> UpdateAsync(
+        long userId, int index, string color, string commandId, CancellationToken ct);
+}
+
+public sealed class PixelBattleService(
+    IPixelBattleStore store,
+    IAtomicGameExecutor<PixelBattleCommand, PixelBattleExecutionState, PixelUpdateResult> executor)
+    : IPixelBattleService, IPixelBattleCommandService
 {
     public Task<PixelBattleGrid> GetGridAsync(CancellationToken ct) => store.GetGridAsync(ct);
 
-    public async Task<PixelUpdateResult> UpdateAsync(
-        long userId, int index, string color, CancellationToken ct)
-    {
-        if (!PixelBattleConstants.IsValidIndex(index))
-            return new PixelUpdateResult(PixelUpdateStatus.InvalidIndex);
-        if (!PixelBattleConstants.IsValidColor(color))
-            return new PixelUpdateResult(PixelUpdateStatus.InvalidColor);
-        if (!await store.IsKnownUserAsync(userId, ct))
-            return new PixelUpdateResult(PixelUpdateStatus.UnknownUser);
+    public Task<PixelUpdateResult> UpdateAsync(
+        long userId, int index, string color, CancellationToken ct) =>
+        UpdateAsync(userId, index, color, Guid.NewGuid().ToString("N"), ct);
 
-        return new PixelUpdateResult(
-            PixelUpdateStatus.Updated,
-            await store.UpdateTileAsync(index, color, userId, ct));
+    public Task<PixelUpdateResult> UpdateAsync(
+        long userId, int index, string color, string commandId, CancellationToken ct)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(commandId)));
+        return executor.ExecuteAsync(new(new PixelBattleCommand(
+            userId, index, color, $"pixelbattle:update:{userId}:{hash}")), ct);
     }
 }

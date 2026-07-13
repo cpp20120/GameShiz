@@ -1,369 +1,147 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// DartsService — place dart bets (queued rounds), resolve on bot 🎯 outcome.
-// Payout: 4→x1, 5→x2, 6 (bullseye)→x2. Bot dice is sent per-chat serialized via
-// <see cref="DartsRollDispatcherJob"/> + <see cref="DartsBotDiceSender"/>.
-// ─────────────────────────────────────────────────────────────────────────────
-
-
+using System.Buffers.Binary;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using BotFramework.Host.Execution;
 using BotFramework.Sdk.Execution;
 using Games.Darts.Application.Execution;
 
 namespace Games.Darts.Application.Services;
 
+/// <summary>Compatibility facade; all wallet/quota/round mutations are executed atomically.</summary>
 public sealed class DartsService(
-    IEconomicsService economics,
-    IAnalyticsService analytics,
     IDartsRoundStore rounds,
     IMiniGameSessionGhostHeal ghostHeal,
-    IDomainEventBus events,
     IDartsRollQueue rollQueue,
     IRuntimeTuningAccessor tuning,
-    ITelegramDiceDailyRollLimiter telegramDiceRolls,
-    IMiniGameSessionStore? sessions = null,
-    IAtomicGameExecutor<DartsQuickThrowCommand, NoGameState, DartsThrowResult>? quickThrowExecutor = null)
-    : IDartsService
+    IAtomicGameExecutor<DartsPlaceBetCommand, DartsQueuedState, DartsBetResult> placeBetExecutor,
+    IAtomicGameExecutor<DartsResolveRoundCommand, DartsQueuedState, DartsThrowResult> resolveExecutor,
+    IAtomicGameExecutor<DartsAbortRoundCommand, DartsQueuedState, DartsAbortRoundResult> abortExecutor,
+    IAtomicGameExecutor<DartsQuickThrowCommand, NoGameState, DartsThrowResult> quickThrowExecutor,
+    IMiniGameSessionStore? sessions = null) : IDartsService
 {
     private IMiniGameSessionStore Sessions => sessions ?? NullMiniGameSessionStore.Instance;
+    private DartsOptions Options => tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
 
-    public static readonly IReadOnlyDictionary<int, int> Multipliers = new Dictionary<int, int>
-    {
-        [1] = 0, [2] = 0, [3] = 0, [4] = 1, [5] = 2, [6] = 2,
-    };
+    public static IReadOnlyDictionary<int, int> Multipliers => DartsRules.Multipliers;
 
     public async Task<DartsBetResult> PlaceBetAsync(
         long userId, string displayName, long chatId, int amount, int replyToMessageId, CancellationToken ct)
     {
-        var maxBet = tuning.GetSection<DartsOptions>(DartsOptions.SectionName).MaxBet;
-        if (amount <= 0 || amount > maxBet) return DartsBetResult.Fail(DartsBetError.InvalidAmount);
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-        if (amount > balance) return DartsBetResult.Fail(DartsBetError.NotEnoughCoins, balance);
-
-        var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
-            userId,
-            chatId,
-            MiniGameIds.Darts,
-            async c =>
-            {
-                if (await rounds.CountActiveByUserChatAsync(userId, chatId, c) == 0)
+        var options = Options;
+        string? blocker = null;
+        var sessionClaimed = false;
+        if (amount > 0 && amount <= options.MaxBet)
+        {
+            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+                userId, chatId, MiniGameIds.Darts,
+                async innerCt =>
                 {
-                    BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-                    await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, c);
-                }
-            },
-            ghostHeal,
-            Sessions,
-            ct);
-        if (!session.Ok)
-            return new DartsBetResult(DartsBetError.BusyOtherGame, 0, balance, 0, session.Blocker, 0, 0, 0, 0);
-
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Darts, ct);
-        if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
-        {
-            return new DartsBetResult(
-                DartsBetError.DailyRollLimit, 0, balance, 0, BlockingGameId: null, 0, 0, gate.UsedToday, gate.Limit);
+                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, innerCt).ConfigureAwait(false) == 0)
+                    {
+                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, innerCt)
+                            .ConfigureAwait(false);
+                    }
+                },
+                ghostHeal, Sessions, ct).ConfigureAwait(false);
+            sessionClaimed = session.Ok;
+            if (!session.Ok) blocker = session.Blocker;
         }
 
-        var betOperationId = string.Create(CultureInfo.InvariantCulture, $"darts:bet:{chatId}:{replyToMessageId}:{userId}");
-        var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "darts.bet", betOperationId, ct);
-        if (debit.Rejected)
+        var commandId = string.Create(CultureInfo.InvariantCulture,
+            $"darts:bet:{chatId}:{replyToMessageId}:{userId}");
+        var roundId = StablePositiveInt64(commandId);
+        var result = await placeBetExecutor.ExecuteAsync(
+            new(new DartsPlaceBetCommand(userId, displayName, chatId, amount, replyToMessageId,
+                roundId, commandId, options.MaxBet, blocker)), ct).ConfigureAwait(false);
+
+        if (result.Error == DartsBetError.None)
         {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
-            return DartsBetResult.Fail(DartsBetError.NotEnoughCoins, balance);
+            BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Darts);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Darts, ct).ConfigureAwait(false);
+            rollQueue.Enqueue(new DartsRollJob(
+                result.RoundId, chatId, userId, displayName, replyToMessageId));
+        }
+        else if (sessionClaimed)
+        {
+            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct).ConfigureAwait(false);
         }
 
-        long roundId;
-        try
-        {
-            roundId = await rounds.InsertQueuedAsync(
-                new DartsRound(
-                    0,
-                    userId,
-                    chatId,
-                    amount,
-                    DateTimeOffset.UtcNow,
-                    DartsRoundStatus.Queued,
-BotMessageId: null,
-                    replyToMessageId),
-                ct);
-        }
-        catch
-        {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
-            await economics.CreditOnceAsync(userId, chatId, amount, "darts.bet.refund", $"{betOperationId}:insert-refund", ct);
-            throw;
-        }
-
-        var queuedAhead = await rounds.CountRollsAheadInChatAsync(chatId, roundId, ct);
-        BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Darts);
-        await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Darts, ct);
-
-        rollQueue.Enqueue(new DartsRollJob(roundId, chatId, userId, displayName, replyToMessageId));
-
-        analytics.Track("darts", "bet", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["amount"] = amount, ["round_id"] = roundId,
-        });
-
-        return new DartsBetResult(
-            DartsBetError.None, amount, debit.NewBalance, 0, BlockingGameId: null, roundId, queuedAhead, 0, 0);
+        return result;
     }
 
     public async Task<DartsThrowResult> ThrowAsync(
         long roundId, long userId, string displayName, long chatId, int botDiceMessageId, int face,
         CancellationToken ct)
     {
-        var bet = await rounds.FindByIdAsync(roundId, ct);
-        if (bet is not { Status: DartsRoundStatus.AwaitingOutcome }
-            || bet.UserId != userId
-            || bet.ChatId != chatId
-            || bet.BotMessageId != botDiceMessageId)
-        {
-            return new DartsThrowResult(DartsThrowOutcome.NoBet);
-        }
-
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var multiplier = Multipliers.TryGetValue(face, out var m) ? m : 0;
-        var payout = bet.Amount * multiplier;
-
-        if (payout > 0)
-            await economics.CreditOnceAsync(userId, chatId, payout, "darts.payout", $"darts:payout:{roundId}", ct);
-
-        await rounds.DeleteAsync(roundId, ct);
-
-        var remaining = await rounds.CountActiveByUserChatAsync(userId, chatId, ct);
-        if (remaining == 0)
-        {
-            BotMiniGameRollGate.Clear("darts", userId, chatId);
-            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct);
-        }
-
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-
-        analytics.Track("darts", "throw", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
-            ["bet"] = bet.Amount, ["multiplier"] = multiplier, ["payout"] = payout, ["round_id"] = roundId,
-        });
-
-        var darts = tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
-        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await events.PublishAsync(
-            new DartsThrowCompleted(userId, chatId, face, bet.Amount, multiplier, payout, occurredAt),
-            ct);
-        await events.PublishAsync(
-            new GameCompletedMetaEvent(
-                ChatId: chatId,
-                UserId: userId,
-                DisplayName: displayName,
-                GameKey: MiniGameIds.Darts,
-                Stake: bet.Amount,
-                Payout: payout,
-                IsWin: payout > bet.Amount,
-                Multiplier: bet.Amount > 0 ? decimal.Divide(payout, bet.Amount) : 0m,
-                OccurredAt: occurredAt),
-            ct);
-        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
-            events, darts.RedeemDropChance, userId, chatId, MiniGameIds.Darts, occurredAt, ct);
-
-        var daily = await telegramDiceRolls.GetRollStatusAsync(userId, chatId, MiniGameIds.Darts, ct);
-        return new DartsThrowResult(
-            DartsThrowOutcome.Thrown,
-            face,
-            bet.Amount,
-            multiplier,
-            payout,
-            balance,
-            DailyRollUsed: daily.UsedToday,
-            DailyRollLimit: daily.Limit);
-    }
-
-    public async Task AbortQueuedRoundIfBetReplyFailedAsync(long roundId, long userId, long chatId, CancellationToken ct)
-    {
-        var row = await rounds.FindByIdAsync(roundId, ct);
-        if (row is not { Status: DartsRoundStatus.Queued } || row.UserId != userId || row.ChatId != chatId)
-            return;
-
-        await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
-        await economics.CreditOnceAsync(userId, chatId, row.Amount, "darts.bet_reply_failed.refund", $"darts:bet-reply-failed-refund:{roundId}", ct);
-        await rounds.DeleteAsync(roundId, ct);
-
-        var remaining = await rounds.CountActiveByUserChatAsync(userId, chatId, ct);
-        if (remaining == 0)
-        {
-            BotMiniGameRollGate.Clear("darts", userId, chatId);
-            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct);
-        }
-    }
-
-    /// <summary>
-    /// Quick-play path: place a bet for <paramref name="amount"/> and immediately settle it using
-    /// the face value from the user's own thrown sticker.  No queue, no bot dice involved.
-    /// </summary>
-    public Task<DartsThrowResult> QuickThrowAsync(
-        long userId,
-        string displayName,
-        long chatId,
-        int diceMessageId,
-        int face,
-        int amount,
-        CancellationToken ct) =>
-        quickThrowExecutor is null
-            ? QuickThrowLegacyAsync(userId, displayName, chatId, diceMessageId, face, amount, ct)
-            : QuickThrowAtomicAsync(userId, displayName, chatId, diceMessageId, face, amount, ct);
-
-    private async Task<DartsThrowResult> QuickThrowAtomicAsync(
-        long userId,
-        string displayName,
-        long chatId,
-        int diceMessageId,
-        int face,
-        int amount,
-        CancellationToken ct)
-    {
-        var options = tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
-        string? blocker = null;
-        if (amount > 0 && amount <= options.MaxBet)
-        {
-            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
-                userId,
-                chatId,
-                MiniGameIds.Darts,
-                async c =>
-                {
-                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, c).ConfigureAwait(false) == 0)
-                    {
-                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, c)
-                            .ConfigureAwait(false);
-                    }
-                },
-                ghostHeal,
-                Sessions,
-                ct).ConfigureAwait(false);
-            if (!session.Ok) blocker = session.Blocker;
-        }
-
-        var result = await quickThrowExecutor!
-            .ExecuteAsync(
-                new GameExecutionEnvelope<DartsQuickThrowCommand>(
-                    new DartsQuickThrowCommand(
-                        userId,
-                        displayName,
-                        chatId,
-                        diceMessageId,
-                        face,
-                        amount,
-                        options.MaxBet,
-                        options.RedeemDropChance,
-                        blocker)),
-                ct)
+        var result = await resolveExecutor.ExecuteAsync(
+            new(new DartsResolveRoundCommand(roundId, userId, displayName, chatId, botDiceMessageId,
+                face, $"darts:throw:{roundId}:{botDiceMessageId}", Options.RedeemDropChance)), ct)
             .ConfigureAwait(false);
-        if (result.Outcome == DartsThrowOutcome.Thrown)
-        {
-            BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct)
-                .ConfigureAwait(false);
-        }
+        if (result.Outcome == DartsThrowOutcome.Thrown
+            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct).ConfigureAwait(false) == 0)
+            await ClearSessionAsync(userId, chatId, ct).ConfigureAwait(false);
         return result;
     }
 
-    private async Task<DartsThrowResult> QuickThrowLegacyAsync(
-        long userId, string displayName, long chatId, int diceMessageId, int face, int amount, CancellationToken ct)
+    public async Task AbortQueuedRoundIfBetReplyFailedAsync(
+        long roundId, long userId, long chatId, CancellationToken ct)
     {
-        var maxBet = tuning.GetSection<DartsOptions>(DartsOptions.SectionName).MaxBet;
-        if (amount <= 0 || amount > maxBet)
-            return new DartsThrowResult(DartsThrowOutcome.BetInvalid);
+        var result = await abortExecutor.ExecuteAsync(
+            new(new DartsAbortRoundCommand(roundId, userId,
+                string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}"), chatId,
+                $"darts:abort:{roundId}")), ct).ConfigureAwait(false);
+        if (result.Aborted
+            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct).ConfigureAwait(false) == 0)
+            await ClearSessionAsync(userId, chatId, ct).ConfigureAwait(false);
+    }
 
-        await economics.EnsureUserAsync(userId, chatId, displayName, ct);
-        var balance = await economics.GetBalanceAsync(userId, chatId, ct);
-        if (amount > balance)
-            return new DartsThrowResult(DartsThrowOutcome.BetNotEnoughCoins, Balance: balance);
-
-        var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
-            userId, chatId, MiniGameIds.Darts,
-            async c =>
-            {
-                if (await rounds.CountActiveByUserChatAsync(userId, chatId, c) == 0)
+    public async Task<DartsThrowResult> QuickThrowAsync(
+        long userId, string displayName, long chatId, int diceMessageId, int face, int amount,
+        CancellationToken ct)
+    {
+        var options = Options;
+        string? blocker = null;
+        var sessionClaimed = false;
+        if (amount > 0 && amount <= options.MaxBet)
+        {
+            var session = await BotMiniGamePlaceBetSession.TryBeginWithGhostHealAsync(
+                userId, chatId, MiniGameIds.Darts,
+                async innerCt =>
                 {
-                    BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-                    await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, c);
-                }
-            },
-            ghostHeal, Sessions, ct);
-        if (!session.Ok)
-            return new DartsThrowResult(DartsThrowOutcome.BetBusyOtherGame, BlockingGameId: session.Blocker);
-
-        var gate = await telegramDiceRolls.TryConsumeRollAsync(userId, chatId, MiniGameIds.Darts, ct);
-        if (gate.Status == TelegramDiceRollGateStatus.LimitExceeded)
-        {
-            return new DartsThrowResult(
-                DartsThrowOutcome.BetDailyLimit,
-                DailyRollUsed: gate.UsedToday,
-                DailyRollLimit: gate.Limit);
+                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, innerCt).ConfigureAwait(false) == 0)
+                    {
+                        BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, innerCt)
+                            .ConfigureAwait(false);
+                    }
+                }, ghostHeal, Sessions, ct).ConfigureAwait(false);
+            sessionClaimed = session.Ok;
+            if (!session.Ok) blocker = session.Blocker;
         }
 
-        var operationPrefix = $"darts:quick:{chatId}:{diceMessageId}:{userId}";
-        var debit = await economics.TryDebitOnceAsync(userId, chatId, amount, "darts.quickplay.bet", $"{operationPrefix}:bet", ct);
-        if (debit.Rejected)
-        {
-            await telegramDiceRolls.TryRefundRollAsync(userId, chatId, MiniGameIds.Darts, ct);
-            return new DartsThrowResult(DartsThrowOutcome.BetNotEnoughCoins, Balance: balance);
-        }
+        var result = await quickThrowExecutor.ExecuteAsync(
+            new(new DartsQuickThrowCommand(userId, displayName, chatId, diceMessageId, face, amount,
+                options.MaxBet, options.RedeemDropChance, blocker)), ct).ConfigureAwait(false);
+        if ((result.Outcome == DartsThrowOutcome.Thrown || sessionClaimed)
+            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct).ConfigureAwait(false) == 0)
+            await ClearSessionAsync(userId, chatId, ct).ConfigureAwait(false);
+        return result;
+    }
 
-        // Settle immediately — the user's own dice IS the throw.
-        var multiplier = Multipliers.TryGetValue(face, out var m) ? m : 0;
-        var payout = amount * multiplier;
-
-        if (payout > 0)
-            await economics.CreditOnceAsync(userId, chatId, payout, "darts.quickplay.payout", $"{operationPrefix}:payout", ct);
-
+    private async Task ClearSessionAsync(long userId, long chatId, CancellationToken ct)
+    {
+        BotMiniGameRollGate.Clear(MiniGameIds.Darts, userId, chatId);
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct);
-        var newBalance = await economics.GetBalanceAsync(userId, chatId, ct);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct).ConfigureAwait(false);
+    }
 
-        analytics.Track("darts", "quickplay", new Dictionary<string, object?>
-(StringComparer.Ordinal)
-        {
-            ["user_id"] = userId, ["chat_id"] = chatId, ["face"] = face,
-            ["bet"] = amount, ["multiplier"] = multiplier, ["payout"] = payout,
-        });
-
-        var darts = tuning.GetSection<DartsOptions>(DartsOptions.SectionName);
-        var occurredAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        await events.PublishAsync(
-            new DartsThrowCompleted(userId, chatId, face, amount, multiplier, payout, occurredAt),
-            ct);
-        await events.PublishAsync(
-            new GameCompletedMetaEvent(
-                ChatId: chatId,
-                UserId: userId,
-                DisplayName: displayName,
-                GameKey: MiniGameIds.Darts,
-                Stake: amount,
-                Payout: payout,
-                IsWin: payout > amount,
-                Multiplier: amount > 0 ? decimal.Divide(payout, amount) : 0m,
-                OccurredAt: occurredAt),
-            ct);
-        await TelegramMiniGameRedeemDrops.MaybePublishAsync(
-            events, darts.RedeemDropChance, userId, chatId, MiniGameIds.Darts, occurredAt, ct);
-
-        return new DartsThrowResult(
-            DartsThrowOutcome.Thrown,
-            face,
-            amount,
-            multiplier,
-            payout,
-            newBalance,
-            DailyRollUsed: gate.UsedToday,
-            DailyRollLimit: gate.Limit);
+    private static long StablePositiveInt64(string value)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(value));
+        var result = BinaryPrimitives.ReadInt64LittleEndian(hash) & long.MaxValue;
+        return result == 0 ? 1 : result;
     }
 }

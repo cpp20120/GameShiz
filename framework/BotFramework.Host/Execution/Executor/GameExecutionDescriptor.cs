@@ -18,6 +18,10 @@ public abstract class GameExecutionDescriptor<TCommand, TState, TResult>
 
     public abstract WalletIdentity Wallet(TCommand command);
 
+    public virtual bool UsesPrimaryWallet => true;
+
+    public virtual IReadOnlyList<string> AdditionalLockKeys(TCommand command) => [];
+
     public virtual IReadOnlyList<QuotaIdentity> Quotas(TCommand command, DateTimeOffset utcNow) => [];
 
     public virtual IReadOnlyList<string> EntropyNames => [];

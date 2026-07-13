@@ -49,7 +49,7 @@ public sealed partial class PickLotteryHandler(
         {
             if (string.Equals(verb, "/pickjoin", StringComparison.Ordinal))
             {
-                await HandleJoinAsync(ctx, userId, displayName, chatId, reply);
+                await HandleJoinAsync(ctx, userId, displayName, chatId, msg.MessageId, reply);
                 return;
             }
 
@@ -79,7 +79,7 @@ public sealed partial class PickLotteryHandler(
                 return;
             }
 
-            await HandleOpenAsync(ctx, userId, displayName, chatId, stake, reply);
+            await HandleOpenAsync(ctx, userId, displayName, chatId, stake, msg.MessageId, reply);
         }
         catch (Exception ex)
         {
@@ -92,9 +92,11 @@ public sealed partial class PickLotteryHandler(
     // ── /picklottery <stake> ─────────────────────────────────────────────────
 
     private async Task HandleOpenAsync(
-        UpdateContext ctx, long userId, string displayName, long chatId, int stake, ReplyParameters reply)
+        UpdateContext ctx, long userId, string displayName, long chatId, int stake,
+        int sourceMessageId, ReplyParameters reply)
     {
-        var result = await service.OpenLotteryAsync(userId, displayName, chatId, stake, ctx.Ct);
+        var result = await service.OpenLotteryAsync(
+            userId, displayName, chatId, stake, sourceMessageId, ctx.Ct);
         switch (result.Status)
         {
             case LotteryOpenStatus.InvalidStake:
@@ -185,9 +187,11 @@ public sealed partial class PickLotteryHandler(
     // ── /pickjoin ────────────────────────────────────────────────────────────
 
     private async Task HandleJoinAsync(
-        UpdateContext ctx, long userId, string displayName, long chatId, ReplyParameters reply)
+        UpdateContext ctx, long userId, string displayName, long chatId,
+        int sourceMessageId, ReplyParameters reply)
     {
-        var result = await service.JoinLotteryAsync(userId, displayName, chatId, ctx.Ct);
+        var result = await service.JoinLotteryAsync(
+            userId, displayName, chatId, sourceMessageId, ctx.Ct);
         switch (result.Status)
         {
             case LotteryJoinStatus.NoOpenLottery:

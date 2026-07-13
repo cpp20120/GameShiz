@@ -233,7 +233,6 @@ global using Games.Redeem.Infrastructure.Migrations;
 global using Games.Redeem.Infrastructure.Modules;
 global using Games.Redeem.Infrastructure.Persistence;
 global using Games.SecretHitler.Application.Handlers;
-global using Games.SecretHitler.Application.Jobs;
 global using Games.SecretHitler.Application.Services;
 global using Games.SecretHitler.Domain.Commands;
 global using Games.SecretHitler.Domain.Configuration;

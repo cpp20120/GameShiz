@@ -1,270 +1,75 @@
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
+using BotFramework.Sdk.Execution;
+using Games.Redeem.Application.Execution;
 using Xunit;
 
 namespace CasinoShiz.Tests;
 
-public class RedeemServiceTests
+public sealed class RedeemServiceTests
 {
-    private const long DmScope = 5000;
-
-    private static RedeemService MakeService(
-        InMemoryRedeemStore? store = null,
-        FakeEconomicsService? economics = null,
-        RecordingTelegramDiceDailyRollLimiter? telegramDiceRolls = null,
-        NullEventBus? bus = null,
-        int captchaItems = 6) =>
-        new(
-            store ?? new InMemoryRedeemStore(),
-            economics ?? new FakeEconomicsService(),
-            telegramDiceRolls ?? new RecordingTelegramDiceDailyRollLimiter(),
-            new NullAnalyticsService(),
-            bus ?? new NullEventBus(),
-            Options.Create(new RedeemOptions { CaptchaItems = captchaItems }),
-            NullLogger<RedeemService>.Instance);
-
-    // ── IssueAdminCodeAsync ──────────────────────────────────────────────────
+    private static readonly DateTimeOffset Now = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task IssueAdminCodeAsync_ReturnsNewGuid()
+    public void IssueDecision_CreatesCodeAndCommittedEvent()
     {
-        var svc = MakeService();
-        var code = await svc.IssueAdminCodeAsync(1, default);
-        Assert.NotEqual(Guid.Empty, code);
+        var id = Guid.NewGuid();
+        var command = new RedeemIssueCommand(id, 1, MiniGameIds.Dice, "issue");
+        var decision = new RedeemIssueAction().Decide(Input(command, new(null)));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(id, decision.Result);
+        Assert.True(decision.NewState.Code!.Active);
+        Assert.Single(decision.Events);
     }
 
     [Fact]
-    public async Task IssueAdminCodeAsync_TwoCalls_ReturnsDifferentGuids()
+    public void CompleteDecision_ClaimsCodeAndGrantsCapacityBelowZero()
     {
-        var svc = MakeService();
-        var c1 = await svc.IssueAdminCodeAsync(1, default);
-        var c2 = await svc.IssueAdminCodeAsync(1, default);
-        Assert.NotEqual(c1, c2);
+        var code = Code(active: true);
+        var command = new RedeemCompleteCommand(code.Code, 2, 20, code.FreeSpinGameId, "complete");
+        var quotas = new Dictionary<string, QuotaSnapshot>
+        {
+            [RedeemCompleteAction.FreeSpinQuota] = new(0, 10),
+        };
+        var decision = new RedeemCompleteAction().Decide(Input(command, new(code), quotas));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.False(decision.NewState.Code!.Active);
+        Assert.Equal(QuotaEffectKind.Grant, Assert.Single(decision.Quotas).Kind);
+        Assert.Single(decision.Events);
     }
 
     [Fact]
-    public async Task IssueAdminCodeAsync_PublishesEvent()
+    public void CompleteDecision_InactiveCodeHasNoEffects()
     {
-        var bus = new NullEventBus();
-        var svc = MakeService(bus: bus);
-        await svc.IssueAdminCodeAsync(1, default);
-        Assert.Single(bus.Published);
-        Assert.IsType<RedeemCodeIssued>(bus.Published[0]);
+        var code = Code(active: false);
+        var command = new RedeemCompleteCommand(code.Code, 2, 20, code.FreeSpinGameId, "complete");
+        var decision = new RedeemCompleteAction().Decide(Input(command, new(code)));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(RedeemError.AlreadyRedeemed, decision.Result.Error);
+        Assert.Empty(decision.Quotas);
+        Assert.Empty(decision.Events);
     }
 
     [Fact]
-    public async Task IssueAdminCodeAsync_CodeIsStoredAsActive()
+    public void CompleteDecision_UnlimitedGameClaimsWithoutQuotaMutation()
     {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-
-        var code = await store.FindAsync(guid, default);
-        Assert.NotNull(code);
-        Assert.True(code!.Active);
+        var code = Code(active: true);
+        var command = new RedeemCompleteCommand(code.Code, 2, 20, code.FreeSpinGameId, "complete");
+        var decision = new RedeemCompleteAction().Decide(Input(command, new(code)));
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Empty(decision.Quotas);
     }
 
-    // ── BeginRedeemAsync ─────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task BeginRedeemAsync_InvalidText_ReturnsInvalidCode()
+    private static RedeemCode Code(bool active) => new()
     {
-        var svc = MakeService();
-        var result = await svc.BeginRedeemAsync(1, DmScope, "u", "not-a-uuid", default);
-        Assert.Equal(RedeemError.InvalidCode, result.Error);
-    }
+        Code = Guid.Parse("33333333-3333-3333-3333-333333333333"), Active = active,
+        IssuedBy = 1, IssuedAt = Now.ToUnixTimeMilliseconds(), FreeSpinGameId = MiniGameIds.Dice,
+    };
 
-    [Fact]
-    public async Task BeginRedeemAsync_EmptyText_ReturnsInvalidCode()
-    {
-        var svc = MakeService();
-        var result = await svc.BeginRedeemAsync(1, DmScope, "u", "", default);
-        Assert.Equal(RedeemError.InvalidCode, result.Error);
-    }
-
-    [Fact]
-    public async Task BeginRedeemAsync_NonExistentCode_ReturnsAlreadyRedeemed()
-    {
-        var svc = MakeService();
-        var result = await svc.BeginRedeemAsync(1, DmScope, "u", Guid.NewGuid().ToString(), default);
-        Assert.Equal(RedeemError.AlreadyRedeemed, result.Error);
-    }
-
-    [Fact]
-    public async Task BeginRedeemAsync_InactiveCode_ReturnsAlreadyRedeemed()
-    {
-        var store = new InMemoryRedeemStore();
-        var code = new RedeemCode { Code = Guid.NewGuid(), Active = false, IssuedBy = 2, IssuedAt = 0 };
-        await store.InsertAsync(code, default);
-        var svc = MakeService(store);
-
-        var result = await svc.BeginRedeemAsync(1, DmScope, "u", code.Code.ToString(), default);
-        Assert.Equal(RedeemError.AlreadyRedeemed, result.Error);
-    }
-
-    [Fact]
-    public async Task BeginRedeemAsync_SelfRedeem_ReturnsSelfRedeem()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(userId:5, default);
-
-        var result = await svc.BeginRedeemAsync(userId: 5, DmScope, "u", guid.ToString(), default);
-        Assert.Equal(RedeemError.SelfRedeem, result.Error);
-    }
-
-    [Fact]
-    public async Task BeginRedeemAsync_ValidCode_ReturnsNoneWithCaptcha()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(userId:1, default);
-
-        var result = await svc.BeginRedeemAsync(userId: 2, DmScope, "u", guid.ToString(), default);
-
-        Assert.Equal(RedeemError.None, result.Error);
-        Assert.NotNull(result.Captcha);
-        Assert.Equal(guid, result.CodeGuid);
-    }
-
-    [Fact]
-    public async Task BeginRedeemAsync_ValidCode_CaptchaHasCorrectItemCount()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store, captchaItems: 4);
-        var guid = await svc.IssueAdminCodeAsync(userId:1, default);
-
-        var result = await svc.BeginRedeemAsync(userId: 2, DmScope, "u", guid.ToString(), default);
-
-        Assert.Equal(4, result.Captcha!.Items.Length);
-    }
-
-    // ── CompleteRedeemAsync ──────────────────────────────────────────────────
-
-    [Fact]
-    public async Task CompleteRedeemAsync_NonExistentCode_ReturnsAlreadyRedeemed()
-    {
-        var svc = MakeService();
-        var result = await svc.CompleteRedeemAsync(1, DmScope, Guid.NewGuid(), default);
-        Assert.Equal(RedeemError.AlreadyRedeemed, result.Error);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_InactiveCode_ReturnsAlreadyRedeemed()
-    {
-        var store = new InMemoryRedeemStore();
-        var code = new RedeemCode { Code = Guid.NewGuid(), Active = false, IssuedBy = 1, IssuedAt = 0 };
-        await store.InsertAsync(code, default);
-        var svc = MakeService(store);
-
-        var result = await svc.CompleteRedeemAsync(2, DmScope, code.Code, default);
-        Assert.Equal(RedeemError.AlreadyRedeemed, result.Error);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_ValidCode_ReturnsNone()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-
-        var result = await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-        Assert.Equal(RedeemError.None, result.Error);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_ValidCode_GrantsFreeSpin()
-    {
-        var store = new InMemoryRedeemStore();
-        var telegramDiceRolls = new RecordingTelegramDiceDailyRollLimiter();
-        var svc = MakeService(store, telegramDiceRolls: telegramDiceRolls);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-
-        await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-
-        Assert.Equal([MiniGameIds.Dice], telegramDiceRolls.GrantedGameIds);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_ValidCode_ReturnsFreeSpinGameId()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-
-        var result = await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-        Assert.Equal(MiniGameIds.Dice, result.FreeSpinGameId);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_GameSpecificCode_GrantsThatGame()
-    {
-        var store = new InMemoryRedeemStore();
-        var telegramDiceRolls = new RecordingTelegramDiceDailyRollLimiter();
-        var svc = MakeService(store, telegramDiceRolls: telegramDiceRolls);
-        var guid = await svc.IssueAdminCodeAsync(1, default, MiniGameIds.Bowling);
-
-        var result = await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-
-        Assert.Equal(MiniGameIds.Bowling, result.FreeSpinGameId);
-        Assert.Equal([MiniGameIds.Bowling], telegramDiceRolls.GrantedGameIds);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_ValidCode_DeactivatesCode()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-        await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-
-        var code = await store.FindAsync(guid, default);
-        Assert.False(code!.Active);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_SameCodeTwice_SecondReturnsAlreadyRedeemed()
-    {
-        var store = new InMemoryRedeemStore();
-        var svc = MakeService(store);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-        await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-
-        var second = await svc.CompleteRedeemAsync(3, DmScope, guid, default);
-        Assert.Equal(RedeemError.AlreadyRedeemed, second.Error);
-    }
-
-    [Fact]
-    public async Task CompleteRedeemAsync_ValidCode_PublishesEvent()
-    {
-        var store = new InMemoryRedeemStore();
-        var bus = new NullEventBus();
-        var svc = MakeService(store, bus: bus);
-        var guid = await svc.IssueAdminCodeAsync(1, default);
-        bus.Published.Clear(); // clear the IssueAdminCodeAsync event
-
-        await svc.CompleteRedeemAsync(2, DmScope, guid, default);
-
-        Assert.Single(bus.Published);
-        Assert.IsType<RedeemCodeRedeemed>(bus.Published[0]);
-    }
-
-    // ── ReportCaptcha ─────────────────────────────────────────────────────────
-
-    [Fact]
-    public void ReportCaptcha_DoesNotThrow()
-    {
-        var svc = MakeService();
-        // Just validates it doesn't throw — analytics are null-sink
-        var ex = Record.Exception(() => svc.ReportCaptcha(1, "code", "pattern", passed: true));
-        Assert.Null(ex);
-    }
-
-    [Fact]
-    public void ReportCaptcha_Failed_DoesNotThrow()
-    {
-        var svc = MakeService();
-        var ex = Record.Exception(() => svc.ReportCaptcha(1, "code", "pattern", passed: false));
-        Assert.Null(ex);
-    }
+    private static GameActionInput<RedeemExecutionState, TCommand> Input<TCommand>(
+        TCommand command, RedeemExecutionState state,
+        IReadOnlyDictionary<string, QuotaSnapshot>? quotas = null) =>
+        new(command, state, new WalletSnapshot(0), quotas ?? new Dictionary<string, QuotaSnapshot>(),
+            new EntropyValue([]), Now);
 }

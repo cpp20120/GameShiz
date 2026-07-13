@@ -70,7 +70,7 @@ public sealed partial class PickDailyLotteryHandler(
                 {
                     var count = 1;
                     if (parts.Length > 1 && int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var n)) count = n;
-                    await HandleBuyAsync(ctx, userId, displayName, chatId, count, reply);
+                    await HandleBuyAsync(ctx, userId, displayName, chatId, count, msg.MessageId, reply);
                     return;
                 }
                 case "history":
@@ -84,7 +84,7 @@ public sealed partial class PickDailyLotteryHandler(
                 {
                     if (int.TryParse(head, System.Globalization.CultureInfo.InvariantCulture, out var n) && n > 0)
                     {
-                        await HandleBuyAsync(ctx, userId, displayName, chatId, n, reply);
+                        await HandleBuyAsync(ctx, userId, displayName, chatId, n, msg.MessageId, reply);
                         return;
                     }
                     await SendUsageAsync(ctx, chatId, reply);
@@ -156,9 +156,11 @@ public sealed partial class PickDailyLotteryHandler(
     // ── buy ──────────────────────────────────────────────────────────────────
 
     private async Task HandleBuyAsync(
-        UpdateContext ctx, long userId, string displayName, long chatId, int count, ReplyParameters reply)
+        UpdateContext ctx, long userId, string displayName, long chatId, int count,
+        int sourceMessageId, ReplyParameters reply)
     {
-        var result = await service.BuyDailyAsync(userId, displayName, chatId, count, ctx.Ct);
+        var result = await service.BuyDailyAsync(
+            userId, displayName, chatId, count, sourceMessageId, ctx.Ct);
         switch (result.Status)
         {
             case DailyBuyStatus.InvalidCount:

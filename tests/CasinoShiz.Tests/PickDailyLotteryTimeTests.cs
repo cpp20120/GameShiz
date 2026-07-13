@@ -1,6 +1,5 @@
 using Games.Pick.Application.Services;
 using Games.Pick.Domain.Configuration;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -50,8 +49,8 @@ public sealed class PickDailyLotteryTimeTests
 
     private static PickDailyLotteryService MakeService(int offsetOverride, int diceOffset, int drawHour) => new(
         null!,
-        new FakeEconomicsService(),
-        new NullAnalyticsService(),
+        null!,
+        null!,
         Options.Create(new PickOptions
         {
             Daily = new PickDailyLotteryOptions
@@ -60,6 +59,5 @@ public sealed class PickDailyLotteryTimeTests
                 DrawHourLocal = drawHour,
             },
         }),
-        Options.Create(new TelegramDiceDailyLimitOptions { TimezoneOffsetHours = diceOffset }),
-        NullLogger<PickDailyLotteryService>.Instance);
+        Options.Create(new TelegramDiceDailyLimitOptions { TimezoneOffsetHours = diceOffset }));
 }

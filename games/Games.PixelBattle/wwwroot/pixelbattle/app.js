@@ -128,6 +128,8 @@ async function updateGrid(index, color) {
   };
   const initData = getTelegramInitData();
   if (initData) headers["X-Telegram-Init-Data"] = initData;
+  headers["X-Command-Id"] = globalThis.crypto?.randomUUID?.()
+    ?? `${Date.now()}-${Math.random()}`;
 
   const response = await fetch("/pixelbattle/api/update", {
     method: "POST",

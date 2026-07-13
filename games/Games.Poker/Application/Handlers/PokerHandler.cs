@@ -66,13 +66,13 @@ public sealed partial class PokerHandler(
         switch (command)
         {
             case PokerCommand.Create:
-                await ExecuteCreate(ctx, userId, displayName, chatId);
+                await ExecuteCreate(ctx, userId, displayName, chatId, msg.MessageId);
                 break;
             case PokerCommand.Join j:
-                await ExecuteJoin(ctx, userId, displayName, chatId, j.Code);
+                await ExecuteJoin(ctx, userId, displayName, chatId, j.Code, msg.MessageId);
                 break;
             case PokerCommand.JoinCurrent:
-                await ExecuteJoin(ctx, userId, displayName, chatId, "");
+                await ExecuteJoin(ctx, userId, displayName, chatId, "", msg.MessageId);
                 break;
             case PokerCommand.JoinMissingCode:
                 await ctx.Bot.SendMessage(chatId, Loc("err.join_missing_code"), cancellationToken: ctx.Ct);
@@ -123,7 +123,7 @@ public sealed partial class PokerHandler(
             case PokerCommand.JoinCurrent:
                 try
                 {
-                    await ExecuteJoin(ctx, userId, displayName, chatId, "");
+                    await ExecuteJoin(ctx, userId, displayName, chatId, "", cbq.Message?.MessageId ?? 0);
                     await AnswerCallbackAsync(ctx, cbq);
                 }
                 catch (Exception ex) { await SendCallbackFailureAsync(ctx, cbq, userId, ex); }
@@ -188,9 +188,10 @@ public sealed partial class PokerHandler(
         catch (ApiRequestException answerEx) { LogPokerCallbackAnswerFailed(cbq.Id, answerEx); }
     }
 
-    private async Task ExecuteCreate(UpdateContext ctx, long userId, string displayName, long chatId)
+    private async Task ExecuteCreate(
+        UpdateContext ctx, long userId, string displayName, long chatId, int sourceMessageId)
     {
-        var r = await service.CreateTableAsync(userId, displayName, chatId, ctx.Ct);
+        var r = await service.CreateTableAsync(userId, displayName, chatId, sourceMessageId, ctx.Ct);
         if (r.Error != PokerError.None) { await SendError(ctx, chatId, r.Error); return; }
         await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("created"), r.InviteCode, r.BuyIn),
             parseMode: ParseMode.Html, cancellationToken: ctx.Ct);
@@ -198,9 +199,10 @@ public sealed partial class PokerHandler(
         if (snap != null) await BroadcastAsync(ctx, snap);
     }
 
-    private async Task ExecuteJoin(UpdateContext ctx, long userId, string displayName, long chatId, string code)
+    private async Task ExecuteJoin(
+        UpdateContext ctx, long userId, string displayName, long chatId, string code, int sourceMessageId)
     {
-        var r = await service.JoinTableAsync(userId, displayName, chatId, code, ctx.Ct);
+        var r = await service.JoinTableAsync(userId, displayName, chatId, code, sourceMessageId, ctx.Ct);
         if (r.Error != PokerError.None) { await SendError(ctx, chatId, r.Error); return; }
         var joinedCode = r.Snapshot?.Table.InviteCode ?? code.ToUpperInvariant();
         await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("joined"), joinedCode, r.Seated, r.Max),

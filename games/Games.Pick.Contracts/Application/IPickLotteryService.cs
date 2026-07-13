@@ -25,9 +25,11 @@ public interface IPickLotteryService
 {
     Task<LotteryOpenResult> OpenAsync(
         long userId, string displayName, long chatId, int stake, CancellationToken ct);
+    Task<LotteryOpenResult> OpenAsync(long userId, string displayName, long chatId, int stake, int sourceMessageId, CancellationToken ct);
 
     Task<LotteryJoinResult> JoinAsync(
         long userId, string displayName, long chatId, CancellationToken ct);
+    Task<LotteryJoinResult> JoinAsync(long userId, string displayName, long chatId, int sourceMessageId, CancellationToken ct);
 
     /// <summary>Returns the open pool and a fresh entry count, or null if no pool is open in this chat.</summary>
     Task<LotteryInfoSnapshot?> InfoAsync(long chatId, CancellationToken ct);
