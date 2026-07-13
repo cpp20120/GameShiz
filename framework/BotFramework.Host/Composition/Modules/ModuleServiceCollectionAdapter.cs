@@ -58,6 +58,18 @@ public sealed class ModuleServiceCollectionAdapter(
         return this;
     }
 
+    public IModuleServiceCollection AddAdminEffectHandler<THandler>() where THandler : class
+    {
+        services.AddScoped(typeof(BotFramework.Host.Admin.Execution.IAdminEffectHandler), typeof(THandler));
+        return this;
+    }
+
+    public IModuleServiceCollection AddAtomicEffectHandler<THandler>() where THandler : class
+    {
+        services.AddScoped(typeof(BotFramework.Host.Execution.IAtomicEffectHandler), typeof(THandler));
+        return this;
+    }
+
     public IModuleServiceCollection AddSingleton<TService, TImpl>() where TImpl : class, TService
     {
         services.AddSingleton(typeof(TService), typeof(TImpl));

@@ -15,7 +15,17 @@ public interface IAdminEffectExecutor
 
 public interface IAdminExecutionContext
 {
+    AdminActor Actor { get; }
+
+    string Action { get; }
+
     Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct);
+
+    Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct);
+
+    Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters, CancellationToken ct);
+
+    void SetOutput(string key, object? value);
 }
 
 public interface IAdminEffectHandler
@@ -53,7 +63,7 @@ internal sealed class AdminEffectExecutor(
 
         await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
-        var context = new PostgresAdminExecutionContext(connection, transaction);
+        var context = new PostgresAdminExecutionContext(connection, transaction, envelope.Actor, envelope.Action);
 
         try
         {
@@ -80,7 +90,9 @@ internal sealed class AdminEffectExecutor(
                 ct).ConfigureAwait(false);
 
             await transaction.CommitAsync(ct).ConfigureAwait(false);
-            return plan.Result;
+            return plan.ResultFactory is { } resultFactory
+                ? resultFactory(context.Outputs)
+                : plan.Result;
         }
         catch
         {
@@ -91,9 +103,31 @@ internal sealed class AdminEffectExecutor(
 
     private sealed class PostgresAdminExecutionContext(
         NpgsqlConnection connection,
-        NpgsqlTransaction transaction) : IAdminExecutionContext
+        NpgsqlTransaction transaction,
+        AdminActor actor,
+        string action) : IAdminExecutionContext
     {
+        private readonly Dictionary<string, object?> outputs = new(StringComparer.Ordinal);
+
+        public IReadOnlyDictionary<string, object?> Outputs => outputs;
+
+        public AdminActor Actor => actor;
+
+        public string Action => action;
+
         public Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct) =>
             connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct));
+
+        public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct) =>
+            await connection.QuerySingleOrDefaultAsync<T>(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct)).ConfigureAwait(false);
+
+        public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters, CancellationToken ct) =>
+            (await connection.QueryAsync<T>(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct)).ConfigureAwait(false)).AsList();
+
+        public void SetOutput(string key, object? value)
+        {
+            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Output key is required.", nameof(key));
+            outputs[key] = value;
+        }
     }
 }

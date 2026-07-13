@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using BotFramework.Host.Admin.Execution;
+using BotFramework.Sdk.Admin.Execution;
 using Dapper;
+using Games.Meta.Application.Effects;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -10,7 +13,7 @@ namespace CasinoShiz.Host.Pages.Admin;
 public sealed class MetaQuestsModel(
     INpgsqlConnectionFactory connections,
     IQuestCatalog questCatalog,
-    IAdminAuditLog audit) : PageModel
+    IAdminEffectExecutor effects) : PageModel
 {
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
@@ -111,12 +114,11 @@ public sealed class MetaQuestsModel(
         if (Actor is null) return RedirectToPage("/Admin/Login");
         if (Actor.Role != AdminRole.SuperAdmin) return Forbid();
 
-        questCatalog.Reload();
-        await audit.LogAsync(Actor.UserId, Actor.Name, "meta.quests.reload", new
-        {
-            path = JsonQuestCatalog.EditablePath(),
-            count = questCatalog.All.Count,
-        }, ct);
+        await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(Actor.UserId, Actor.Name), "meta.quests.reload",
+                new { path = JsonQuestCatalog.EditablePath() }),
+            new AdminEffectPlan<bool>(true, [new MetaQuestCatalogReloadAdminEffect()]),
+            ct);
 
         TempData["Flash"] = $"Quest catalog reloaded: {questCatalog.All.Count} generated quests.";
         return RedirectToPreview();
@@ -218,18 +220,22 @@ public sealed class MetaQuestsModel(
         string auditAction,
         CancellationToken ct)
     {
-        var path = JsonQuestCatalog.EditablePath();
-        Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
-        await System.IO.File.WriteAllTextAsync(path, formatted, ct);
+        await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(
+                new(Actor!.UserId, Actor.Name),
+                auditAction,
+                new
+                {
+                    validation.QuestCount,
+                    validation.SlotCount,
+                    validation.DefinitionCount,
+                }),
+            new AdminEffectPlan<bool>(
+                true,
+                [new MetaQuestCatalogSaveAdminEffect(formatted)],
+                _ => true),
+            ct);
         questCatalog.Reload();
-
-        await audit.LogAsync(Actor!.UserId, Actor.Name, auditAction, new
-        {
-            path,
-            validation.QuestCount,
-            validation.SlotCount,
-            validation.DefinitionCount,
-        }, ct);
     }
 
     private RedirectToPageResult RedirectToPreview()

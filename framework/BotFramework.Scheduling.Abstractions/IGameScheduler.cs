@@ -35,11 +35,45 @@ public sealed record ScheduleDescriptor(
     string? CronExpression = null,
     TimeSpan? RepeatInterval = null,
     string? TimeZoneId = null,
-    DateTimeOffset? RunAt = null)
+    DateTimeOffset? RunAt = null,
+    ScheduleExecutionPolicy? Policy = null)
 {
     public static ScheduleDescriptor Every(TimeSpan interval) => new(RepeatInterval: interval);
 
     public static ScheduleDescriptor Once(DateTimeOffset runAt) => new(RunAt: runAt);
+
+    public ScheduleExecutionPolicy EffectivePolicy => Policy ?? ScheduleExecutionPolicy.Default;
+}
+
+/// <summary>
+/// Runtime semantics shared by Quartz and non-Quartz background runners.
+/// The scheduler owns triggering; the effect executor owns transactionality and
+/// idempotency. Batch/retry values are metadata so a job can make the same
+/// decision regardless of which scheduler implementation invoked it.
+/// </summary>
+public sealed record ScheduleExecutionPolicy(
+    ScheduleMisfirePolicy Misfire = ScheduleMisfirePolicy.FireOnce,
+    ScheduleConcurrencyPolicy Concurrency = ScheduleConcurrencyPolicy.Disallow,
+    int BatchSize = 1,
+    int MaxAttempts = 3,
+    TimeSpan? RetryBackoff = null)
+{
+    public static ScheduleExecutionPolicy Default => new();
+
+    public TimeSpan EffectiveRetryBackoff => RetryBackoff.GetValueOrDefault(TimeSpan.FromSeconds(5));
+}
+
+public enum ScheduleMisfirePolicy
+{
+    FireOnce = 0,
+    Ignore = 1,
+    DoNothing = 2,
+}
+
+public enum ScheduleConcurrencyPolicy
+{
+    Disallow = 0,
+    Allow = 1,
 }
 
 public sealed record GameScheduledJobStatus(

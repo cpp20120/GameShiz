@@ -19,6 +19,7 @@ using BotFramework.Host.Execution;
 using BotFramework.Rendering;
 using BotFramework.Host.Configuration.Validation;
 using BotFramework.Host.Admin.Execution;
+using BotFramework.Host.Admin.Effects;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -151,6 +152,7 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<ITransactionalScheduleCollector, TransactionalScheduleCollector>();
         services.AddSingleton<GameExecutionTelemetry>();
         services.AddScoped<IGameEffectHandler, PostgresWalletEconomyEffectHandler>();
+        services.AddScoped<IAtomicEffectExecutor, AtomicEffectExecutor>();
         services.AddSingleton<PostgresGameEventOutbox>();
         services.AddSingleton<PostgresGameScheduleOutbox>();
         services.AddScoped(typeof(IAtomicGameExecutor<,,>), typeof(AtomicGameExecutor<,,>));
@@ -191,6 +193,9 @@ public static class BotFrameworkBuilderExtensions
         services.AddScoped<IRuntimeConfigurationService, RuntimeConfigurationService>();
         services.AddScoped<IAdminEffectExecutor, AdminEffectExecutor>();
         services.AddScoped<IAdminEffectHandler, RuntimeConfigurationPatchEffectHandler>();
+        services.AddScoped<IAdminEffectHandler, WalletAdjustmentAdminEffectHandler>();
+        services.AddScoped<IAdminEffectHandler, WalletSetAdminEffectHandler>();
+        services.AddScoped<IAdminEffectHandler, LedgerRevertAdminEffectHandler>();
 
         services.AddOptions<ClickHouseOptions>()
             .Bind(configuration.GetSection(ClickHouseOptions.SectionName))

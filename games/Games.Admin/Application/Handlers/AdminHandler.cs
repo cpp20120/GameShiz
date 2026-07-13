@@ -172,7 +172,7 @@ public sealed class AdminHandler(
             return;
         }
 
-        var r = await service.RenameAsync(parts[1], parts[2], ctx.Ct);
+        var r = await service.RenameAsync(userId, parts[1], parts[2], ctx.Ct);
         var text = r.Op switch
         {
             RenameOp.Cleared => string.Format(Loc("rename.cleared"), r.OldName),

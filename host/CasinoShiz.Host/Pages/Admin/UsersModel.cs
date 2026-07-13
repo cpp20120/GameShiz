@@ -1,4 +1,7 @@
 using System.Globalization;
+using BotFramework.Host.Admin.Execution;
+using BotFramework.Sdk.Admin.Execution;
+using BotFramework.Sdk.Admin.Effects;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,8 +10,7 @@ namespace CasinoShiz.Host.Pages.Admin;
 
 public sealed class UsersModel(
     INpgsqlConnectionFactory connections,
-    IEconomicsService economics,
-    IAdminAuditLog audit) : PageModel
+    IAdminEffectExecutor effects) : PageModel
 {
     public IReadOnlyList<UserRow> Users { get; private set; } = [];
 
@@ -39,14 +41,15 @@ public sealed class UsersModel(
             return RedirectToPage(new { q = Q });
         }
 
-        var current = await economics.GetBalanceAsync(userId, balanceScopeId, ct);
-        var d = coins - current;
-        var newCoins = current;
-        if (d != 0)
-            newCoins = await ApplyAdminAdjustmentOnceAsync(userId, balanceScopeId, d, "admin.set", operationId, ct);
-
-        await audit.LogAsync(actor.UserId, actor.Name, "users.set_coins",
-            new { targetUserId = userId, balanceScopeId, coins, newCoins, operationId }, ct);
+        var newCoins = await ApplyAdminSetAsync(
+            actor,
+            userId,
+            balanceScopeId,
+            coins,
+            "admin.set",
+            operationId,
+            "users.set_coins",
+            ct);
 
         TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"User {userId} scope {balanceScopeId} → {newCoins} coins");
         return RedirectToPage(new { q = Q });
@@ -72,84 +75,75 @@ public sealed class UsersModel(
             return RedirectToPage(new { q = Q });
         }
 
-        var newCoins = await ApplyAdminAdjustmentOnceAsync(userId, balanceScopeId, delta, "admin.adjust", operationId, ct);
-
-        await audit.LogAsync(actor.UserId, actor.Name, "users.adjust_coins",
-            new { targetUserId = userId, balanceScopeId, delta, newCoins, operationId }, ct);
+        var newCoins = await ApplyAdminAdjustmentAsync(
+            actor,
+            userId,
+            balanceScopeId,
+            delta,
+            "admin.adjust",
+            operationId,
+            "users.adjust_coins",
+            ct);
 
         TempData["Flash"] =
             $"User {userId} scope {balanceScopeId}: {(delta > 0 ? "+" : "")}{delta} → {newCoins} coins";
         return RedirectToPage(new { q = Q });
     }
 
-    private async Task<int> ApplyAdminAdjustmentOnceAsync(
+    private async Task<int> ApplyAdminAdjustmentAsync(
+        AdminSession actor,
         long userId,
         long balanceScopeId,
         int delta,
         string reason,
         string operationId,
+        string action,
         CancellationToken ct)
     {
-        const string existingSql = """
-            SELECT balance_after
-            FROM economics_ledger
-            WHERE operation_id = @operationId
-            """;
-        const string selectSql = """
-            SELECT coins, version FROM users
-            WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
-            FOR UPDATE
-            """;
-        const string updateSql = """
-            UPDATE users
-            SET coins = @newCoins, version = @newVersion, updated_at = now()
-            WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
-            """;
-        const string insertLedger = """
-            INSERT INTO economics_ledger (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id)
-            VALUES (@userId, @balanceScopeId, @delta, @newCoins, @reason, @operationId)
-            """;
+        return await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(
+                new(actor.UserId, actor.Name),
+                action,
+                new { targetUserId = userId, balanceScopeId, delta, operationId }),
+            new AdminEffectPlan<int>(
+                0,
+                [new WalletAdjustmentAdminEffect(
+                    userId,
+                    balanceScopeId,
+                    delta,
+                    reason,
+                    operationId,
+                    AllowNegative: true)],
+                outputs => (int)outputs["balance"]!),
+            ct).ConfigureAwait(false);
+    }
 
-        await using var conn = await connections.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
-
-        var existing = await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
-            existingSql,
-            new { operationId },
-            transaction: tx,
-            cancellationToken: ct));
-        if (existing.HasValue)
-        {
-            await tx.CommitAsync(ct);
-            return existing.Value;
-        }
-
-        var row = await conn.QuerySingleOrDefaultAsync<(int coins, long version)>(new CommandDefinition(
-            selectSql,
-            new { userId, balanceScopeId },
-            transaction: tx,
-            cancellationToken: ct));
-        if (row.Equals(default((int, long))))
-        {
-            await tx.RollbackAsync(ct);
-            throw new InvalidOperationException($"User {userId} scope {balanceScopeId} not found.");
-        }
-
-        var newCoins = row.coins + delta;
-        var newVersion = row.version + 1;
-        await conn.ExecuteAsync(new CommandDefinition(
-            updateSql,
-            new { userId, balanceScopeId, newCoins, newVersion },
-            transaction: tx,
-            cancellationToken: ct));
-        await conn.ExecuteAsync(new CommandDefinition(
-            insertLedger,
-            new { userId, balanceScopeId, delta, newCoins, reason, operationId },
-            transaction: tx,
-            cancellationToken: ct));
-
-        await tx.CommitAsync(ct);
-        return newCoins;
+    private async Task<int> ApplyAdminSetAsync(
+        AdminSession actor,
+        long userId,
+        long balanceScopeId,
+        int balance,
+        string reason,
+        string operationId,
+        string action,
+        CancellationToken ct)
+    {
+        return await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(
+                new(actor.UserId, actor.Name),
+                action,
+                new { targetUserId = userId, balanceScopeId, balance, operationId }),
+            new AdminEffectPlan<int>(
+                0,
+                [new WalletSetAdminEffect(
+                    userId,
+                    balanceScopeId,
+                    balance,
+                    reason,
+                    operationId,
+                    AllowNegative: true)],
+                outputs => (int)outputs["balance"]!),
+            ct).ConfigureAwait(false);
     }
 
     private static bool IsValidOperationId(string? operationId) =>

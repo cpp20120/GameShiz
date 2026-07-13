@@ -1,4 +1,7 @@
 using Dapper;
+using BotFramework.Host.Admin.Execution;
+using BotFramework.Sdk.Admin.Execution;
+using Games.Meta.Application.Effects;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Globalization;
@@ -9,9 +12,7 @@ namespace CasinoShiz.Host.Pages.Admin;
 
 public sealed class MetaSeasonsModel(
     INpgsqlConnectionFactory connections,
-    ISeasonRewardService rewards,
-    IAdminAuditLog audit,
-    IMetaHistoryStore history) : PageModel
+    IAdminEffectExecutor effects) : PageModel
 {
     public IReadOnlyList<MetaSeasonAdminRow> Seasons { get; private set; } = [];
     public AdminSession? Actor { get; private set; }
@@ -55,21 +56,16 @@ public sealed class MetaSeasonsModel(
             return RedirectToPage();
         }
 
-        const string sql = """
-            INSERT INTO meta_seasons (name, starts_at, ends_at, status, config)
-            VALUES (@name, @startsAt, @endsAt, 'planned', CAST(@configJson AS jsonb))
-            RETURNING id
-            """;
-
         await using var conn = await connections.OpenAsync(ct);
         var startsAt = await NextPlannedStartsAtAsync(conn, tx: null, ct);
         var endsAt = startsAt.AddDays(DurationDays);
-        var id = await conn.ExecuteScalarAsync<long>(new CommandDefinition(
-            sql,
-            new { name = Name, startsAt, endsAt, configJson = ConfigJson },
-            cancellationToken: ct));
-        await audit.LogAsync(actor.UserId, actor.Name, "meta_season.create", new { id, Name, DurationDays }, ct);
-        await history.AppendAsync("season.created", "season", id.ToString(CultureInfo.InvariantCulture), id, chatId: null, actor.UserId, new { id, Name, DurationDays, actor = actor.Name }, ct);
+        var id = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.create", new { Name, DurationDays }),
+            new AdminEffectPlan<long>(
+                0,
+                [new MetaSeasonCreateAdminEffect(Name, startsAt, endsAt, ConfigJson)],
+                outputs => (long)outputs["seasonId"]!),
+            ct);
 
         TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{id} created as planned.");
         return RedirectToPage();
@@ -83,73 +79,15 @@ public sealed class MetaSeasonsModel(
         PrepareCount = Math.Clamp(PrepareCount, 1, 100);
         PrepareDurationDays = Math.Clamp(PrepareDurationDays, 1, 365);
 
-        await using var conn = await connections.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
-
-        const string countSql = """
-            SELECT count(*)::int
-            FROM meta_seasons
-            WHERE status = 'planned'
-              AND ends_at > now()
-            """;
-        var existingPlanned = await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-            countSql,
-            transaction: tx,
-            cancellationToken: ct));
-        var toCreate = Math.Max(0, PrepareCount - existingPlanned);
-
-        if (toCreate > 0)
-        {
-            var startsAt = await NextPlannedStartsAtAsync(conn, tx, ct);
-            var startNumber = await NextSeasonNumberAsync(conn, tx, ct);
-            var plans = SeasonPlanFactory.CreatePlans(startsAt, toCreate, PrepareDurationDays, startNumber);
-
-            const string insertSql = """
-                INSERT INTO meta_seasons (name, starts_at, ends_at, status, config)
-                VALUES (@name, @startsAt, @endsAt, 'planned', CAST(@configJson AS jsonb))
-                """;
-
-            foreach (var plan in plans)
-            {
-                await conn.ExecuteAsync(new CommandDefinition(
-                    insertSql,
-                    new
-                    {
-                        name = plan.Name,
-                        startsAt = plan.StartsAt,
-                        endsAt = plan.EndsAt,
-                        configJson = plan.ConfigJson,
-                    },
-                    transaction: tx,
-                    cancellationToken: ct));
-            }
-        }
-
-        await tx.CommitAsync(ct);
-
-        await audit.LogAsync(actor.UserId, actor.Name, "meta_season.prepare", new
-        {
-            requested = PrepareCount,
-            existingPlanned,
-            created = toCreate,
-            durationDays = PrepareDurationDays,
-        }, ct);
-        await history.AppendAsync(
-            "season.prepared",
-            "season",
-            "planned",
-seasonId: null,
-chatId: null,
-            actor.UserId,
-            new
-            {
-                requested = PrepareCount,
-                existingPlanned,
-                created = toCreate,
-                durationDays = PrepareDurationDays,
-                actor = actor.Name,
-            },
+        var prepared = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.prepare", new { requested = PrepareCount, durationDays = PrepareDurationDays }),
+            new AdminEffectPlan<(int ExistingPlanned, int Created)>(
+                default,
+                [new MetaSeasonPrepareAdminEffect(PrepareCount, PrepareDurationDays)],
+                outputs => ((int)outputs["existingPlanned"]!, (int)outputs["created"]!)),
             ct);
+        var existingPlanned = prepared.ExistingPlanned;
+        var toCreate = prepared.Created;
 
         TempData["Flash"] = toCreate == 0
             ? string.Create(CultureInfo.InvariantCulture, $"Already have {existingPlanned} future planned seasons."
@@ -163,26 +101,13 @@ chatId: null,
         var actor = HttpContext.Session.GetAdminSession();
         if (actor?.Role != AdminRole.SuperAdmin) return Forbid();
 
-        await using var conn = await connections.OpenAsync(ct);
-        await using var tx = await conn.BeginTransactionAsync(ct);
-
-        await conn.ExecuteAsync(new CommandDefinition(
-            "UPDATE meta_seasons SET status = 'finished', updated_at = now() WHERE status = 'active'",
-            transaction: tx,
-            cancellationToken: ct));
-
-        var changed = await conn.ExecuteAsync(new CommandDefinition(
-            "UPDATE meta_seasons SET status = 'active', starts_at = LEAST(starts_at, now()), updated_at = now() WHERE id = @seasonId AND status IN ('planned', 'finished')",
-            new { seasonId },
-            transaction: tx,
-            cancellationToken: ct));
-
-        await tx.CommitAsync(ct);
+        var changed = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.activate", new { seasonId }),
+            new AdminEffectPlan<int>(0, [new MetaSeasonActivateAdminEffect(seasonId)], outputs => (int)outputs["changed"]!),
+            ct);
 
         if (changed > 0)
         {
-            await audit.LogAsync(actor.UserId, actor.Name, "meta_season.activate", new { seasonId }, ct);
-            await history.AppendAsync("season.activated", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
             TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} activated.");
         }
         else
@@ -199,18 +124,12 @@ chatId: null,
         var actor = HttpContext.Session.GetAdminSession();
         if (actor?.Role != AdminRole.SuperAdmin) return Forbid();
 
-        const string sql = """
-            UPDATE meta_seasons
-            SET status = 'finished', ends_at = LEAST(ends_at, now()), updated_at = now()
-            WHERE id = @seasonId AND status <> 'finished'
-            """;
-
-        await using var conn = await connections.OpenAsync(ct);
-        var changed = await conn.ExecuteAsync(new CommandDefinition(sql, new { seasonId }, cancellationToken: ct));
+        var changed = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.finish", new { seasonId }),
+            new AdminEffectPlan<int>(0, [new MetaSeasonFinishAdminEffect(seasonId)], outputs => (int)outputs["changed"]!),
+            ct);
         if (changed > 0)
         {
-            await audit.LogAsync(actor.UserId, actor.Name, "meta_season.finish", new { seasonId }, ct);
-            await history.AppendAsync("season.finished", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
             TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} finished.");
         }
         else
@@ -234,16 +153,15 @@ chatId: null,
             return RedirectToPage();
         }
 
-        var result = await rewards.ProcessPlayerRewardsAsync(seasonId, ct);
-        var winnerPayload = result.Rows.Select(x => new { x.Place, x.ChatId, x.UserId, x.DisplayName, x.Amount }).ToArray();
-        await audit.LogAsync(actor.UserId, actor.Name, "meta_season.pay_rewards", new
-        {
-            seasonId,
-            winners = winnerPayload,
-        }, ct);
-        await history.AppendAsync("season.reward_paid", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, paid = result.Paid, winners = winnerPayload, actor = actor.Name }, ct);
+        var rows = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.pay_rewards", new { seasonId }),
+            new AdminEffectPlan<IReadOnlyList<SeasonRewardPaidRow>>(
+                [],
+                [new MetaSeasonPlayerRewardsAdminEffect(seasonId)],
+                outputs => (IReadOnlyList<SeasonRewardPaidRow>)outputs["rows"]!),
+            ct);
 
-        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} rewards processed for {result.Paid} winners.");
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} rewards processed for {rows.Count} winners.");
         return RedirectToPage();
     }
 
@@ -259,16 +177,15 @@ chatId: null,
             return RedirectToPage();
         }
 
-        var result = await rewards.ProcessClanRewardsAsync(seasonId, ct);
-        var winnerPayload = result.Rows.Select(x => new { x.Place, x.ChatId, x.UserId, x.DisplayName, x.Amount }).ToArray();
-        await audit.LogAsync(actor.UserId, actor.Name, "meta_season.pay_clan_rewards", new
-        {
-            seasonId,
-            winners = winnerPayload,
-        }, ct);
-        await history.AppendAsync("season.clan_reward_paid", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, paid = result.Paid, winners = winnerPayload, actor = actor.Name }, ct);
+        var rows = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.pay_clan_rewards", new { seasonId }),
+            new AdminEffectPlan<IReadOnlyList<SeasonRewardPaidRow>>(
+                [],
+                [new MetaSeasonClanRewardsAdminEffect(seasonId)],
+                outputs => (IReadOnlyList<SeasonRewardPaidRow>)outputs["rows"]!),
+            ct);
 
-        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} clan rewards processed for {result.Paid} clans.");
+        TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} clan rewards processed for {rows.Count} clans.");
         return RedirectToPage();
     }
 
@@ -284,18 +201,12 @@ chatId: null,
             return RedirectToPage();
         }
 
-        const string sql = """
-            UPDATE meta_seasons
-            SET config = CAST(@configJson AS jsonb), updated_at = now()
-            WHERE id = @seasonId
-            """;
-
-        await using var conn = await connections.OpenAsync(ct);
-        var changed = await conn.ExecuteAsync(new CommandDefinition(sql, new { seasonId, configJson }, cancellationToken: ct));
+        var changed = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.config_update", new { seasonId }),
+            new AdminEffectPlan<int>(0, [new MetaSeasonConfigAdminEffect(seasonId, configJson, Structured: false)], outputs => (int)outputs["changed"]!),
+            ct);
         if (changed > 0)
         {
-            await audit.LogAsync(actor.UserId, actor.Name, "meta_season.config_update", new { seasonId }, ct);
-            await history.AppendAsync("season.config_updated", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name }, ct);
             TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} config updated.");
         }
         else
@@ -330,11 +241,6 @@ chatId: null,
         if (actor?.Role != AdminRole.SuperAdmin) return Forbid();
 
         const string selectSql = "SELECT config::text FROM meta_seasons WHERE id = @seasonId";
-        const string updateSql = """
-            UPDATE meta_seasons
-            SET config = CAST(@configJson AS jsonb), updated_at = now()
-            WHERE id = @seasonId
-            """;
 
         await using var conn = await connections.OpenAsync(ct);
         var existing = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
@@ -381,13 +287,10 @@ chatId: null,
         });
 
         var configJson = root.ToJsonString(PrettyJson);
-        await conn.ExecuteAsync(new CommandDefinition(
-            updateSql,
-            new { seasonId, configJson },
-            cancellationToken: ct));
-
-        await audit.LogAsync(actor.UserId, actor.Name, "meta_season.structured_config_update", new { seasonId }, ct);
-        await history.AppendAsync("season.config_updated", "season", seasonId.ToString(CultureInfo.InvariantCulture), seasonId, chatId: null, actor.UserId, new { seasonId, actor = actor.Name, structured = true }, ct);
+        await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_season.structured_config_update", new { seasonId }),
+            new AdminEffectPlan<int>(0, [new MetaSeasonConfigAdminEffect(seasonId, configJson, Structured: true)]),
+            ct);
 
         TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Season #{seasonId} structured config updated.");
         return RedirectToPage();

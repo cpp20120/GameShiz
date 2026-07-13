@@ -43,9 +43,15 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
     {
         var scheduler = await schedulers.GetScheduler(ct);
         var jobKey = new JobKey(command.JobKey, "games");
-        var job = JobBuilder.Create<ScheduledCommandQuartzJob>()
+        var jobType = command.Schedule.EffectivePolicy.Concurrency == ScheduleConcurrencyPolicy.Allow
+            ? typeof(ConcurrentScheduledCommandQuartzJob)
+            : typeof(ScheduledCommandQuartzJob);
+        var job = JobBuilder.Create(jobType)
             .WithIdentity(jobKey)
             .UsingJobData("command-key", command.JobKey)
+            .UsingJobData("max-attempts", Math.Max(1, command.Schedule.EffectivePolicy.MaxAttempts))
+            .UsingJobData("retry-backoff-ms", (long)Math.Max(0, command.Schedule.EffectivePolicy.EffectiveRetryBackoff.TotalMilliseconds))
+            .UsingJobData("batch-size", Math.Max(1, command.Schedule.EffectivePolicy.BatchSize))
             .StoreDurably()
             .Build();
         foreach (var pair in command.Data ?? new Dictionary<string, string>(StringComparer.Ordinal))
@@ -59,9 +65,12 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
         {
             { RunAt: { } runAt } => triggerBuilder.StartAt(runAt),
             { CronExpression: { Length: > 0 } cronExpression } =>
-                triggerBuilder.WithSchedule(BuildCronSchedule(cronExpression, command.Schedule.TimeZoneId)),
+                triggerBuilder.WithSchedule(BuildCronSchedule(
+                    cronExpression,
+                    command.Schedule.TimeZoneId,
+                    command.Schedule.EffectivePolicy.Misfire)),
             { RepeatInterval: { } interval } when interval > TimeSpan.Zero =>
-                triggerBuilder.WithSchedule(SimpleScheduleBuilder.RepeatSecondlyForever(1).WithInterval(interval)),
+                triggerBuilder.WithSchedule(BuildSimpleSchedule(interval, command.Schedule.EffectivePolicy.Misfire)),
             _ => throw new ArgumentException("A cron expression or positive repeat interval is required.", nameof(command)),
         };
         var triggerKey = new TriggerKey(command.ScheduleId, "games");
@@ -118,13 +127,32 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
         return result;
     }
 
-    private static CronScheduleBuilder BuildCronSchedule(string cronExpression, string? timeZoneId)
+    private static CronScheduleBuilder BuildCronSchedule(
+        string cronExpression,
+        string? timeZoneId,
+        ScheduleMisfirePolicy misfire)
     {
-        var cron = CronScheduleBuilder.CronSchedule(cronExpression)
-            .WithMisfireHandlingInstructionFireAndProceed();
+        var cron = CronScheduleBuilder.CronSchedule(cronExpression);
+        cron = misfire switch
+        {
+            ScheduleMisfirePolicy.Ignore => cron.WithMisfireHandlingInstructionIgnoreMisfires(),
+            ScheduleMisfirePolicy.DoNothing => cron.WithMisfireHandlingInstructionDoNothing(),
+            _ => cron.WithMisfireHandlingInstructionFireAndProceed(),
+        };
         if (!string.IsNullOrWhiteSpace(timeZoneId))
             cron.InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(timeZoneId));
         return cron;
+    }
+
+    private static SimpleScheduleBuilder BuildSimpleSchedule(TimeSpan interval, ScheduleMisfirePolicy misfire)
+    {
+        var schedule = SimpleScheduleBuilder.RepeatSecondlyForever(1).WithInterval(interval);
+        return misfire switch
+        {
+            ScheduleMisfirePolicy.Ignore => schedule.WithMisfireHandlingInstructionIgnoreMisfires(),
+            ScheduleMisfirePolicy.DoNothing => schedule.WithMisfireHandlingInstructionNextWithExistingCount(),
+            _ => schedule.WithMisfireHandlingInstructionFireNow(),
+        };
     }
 }
 
@@ -148,10 +176,9 @@ internal sealed class QuartzRecurringCommandBootstrapper(
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }
 
-[DisallowConcurrentExecution]
-internal sealed class ScheduledCommandQuartzJob(IServiceScopeFactory scopes) : IJob
+internal static class ScheduledCommandQuartzJobRunner
 {
-    public async Task Execute(IJobExecutionContext context)
+    public static async Task ExecuteAsync(IServiceScopeFactory scopes, IJobExecutionContext context)
     {
         await using var scope = scopes.CreateAsyncScope();
         var key = context.MergedJobDataMap.GetString("command-key")
@@ -162,6 +189,36 @@ internal sealed class ScheduledCommandQuartzJob(IServiceScopeFactory scopes) : I
         var data = context.MergedJobDataMap.Keys
             .Where(item => !string.Equals(item, "command-key", StringComparison.Ordinal))
             .ToDictionary(item => item, item => context.MergedJobDataMap.GetString(item) ?? "", StringComparer.Ordinal);
-        await command.ExecuteAsync(data, context.CancellationToken);
+
+        var maxAttempts = Math.Max(1, context.MergedJobDataMap.GetInt("max-attempts"));
+        var retryBackoffMs = Math.Max(0, context.MergedJobDataMap.GetLong("retry-backoff-ms"));
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await command.ExecuteAsync(data, context.CancellationToken);
+                return;
+            }
+            catch when (attempt < maxAttempts)
+            {
+                if (retryBackoffMs > 0)
+                    await Task.Delay(TimeSpan.FromMilliseconds(retryBackoffMs * attempt), context.CancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException("Scheduled command execution exhausted its retry policy.");
     }
+}
+
+[DisallowConcurrentExecution]
+internal sealed class ScheduledCommandQuartzJob(IServiceScopeFactory scopes) : IJob
+{
+    public Task Execute(IJobExecutionContext context) =>
+        ScheduledCommandQuartzJobRunner.ExecuteAsync(scopes, context);
+}
+
+internal sealed class ConcurrentScheduledCommandQuartzJob(IServiceScopeFactory scopes) : IJob
+{
+    public Task Execute(IJobExecutionContext context) =>
+        ScheduledCommandQuartzJobRunner.ExecuteAsync(scopes, context);
 }

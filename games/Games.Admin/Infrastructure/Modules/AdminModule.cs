@@ -13,7 +13,9 @@ public sealed class AdminModule : IModule
             .BindOptions<AdminOptions>(AdminOptions.SectionName)
             .AddScoped<IAdminStore, AdminStore>()
             .AddScoped<IAdminService, AdminService>()
-            .AddScoped<IChatsStore, ChatsStore>();
+            .AddScoped<IChatsStore, ChatsStore>()
+            .AddAdminEffectHandler<Games.Admin.Application.Effects.ClearChatBetsAdminEffectHandler>()
+            .AddAdminEffectHandler<Games.Admin.Application.Effects.DisplayNameOverrideAdminEffectHandler>();
     }
 
     public IModuleMigrations GetMigrations() => new AdminMigrations();

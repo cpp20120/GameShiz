@@ -14,6 +14,9 @@
     <PackageReference Update="Meziantou.Analyzer" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="CasinoShiz.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
     <ProjectReference Include="..\Games.Darts.Contracts\Games.Darts.Contracts.csproj" />

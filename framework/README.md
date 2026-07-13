@@ -239,6 +239,53 @@ the restricted `IAdminExecutionContext`, not `NpgsqlConnection` or a transaction
 Runtime configuration is the first migrated effect (`RuntimeConfigurationPatchEffect`),
 so the JSONB update and its audit record cannot commit separately.
 
+The same kernel now covers the administrative write paths for Users, Ledger,
+Games.Admin, and the Meta season/quest/alert pages:
+
+| Area | Typed effects | Transactional consequences |
+| --- | --- | --- |
+| Users | `WalletAdjustmentAdminEffect` | wallet row, version, ledger line and `admin_audit` |
+| Ledger | `LedgerRevertAdminEffect` | locked source line, compensating wallet/ledger update and audit |
+| Games.Admin | `ClearChatBetsAdminEffect`, `DisplayNameOverrideAdminEffect` | pending-bet deletion/refund or override upsert/delete and audit |
+| Meta seasons | `MetaSeason*AdminEffect` | season status/config/plans, reward credits, `meta_event_log` and audit |
+| Meta alerts | `MetaAlertStatusAdminEffect` | risk flag state, `meta_event_log` and audit |
+| Meta quests | `MetaQuestCatalogSaveAdminEffect`, `MetaQuestCatalogReloadAdminEffect` | validated catalog replacement/reload and audit |
+
+Pages keep their existing read models and response contracts. Only the mutation
+boundary goes through the executor, so the monolith and split BFF paths share the
+same effect handlers. Reward effects use deterministic operation ids; retrying a
+season payout therefore cannot create a second ledger entry. The clear-bets effect
+refunds and removes all supported mini-game rows in the same PostgreSQL transaction,
+then clears process/distributed session state after commit.
+
+The quest catalog is currently file-backed for compatibility. Its effect writes a
+temporary file and atomically replaces the catalog before recording the audit row;
+the filesystem replacement cannot be rolled back by PostgreSQL. A future DB/object
+store catalog can use the same effect contract for full database atomicity.
+
+### Workflow effects and scheduled work
+
+Not every mutation starts as a pure game decision. Quest progress/claims, tournament
+lifecycle commands and season settlement use `IAtomicEffectExecutor` with the same finite,
+typed effect discipline. A module registers one `AtomicEffectHandler<T>` per effect;
+the Host supplies only a restricted SQL context, takes the declared locks, checks
+the inbox, applies all effects, stores the result and commits once. These handlers
+do not receive `NpgsqlConnection`, a transaction, or a service locator. Deterministic
+operation ids make wallet rewards safe to retry.
+
+Quartz remains the trigger and durable schedule store, not the business transaction
+boundary. `ScheduleExecutionPolicy` makes background semantics explicit:
+
+- `Misfire`: `FireOnce`, `Ignore`, or `DoNothing`;
+- `Concurrency`: `Disallow` (the default) or `Allow`;
+- `BatchSize`: a bounded amount of work passed as `batch-size` to the command;
+- `MaxAttempts` and `RetryBackoff`: bounded command-level retries.
+
+The scheduler maps these values to Quartz trigger/job settings. The scheduled
+command itself still enters the atomic/effect executor, so a retry or a process
+restart cannot partially settle a season. Heavy rendering and analytics remain
+post-commit consumers; they must not be hidden inside a scheduled effect handler.
+
 ## Typed configuration validation
 
 Modules register tunable options and their validator explicitly:

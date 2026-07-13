@@ -1,4 +1,7 @@
 using System.Globalization;
+using BotFramework.Host.Admin.Execution;
+using BotFramework.Sdk.Admin.Execution;
+using Games.Meta.Application.Effects;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,7 +10,7 @@ namespace CasinoShiz.Host.Pages.Admin;
 
 public sealed class MetaAlertsModel(
     INpgsqlConnectionFactory connections,
-    IAdminAuditLog audit) : PageModel
+    IAdminEffectExecutor effects) : PageModel
 {
     public IReadOnlyList<MetaAlertRow> Rows { get; private set; } = [];
     public AdminSession? Actor { get; private set; }
@@ -45,20 +48,13 @@ public sealed class MetaAlertsModel(
             return RedirectToPage(new { ChatId, Status, UserId });
         }
 
-        const string sql = """
-            UPDATE meta_risk_flags
-            SET status = @targetStatus,
-                resolved_at = now(),
-                updated_at = now()
-            WHERE id = @flagId AND status = 'open'
-            """;
-
-        await using var conn = await connections.OpenAsync(ct);
-        var changed = await conn.ExecuteAsync(new CommandDefinition(sql, new { flagId, targetStatus }, cancellationToken: ct));
+        var changed = await effects.ExecuteAsync(
+            new AdminExecutionEnvelope(new(actor.UserId, actor.Name), "meta_alert.update", new { flagId, targetStatus }),
+            new AdminEffectPlan<int>(0, [new MetaAlertStatusAdminEffect(flagId, targetStatus)], outputs => (int)outputs["changed"]!),
+            ct);
 
         if (changed > 0)
         {
-            await audit.LogAsync(actor.UserId, actor.Name, "meta_alert.update", new { flagId, targetStatus }, ct);
             TempData["Flash"] = string.Create(CultureInfo.InvariantCulture, $"Alert #{flagId} marked as {targetStatus}.");
         }
         else

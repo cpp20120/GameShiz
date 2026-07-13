@@ -446,6 +446,31 @@ mutation. Npgsql work inside one transaction remains sequential; concurrency is
 achieved between independent commands rather than by issuing simultaneous
 operations on one connection.
 
+### Workflow effects and Quartz semantics
+
+Workflow mutations that do not have a user-facing `IGameAction` (quest progress/claims,
+tournament lifecycle transitions and season payouts) use the SDK's
+`IAtomicEffect` plus Host `IAtomicEffectExecutor`. The executor takes stable locks,
+checks the command inbox, resolves one typed handler per effect, and commits the
+result, ledger/history changes and outbox rows in one PostgreSQL transaction.
+Handlers receive a restricted `IAtomicEffectContext`; they never receive a
+connection, transaction or DI container. This keeps scheduled settlement and
+interactive commands on the same idempotent mutation path.
+
+Quartz is deliberately only the trigger and persistent schedule coordinator. A
+`ScheduleExecutionPolicy` is attached to a schedule rather than encoded in a job:
+
+| Policy | Meaning |
+| --- | --- |
+| `Misfire` | `FireOnce` catches up once, `Ignore` replays missed fires, `DoNothing` skips them |
+| `Concurrency` | `Disallow` serializes one job key; `Allow` permits overlapping runs |
+| `BatchSize` | bounded work hint passed to the scheduled command as `batch-size` |
+| `MaxAttempts` / `RetryBackoff` | bounded Quartz job retries before the failure is surfaced |
+
+The command must still use an atomic/effect executor. Quartz retries therefore
+retry the same idempotent command semantics, while rendering, ClickHouse analytics
+and Telegram delivery remain asynchronous post-commit consumers.
+
 ### Aggregate and lock scope
 
 The descriptor maps a command to its consistency boundary. Commands sharing any
@@ -879,6 +904,50 @@ PostgreSQL transaction; after commit the runtime accessor reloads the normalized
 patch. Services that read `IRuntimeTuningAccessor` receive changes without process
 restart. Failed validation performs no writes, and a failed effect rolls back both
 the mutation and audit.
+
+## Administrative Effect Coverage
+
+Administrative commands use the same finite, typed-effect discipline as games. The
+Razor pages and `Games.Admin` Telegram service build an `AdminExecutionEnvelope`
+and `AdminEffectPlan<TResult>`; they do not open their own mutation connection or
+transaction. The Host resolves one handler per effect, applies it with the current
+transaction-aware context, appends `admin_audit`, and commits once.
+
+```mermaid
+flowchart LR
+    users["Users page"] --> wallet["WalletAdjustmentAdminEffect"]
+    ledger["Ledger page"] --> revert["LedgerRevertAdminEffect"]
+    admin["Games.Admin"] --> adminEffects["ClearChatBets / DisplayNameOverride"]
+    meta["Meta seasons / alerts / quests"] --> metaEffects["MetaSeason* / MetaAlertStatus / MetaQuestCatalog*"]
+    wallet --> executor["AdminEffectExecutor<br/>one PostgreSQL transaction"]
+    revert --> executor
+    adminEffects --> executor
+    metaEffects --> executor
+    executor --> state[("wallets, ledger, game/meta tables")]
+    executor --> history[("meta_event_log")]
+    executor --> audit[("admin_audit")]
+```
+
+The migrated administrative surface is intentionally explicit:
+
+- Users adjusts a wallet and appends its ledger line; `operation_id` makes retries
+  idempotent.
+- Ledger reversal locks the source and wallet rows, checks prior compensation, and
+  writes the correction atomically.
+- Games.Admin clears pending DiceCube/Darts/Football/Basketball/Bowling bets with
+  refunds, or changes a display-name override, without a second mutation path.
+- Meta season creation/preparation/activation/finish/configuration and player/clan
+  rewards are effects. Rewards use deterministic operation ids and write
+  `meta_event_log` in the same transaction. Alert status changes follow the same
+  history path.
+- Quest catalog save/reload are effects as well. Save uses a temp-file + atomic
+  replace for the existing file-backed catalog; that filesystem operation is not
+  rollbackable by PostgreSQL, so a database/object-store catalog remains the next
+  hardening step.
+
+Read-only queries may continue to use the existing stores and Dapper projections.
+They are deliberately outside the executor and therefore cannot accidentally
+create a partial admin mutation.
 
 ## Admin And HTTP Surface
 

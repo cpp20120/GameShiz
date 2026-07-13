@@ -36,6 +36,12 @@ public interface IModuleServiceCollection
         where TService : class
         where TImpl : class, TService;
     IModuleServiceCollection AddScoped<TImplementation>() where TImplementation : class;
+
+    /// <summary>Registers a typed administrative effect handler in the Host kernel.</summary>
+    IModuleServiceCollection AddAdminEffectHandler<THandler>() where THandler : class;
+
+    /// <summary>Registers a transactional domain effect handler in the Host kernel.</summary>
+    IModuleServiceCollection AddAtomicEffectHandler<THandler>() where THandler : class;
     IModuleServiceCollection AddSingleton<TService, TImpl>() where TImpl : class, TService;
 
     /// <summary>Registers a concrete type as its own singleton implementation (e.g. background workers).</summary>

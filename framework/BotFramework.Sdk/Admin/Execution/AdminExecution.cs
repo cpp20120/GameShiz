@@ -12,4 +12,5 @@ public sealed record AdminExecutionEnvelope(
 
 public sealed record AdminEffectPlan<TResult>(
     TResult Result,
-    IReadOnlyList<IAdminEffect> Effects);
+    IReadOnlyList<IAdminEffect> Effects,
+    Func<IReadOnlyDictionary<string, object?>, TResult>? ResultFactory = null);

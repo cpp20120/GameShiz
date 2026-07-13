@@ -1,4 +1,9 @@
 
+using BotFramework.Sdk.Admin.Effects;
+using BotFramework.Sdk.Admin.Execution;
+using BotFramework.Host.Admin.Execution;
+using Games.Admin.Application.Effects;
+
 namespace CasinoShiz.Tests;
 
 sealed class FakeEconomicsService : IEconomicsService
@@ -88,6 +93,83 @@ sealed class FakeEconomicsService : IEconomicsService
         Debits.Add((fromUserId, balanceScopeId, debitFromSender, senderReason));
         Credits.Add((toUserId, balanceScopeId, creditToRecipient, recipientReason));
         return Task.FromResult(new PeerTransferResult(Ok: true, Failure: null, newFrom, newTo));
+    }
+}
+
+sealed class TestAdminEffectExecutor(FakeEconomicsService economics, InMemoryAdminStore store) : IAdminEffectExecutor
+{
+    public async Task<TResult> ExecuteAsync<TResult>(
+        AdminExecutionEnvelope envelope,
+        AdminEffectPlan<TResult> plan,
+        CancellationToken ct)
+    {
+        var outputs = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var effect in plan.Effects)
+        {
+            switch (effect)
+            {
+                case WalletAdjustmentAdminEffect wallet:
+                    if (wallet.Delta > 0)
+                    {
+                        await economics.CreditAsync(wallet.UserId, wallet.BalanceScopeId, wallet.Delta, wallet.Reason, ct);
+                    }
+                    else if (wallet.Delta < 0)
+                    {
+                        var amount = checked(-wallet.Delta);
+                        var ok = wallet.AllowNegative
+                            ? await DebitUncheckedAsync(wallet, amount, ct)
+                            : await economics.TryDebitAsync(wallet.UserId, wallet.BalanceScopeId, amount, wallet.Reason, ct);
+                        if (!ok) throw new InvalidOperationException("Insufficient funds.");
+                    }
+
+                    if (wallet.DisplayName is not null)
+                        store.Seed(new UserSummary(wallet.UserId, wallet.BalanceScopeId, wallet.DisplayName,
+                            economics.GetCurrentBalance(wallet.UserId, wallet.BalanceScopeId),
+                            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+                    outputs["balance"] = economics.GetCurrentBalance(wallet.UserId, wallet.BalanceScopeId);
+                    break;
+
+                case WalletSetAdminEffect set:
+                    var current = economics.GetCurrentBalance(set.UserId, set.BalanceScopeId);
+                    var delta = checked(set.Balance - current);
+                    if (!set.AllowNegative && set.Balance < 0)
+                        throw new InvalidOperationException("Insufficient funds.");
+                    if (delta > 0)
+                        await economics.CreditAsync(set.UserId, set.BalanceScopeId, delta, set.Reason, ct);
+                    else if (delta < 0)
+                        await economics.DebitAsync(set.UserId, set.BalanceScopeId, -delta, set.Reason, ct);
+                    if (set.DisplayName is not null)
+                        store.Seed(new UserSummary(set.UserId, set.BalanceScopeId, set.DisplayName, set.Balance,
+                            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+                    outputs["balance"] = set.Balance;
+                    break;
+
+                case ClearChatBetsAdminEffect clear:
+                    var bets = await store.DeletePendingMiniGameBetsAsync(clear.ChatId, ct);
+                    foreach (var bet in bets)
+                        await economics.CreditAsync(bet.UserId, bet.ChatId, bet.Amount, $"admin.clearbets.{bet.GameId}", ct);
+                    outputs["bets"] = bets;
+                    break;
+
+                case DisplayNameOverrideAdminEffect rename:
+                    if (rename.NewName is null)
+                        await store.DeleteOverrideAsync(rename.OriginalName, ct);
+                    else
+                        await store.UpsertOverrideAsync(rename.OriginalName, rename.NewName, ct);
+                    break;
+
+                default:
+                    throw new InvalidOperationException($"Unsupported test admin effect {effect.GetType().Name}.");
+            }
+        }
+
+        return plan.ResultFactory is { } factory ? factory(outputs) : plan.Result;
+    }
+
+    private async Task<bool> DebitUncheckedAsync(WalletAdjustmentAdminEffect effect, int amount, CancellationToken ct)
+    {
+        await economics.DebitAsync(effect.UserId, effect.BalanceScopeId, amount, effect.Reason, ct);
+        return true;
     }
 }
 
