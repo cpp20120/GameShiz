@@ -6,7 +6,7 @@ THIS BOT DOES NOT AND WILL NEVER SUPPORT REAL MONEY.
 Any fork or modification that adds real-money functionality violates the spirit of this project and may violate laws in your jurisdiction. The author is not responsible for such misuse.
 (Любой форк или модификация, добавляющая реальные деньги, нарушает дух проекта и может нарушать законы. Автор не несет ответственности за такое использование.)
 
-A Telegram casino / mini-game bot. Russian-language UI, ASP.NET Core 10. Implements:
+A Telegram  mini-game bot. Russian-language UI, ASP.NET Core 10. Implements:
 
 Diagram-first architecture reference: [arch.md](arch.md).
 
