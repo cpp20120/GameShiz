@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CoinFlip.Discord</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CoinFlip.Application/CoinFlip.Application.csproj" />
+    <PackageReference Include="BotFramework.Discord.Abstractions" />
+  </ItemGroup>
+</Project>

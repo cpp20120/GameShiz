@@ -15,6 +15,7 @@ x-game-backend-environment: &game-backend-environment
   Rendering__Minio__Endpoint: "minio:9000"
   Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
   Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
 
 x-game-backend-common: &game-backend-common
   profiles: ["distributed"]
@@ -219,6 +220,7 @@ services:
       - "127.0.0.1:9080:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts:/etc/prometheus/alerts:ro
       - prometheus_data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
@@ -230,6 +232,8 @@ services:
       - redis-exporter
       - cadvisor
       - dotnet-monitor
+      - otel-collector
+      - alertmanager
     networks:
       - internal
 
@@ -250,6 +254,42 @@ services:
       - dotnet_monitor_diag:/diag
     networks:
       - internal
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.136.0
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:8889:8889"
+    networks: [internal]
+
+  tempo:
+    image: grafana/tempo:2.8.1
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks: [internal]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    restart: unless-stopped
+    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--config.expand-env=true", "--storage.path=/alertmanager"]
+    environment:
+      ALERTMANAGER_WEBHOOK_URL: "${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9999/alerts}"
+    volumes:
+      - ./observability/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    networks: [internal]
 
   cazino-bot:
     profiles: ["monolith"]
@@ -905,6 +945,8 @@ services:
         condition: service_healthy
       prometheus:
         condition: service_started
+      tempo:
+        condition: service_started
     networks:
       - internal
 
@@ -966,3 +1008,5 @@ volumes:
   prometheus_data:
   dotnet_monitor_diag:
   minio_data:
+  tempo_data:
+  alertmanager_data:

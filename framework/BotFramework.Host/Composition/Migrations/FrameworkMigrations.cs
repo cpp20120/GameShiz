@@ -1,11 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // FrameworkMigrations — schema the Host itself owns.
 //
-// Only two tables today: module_events (the event stream) and module_snapshots
-// (the snapshot cache). Tracked in __module_migrations under module_id
-// "_framework" so a future change lands via the same forward-only migration
-// path modules use. The tracking table itself is created directly by
-// ModuleMigrationRunner, not through this migration — chicken-and-egg.
+// Framework-owned registry, coordination, execution, wallet, event and
+// snapshot tables are tracked in __module_migrations under module_id
+// "_framework" so every schema change lands through the same forward-only
+// migration path modules use. The tracking table itself is created directly
+// by ModuleMigrationRunner, not through this migration — chicken-and-egg.
 // ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -589,6 +589,472 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 ON game_schedule_outbox (game_id, status, next_attempt_at, id)
                 WHERE status IN ('pending', 'sending');
             """),
+
+        new Migration("028_tenant_registry", """
+            CREATE TABLE IF NOT EXISTS tenants (
+                tenant_key   BIGSERIAL PRIMARY KEY,
+                tenant_id    TEXT        NOT NULL UNIQUE,
+                display_name TEXT        NOT NULL,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+            );
+
+            CREATE TABLE IF NOT EXISTS tenant_scopes (
+                scope_key  BIGSERIAL PRIMARY KEY,
+                tenant_key BIGINT      NOT NULL REFERENCES tenants(tenant_key),
+                scope_id   TEXT        NOT NULL,
+                is_main   BOOLEAN     NOT NULL DEFAULT false,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (tenant_key, scope_id),
+                UNIQUE (tenant_key, scope_key)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_scopes_tenant
+                ON tenant_scopes (tenant_key, scope_key);
+
+            CREATE TABLE IF NOT EXISTS channel_bindings (
+                binding_key BIGSERIAL PRIMARY KEY,
+                channel     TEXT        NOT NULL,
+                container_id TEXT       NOT NULL,
+                topic_id    TEXT,
+                tenant_key  BIGINT      NOT NULL REFERENCES tenants(tenant_key),
+                scope_key   BIGINT      NOT NULL,
+                created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key),
+                UNIQUE (channel, container_id, topic_id)
+            );
+            CREATE INDEX IF NOT EXISTS ix_channel_bindings_scope
+                ON channel_bindings (tenant_key, scope_key, channel);
+
+            INSERT INTO tenants (tenant_id, display_name)
+            VALUES ('legacy:default', 'Legacy data')
+            ON CONFLICT (tenant_id) DO NOTHING;
+
+            INSERT INTO tenant_scopes (tenant_key, scope_id, is_main)
+            SELECT tenant_key, 'main', true
+            FROM tenants
+            WHERE tenant_id = 'legacy:default'
+            ON CONFLICT (tenant_key, scope_id) DO NOTHING;
+
+            -- Existing deployments may run Backend without wallet tables.
+            -- The conditional block keeps the registry migration valid in both
+            -- profiles while preserving every legacy wallet's scope boundary.
+            DO $$
+            DECLARE legacy_tenant BIGINT;
+            BEGIN
+                SELECT tenant_key INTO legacy_tenant FROM tenants WHERE tenant_id = 'legacy:default';
+                IF to_regclass('public.users') IS NOT NULL THEN
+                    EXECUTE $sql$
+                        INSERT INTO tenant_scopes (tenant_key, scope_id, is_main)
+                        SELECT $1, 'legacy:' || balance_scope_id::text, false
+                        FROM (SELECT DISTINCT balance_scope_id FROM users) legacy_scopes
+                        ON CONFLICT (tenant_key, scope_id) DO NOTHING
+                    $sql$ USING legacy_tenant;
+
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_key BIGINT;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS scope_key BIGINT;
+                    ALTER TABLE users ADD COLUMN IF NOT EXISTS player_id TEXT;
+
+                    EXECUTE $sql$
+                        UPDATE users u
+                        SET tenant_key = t.tenant_key,
+                            scope_key = s.scope_key,
+                            player_id = u.telegram_user_id::text
+                        FROM tenants t
+                        JOIN tenant_scopes s ON s.tenant_key = t.tenant_key
+                        WHERE t.tenant_id = 'legacy:default'
+                          AND s.scope_id = 'legacy:' || u.balance_scope_id::text
+                          AND (u.tenant_key IS NULL OR u.scope_key IS NULL OR u.player_id IS NULL)
+                    $sql$;
+
+                    ALTER TABLE users
+                        ADD CONSTRAINT fk_users_tenant
+                        FOREIGN KEY (tenant_key) REFERENCES tenants(tenant_key);
+                    ALTER TABLE users
+                        ADD CONSTRAINT fk_users_scope
+                        FOREIGN KEY (tenant_key, scope_key)
+                        REFERENCES tenant_scopes(tenant_key, scope_key);
+                    CREATE INDEX IF NOT EXISTS ix_users_tenant_scope_player
+                        ON users (tenant_key, scope_key, player_id);
+                END IF;
+            END $$;
+            """),
+
+        new Migration("029_tenant_owned_coordination", """
+            -- Tenant-scoped coordination records are separate from legacy
+            -- numeric message/source identifiers. They are the canonical
+            -- storage boundary used by new SDK modules.
+            CREATE TABLE IF NOT EXISTS tenant_idempotency_keys (
+                tenant_key       BIGINT NOT NULL,
+                scope_key        BIGINT NOT NULL,
+                player_id        TEXT,
+                idempotency_key  TEXT NOT NULL,
+                request_id       TEXT NOT NULL,
+                response_status  INTEGER,
+                response_payload JSONB,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+                completed_at     TIMESTAMPTZ,
+                PRIMARY KEY (tenant_key, scope_key, idempotency_key),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_idempotency_player
+                ON tenant_idempotency_keys (tenant_key, scope_key, player_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS tenant_inbox_records (
+                tenant_key      BIGINT NOT NULL,
+                scope_key       BIGINT NOT NULL,
+                message_id      TEXT NOT NULL,
+                channel         TEXT NOT NULL,
+                request_id      TEXT NOT NULL,
+                payload         JSONB NOT NULL,
+                received_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (tenant_key, scope_key, message_id),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS tenant_outbox_records (
+                tenant_key      BIGINT NOT NULL,
+                scope_key       BIGINT NOT NULL,
+                event_id        BIGSERIAL,
+                event_type      TEXT NOT NULL,
+                request_id      TEXT NOT NULL,
+                payload         JSONB NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                sent_at         TIMESTAMPTZ,
+                PRIMARY KEY (tenant_key, scope_key, event_id),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_outbox_due
+                ON tenant_outbox_records (tenant_key, scope_key, status, created_at);
+
+            CREATE TABLE IF NOT EXISTS tenant_schedules (
+                tenant_key      BIGINT NOT NULL,
+                scope_key       BIGINT NOT NULL,
+                schedule_id     TEXT NOT NULL,
+                module_id       TEXT NOT NULL,
+                due_at          TIMESTAMPTZ NOT NULL,
+                payload         JSONB NOT NULL,
+                PRIMARY KEY (tenant_key, scope_key, schedule_id),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_schedules_due
+                ON tenant_schedules (tenant_key, scope_key, due_at);
+
+            CREATE TABLE IF NOT EXISTS tenant_telemetry_context (
+                tenant_key      BIGINT NOT NULL,
+                scope_key       BIGINT NOT NULL,
+                request_id      TEXT NOT NULL,
+                correlation_id  TEXT NOT NULL,
+                channel         TEXT NOT NULL,
+                player_id       TEXT,
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (tenant_key, scope_key, request_id),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key)
+            );
+
+            ALTER TABLE channel_bindings
+                DROP CONSTRAINT IF EXISTS channel_bindings_channel_container_id_topic_id_key;
+            ALTER TABLE channel_bindings
+                ADD CONSTRAINT ux_channel_bindings_tenant_container
+                UNIQUE (tenant_key, channel, container_id, topic_id);
+            """),
+
+        new Migration("030_rate_limit_policy_overrides", """
+            CREATE TABLE IF NOT EXISTS rate_limit_policy_overrides (
+                tenant_key         BIGINT NOT NULL REFERENCES tenants(tenant_key),
+                channel            TEXT NOT NULL DEFAULT '',
+                route_key          TEXT NOT NULL DEFAULT '',
+                dimension          TEXT NOT NULL,
+                capacity           INTEGER NOT NULL CHECK (capacity > 0),
+                refill_per_second  DOUBLE PRECISION NOT NULL CHECK (refill_per_second >= 0),
+                version             BIGINT NOT NULL DEFAULT 1 CHECK (version > 0),
+                updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (tenant_key, channel, route_key, dimension),
+                CHECK (channel IN ('', 'rest', 'telegram', 'discord')),
+                CHECK (route_key = '' OR (length(route_key) <= 256 AND route_key !~ '[[:space:]/\\\\]')),
+                CHECK (dimension IN ('tenant', 'tenantplayer', 'tenantip', 'tenantroute', 'tenantplayerroute'))
+            );
+            CREATE INDEX IF NOT EXISTS ix_rate_limit_policy_overrides_tenant
+                ON rate_limit_policy_overrides (tenant_key, channel, route_key, dimension);
+            """),
+
+        new Migration("031_legacy_tenant_columns_backfill", """
+            -- Legacy tables remain writable while demo modules migrate. The
+            -- new columns are the canonical boundary for SDK 0.9 modules;
+            -- old numeric columns are retained only for the staged game cutover.
+            DO $$
+            DECLARE
+                table_name TEXT;
+                table_names TEXT[] := ARRAY[
+                    'module_events', 'module_snapshots', 'event_log',
+                    'event_dispatch_failures', 'admin_audit', 'fairness_audit',
+                    'game_command_idempotency', 'game_event_outbox',
+                    'game_aggregate_states', 'game_schedule_outbox',
+                    'telegram_outbox', 'discord_outbox', 'known_chats',
+                    'mini_game_sessions', 'mini_game_roll_gates',
+                    'telegram_dice_daily_rolls', 'economics_ledger',
+                    'player_protection', 'game_availability_overrides'
+                ];
+            BEGIN
+                FOREACH table_name IN ARRAY table_names LOOP
+                    IF to_regclass('public.' || table_name) IS NOT NULL THEN
+                        EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS tenant_key BIGINT', table_name);
+                        EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS scope_key BIGINT', table_name);
+                        EXECUTE format('ALTER TABLE %I ADD COLUMN IF NOT EXISTS player_id TEXT', table_name);
+                        EXECUTE format($sql$
+                            UPDATE %I c
+                            SET tenant_key = t.tenant_key,
+                                scope_key = s.scope_key
+                            FROM tenants t
+                            JOIN tenant_scopes s ON s.tenant_key = t.tenant_key AND s.scope_id = 'main'
+                            WHERE t.tenant_id = 'legacy:default'
+                              AND (c.tenant_key IS NULL OR c.scope_key IS NULL)
+                        $sql$, table_name);
+                    END IF;
+                END LOOP;
+            END $$;
+
+            -- Preserve the old scope boundary wherever the legacy table had
+            -- a chat/scope column. Unknown historical scopes safely remain in
+            -- legacy:default/main until their owning module is migrated.
+            DO $$
+            BEGIN
+                IF to_regclass('public.economics_ledger') IS NOT NULL THEN
+                    UPDATE economics_ledger e
+                    SET tenant_key = t.tenant_key,
+                        scope_key = s.scope_key,
+                        player_id = e.telegram_user_id::text
+                    FROM users u
+                    JOIN tenants t ON t.tenant_id = 'legacy:default'
+                    JOIN tenant_scopes s ON s.tenant_key = t.tenant_key
+                        AND s.scope_id = 'legacy:' || u.balance_scope_id::text
+                    WHERE e.telegram_user_id = u.telegram_user_id
+                      AND e.balance_scope_id = u.balance_scope_id;
+                END IF;
+
+                IF to_regclass('public.telegram_dice_daily_rolls') IS NOT NULL THEN
+                    UPDATE telegram_dice_daily_rolls r
+                    SET tenant_key = t.tenant_key,
+                        scope_key = s.scope_key,
+                        player_id = r.telegram_user_id::text
+                    FROM tenants t
+                    JOIN tenant_scopes s ON s.tenant_key = t.tenant_key
+                    WHERE t.tenant_id = 'legacy:default'
+                      AND s.scope_id = 'legacy:' || r.balance_scope_id::text;
+                END IF;
+
+                IF to_regclass('public.mini_game_sessions') IS NOT NULL THEN
+                    UPDATE mini_game_sessions m
+                    SET tenant_key = t.tenant_key,
+                        scope_key = s.scope_key,
+                        player_id = m.user_id::text
+                    FROM tenants t
+                    JOIN tenant_scopes s ON s.tenant_key = t.tenant_key
+                    WHERE t.tenant_id = 'legacy:default'
+                      AND s.scope_id = 'legacy:' || m.chat_id::text;
+                END IF;
+
+                IF to_regclass('public.mini_game_roll_gates') IS NOT NULL THEN
+                    UPDATE mini_game_roll_gates m
+                    SET tenant_key = t.tenant_key,
+                        scope_key = s.scope_key,
+                        player_id = m.user_id::text
+                    FROM tenants t
+                    JOIN tenant_scopes s ON s.tenant_key = t.tenant_key
+                    WHERE t.tenant_id = 'legacy:default'
+                      AND s.scope_id = 'legacy:' || m.chat_id::text;
+                END IF;
+
+                IF to_regclass('public.player_protection') IS NOT NULL THEN
+                    UPDATE player_protection p
+                    SET tenant_key = u.tenant_key,
+                        scope_key = u.scope_key,
+                        player_id = p.telegram_user_id::text
+                    FROM users u
+                    WHERE p.telegram_user_id = u.telegram_user_id;
+                END IF;
+            END $$;
+
+            DO $$
+            DECLARE table_name TEXT;
+            DECLARE table_names TEXT[] := ARRAY[
+                'module_events', 'module_snapshots', 'event_log',
+                'event_dispatch_failures', 'admin_audit', 'fairness_audit',
+                'game_command_idempotency', 'game_event_outbox',
+                'game_aggregate_states', 'game_schedule_outbox',
+                'telegram_outbox', 'discord_outbox', 'known_chats',
+                'mini_game_sessions', 'mini_game_roll_gates',
+                'telegram_dice_daily_rolls', 'economics_ledger',
+                'player_protection', 'game_availability_overrides'
+            ];
+            BEGIN
+                FOREACH table_name IN ARRAY table_names LOOP
+                    IF to_regclass('public.' || table_name) IS NOT NULL THEN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'fk_' || table_name || '_tenant') THEN
+                            EXECUTE format(
+                                'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (tenant_key) REFERENCES tenants(tenant_key)',
+                                table_name, 'fk_' || table_name || '_tenant');
+                        END IF;
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'fk_' || table_name || '_scope') THEN
+                            EXECUTE format(
+                                'ALTER TABLE %I ADD CONSTRAINT %I FOREIGN KEY (tenant_key, scope_key) REFERENCES tenant_scopes(tenant_key, scope_key)',
+                                table_name, 'fk_' || table_name || '_scope');
+                        END IF;
+                        EXECUTE format('CREATE INDEX IF NOT EXISTS ix_%s_tenant_scope ON %I (tenant_key, scope_key)', table_name, table_name);
+                    END IF;
+                END LOOP;
+            END $$;
+            """),
+
+        new Migration("032_tenant_idempotency_execution_metadata", """
+            ALTER TABLE tenant_idempotency_keys
+                ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending',
+                ADD COLUMN IF NOT EXISTS game_id TEXT,
+                ADD COLUMN IF NOT EXISTS aggregate_id TEXT,
+                ADD COLUMN IF NOT EXISTS result_type TEXT,
+                ADD COLUMN IF NOT EXISTS entropy_json JSONB,
+                ADD COLUMN IF NOT EXISTS error TEXT;
+            CREATE INDEX IF NOT EXISTS ix_tenant_idempotency_status
+                ON tenant_idempotency_keys (tenant_key, scope_key, status, created_at);
+            """),
+
+        new Migration("033_tenant_wallets", """
+            CREATE TABLE IF NOT EXISTS tenant_wallets (
+                tenant_key   BIGINT NOT NULL,
+                scope_key    BIGINT NOT NULL,
+                player_id    TEXT NOT NULL,
+                display_name TEXT NOT NULL DEFAULT '',
+                coins        BIGINT NOT NULL DEFAULT 0,
+                version      BIGINT NOT NULL DEFAULT 0,
+                created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (tenant_key, scope_key, player_id),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes(tenant_key, scope_key),
+                CHECK (length(player_id) BETWEEN 1 AND 256),
+                CHECK (coins >= 0),
+                CHECK (version >= 0)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_wallets_scope_updated
+                ON tenant_wallets (tenant_key, scope_key, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS tenant_wallet_ledger (
+                id            BIGSERIAL PRIMARY KEY,
+                tenant_key    BIGINT NOT NULL,
+                scope_key     BIGINT NOT NULL,
+                player_id     TEXT NOT NULL,
+                delta         BIGINT NOT NULL,
+                balance_after BIGINT NOT NULL,
+                reason        TEXT NOT NULL,
+                operation_id  TEXT,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes(tenant_key, scope_key)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_wallet_ledger_scope_player
+                ON tenant_wallet_ledger (tenant_key, scope_key, player_id, id DESC);
+            CREATE INDEX IF NOT EXISTS ix_tenant_wallet_ledger_operation
+                ON tenant_wallet_ledger (tenant_key, scope_key, operation_id)
+                WHERE operation_id IS NOT NULL;
+            """),
+
+        new Migration("034_tenant_execution_records", """
+            -- Canonical execution records for SDK modules. Legacy game tables
+            -- remain available for the staged demo-game migration.
+            CREATE TABLE IF NOT EXISTS tenant_aggregate_states (
+                tenant_key   BIGINT NOT NULL,
+                scope_key    BIGINT NOT NULL,
+                game_id      TEXT NOT NULL,
+                aggregate_id TEXT NOT NULL,
+                state_type   TEXT NOT NULL,
+                version      BIGINT NOT NULL,
+                state        JSONB NOT NULL,
+                updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+                PRIMARY KEY (tenant_key, scope_key, game_id, aggregate_id),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key),
+                CHECK (length(game_id) BETWEEN 1 AND 100),
+                CHECK (length(aggregate_id) BETWEEN 1 AND 256),
+                CHECK (version >= 0)
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_aggregate_states_updated
+                ON tenant_aggregate_states (tenant_key, scope_key, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS tenant_event_outbox (
+                id             BIGSERIAL PRIMARY KEY,
+                tenant_key     BIGINT NOT NULL,
+                scope_key      BIGINT NOT NULL,
+                command_id     TEXT NOT NULL,
+                event_index    INTEGER NOT NULL,
+                event_type     TEXT NOT NULL,
+                type_name      TEXT NOT NULL,
+                payload        JSONB NOT NULL,
+                occurred_at    TIMESTAMPTZ NOT NULL,
+                request_id     TEXT NOT NULL DEFAULT '',
+                correlation_id  TEXT NOT NULL DEFAULT '',
+                channel        TEXT NOT NULL DEFAULT '',
+                player_id      TEXT,
+                status         TEXT NOT NULL DEFAULT 'pending',
+                attempts       INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                locked_until   TIMESTAMPTZ,
+                sent_at        TIMESTAMPTZ,
+                last_error     TEXT,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (tenant_key, scope_key, command_id, event_index),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key),
+                CHECK (event_index >= 0),
+                CHECK (status IN ('pending', 'sending', 'sent'))
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_event_outbox_due
+                ON tenant_event_outbox (tenant_key, scope_key, status, next_attempt_at, id);
+
+            CREATE TABLE IF NOT EXISTS tenant_schedule_outbox (
+                id             BIGSERIAL PRIMARY KEY,
+                tenant_key     BIGINT NOT NULL,
+                scope_key      BIGINT NOT NULL,
+                command_id     TEXT NOT NULL,
+                effect_index   INTEGER NOT NULL,
+                game_id        TEXT NOT NULL,
+                schedule_id    TEXT NOT NULL,
+                effect_kind    TEXT NOT NULL,
+                job_key        TEXT,
+                due_at         TIMESTAMPTZ,
+                data           JSONB NOT NULL DEFAULT '{}',
+                request_id     TEXT NOT NULL DEFAULT '',
+                correlation_id TEXT NOT NULL DEFAULT '',
+                channel        TEXT NOT NULL DEFAULT '',
+                player_id      TEXT,
+                status         TEXT NOT NULL DEFAULT 'pending',
+                attempts       INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                locked_until   TIMESTAMPTZ,
+                sent_at        TIMESTAMPTZ,
+                last_error     TEXT,
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (tenant_key, scope_key, command_id, effect_index),
+                FOREIGN KEY (tenant_key, scope_key)
+                    REFERENCES tenant_scopes (tenant_key, scope_key),
+                CHECK (effect_index >= 0),
+                CHECK (effect_kind IN ('schedule', 'cancel'))
+            );
+            CREATE INDEX IF NOT EXISTS ix_tenant_schedule_outbox_due
+                ON tenant_schedule_outbox (tenant_key, scope_key, status, next_attempt_at, id);
+            CREATE INDEX IF NOT EXISTS ix_tenant_schedule_outbox_order
+                ON tenant_schedule_outbox (tenant_key, scope_key, schedule_id, id, status);
+            """),
+
     ];
 
     /// <summary>
@@ -658,5 +1124,7 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 CREATE INDEX IF NOT EXISTS ix_player_protection_active
                     ON player_protection (cooldown_until, self_excluded_until);
                 """))
+            .Append(Migrations.Single(migration => migration.Id == "028_tenant_registry"))
+            .Append(Migrations.Single(migration => migration.Id == "029_tenant_owned_coordination"))
             .ToArray();
 }

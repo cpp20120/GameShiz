@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BotFramework.Sdk.Admin.Execution;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Host.Contracts.Economics;
 using Dapper;
 using Npgsql;
@@ -17,6 +18,7 @@ public interface IAdminEffectExecutor
 public interface IAdminExecutionContext
 {
     IWalletAtomicExecutionService? Wallet => null;
+    TenantContext? TenantContext => null;
 
     AdminActor Actor { get; }
 
@@ -67,7 +69,13 @@ internal sealed class AdminEffectExecutor(
 
         await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
-        var context = new PostgresAdminExecutionContext(connection, transaction, envelope.Actor, envelope.Action, wallet);
+        var context = new PostgresAdminExecutionContext(
+            connection,
+            transaction,
+            envelope.Actor,
+            envelope.Action,
+            wallet,
+            envelope.TenantContext);
 
         try
         {
@@ -81,8 +89,14 @@ internal sealed class AdminEffectExecutor(
 
             await context.ExecuteAsync(
                 """
-                INSERT INTO admin_audit (actor_id, actor_name, action, details, occurred_at)
-                VALUES (@actorId, @actorName, @action, @details::jsonb, now())
+                INSERT INTO admin_audit (
+                    actor_id, actor_name, action, details, occurred_at, tenant_key, scope_key)
+                SELECT @actorId, @actorName, @action, @details::jsonb, now(),
+                       t.tenant_key, s.scope_key
+                FROM (SELECT @tenantId::text AS tenant_id, @scopeId::text AS scope_id) request
+                LEFT JOIN tenants t ON t.tenant_id = request.tenant_id
+                LEFT JOIN tenant_scopes s
+                    ON s.tenant_key = t.tenant_key AND s.scope_id = request.scope_id
                 """,
                 new
                 {
@@ -90,6 +104,8 @@ internal sealed class AdminEffectExecutor(
                     actorName = envelope.Actor.Name,
                     envelope.Action,
                     details = JsonSerializer.Serialize(envelope.AuditDetails),
+                    tenantId = envelope.TenantContext?.TenantId.Value,
+                    scopeId = envelope.TenantContext?.ScopeId.Value,
                 },
                 ct).ConfigureAwait(false);
 
@@ -110,7 +126,8 @@ internal sealed class AdminEffectExecutor(
         NpgsqlTransaction transaction,
         AdminActor actor,
         string action,
-        IWalletAtomicExecutionService wallet) : IAdminExecutionContext
+        IWalletAtomicExecutionService wallet,
+        TenantContext? tenantContext) : IAdminExecutionContext
     {
         private readonly Dictionary<string, object?> outputs = new(StringComparer.Ordinal);
 
@@ -120,6 +137,7 @@ internal sealed class AdminEffectExecutor(
 
         public string Action => action;
         public IWalletAtomicExecutionService Wallet { get; } = wallet;
+        public TenantContext? TenantContext { get; } = tenantContext;
 
         public Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct) =>
             connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct));

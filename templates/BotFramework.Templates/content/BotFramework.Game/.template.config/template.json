@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "BotFramework",
+  "classifications": ["BotFramework", "Game", "DDD"],
+  "identity": "BotFramework.Game",
+  "name": "BotFramework game module",
+  "shortName": "botframework-game",
+  "sourceName": "SampleGame",
+  "description": "Create a DDD BotFramework game module with isolated channel adapters.",
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "modifiers": [
+        {
+          "condition": "channels != \"rest\" && channels != \"all\"",
+          "exclude": ["SampleGame.Rest/**"]
+        },
+        {
+          "condition": "channels != \"telegram\" && channels != \"all\"",
+          "exclude": ["SampleGame.Telegram/**"]
+        },
+        {
+          "condition": "channels != \"discord\" && channels != \"all\"",
+          "exclude": ["SampleGame.Discord/**"]
+        },
+        {
+          "condition": "include-tests == false",
+          "exclude": ["SampleGame.Tests/**"]
+        },
+        {
+          "condition": "persistence == \"none\"",
+          "exclude": ["SampleGame.Infrastructure/**"]
+        },
+        {
+          "condition": "persistence != \"atomic\"",
+          "exclude": ["SampleGame.Infrastructure/AtomicStateStore.cs"]
+        },
+        {
+          "condition": "persistence != \"event-sourced\"",
+          "exclude": ["SampleGame.Infrastructure/EventSourcedAggregate.cs"]
+        }
+      ]
+    }
+  ],
+  "symbols": {
+    "module-id": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "sample-game",
+      "replaces": "sample-game",
+      "description": "Stable module id used by routes, commands, and telemetry."
+    },
+    "channels": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "all",
+      "choices": [
+        { "choice": "rest", "description": "Generate the REST adapter." },
+        { "choice": "telegram", "description": "Generate the Telegram adapter." },
+        { "choice": "discord", "description": "Generate the Discord adapter." },
+        { "choice": "all", "description": "Generate every adapter." }
+      ]
+    },
+    "persistence": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "atomic",
+      "choices": [
+        { "choice": "atomic", "description": "Generate the atomic execution store." },
+        { "choice": "event-sourced", "description": "Generate event-sourced persistence hooks." },
+        { "choice": "none", "description": "Generate a stateless module." }
+      ]
+    },
+    "include-tests": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "true",
+      "description": "Include isolated domain/application tests."
+    }
+  }
+}

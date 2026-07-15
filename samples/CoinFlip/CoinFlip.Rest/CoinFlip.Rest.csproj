@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CoinFlip.Rest</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../CoinFlip.Application/CoinFlip.Application.csproj" />
+    <PackageReference Include="BotFramework.Rest" />
+  </ItemGroup>
+</Project>

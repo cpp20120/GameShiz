@@ -1,0 +1,25 @@
+{
+  "runtime": "$(BotFrameworkNswagRuntime)",
+  "defaultVariables": "BotFrameworkNswagRuntime=Net80,BotFrameworkOpenApiDocument=openapi-v1.json,BotFrameworkGeneratedClient=Generated/GeneratedBotFrameworkClient.cs",
+  "documentGenerator": {
+    "fromDocument": {
+      "url": "$(BotFrameworkOpenApiDocument)"
+    }
+  },
+  "codeGenerators": {
+    "openApiToCSharpClient": {
+      "className": "GeneratedBotFrameworkClient",
+      "namespace": "BotFramework.Client.Generated",
+      "output": "$(BotFrameworkGeneratedClient)",
+      "generateClientInterfaces": true,
+      "generateDtoTypes": true,
+      "useBaseUrl": false,
+      "injectHttpClient": true,
+      "disposeHttpClient": false,
+      "generateOptionalParameters": true,
+      "jsonLibrary": "SystemTextJson",
+      "generateClientClasses": true,
+      "generateExceptionClasses": true
+    }
+  }
+}

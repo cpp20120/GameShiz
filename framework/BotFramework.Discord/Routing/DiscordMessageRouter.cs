@@ -1,18 +1,42 @@
 using Microsoft.Extensions.Logging;
 using BotFramework.Discord.Commands;
 using BotFramework.Discord.Hosting;
+using BotFramework.Contracts.Messaging;
+using BotFramework.Contracts.RateLimiting;
+using BotFramework.Contracts.Tenancy;
+using BotFramework.Discord.Abstractions;
+using System.Globalization;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BotFramework.Discord.Routing;
 
 public sealed partial class DiscordMessageRouter(
     IEnumerable<IDiscordMessageHandler> handlers,
     ILogger<DiscordMessageRouter> logger,
-    DiscordUxRateLimiter rateLimiter)
+    IRateLimiter rateLimiter,
+    IDiscordTenantContextResolver tenantResolver,
+    ITenantContextAccessor tenantContext,
+    RateLimitRequestState requestState)
 {
     public async Task RouteAsync(DiscordMessageContext context)
     {
-        var commandName = context.CommandText.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "unknown";
-        var decision = rateLimiter.Check(context.Message.Author.Id, $"command:{commandName}", interaction: false);
+        var requestId = RequestId.Create(string.Create(
+            CultureInfo.InvariantCulture,
+            $"discord:message:{context.Message.Id}"));
+        var resolvedTenant = DiscordTenantContext.Resolve(context.Message, tenantResolver, requestId);
+        using var tenantScope = tenantContext.Push(resolvedTenant);
+        var provisioner = context.Services.GetService<ITenantContextProvisioner>();
+        if (provisioner is not null)
+            await provisioner.EnsureAsync(resolvedTenant, context.CancellationToken).ConfigureAwait(false);
+        using var metadataScope = RequestMetadataContext.Push(
+            RequestMetadata.FromTenantContext(resolvedTenant, "discord"));
+        var decision = await rateLimiter.CheckAsync(
+            new RateLimitRequest(
+                resolvedTenant.TenantId,
+                resolvedTenant.PlayerId,
+                BotChannel.Discord,
+                "message-command"),
+            context.CancellationToken).ConfigureAwait(false);
         if (!decision.Allowed)
         {
             var seconds = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds));
@@ -22,6 +46,7 @@ public sealed partial class DiscordMessageRouter(
                 isError: true);
             return;
         }
+        requestState.LeaseGranted = true;
 
         foreach (var handler in handlers)
         {

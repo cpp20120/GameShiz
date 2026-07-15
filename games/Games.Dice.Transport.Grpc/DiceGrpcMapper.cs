@@ -1,4 +1,5 @@
 using BotFramework.Contracts.Messaging;
+using BotFramework.Contracts.Tenancy;
 using Games.Dice.Contracts.Play;
 using Games.Dice.Transport.Grpc.Wire;
 
@@ -19,14 +20,22 @@ internal static class DiceGrpcMapper
         if (metadata is null)
             throw new ArgumentException("Request metadata is required.", nameof(metadata));
 
-        return new RequestMetadata(
+        var result = new RequestMetadata(
             metadata.RequestId,
             metadata.CorrelationId,
             metadata.ClientId,
             EmptyToNull(metadata.UserId),
             EmptyToNull(metadata.ScopeId),
             metadata.Culture,
-            new Dictionary<string, string>(metadata.Baggage, StringComparer.Ordinal));
+            new Dictionary<string, string>(metadata.Baggage, StringComparer.Ordinal))
+        {
+            Tenant = ParseTenant(metadata.TenantId),
+            TypedScope = ParseScope(metadata.ScopeId),
+            Player = ParsePlayer(metadata.PlayerId),
+            Channel = ParseChannel(metadata.Channel),
+        };
+
+        return result;
     }
 
     public static DicePlayGrpcResponse ToGrpc(this DicePlayResponse response) => new()
@@ -57,6 +66,9 @@ internal static class DiceGrpcMapper
             UserId = metadata.UserId ?? "",
             ScopeId = metadata.ScopeId ?? "",
             Culture = metadata.Culture,
+            TenantId = metadata.Tenant?.ToString() ?? "",
+            PlayerId = metadata.Player?.ToString() ?? "",
+            Channel = metadata.Channel.ToString().ToLowerInvariant(),
         };
         foreach (var (key, value) in metadata.Baggage)
             result.Baggage.Add(key, value);
@@ -91,4 +103,16 @@ internal static class DiceGrpcMapper
         response.DailyRollLimit);
 
     private static string? EmptyToNull(string value) => string.IsNullOrEmpty(value) ? null : value;
+
+    private static TenantId? ParseTenant(string value) =>
+        TenantId.TryParse(value, null, out var tenant) ? tenant : null;
+
+    private static ScopeId? ParseScope(string value) =>
+        ScopeId.TryParse(value, null, out var scope) ? scope : null;
+
+    private static PlayerId? ParsePlayer(string value) =>
+        PlayerId.TryParse(value, null, out var player) ? player : null;
+
+    private static BotChannel ParseChannel(string value) =>
+        Enum.TryParse<BotChannel>(value, true, out var channel) ? channel : BotChannel.Telegram;
 }

@@ -82,6 +82,9 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
         await connection.OpenAsync().ConfigureAwait(false);
         await connection.ExecuteAsync("""
             TRUNCATE TABLE
+                tenant_event_outbox,
+                tenant_schedule_outbox,
+                tenant_aggregate_states,
                 game_event_outbox,
                 game_schedule_outbox,
                 admin_audit,
@@ -113,7 +116,9 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
                 mini_game_sessions,
                 users,
                 player_protection,
-                game_availability_overrides,
+            game_availability_overrides,
+                tenant_wallet_ledger,
+                tenant_wallets,
                 blackjack_hands
             RESTART IDENTITY CASCADE
             """).ConfigureAwait(false);

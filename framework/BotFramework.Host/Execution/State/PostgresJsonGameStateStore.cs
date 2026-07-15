@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Sdk.Execution;
 
 namespace BotFramework.Host.Execution;
@@ -20,17 +21,42 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
         IGameExecutionContext context,
         CancellationToken ct)
     {
-        var row = await context.QuerySingleOrDefaultAsync<StateRow>(
-            """
-            SELECT state_type AS StoredStateType,
-                   version AS Version,
-                   state::text AS StateJson
-            FROM game_aggregate_states
-            WHERE game_id = @gameId AND aggregate_id = @aggregateId
-            FOR UPDATE
-            """,
-            Identity(command),
-            ct).ConfigureAwait(false);
+        var identity = Identity(command);
+        var tenant = context.TenantContext;
+        var row = tenant is null
+            ? await context.QuerySingleOrDefaultAsync<StateRow>(
+                """
+                SELECT state_type AS StoredStateType,
+                       version AS Version,
+                       state::text AS StateJson
+                FROM game_aggregate_states
+                WHERE game_id = @gameId AND aggregate_id = @aggregateId
+                FOR UPDATE
+                """,
+                identity,
+                ct).ConfigureAwait(false)
+            : await context.QuerySingleOrDefaultAsync<StateRow>(
+                """
+                SELECT state_type AS StoredStateType,
+                       version AS Version,
+                       state::text AS StateJson
+                FROM tenant_aggregate_states a
+                JOIN tenants t ON t.tenant_key = a.tenant_key
+                JOIN tenant_scopes s ON s.tenant_key = a.tenant_key AND s.scope_key = a.scope_key
+                WHERE t.tenant_id = @tenantId
+                  AND s.scope_id = @scopeId
+                  AND a.game_id = @gameId
+                  AND a.aggregate_id = @aggregateId
+                FOR UPDATE
+                """,
+                new
+                {
+                    tenantId = tenant.TenantId.Value,
+                    scopeId = tenant.ScopeId.Value,
+                    identity.GameId,
+                    identity.AggregateId,
+                },
+                ct).ConfigureAwait(false);
         if (row is null)
         {
             var initial = descriptor.CreateInitialState(command);
@@ -70,6 +96,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
             throw new InvalidOperationException("Versioned state must advance exactly one revision.");
 
         var identity = Identity(command);
+        var tenant = context.TenantContext;
         var args = new
         {
             identity.GameId,
@@ -79,33 +106,88 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
             revision = state.Revision,
             state = JsonSerializer.Serialize(state, JsonOptions),
         };
-        var affected = await context.ExecuteAsync(
-            """
-            UPDATE game_aggregate_states
-            SET state_type = @stateType,
-                version = @revision,
-                state = CAST(@state AS jsonb),
-                updated_at = now()
-            WHERE game_id = @gameId
-              AND aggregate_id = @aggregateId
-              AND version = @expectedRevision
-            """,
-            args,
-            ct).ConfigureAwait(false);
+        var affected = tenant is null
+            ? await context.ExecuteAsync(
+                """
+                UPDATE game_aggregate_states
+                SET state_type = @stateType,
+                    version = @revision,
+                    state = CAST(@state AS jsonb),
+                    updated_at = now()
+                WHERE game_id = @gameId
+                  AND aggregate_id = @aggregateId
+                  AND version = @expectedRevision
+                """,
+                args,
+                ct).ConfigureAwait(false)
+            : await context.ExecuteAsync(
+                """
+                UPDATE tenant_aggregate_states a
+                SET state_type = @stateType,
+                    version = @revision,
+                    state = CAST(@state AS jsonb),
+                    updated_at = now()
+                FROM tenants t, tenant_scopes s
+                WHERE a.tenant_key = t.tenant_key
+                  AND a.scope_key = s.scope_key
+                  AND s.tenant_key = t.tenant_key
+                  AND t.tenant_id = @tenantId
+                  AND s.scope_id = @scopeId
+                  AND a.game_id = @gameId
+                  AND a.aggregate_id = @aggregateId
+                  AND a.version = @expectedRevision
+                """,
+                new
+                {
+                    args.GameId,
+                    args.AggregateId,
+                    args.stateType,
+                    args.expectedRevision,
+                    args.revision,
+                    args.state,
+                    tenantId = tenant.TenantId.Value,
+                    scopeId = tenant.ScopeId.Value,
+                },
+                ct).ConfigureAwait(false);
         if (affected == 1)
             return;
 
         if (expectedRevision == 0)
         {
-            affected = await context.ExecuteAsync(
-                """
-                INSERT INTO game_aggregate_states (
-                    game_id, aggregate_id, state_type, version, state, updated_at)
-                VALUES (@gameId, @aggregateId, @stateType, @revision, CAST(@state AS jsonb), now())
-                ON CONFLICT (game_id, aggregate_id) DO NOTHING
-                """,
-                args,
-                ct).ConfigureAwait(false);
+            affected = tenant is null
+                ? await context.ExecuteAsync(
+                    """
+                    INSERT INTO game_aggregate_states (
+                        game_id, aggregate_id, state_type, version, state, updated_at)
+                    VALUES (@gameId, @aggregateId, @stateType, @revision, CAST(@state AS jsonb), now())
+                    ON CONFLICT (game_id, aggregate_id) DO NOTHING
+                    """,
+                    args,
+                    ct).ConfigureAwait(false)
+                : await context.ExecuteAsync(
+                    """
+                    INSERT INTO tenant_aggregate_states (
+                        tenant_key, scope_key, game_id, aggregate_id,
+                        state_type, version, state, updated_at)
+                    SELECT t.tenant_key, s.scope_key, @gameId, @aggregateId,
+                           @stateType, @revision, CAST(@state AS jsonb), now()
+                    FROM tenants t
+                    JOIN tenant_scopes s ON s.tenant_key = t.tenant_key
+                       AND s.scope_id = @scopeId
+                    WHERE t.tenant_id = @tenantId
+                    ON CONFLICT (tenant_key, scope_key, game_id, aggregate_id) DO NOTHING
+                    """,
+                    new
+                    {
+                        args.GameId,
+                        args.AggregateId,
+                        args.stateType,
+                        args.revision,
+                        args.state,
+                        tenantId = tenant.TenantId.Value,
+                        scopeId = tenant.ScopeId.Value,
+                    },
+                    ct).ConfigureAwait(false);
             if (affected == 1)
                 return;
         }

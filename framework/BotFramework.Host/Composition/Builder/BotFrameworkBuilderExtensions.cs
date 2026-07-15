@@ -23,7 +23,13 @@ using BotFramework.Host.Configuration.Validation;
 using BotFramework.Host.Admin.Execution;
 using BotFramework.Host.Admin.Effects;
 using BotFramework.Host.Composition.ServiceDatabases;
+using BotFramework.Host.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using BotFramework.Contracts.RateLimiting;
+using BotFramework.Contracts.Tenancy;
+using BotFramework.Contracts.Economics;
+using BotFramework.Host.Tenancy;
+using BotFramework.Host.Economics;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -84,7 +90,19 @@ public static class BotFrameworkBuilderExtensions
                 "Services:Operations:ApiKey is required when the Operations section is configured.")
             .ValidateOnStart();
 
-        services.AddSingleton<ICommandBus, CommandBus>();
+        services.AddScoped<ICommandBus, CommandBus>();
+        services.AddOptions<RateLimitOptions>()
+            .Bind(configuration.GetSection(RateLimitOptions.SectionName))
+            .Configure(options => options.RedisConnectionString ??= configuration["Redis:ConnectionString"])
+            .Validate(options => options.LocalMaxKeys > 0, "RateLimit:LocalMaxKeys must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<IRateLimiter, RedisRateLimiter>();
+        services.AddSingleton<PostgresRateLimitPolicyProvider>();
+        services.AddSingleton<IRateLimitPolicyProvider>(sp => sp.GetRequiredService<PostgresRateLimitPolicyProvider>());
+        services.AddSingleton<IRateLimitPolicyAdmin>(sp => sp.GetRequiredService<PostgresRateLimitPolicyProvider>());
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddScoped<RateLimitRequestState>();
+        services.AddScoped<ICommandMiddleware, DistributedRateLimitMiddleware>();
         services.AddMediatR(configuration =>
             configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestClient, LocalRequestClient>();
@@ -169,6 +187,7 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<HealthEndpoint>();
         services.AddSingleton<ILocalizer, Localizer>();
         services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
+        services.AddSingleton<ITenantContextProvisioner, PostgresTenantContextProvisioner>();
         services.AddHealthChecks()
             .AddCheck<PostgresDatabaseHealthCheck>(
                 "postgres",
@@ -176,6 +195,9 @@ public static class BotFrameworkBuilderExtensions
                 tags: ["ready"]);
         services.AddSingleton<IGameExecutionSessionFactory, PostgresGameExecutionSessionFactory>();
         services.AddSingleton<ICommandInbox, PostgresCommandInbox>();
+        services.AddSingleton<ITenantWalletReadService, PostgresTenantWalletReadService>();
+        services.AddScoped<IGameEffectHandler, PostgresTenantWalletGameEffectHandler>();
+        services.AddScoped<IAtomicEffectHandler, PostgresTenantWalletAtomicEffectHandler>();
         services.AddSingleton<IAtomicQuotaStore, PostgresAtomicQuotaStore>();
         services.AddSingleton<IAtomicGameAvailability, PostgresAtomicGameAvailability>();
         if (walletRemote)
@@ -244,6 +266,8 @@ public static class BotFrameworkBuilderExtensions
         services.AddScoped<IRuntimeConfigurationService, RuntimeConfigurationService>();
         services.AddScoped<IAdminEffectExecutor, AdminEffectExecutor>();
         services.AddScoped<IAdminEffectHandler, RuntimeConfigurationPatchEffectHandler>();
+        services.AddScoped<IAdminEffectHandler, TenantWalletAdjustmentAdminEffectHandler>();
+        services.AddScoped<IAdminEffectHandler, TenantWalletSetAdminEffectHandler>();
         if (walletRemote)
         {
             services.AddScoped<IAdminEffectHandler, RemoteWalletAdjustmentAdminEffectHandler>();

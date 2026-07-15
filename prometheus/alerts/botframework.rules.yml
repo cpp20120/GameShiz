@@ -1,0 +1,75 @@
+groups:
+  - name: botframework-availability
+    rules:
+      - alert: BotFrameworkServiceUnavailable
+        expr: up{job=~"botframework-otel|dotnet|postgres|redis"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: BotFramework dependency or service is unavailable
+          description: '{{ $labels.job }} has been unavailable for more than two minutes.'
+
+      - alert: BotFrameworkRateLimitLocalFallback
+        expr: max(botframework_rate_limit_fallback_active) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Distributed rate limiter is on local fallback
+
+      - alert: BotFrameworkHttpOrGameFailures
+        expr: (sum(rate(botframework_request_errors_total{outcome="error"}[10m])) + sum(rate(game_command_failures_total[10m]))) / clamp_min(sum(rate(botframework_requests_total[10m])), 1) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: HTTP or game failures exceed five percent
+
+      - alert: BotFrameworkRequestLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le, service, route) (rate(botframework_request_duration_seconds_bucket[10m]))) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 request latency exceeds two seconds
+
+      - alert: BotFrameworkGameLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le, service, module) (rate(game_command_execution_duration_bucket[10m]))) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 game latency exceeds two seconds
+
+      - alert: BotFrameworkOutboxLagHigh
+        expr: histogram_quantile(0.95, sum by (le, service) (rate(game_outbox_delivery_lag_bucket[10m]))) > 30
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 outbox lag exceeds thirty seconds
+
+      - alert: BotFrameworkQueueBacklog
+        expr: max_over_time(botframework_queue_backlog[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Queue backlog is persistent
+
+      - alert: BotFrameworkHighCpu
+        expr: 100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: CPU is above eighty-five percent
+
+      - alert: BotFrameworkHighMemory
+        expr: 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Memory usage is above ninety percent

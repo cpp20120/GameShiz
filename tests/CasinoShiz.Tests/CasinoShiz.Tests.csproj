@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Client\BotFramework.Client.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Discord\BotFramework.Discord.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />

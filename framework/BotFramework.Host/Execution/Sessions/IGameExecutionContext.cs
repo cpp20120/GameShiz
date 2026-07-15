@@ -1,10 +1,12 @@
 using BotFramework.Sdk.Execution;
+using BotFramework.Contracts.Tenancy;
 
 namespace BotFramework.Host.Execution;
 
 public interface IGameExecutionContext
 {
     string? OperationId => null;
+    TenantContext? TenantContext => null;
 
     /// <summary>
     /// Applies a wallet batch using the deployment's wallet boundary. In the

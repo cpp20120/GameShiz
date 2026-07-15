@@ -11,6 +11,8 @@ public static class RequestMetadataContext
     public static RequestMetadata Current => CurrentHolder.Value?.Value
         ?? throw new InvalidOperationException("Request metadata is unavailable outside an IRequestClient dispatch scope.");
 
+    public static RequestMetadata? TryGetCurrent() => CurrentHolder.Value?.Value;
+
     public static IDisposable Push(RequestMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);

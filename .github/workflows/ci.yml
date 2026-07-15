@@ -45,7 +45,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: |
+            8.0.x
+            10.0.x
           dotnet-quality: preview
 
       - name: Restore
@@ -70,6 +72,29 @@ jobs:
         run: |
           set -o pipefail
           dotnet test --no-build --configuration Release --verbosity normal 2>&1 | tee test.log
+
+      - name: Verify public API and breaking route
+        run: bash eng/verify-public-api.sh
+
+      - name: Verify generated BotFramework client
+        run: dotnet build framework/BotFramework.Client/BotFramework.Client.csproj --no-restore --configuration Release -p:BotFrameworkGenerateClient=true
+
+      - name: Validate Prometheus alert rules
+        run: docker run --rm -v "$PWD:/work:ro" prom/prometheus:v2.55.1 promtool check rules /work/prometheus/alerts/botframework.rules.yml
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Validate Helm chart
+        run: |
+          helm lint deploy/helm/cazinoshiz
+          helm template cazinoshiz deploy/helm/cazinoshiz > helm-rendered.yaml
+
+      - name: Validate Alertmanager configuration
+        run: docker run --rm -v "$PWD:/work:ro" quay.io/prometheus/alertmanager:v0.28.1 amtool check-config /work/observability/alertmanager.yaml
+
+      - name: Package consumer smoke test
+        run: bash eng/package-consumer-smoke.sh
 
       - name: Upload test log
         if: always()

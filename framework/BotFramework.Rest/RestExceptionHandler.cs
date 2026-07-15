@@ -14,8 +14,13 @@ internal sealed class RestExceptionHandler(IProblemDetailsService problemDetails
         if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
             return false;
 
-        var (status, title, detail) = RestExceptionMapping.Map(exception);
+        var (status, title, detail, code, retryAfter) = RestExceptionMapping.Map(exception);
         httpContext.Response.StatusCode = status;
+        var retryAfterSeconds = retryAfter is { } retryValue
+            ? Math.Max(1, (int)Math.Ceiling(retryValue.TotalSeconds))
+            : (int?)null;
+        if (retryAfterSeconds is { } seconds)
+            httpContext.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
         await problemDetails.WriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
@@ -25,6 +30,11 @@ internal sealed class RestExceptionHandler(IProblemDetailsService problemDetails
                 Title = title,
                 Detail = detail,
                 Type = $"https://httpstatuses.com/{status}",
+                Extensions =
+                {
+                    ["code"] = code,
+                    ["retryAfterSeconds"] = retryAfterSeconds,
+                },
             },
         }).ConfigureAwait(false);
         return true;
@@ -33,32 +43,32 @@ internal sealed class RestExceptionHandler(IProblemDetailsService problemDetails
 
 internal static class RestExceptionMapping
 {
-    public static (int Status, string Title, string Detail) Map(Exception exception)
+    public static (int Status, string Title, string Detail, string Code, TimeSpan? RetryAfter) Map(Exception exception)
     {
         if (exception is RestHttpException rest)
-            return (rest.StatusCode, Title(rest.StatusCode), rest.Message);
+            return (rest.StatusCode, Title(rest.StatusCode), rest.Message, rest.Code, rest.RetryAfter);
         if (exception is ArgumentException or System.ComponentModel.DataAnnotations.ValidationException)
-            return (400, "Request validation failed.", exception.Message);
+            return (400, "Request validation failed.", exception.Message, "validation_error", null);
         if (exception is KeyNotFoundException)
-            return (404, "Resource not found.", exception.Message);
+            return (404, "Resource not found.", exception.Message, "not_found", null);
         if (exception.GetType().Name is "GameStateConcurrencyException" or "ConcurrencyException")
-            return (409, "State conflict.", exception.Message);
+            return (409, "State conflict.", exception.Message, "state_conflict", null);
 
         // gRPC keeps the status in Grpc.Core.RpcException. Use reflection here
         // so the reusable REST runtime does not take a dependency on gRPC.
         var statusCode = exception.GetType().GetProperty("StatusCode")?.GetValue(exception)?.ToString();
         if (statusCode is "Unavailable" or "DeadlineExceeded" or "ResourceExhausted")
-            return (503, "Downstream service unavailable.", "A downstream service is temporarily unavailable.");
+            return (503, "Downstream service unavailable.", "A downstream service is temporarily unavailable.", "downstream_unavailable", TimeSpan.FromSeconds(1));
         if (statusCode is "NotFound")
-            return (404, "Resource not found.", exception.Message);
+            return (404, "Resource not found.", exception.Message, "not_found", null);
         if (statusCode is "PermissionDenied")
-            return (403, "Forbidden.", exception.Message);
+            return (403, "Forbidden.", exception.Message, "access_denied", null);
         if (statusCode is "InvalidArgument")
-            return (400, "Request validation failed.", exception.Message);
+            return (400, "Request validation failed.", exception.Message, "validation_error", null);
         if (statusCode is "FailedPrecondition" or "Aborted" or "AlreadyExists")
-            return (409, "State conflict.", exception.Message);
+            return (409, "State conflict.", exception.Message, "state_conflict", null);
 
-        return (500, "Internal server error.", "An unexpected error occurred.");
+        return (500, "Internal server error.", "An unexpected error occurred.", "internal_error", null);
     }
 
     private static string Title(int status) => status switch

@@ -20,6 +20,7 @@ coverage-results
 coverage-results2
 coverage-results3
 publish/
+.artifacts/
 *.dmp
 *.gcdump
 *.sql

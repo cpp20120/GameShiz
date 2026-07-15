@@ -82,3 +82,10 @@ rest:
     authority: ""
     audience: casinoshiz-api
     requireHttpsMetadata: true
+
+observability:
+  otlpEndpoint: ""
+  prometheusOperator:
+    enabled: false
+    namespace: ""
+  alertmanagerWebhook: ""

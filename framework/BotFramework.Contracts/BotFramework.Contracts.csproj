@@ -4,7 +4,20 @@
 
 
 
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <RootNamespace>BotFramework.Contracts</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Contracts</PackageId>
+    <Version>0.9.0-preview.1</Version>
+    <Description>Transport-neutral contracts and tenant context for BotFramework.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/cpp20120/CazinoShiz</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+    <Deterministic>true</Deterministic>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,8 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\BotFramework.Host\Contracts\Economics\**\*.cs" Link="Wallet\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\BotFramework.Host\Contracts\ResponsibleGaming\**\*.cs" Link="Wallet\ResponsibleGaming\%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="..\README.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>
 
 </Project>

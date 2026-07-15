@@ -1,16 +1,21 @@
-using System.Threading.RateLimiting;
+using System.Diagnostics;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using BotFramework.Contracts.RateLimiting;
+using BotFramework.Contracts.Observability;
+using BotFramework.Rest.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Text.Json.Serialization;
+using BotFramework.Contracts.Messaging;
+using BotFramework.Contracts.Tenancy;
 
 namespace BotFramework.Rest;
 
@@ -26,8 +31,17 @@ public static class RestFrameworkExtensions
             .Validate(options => !string.IsNullOrWhiteSpace(options.ApiVersion), "Rest:ApiVersion is required.")
             .Validate(options => options.PermitLimit > 0 && options.WindowSeconds > 0, "REST rate-limit values must be positive.")
             .ValidateOnStart();
+        services.AddOptions<RateLimitOptions>()
+            .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName))
+            .Configure(options => options.RedisConnectionString ??= builder.Configuration["Redis:ConnectionString"])
+            .Validate(options => options.LocalMaxKeys > 0, "RateLimit:LocalMaxKeys must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<IRateLimiter, RedisRateLimiter>();
+        services.TryAddSingleton<IRateLimitPolicyProvider, DefaultRateLimitPolicyProvider>();
+        services.AddScoped<RateLimitRequestState>();
 
         services.AddHttpContextAccessor();
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.ConfigureHttpJsonOptions(options =>
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         services.AddScoped<RestRequestContext>(sp =>
@@ -54,7 +68,8 @@ public static class RestFrameworkExtensions
             .AddJwtBearer(options =>
             {
                 options.Authority = jwt.Authority;
-                options.MetadataAddress = jwt.MetadataAddress;
+                if (!string.IsNullOrWhiteSpace(jwt.MetadataAddress))
+                    options.MetadataAddress = jwt.MetadataAddress;
                 options.Audience = jwt.Audience;
                 options.RequireHttpsMetadata = jwt.RequireHttpsMetadata;
                 options.TokenValidationParameters.ValidIssuer = jwt.Issuer;
@@ -63,31 +78,6 @@ public static class RestFrameworkExtensions
                 options.TokenValidationParameters.ValidateAudience = !string.IsNullOrWhiteSpace(jwt.Audience);
             });
         services.AddAuthorization();
-
-        services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.OnRejected = static (context, _) =>
-            {
-                context.HttpContext.Response.Headers.RetryAfter = "1";
-                return ValueTask.CompletedTask;
-            };
-            options.AddPolicy(PolicyName, httpContext =>
-            {
-                var subject = httpContext.User.FindFirst("sub")?.Value;
-                var partition = string.IsNullOrWhiteSpace(subject)
-                    ? $"ip:{httpContext.Connection.RemoteIpAddress}"
-                    : $"user:{subject}";
-                var settings = httpContext.RequestServices.GetRequiredService<IOptions<RestFrameworkOptions>>().Value;
-                return RateLimitPartition.GetFixedWindowLimiter(partition, _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = settings.PermitLimit,
-                    Window = TimeSpan.FromSeconds(settings.WindowSeconds),
-                    QueueLimit = 0,
-                    AutoReplenishment = true,
-                });
-            });
-        });
 
         services.AddOpenApi("v1");
         return builder;
@@ -108,7 +98,8 @@ public static class RestFrameworkExtensions
         });
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseRateLimiter();
+        app.UseMiddleware<RestTenantContextMiddleware>();
+        app.UseMiddleware<RestRateLimitMiddleware>();
         return app;
     }
 
@@ -116,9 +107,8 @@ public static class RestFrameworkExtensions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
         var options = endpoints.ServiceProvider.GetRequiredService<IOptions<RestFrameworkOptions>>().Value;
-        return endpoints.MapGroup($"/api/{options.ApiVersion}/scopes/{{scopeId}}/{moduleId}")
+        return endpoints.MapGroup($"/api/{options.ApiVersion}/tenants/{{tenantId}}/scopes/{{scopeId}}/{moduleId}")
             .RequireAuthorization()
-            .RequireRateLimiting(PolicyName)
             .AddEndpointFilter<RestRequestContextEndpointFilter>()
             .WithTags(moduleId);
     }
@@ -137,5 +127,122 @@ public static class RestFrameworkExtensions
             endpoints.MapOpenApi("/openapi/{documentName}.json");
 
         return endpoints;
+    }
+}
+
+internal sealed class RestTenantContextMiddleware(RequestDelegate next)
+{
+    public async Task InvokeAsync(HttpContext context, ITenantContextAccessor accessor)
+    {
+        if (!context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context).ConfigureAwait(false);
+            return;
+        }
+
+        var request = context.GetRestRequestContext();
+        context.Response.Headers["X-Request-ID"] = request.RequestIdentifier.ToString();
+        context.Response.Headers["X-Correlation-ID"] = request.CorrelationIdentifier.ToString();
+
+        var provisioner = context.RequestServices.GetService<ITenantContextProvisioner>();
+        if (provisioner is not null)
+            await provisioner.EnsureAsync(request.TenantContext, context.RequestAborted).ConfigureAwait(false);
+
+        using var metadataScope = RequestMetadataContext.Push(
+            RequestMetadata.FromTenantContext(request.TenantContext, "rest"));
+        using var tenantScope = accessor.Push(request.TenantContext);
+        var startedAt = Stopwatch.GetTimestamp();
+        var outcome = "success";
+        var route = context.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName
+            ?? context.GetEndpoint()?.DisplayName
+            ?? "rest.unknown";
+        BotFrameworkMetrics.Requests.Add(
+            1,
+            new KeyValuePair<string, object?>("service", "rest"),
+            new KeyValuePair<string, object?>("channel", "rest"),
+            new KeyValuePair<string, object?>("route", route));
+        try
+        {
+            await next(context).ConfigureAwait(false);
+        }
+        catch
+        {
+            outcome = "error";
+            BotFrameworkMetrics.RequestErrors.Add(
+                1,
+                new KeyValuePair<string, object?>("service", "rest"),
+                new KeyValuePair<string, object?>("channel", "rest"),
+                new KeyValuePair<string, object?>("route", route),
+                new KeyValuePair<string, object?>("outcome", outcome));
+            throw;
+        }
+        finally
+        {
+            BotFrameworkMetrics.RequestDuration.Record(
+                Stopwatch.GetElapsedTime(startedAt).TotalSeconds,
+                new KeyValuePair<string, object?>("service", "rest"),
+                new KeyValuePair<string, object?>("channel", "rest"),
+                new KeyValuePair<string, object?>("route", route),
+                new KeyValuePair<string, object?>("outcome", outcome));
+        }
+    }
+}
+
+internal sealed class RestRateLimitMiddleware(RequestDelegate next)
+{
+    public async Task InvokeAsync(HttpContext context, IRateLimiter limiter, RateLimitRequestState requestState)
+    {
+        if (!context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+        {
+            await next(context).ConfigureAwait(false);
+            return;
+        }
+
+        var request = context.GetRestRequestContext();
+        var routeKey = context.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName
+            ?? context.GetEndpoint()?.DisplayName
+            ?? "rest.unknown";
+        var decision = await limiter.CheckAsync(
+            new RateLimitRequest(
+                request.Tenant,
+                request.Player,
+                BotFramework.Contracts.Messaging.BotChannel.Rest,
+                routeKey,
+                context.Connection.RemoteIpAddress?.ToString()),
+            context.RequestAborted).ConfigureAwait(false);
+
+        context.Response.Headers["RateLimit-Limit"] = decision.Limit.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        context.Response.Headers["RateLimit-Remaining"] = decision.Remaining.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        context.Response.Headers["RateLimit-Policy-Version"] = decision.PolicyVersion;
+        if (decision.IsFallback)
+            context.Response.Headers["RateLimit-Fallback"] = "local";
+
+        if (!decision.Allowed)
+        {
+            context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+            context.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds))
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await context.RequestServices.GetRequiredService<IProblemDetailsService>().WriteAsync(new ProblemDetailsContext
+            {
+                HttpContext = context,
+                ProblemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests,
+                    Title = "Rate limit exceeded.",
+                    Detail = "The request quota for this tenant or route has been exceeded.",
+                    Type = "https://httpstatuses.com/429",
+                    Extensions =
+                    {
+                        ["code"] = "rate_limit_exceeded",
+                        ["retryAfterSeconds"] = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds)),
+                        ["limiterDimension"] = decision.DeniedDimension?.ToString(),
+                    },
+                },
+            }).ConfigureAwait(false);
+            return;
+        }
+
+        requestState.LeaseGranted = true;
+        await next(context).ConfigureAwait(false);
     }
 }

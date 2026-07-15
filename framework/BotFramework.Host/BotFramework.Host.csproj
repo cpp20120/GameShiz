@@ -54,9 +54,4 @@
     <InternalsVisibleTo Include="CasinoShiz.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Remove="Contracts\Economics\**\*.cs" />
-    <Compile Remove="Contracts\ResponsibleGaming\**\*.cs" />
-  </ItemGroup>
-
 </Project>

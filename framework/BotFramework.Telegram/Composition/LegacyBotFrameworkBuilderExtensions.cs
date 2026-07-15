@@ -10,6 +10,9 @@ using Microsoft.Extensions.Options;
 using BotFramework.Sdk.Pipeline;
 using StackExchange.Redis;
 using Telegram.Bot;
+using BotFramework.Contracts.Tenancy;
+using BotFramework.Contracts.RateLimiting;
+using BotFramework.Telegram.Abstractions.Tenancy;
 
 namespace BotFramework.Telegram.Composition;
 
@@ -27,12 +30,15 @@ public static class LegacyBotFrameworkBuilderExtensions
             return string.IsNullOrWhiteSpace(options.Token) ? throw new InvalidOperationException("Set Bot:Token in configuration.") : new TelegramBotClient(options.Token);
         });
         services.AddSingleton<UpdateRouter>();
-        services.AddSingleton<UpdatePipeline>();
+        services.AddScoped<UpdatePipeline>();
+        services.AddSingleton<ITelegramTenantContextResolver, TelegramTenantContextResolver>();
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddScoped<RateLimitRequestState>();
         services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();
         services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
         services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
-        services.AddSingleton<IUpdateMiddleware, RateLimitMiddleware>();
+        services.AddScoped<IUpdateMiddleware, RateLimitMiddleware>();
         services.AddSingleton<IUpdateMiddleware, KnownChatsMiddleware>();
         var useCapOutboxTransport = string.Equals(
             configuration[$"{TelegramOutboxTransportOptions.SectionName}:Transport"],

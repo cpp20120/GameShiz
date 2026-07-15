@@ -1,29 +1,33 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using BotFramework.Contracts.Observability;
 using BotFramework.Sdk.Execution;
 
 namespace BotFramework.Host.Execution;
 
 internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTelemetry> logger)
 {
-    public const string InstrumentationName = "CasinoShiz.GameExecution";
+    public const string InstrumentationName = "BotFramework.GameExecution";
 
     private static readonly ActivitySource Activities = new(InstrumentationName);
     private static readonly Meter Metrics = new(InstrumentationName);
     private static readonly Counter<long> Received = Metrics.CreateCounter<long>("game.command.received");
     private static readonly Counter<long> Duplicates = Metrics.CreateCounter<long>("game.command.duplicates");
     private static readonly Counter<long> Rejections = Metrics.CreateCounter<long>("game.command.rejections");
-    private static readonly Counter<long> Failures = Metrics.CreateCounter<long>("game.command.failures");
+    private static readonly Counter<long> Failures = BotFrameworkMetrics.GameFailures;
     private static readonly Counter<long> Rollbacks = Metrics.CreateCounter<long>("game.command.rollbacks");
     private static readonly UpDownCounter<long> Active = Metrics.CreateUpDownCounter<long>("game.command.active");
     private static readonly Histogram<double> LockWait = Metrics.CreateHistogram<double>(
         "game.command.lock_wait.duration", "s");
-    private static readonly Histogram<double> ExecutionDuration = Metrics.CreateHistogram<double>(
-        "game.command.execution.duration", "s");
+    private static readonly Histogram<double> ExecutionDuration = BotFrameworkMetrics.GameDuration;
     private static readonly Histogram<double> TransactionDuration = Metrics.CreateHistogram<double>(
         "game.command.transaction.duration", "s");
-    private static readonly Histogram<double> OutboxLag = Metrics.CreateHistogram<double>(
+    // Keep the game-execution instrumentation stream complete for existing
+    // collectors while the canonical framework outbox instrument lives in the
+    // dedicated BotFramework.Outbox meter.
+    private static readonly Histogram<double> GameExecutionOutboxLag = Metrics.CreateHistogram<double>(
         "game.outbox.delivery.lag", "s");
+    private static readonly Histogram<double> OutboxLag = BotFrameworkMetrics.OutboxLag;
     private readonly ILogger logger = logger;
 
     public Observation Start(string gameId, string commandId, string aggregateId)
@@ -33,8 +37,8 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
         activity?.SetTag("game.command.id", commandId);
         activity?.SetTag("game.aggregate.id", aggregateId);
 
-        Received.Add(1, new KeyValuePair<string, object?>("game.id", gameId));
-        Active.Add(1, new KeyValuePair<string, object?>("game.id", gameId));
+        Received.Add(1, new KeyValuePair<string, object?>("module", gameId));
+        Active.Add(1, new KeyValuePair<string, object?>("module", gameId));
         LogReceived(logger, gameId, commandId, aggregateId);
         AddStage(activity, "game.command.received");
         return new Observation(this, gameId, commandId, activity);
@@ -43,6 +47,7 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
     public static void RecordOutboxLag(DateTimeOffset createdAt, DateTimeOffset deliveredAt)
     {
         var lag = Math.Max(0, (deliveredAt - createdAt).TotalSeconds);
+        GameExecutionOutboxLag.Record(lag);
         OutboxLag.Record(lag);
     }
 
@@ -76,14 +81,14 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
 
         public void Locked(TimeSpan elapsed)
         {
-            LockWait.Record(elapsed.TotalSeconds, new KeyValuePair<string, object?>("game.id", gameId));
+            LockWait.Record(elapsed.TotalSeconds, new KeyValuePair<string, object?>("module", gameId));
             Stage("game.command.locked", () => LogLocked(owner.logger, gameId, commandId, elapsed.TotalMilliseconds));
         }
 
         public void Duplicate()
         {
             outcome = "duplicate";
-            Duplicates.Add(1, new KeyValuePair<string, object?>("game.id", gameId));
+            Duplicates.Add(1, new KeyValuePair<string, object?>("module", gameId));
             Stage("game.command.duplicate", () => LogDuplicate(owner.logger, gameId, commandId));
         }
 
@@ -96,7 +101,7 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
 
             var reason = string.IsNullOrWhiteSpace(rejectionReason) ? "unspecified" : rejectionReason;
             Rejections.Add(1,
-                new KeyValuePair<string, object?>("game.id", gameId),
+                new KeyValuePair<string, object?>("module", gameId),
                 new KeyValuePair<string, object?>("reason", reason));
             activity?.SetTag("game.rejection.reason", reason);
             Stage("game.command.rejected", () => LogRejected(owner.logger, gameId, commandId, reason));
@@ -115,20 +120,19 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
         {
             outcome = "failed";
             Failures.Add(1,
-                new KeyValuePair<string, object?>("game.id", gameId),
-                new KeyValuePair<string, object?>("exception.type", exception.GetType().Name));
+                new KeyValuePair<string, object?>("module", gameId));
             activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
             activity?.SetTag("error.type", exception.GetType().FullName);
             Stage("game.command.failed", () => LogFailed(owner.logger, exception, gameId, commandId));
         }
 
         public void RolledBack() =>
-            Rollbacks.Add(1, new KeyValuePair<string, object?>("game.id", gameId));
+            Rollbacks.Add(1, new KeyValuePair<string, object?>("module", gameId));
 
         public void TransactionFinished(TimeSpan elapsed) =>
             TransactionDuration.Record(
                 elapsed.TotalSeconds,
-                new KeyValuePair<string, object?>("game.id", gameId),
+                new KeyValuePair<string, object?>("module", gameId),
                 new KeyValuePair<string, object?>("outcome", outcome));
 
         public void Dispose()
@@ -137,9 +141,9 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
             disposed = true;
             ExecutionDuration.Record(
                 Stopwatch.GetElapsedTime(startedAt).TotalSeconds,
-                new KeyValuePair<string, object?>("game.id", gameId),
+                new KeyValuePair<string, object?>("module", gameId),
                 new KeyValuePair<string, object?>("outcome", outcome));
-            Active.Add(-1, new KeyValuePair<string, object?>("game.id", gameId));
+            Active.Add(-1, new KeyValuePair<string, object?>("module", gameId));
             activity?.Dispose();
         }
 

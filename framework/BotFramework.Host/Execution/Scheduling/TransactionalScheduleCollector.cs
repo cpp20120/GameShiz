@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Sdk.Execution;
 using Dapper;
 
@@ -15,10 +16,106 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
         IReadOnlyList<ScheduleEffect> effects,
         IGameExecutionSession session,
         CancellationToken ct)
+        => await AppendAsync(commandId, gameId, aggregateId, effects, session, null, ct).ConfigureAwait(false);
+
+    public async Task AppendAsync(
+        string commandId,
+        string gameId,
+        string aggregateId,
+        IReadOnlyList<ScheduleEffect> effects,
+        IGameExecutionSession session,
+        TenantContext? tenantContext,
+        CancellationToken ct)
     {
         if (effects.Count == 0) return;
 
         foreach (var effect in effects) Validate(effect);
+
+        var scheduleIds = effects.Select(effect => ScopeScheduleId(gameId, aggregateId, effect.ScheduleId)).ToArray();
+        var parameters = new
+        {
+            commandId,
+            effectIndexes = Enumerable.Range(0, effects.Count).ToArray(),
+            gameIds = effects.Select(_ => gameId).ToArray(),
+            scheduleIds,
+            effectKinds = effects.Select(effect => effect.Kind == ScheduleEffectKind.Schedule ? "schedule" : "cancel").ToArray(),
+            jobKeys = effects.Select(effect => effect.JobKey).ToArray(),
+            dueAts = effects.Select(effect => effect.DueAt).ToArray(),
+            data = effects.Select(effect => JsonSerializer.Serialize(
+                TenantData(effect.Data, tenantContext),
+                JsonOptions)).ToArray(),
+        };
+
+        if (tenantContext is not null)
+        {
+            const string tenantSql = """
+                INSERT INTO tenant_schedule_outbox (
+                    tenant_key,
+                    scope_key,
+                    command_id,
+                    effect_index,
+                    game_id,
+                    schedule_id,
+                    effect_kind,
+                    job_key,
+                    due_at,
+                    data,
+                    request_id,
+                    correlation_id,
+                    channel,
+                    player_id)
+                SELECT t.tenant_key,
+                       s.scope_key,
+                       @commandId,
+                       batch.effect_index,
+                       batch.game_id,
+                       batch.schedule_id,
+                       batch.effect_kind,
+                       batch.job_key,
+                       batch.due_at,
+                       CAST(batch.data AS jsonb),
+                       @requestId,
+                       @correlationId,
+                       @channel,
+                       @playerId
+                FROM tenants t
+                JOIN tenant_scopes s ON s.tenant_key = t.tenant_key AND s.scope_id = @scopeId
+                CROSS JOIN unnest(
+                    CAST(@effectIndexes AS integer[]),
+                    CAST(@gameIds AS text[]),
+                    CAST(@scheduleIds AS text[]),
+                    CAST(@effectKinds AS text[]),
+                    CAST(@jobKeys AS text[]),
+                    CAST(@dueAts AS timestamp with time zone[]),
+                    CAST(@data AS text[]))
+                    AS batch(effect_index, game_id, schedule_id, effect_kind, job_key, due_at, data)
+                WHERE t.tenant_id = @tenantId
+                ON CONFLICT (tenant_key, scope_key, command_id, effect_index) DO NOTHING
+                """;
+
+            await session.Connection.ExecuteAsync(new CommandDefinition(
+                tenantSql,
+                new
+                {
+                    parameters.commandId,
+                    parameters.effectIndexes,
+                    parameters.gameIds,
+                    parameters.scheduleIds,
+                    parameters.effectKinds,
+                    parameters.jobKeys,
+                    parameters.dueAts,
+                    parameters.data,
+                    tenantId = tenantContext.TenantId.Value,
+                    scopeId = tenantContext.ScopeId.Value,
+                    requestId = tenantContext.RequestId.Value,
+                    correlationId = tenantContext.CorrelationId.Value,
+                    channel = tenantContext.Channel.ToString().ToLowerInvariant(),
+                    playerId = tenantContext.PlayerId?.Value,
+                },
+                session.Transaction,
+                cancellationToken: ct)).ConfigureAwait(false);
+            return;
+        }
 
         const string sql = """
             INSERT INTO game_schedule_outbox (
@@ -57,7 +154,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
                 commandId,
                 effectIndexes = Enumerable.Range(0, effects.Count).ToArray(),
                 gameIds = effects.Select(_ => gameId).ToArray(),
-                scheduleIds = effects.Select(effect => ScopeScheduleId(gameId, aggregateId, effect.ScheduleId)).ToArray(),
+                scheduleIds,
                 effectKinds = effects.Select(effect => effect.Kind == ScheduleEffectKind.Schedule ? "schedule" : "cancel").ToArray(),
                 jobKeys = effects.Select(effect => effect.JobKey).ToArray(),
                 dueAts = effects.Select(effect => effect.DueAt).ToArray(),
@@ -71,6 +168,16 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
 
     private static string ScopeScheduleId(string gameId, string aggregateId, string scheduleId) =>
         $"{gameId}:{aggregateId}:{scheduleId}";
+
+    private static IReadOnlyDictionary<string, string> TenantData(
+        IReadOnlyDictionary<string, string>? data,
+        TenantContext? tenantContext)
+    {
+        var payload = data ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        return tenantContext is null
+            ? payload
+            : AtomicGameSchedule.AddTenantContext(payload, tenantContext);
+    }
 
     private static void Validate(ScheduleEffect effect)
     {

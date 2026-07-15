@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BotFramework.Contracts.Messaging;
 
 namespace BotFramework.Host.Execution;
 
@@ -45,6 +46,27 @@ internal sealed partial class GameEventOutboxDispatcher(
             {
                 LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
                 await outbox.MarkFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
+            }
+        }
+
+        var tenantBatch = await outbox.ClaimTenantAsync(50, TimeSpan.FromMinutes(1), ct).ConfigureAwait(false);
+        foreach (var item in tenantBatch)
+        {
+            try
+            {
+                var type = Type.GetType(item.TypeName, throwOnError: true)!;
+                var domainEvent = JsonSerializer.Deserialize(item.Payload, type, JsonOptions) as IDomainEvent
+                    ?? throw new InvalidOperationException($"Tenant outbox payload is not an {nameof(IDomainEvent)}.");
+                using var metadataScope = RequestMetadataContext.Push(
+                    RequestMetadata.FromTenantContext(item.Context, "tenant-event-outbox"));
+                await events.PublishAsync(domainEvent, ct).ConfigureAwait(false);
+                await outbox.MarkTenantSentAsync(item.Id, ct).ConfigureAwait(false);
+                GameExecutionTelemetry.RecordOutboxLag(item.CreatedAt, timeProvider.GetUtcNow());
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
+                await outbox.MarkTenantFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
             }
         }
     }

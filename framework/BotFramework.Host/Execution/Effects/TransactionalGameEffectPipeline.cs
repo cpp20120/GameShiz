@@ -72,7 +72,12 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
         foreach (var (handler, effects) in plan.Custom)
             await handler.ApplyAsync(effects, executionContext, ct).ConfigureAwait(false);
 
-        await eventCollector.AppendAsync(commandId, plan.Effects.Events, session, ct).ConfigureAwait(false);
+        await eventCollector.AppendAsync(
+            commandId,
+            plan.Effects.Events,
+            session,
+            executionContext.TenantContext,
+            ct).ConfigureAwait(false);
         if (plan.Effects.Schedules.Count != 0)
         {
             await scheduleCollector!.AppendAsync(
@@ -81,6 +86,7 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
                 aggregateId,
                 plan.Effects.Schedules,
                 session,
+                executionContext.TenantContext,
                 ct).ConfigureAwait(false);
         }
     }

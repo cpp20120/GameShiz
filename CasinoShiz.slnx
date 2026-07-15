@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/framework/">
+    <Project Path="templates\BotFramework.Templates\BotFramework.Templates.csproj" />
     <Project Path="framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <Project Path="framework\BotFramework.Client\BotFramework.Client.csproj" />
+    <Project Path="framework\BotFramework.Discord.Abstractions\BotFramework.Discord.Abstractions.csproj" />
     <Project Path="framework\BotFramework.Discord\BotFramework.Discord.csproj" />
     <Project Path="framework\BotFramework.Rest\BotFramework.Rest.csproj" />
     <Project Path="framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />

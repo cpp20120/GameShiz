@@ -1,4 +1,5 @@
 using Dapper;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Sdk.Execution;
 
 namespace BotFramework.Host.Execution;
@@ -6,9 +7,11 @@ namespace BotFramework.Host.Execution;
 internal sealed class GameExecutionContext(
     IGameExecutionSession session,
     IAtomicEconomics? economics = null,
-    string? operationId = null) : IGameExecutionContext
+    string? operationId = null,
+    TenantContext? tenantContext = null) : IGameExecutionContext
 {
     public string? OperationId { get; } = operationId;
+    public TenantContext? TenantContext { get; } = tenantContext;
 
     public async Task<bool> ApplyWalletAsync(
         long userId,

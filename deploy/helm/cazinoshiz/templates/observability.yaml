@@ -1,0 +1,67 @@
+{{- if .Values.observability.prometheusOperator.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "cazinoshiz.name" . }}
+  {{- with .Values.observability.prometheusOperator.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+  labels:
+    {{- include "cazinoshiz.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "cazinoshiz.name" . }}
+  {{- with .Values.observability.prometheusOperator.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+  labels:
+    {{- include "cazinoshiz.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: botframework
+      rules:
+        - alert: BotFrameworkServiceUnavailable
+          expr: up{job=~".*botframework.*"} == 0
+          for: 2m
+          labels: { severity: critical }
+        - alert: BotFrameworkRateLimitLocalFallback
+          expr: max(botframework_rate_limit_fallback_active) > 0
+          for: 2m
+          labels: { severity: warning }
+        - alert: BotFrameworkFailureRate
+          expr: sum(rate(botframework_request_errors_total{outcome="error"}[10m])) / clamp_min(sum(rate(botframework_requests_total[10m])), 1) > 0.05
+          for: 10m
+          labels: { severity: critical }
+        - alert: BotFrameworkRequestLatency
+          expr: histogram_quantile(0.95, sum by (le, service, route) (rate(botframework_request_duration_seconds_bucket[10m]))) > 2
+          for: 10m
+          labels: { severity: warning }
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: {{ include "cazinoshiz.name" . }}
+  {{- with .Values.observability.prometheusOperator.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+  labels:
+    {{- include "cazinoshiz.labels" . | nindent 4 }}
+spec:
+  route:
+    receiver: botframework-webhook
+    groupBy: [alertname, service, channel]
+  receivers:
+    - name: botframework-webhook
+      webhookConfigs:
+        - url: {{ default "http://alertmanager-webhook.invalid/alerts" .Values.observability.alertmanagerWebhook | quote }}
+{{- end }}

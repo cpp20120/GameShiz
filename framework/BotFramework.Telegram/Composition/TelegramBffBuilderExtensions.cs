@@ -10,9 +10,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using BotFramework.Rendering;
+using BotFramework.Contracts.Tenancy;
+using BotFramework.Telegram.Abstractions.Tenancy;
+using BotFramework.Contracts.RateLimiting;
+using BotFramework.Host.RateLimiting;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -34,8 +39,19 @@ public static class TelegramBffBuilderExtensions
             return new TelegramBotClient(options.Token);
         });
         services.AddSingleton<UpdateRouter>();
-        services.AddSingleton<UpdatePipeline>();
+        services.AddScoped<UpdatePipeline>();
+        services.AddSingleton<ITelegramTenantContextResolver, TelegramTenantContextResolver>();
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddScoped<RateLimitRequestState>();
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
+        services.AddScoped<IUpdateMiddleware, RateLimitMiddleware>();
+        services.AddOptions<RateLimitOptions>()
+            .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName))
+            .Configure(options => options.RedisConnectionString ??= builder.Configuration["Redis:ConnectionString"])
+            .Validate(options => options.LocalMaxKeys > 0, "RateLimit:LocalMaxKeys must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<IRateLimiter, BotFramework.Host.RateLimiting.RedisRateLimiter>();
+        services.TryAddSingleton<IRateLimitPolicyProvider, DefaultRateLimitPolicyProvider>();
         services.AddSingleton<ILocalizer, Localizer>();
         services.AddHostedService<BotHostedService>();
         var useCapOutboxTransport = string.Equals(

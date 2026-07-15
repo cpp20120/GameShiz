@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>BotFramework.Client</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>BotFramework.Client</PackageId>
+    <Version>0.9.0-preview.1</Version>
+    <Description>Typed BotFramework REST client with tenant context and stable errors.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/cpp20120/CazinoShiz</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <PackageReference Include="NSwag.MSBuild" PrivateAssets="all" />
+    <None Include="..\README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <BotFrameworkOpenApiDocument Condition="'$(BotFrameworkOpenApiDocument)' == ''">$(MSBuildThisFileDirectory)openapi-v1.json</BotFrameworkOpenApiDocument>
+    <BotFrameworkGeneratedClient Condition="'$(BotFrameworkGeneratedClient)' == ''">$(MSBuildThisFileDirectory)Generated\GeneratedBotFrameworkClient.cs</BotFrameworkGeneratedClient>
+    <BotFrameworkNswagRuntime Condition="'$(BotFrameworkNswagRuntime)' == ''">Net80</BotFrameworkNswagRuntime>
+  </PropertyGroup>
+
+  <Target Name="GenerateBotFrameworkClient" BeforeTargets="CoreCompile" Condition="'$(BotFrameworkGenerateClient)' == 'true'">
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(BotFrameworkGeneratedClient)'))" />
+    <Exec WorkingDirectory="$(MSBuildThisFileDirectory)"
+          Command="$(NSwagExe_Net80) run openapi-client.nswag.json /variables:BotFrameworkOpenApiDocument=$(BotFrameworkOpenApiDocument),BotFrameworkGeneratedClient=$(BotFrameworkGeneratedClient),BotFrameworkNswagRuntime=$(BotFrameworkNswagRuntime)" />
+  </Target>
+</Project>

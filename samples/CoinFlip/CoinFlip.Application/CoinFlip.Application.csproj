@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>CoinFlip.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CoinFlip.Domain/CoinFlip.Domain.csproj" />
+    <ProjectReference Include="../CoinFlip.Contracts/CoinFlip.Contracts.csproj" />
+    <PackageReference Include="BotFramework.Sdk" />
+  </ItemGroup>
+</Project>

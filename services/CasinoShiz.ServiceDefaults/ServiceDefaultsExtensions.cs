@@ -16,14 +16,18 @@ public static class ServiceDefaultsExtensions
         builder.Services.AddHealthChecks();
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics => metrics
-                .AddMeter("CasinoShiz.GameExecution")
-                .AddMeter("CasinoShiz.Rendering")
+                .AddMeter("BotFramework.Requests")
+                .AddMeter("BotFramework.GameExecution")
+                .AddMeter("BotFramework.RateLimiting")
+                .AddMeter("BotFramework.Outbox")
+                .AddMeter("BotFramework.Provisioning")
+                .AddMeter("BotFramework.Rendering")
                 .AddRuntimeInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddAspNetCoreInstrumentation()
                 .AddOtlpExporter())
             .WithTracing(tracing => tracing
-                .AddSource("CasinoShiz.GameExecution")
+                .AddSource("BotFramework.GameExecution")
                 .AddHttpClientInstrumentation()
                 .AddAspNetCoreInstrumentation()
                 .AddOtlpExporter());

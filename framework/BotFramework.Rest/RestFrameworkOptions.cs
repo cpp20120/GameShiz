@@ -8,7 +8,9 @@ public sealed class RestFrameworkOptions
 
     public bool RequireIdempotencyKeyForCommands { get; init; } = true;
 
-    public bool RequireScopeClaim { get; init; }
+    public bool RequireTenantClaim { get; init; } = true;
+
+    public bool RequireScopeClaim { get; init; } = true;
 
     public bool OpenApiEnabled { get; init; } = true;
 

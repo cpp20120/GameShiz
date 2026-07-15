@@ -31,6 +31,10 @@ spec:
               value: {{ .Values.rest.jwt.audience | quote }}
             - name: Rest__Jwt__RequireHttpsMetadata
               value: {{ .Values.rest.jwt.requireHttpsMetadata | quote }}
+            {{- if .Values.observability.otlpEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.observability.otlpEndpoint | quote }}
+            {{- end }}
           readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 10 }
 ---

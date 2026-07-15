@@ -194,14 +194,13 @@ For separate deployment, `Games.NativeDice.Transport.Grpc` maps the same five in
 API routes. The route shape is:
 
 ```text
-/api/{version}/scopes/{scopeId}/{module}
+/api/{version}/tenants/{tenantId}/scopes/{scopeId}/{module}
 ```
 
-Bearer JWT `sub` is the numeric player id. When `Rest:RequireScopeClaim=true`,
-the token must also contain the requested `scopeId` (or `scope_id`, `chatId`, or
-`chat_id`) claim. State-changing requests can require an `Idempotency-Key`; the
-framework converts it into the stable source id used by the existing atomic
-game commands.
+Bearer JWT `sub` is the opaque player identifier. The token must contain the
+requested `tenant_id` and `scope_id` claims. State-changing requests require a
+string `Idempotency-Key`; request and correlation identifiers are carried in
+the standard headers and RFC 7807 errors.
 
 REST adapters are registered for every current module: `dice`, `dicecube`,
 `darts`, `football`, `basketball`, `bowling`, `blackjack`, `horse`, `poker`,

@@ -1,3 +1,5 @@
+using BotFramework.Contracts.Messaging;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Sdk.Execution;
 using BotFramework.Host.Contracts.Economics;
 using Dapper;
@@ -50,7 +52,8 @@ internal sealed class AtomicEffectExecutor(
     ICommandInbox inbox,
     IEnumerable<IAtomicEffectHandler> handlers,
     IWalletAtomicExecutionService wallet,
-    IEconomicsService economics) : IAtomicEffectExecutor
+    IEconomicsService economics,
+    ITenantContextProvisioner? tenantContextProvisioner = null) : IAtomicEffectExecutor
 {
     private readonly IReadOnlyDictionary<Type, IAtomicEffectHandler> handlers = handlers
         .GroupBy(static handler => handler.EffectType)
@@ -62,6 +65,11 @@ internal sealed class AtomicEffectExecutor(
         CancellationToken ct)
     {
         Validate(envelope, plan);
+        using var metadataScope = envelope.TenantContext is { } tenantContext
+            ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(tenantContext, "sdk"))
+            : null;
+        if (envelope.TenantContext is { } tenant && tenantContextProvisioner is not null)
+            await tenantContextProvisioner.EnsureAsync(tenant, ct).ConfigureAwait(false);
         await using var session = await sessions.BeginAsync(ct).ConfigureAwait(false);
         var committed = false;
         try

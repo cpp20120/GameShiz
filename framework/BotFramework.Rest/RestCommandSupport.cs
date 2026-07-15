@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using BotFramework.Contracts.Tenancy;
 
 namespace BotFramework.Rest;
 
@@ -13,7 +14,7 @@ public static class RestCommandSupport
         var key = options.Value.RequireIdempotencyKeyForCommands
             ? context.RequireIdempotencyKey()
             : context.IdempotencyKey ?? context.RequestId;
-        return $"rest:{module}:{action}:{context.ScopeId}:{context.UserId}:{key}";
+        return $"rest:{module}:{action}:{context.Tenant.Value}:{context.Scope.Value}:{context.Player.Value}:{key}";
     }
 
     public static int SourceId(
@@ -27,6 +28,10 @@ public static class RestCommandSupport
         long.TryParse(context.ScopeId, out var value)
             ? value
             : throw new RestBadRequestException($"{name} must be a numeric scope.");
+
+    public static ScopeId Scope(RestRequestContext context) => context.Scope;
+
+    public static TenantId Tenant(RestRequestContext context) => context.Tenant;
 
     public static void RequirePositive(int value, string name)
     {

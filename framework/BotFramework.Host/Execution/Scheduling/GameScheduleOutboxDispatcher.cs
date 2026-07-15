@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BotFramework.Host.Composition.Modules;
+using BotFramework.Sdk.Execution;
 using BotFramework.Scheduling.Abstractions;
 
 namespace BotFramework.Host.Execution;
@@ -52,6 +53,25 @@ internal sealed partial class GameScheduleOutboxDispatcher(
                 await outbox.MarkFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
             }
         }
+
+        var tenantBatch = await outbox.ClaimTenantAsync(
+            50,
+            TimeSpan.FromMinutes(1),
+            ct,
+            ownedGameIds).ConfigureAwait(false);
+        foreach (var item in tenantBatch)
+        {
+            try
+            {
+                await ApplyAsync(item, ct).ConfigureAwait(false);
+                await outbox.MarkTenantSentAsync(item.Id, ct).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
+                await outbox.MarkTenantFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
+            }
+        }
     }
 
     private async Task ApplyAsync(GameScheduleOutboxItem item, CancellationToken ct)
@@ -78,6 +98,33 @@ internal sealed partial class GameScheduleOutboxDispatcher(
                 ScheduleDescriptor.Once(
                     DateTimeOffset.FromUnixTimeMilliseconds(item.DueAtUnixMilliseconds.Value)),
                 data),
+            ct).ConfigureAwait(false);
+    }
+
+    private async Task ApplyAsync(TenantGameScheduleOutboxItem item, CancellationToken ct)
+    {
+        if (string.Equals(item.EffectKind, "cancel", StringComparison.Ordinal))
+        {
+            await scheduler.UnscheduleAsync(item.ScheduleId, ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (!string.Equals(item.EffectKind, "schedule", StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(item.JobKey)
+            || item.DueAtUnixMilliseconds is null)
+        {
+            throw new InvalidOperationException($"Invalid tenant schedule outbox item '{item.Id}'.");
+        }
+
+        var data = JsonSerializer.Deserialize<Dictionary<string, string>>(item.Data, JsonOptions)
+            ?? new Dictionary<string, string>(StringComparer.Ordinal);
+        await scheduler.ScheduleAsync(
+            new GameScheduleCommand(
+                item.ScheduleId,
+                item.JobKey,
+                ScheduleDescriptor.Once(
+                    DateTimeOffset.FromUnixTimeMilliseconds(item.DueAtUnixMilliseconds.Value)),
+                AtomicGameSchedule.AddTenantContext(data, item.Context)),
             ct).ConfigureAwait(false);
     }
 

@@ -15,6 +15,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 namespace BotFramework.Sdk.Configuration;
+
+using BotFramework.Contracts.Tenancy;
 /// <summary>
 /// Context used for per-user / per-culture rollouts. All fields optional —
 /// the provider picks what it needs. Keeping this narrow keeps the flag
@@ -23,4 +25,8 @@ namespace BotFramework.Sdk.Configuration;
 public sealed record FeatureFlagContext(
     long? UserId = null,
     string? CultureCode = null,
-    IReadOnlyDictionary<string, string>? Attributes = null);
+    IReadOnlyDictionary<string, string>? Attributes = null)
+{
+    /// <summary>Optional tenant boundary used for tenant-scoped rollouts.</summary>
+    public TenantContext? TenantContext { get; init; }
+}

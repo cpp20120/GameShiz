@@ -1,6 +1,9 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using BotFramework.Contracts.Economics;
+using BotFramework.Contracts.Messaging;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Sdk.Execution;
 
 namespace BotFramework.Host.Execution;
@@ -20,7 +23,9 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
     TimeProvider timeProvider,
     GameExecutionTelemetry telemetry,
     ITransactionalScheduleCollector? scheduleCollector = null,
-    IEnumerable<IGameEffectHandler>? effectHandlers = null)
+    IEnumerable<IGameEffectHandler>? effectHandlers = null,
+    ITenantWalletReadService? tenantWalletReadService = null,
+    ITenantContextProvisioner? tenantContextProvisioner = null)
     : IAtomicGameExecutor<TCommand, TState, TResult>
 {
     private readonly TransactionalGameEffectPipeline<TCommand, TState, TResult> effectPipeline = new(
@@ -40,6 +45,13 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
         ArgumentNullException.ThrowIfNull(envelope);
 
         var command = envelope.Command;
+        var tenantContext = envelope.TenantContext
+            ?? RequestMetadataContext.TryGetCurrent()?.TenantContext;
+        using var metadataScope = tenantContext is { } context
+            ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(context, "sdk"))
+            : null;
+        if (tenantContext is not null && tenantContextProvisioner is not null)
+            await tenantContextProvisioner.EnsureAsync(tenantContext, ct).ConfigureAwait(false);
         var commandId = descriptor.CommandId(command);
         var aggregateId = descriptor.AggregateId(command);
         var chatId = descriptor.ChatId(command);
@@ -57,7 +69,9 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             transactionStartedAt = Stopwatch.GetTimestamp();
             observation.LockWaitStarted();
             var lockStartedAt = Stopwatch.GetTimestamp();
-            await session.AcquireLocksAsync(BuildLockKeys(command, commandId, aggregateId, wallet, quotas), ct)
+            await session.AcquireLocksAsync(
+                    BuildLockKeys(command, commandId, aggregateId, wallet, quotas, tenantContext),
+                    ct)
                 .ConfigureAwait(false);
             observation.Locked(Stopwatch.GetElapsedTime(lockStartedAt));
 
@@ -91,8 +105,13 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct).ConfigureAwait(false);
                 walletSnapshot = await economics.LoadAsync(wallet, session, ct).ConfigureAwait(false);
             }
-            var executionContext = new GameExecutionContext(session, economics, commandId);
+            var executionContext = new GameExecutionContext(session, economics, commandId, tenantContext);
             var state = await stateStore.LoadAsync(command, executionContext, ct).ConfigureAwait(false);
+
+            var tenantWallet = tenantContext is not null
+                && tenantWalletReadService is not null
+                ? await tenantWalletReadService.GetAsync(tenantContext, ct).ConfigureAwait(false)
+                : null;
 
             var quotaSnapshots = await LoadQuotaSnapshotsAsync(quotas, session, ct).ConfigureAwait(false);
 
@@ -104,7 +123,11 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 walletSnapshot,
                 quotaSnapshots,
                 entropy,
-                utcNow);
+                utcNow)
+            {
+                TenantContext = tenantContext,
+                TenantWallet = tenantWallet,
+            };
             var decision = action.Decide(input);
             observation.Decided(decision.Status, decision.RejectionReason);
             var effectPlan = effectPipeline.Plan(decision, quotas);
@@ -174,12 +197,18 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
         string commandId,
         string aggregateId,
         WalletIdentity wallet,
-        IReadOnlyList<QuotaIdentity> quotas)
+        IReadOnlyList<QuotaIdentity> quotas,
+        TenantContext? tenantContext)
     {
         yield return $"command:{commandId}";
-        yield return $"game:{descriptor.GameId}:{aggregateId}";
+        if (tenantContext is { } tenant)
+            yield return $"tenant-game:{tenant.TenantId.Value}:{tenant.ScopeId.Value}:{descriptor.GameId}:{aggregateId}";
+        else
+            yield return $"game:{descriptor.GameId}:{aggregateId}";
         if (descriptor.UsesPrimaryWallet)
             yield return wallet.LockKey;
+        if (tenantContext?.PlayerId is { } player)
+            yield return $"tenant-wallet:{tenantContext.TenantId.Value}:{tenantContext.ScopeId.Value}:{player.Value}";
         foreach (var lockKey in descriptor.AdditionalLockKeys(command))
             yield return lockKey;
         foreach (var quota in quotas)
