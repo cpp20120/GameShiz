@@ -52,8 +52,10 @@ public sealed partial class OperationsReportingJob(
                 (SELECT count(*) FROM processed_updates WHERE started_at >= @from AND started_at < @to) AS Updates,
                 (SELECT count(*) FROM event_dispatch_failures WHERE created_at >= @from AND created_at < @to) AS DispatchFailures,
                 (SELECT count(*) FROM telegram_outbox WHERE status = 'failed' AND created_at >= @from AND created_at < @to) AS DeliveryFailures,
-                (SELECT count(*) FROM player_protection WHERE updated_at >= @from AND updated_at < @to
-                    AND (daily_stake_limit IS NOT NULL OR cooldown_until IS NOT NULL OR self_excluded_until IS NOT NULL)) AS ProtectionChanges
+                -- Protection is Wallet-owned in microservices mode. Its
+                -- detailed count is supplied by a Wallet analytics API in the
+                -- composed admin view; Backend never reads that table.
+                0::bigint AS ProtectionChanges
             """;
         var row = await conn.QuerySingleAsync<WeeklySummary>(new CommandDefinition(
             sql, new { from, to }, cancellationToken: ct));

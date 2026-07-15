@@ -24,7 +24,8 @@ public sealed class RedeemModule : IModule
             .AddScoped<IRedeemService, RedeemService>()
             .AddScoped<IRedeemClient, LocalRedeemClient>()
             .AddScoped<IRedeemStore, RedeemStore>()
-            .AddDomainEventSubscription<RedeemDropSubscriber>("telegram_dice.redeem_code_drop_requested");
+            .AddDomainEventSubscription<RedeemDropSubscriber>("minigame.redeem_code_drop_requested")
+            .AddDomainEventSubscription<DiscordRedeemDropSubscriber>("minigame.redeem_code_drop_requested");
     }
 
     public IModuleMigrations GetMigrations() => new RedeemMigrations();

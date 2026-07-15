@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Sdk.Execution;
 
 namespace Games.Darts.Application.Execution;
@@ -71,8 +72,9 @@ public sealed class DartsQuickThrowAction
         if (command.RedeemDropChance > 0
             && input.Entropy.GetDouble(RedeemDropEntropy) < command.RedeemDropChance)
         {
-            events.Add(new TelegramMiniGameRedeemCodeDropRequested(
-                command.UserId, command.ChatId, MiniGameIds.Darts, occurredAt));
+            events.Add(new MiniGameRedeemCodeDropRequested(
+                command.UserId, command.ChatId, MiniGameIds.Darts, occurredAt,
+                BotChannelContext.Current));
         }
 
         return new GameDecision<NoGameState, DartsThrowResult>(

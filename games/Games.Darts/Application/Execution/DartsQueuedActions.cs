@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Sdk.Execution;
 
 namespace Games.Darts.Application.Execution;
@@ -33,7 +34,7 @@ public sealed class DartsPlaceBetAction
 
         var round = new DartsRound(
             command.RoundId, command.UserId, command.ChatId, command.Amount, input.UtcNow,
-            DartsRoundStatus.Queued, null, command.ReplyToMessageId);
+            DartsRoundStatus.Queued, null, command.ReplyToMessageId, BotChannelContext.Current);
         return new(
             DecisionStatus.Accepted,
             new DartsQueuedState(round, input.State.QueuedAhead),
@@ -94,8 +95,9 @@ public sealed class DartsResolveRoundAction
         if (command.RedeemDropChance > 0
             && input.Entropy.GetDouble(RedeemDropEntropy) < command.RedeemDropChance)
         {
-            events.Add(new TelegramMiniGameRedeemCodeDropRequested(
-                command.UserId, command.ChatId, MiniGameIds.Darts, occurredAt));
+            events.Add(new MiniGameRedeemCodeDropRequested(
+                command.UserId, command.ChatId, MiniGameIds.Darts, occurredAt,
+                input.State.Round?.Channel ?? BotChannelContext.Current));
         }
 
         return new(

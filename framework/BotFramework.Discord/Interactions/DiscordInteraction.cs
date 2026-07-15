@@ -13,6 +13,42 @@ public static class DiscordInteraction
     public static string DisplayName(DiscordInteractionContext context) =>
         context.Interaction.User.GlobalName ?? context.Interaction.User.Username;
 
+    public static bool TryGetComponentToken(
+        DiscordInteractionContext context,
+        IDiscordComponentTokenStore tokenStore,
+        out DiscordComponentToken token)
+    {
+        token = new DiscordComponentToken(string.Empty, string.Empty);
+        return context.Interaction is SocketMessageComponent component
+            && tokenStore.TryResolve(component.Data.CustomId, out token);
+    }
+
+    public static string ComponentAction(DiscordInteractionContext context, IDiscordComponentTokenStore tokenStore) =>
+        TryGetComponentToken(context, tokenStore, out var token) ? token.Action : string.Empty;
+
+    public static Modal TextModal(
+        string customId,
+        string title,
+        string inputId,
+        string label,
+        string placeholder,
+        int minLength = 1,
+        int maxLength = 100)
+    {
+        return new ModalBuilder()
+            .WithCustomId(customId)
+            .WithTitle(title)
+            .AddTextInput(label, inputId, TextInputStyle.Short, placeholder, minLength, maxLength, required: true)
+            .Build();
+    }
+
+    public static string? ModalValue(SocketModal modal, string inputId)
+    {
+        return modal.Data.Components
+            .FirstOrDefault(component => string.Equals(component.CustomId, inputId, StringComparison.Ordinal))
+            ?.Value;
+    }
+
     public static SocketSlashCommandDataOption? Option(SocketSlashCommand command, string name) =>
         command.Data.Options.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
 
@@ -33,11 +69,11 @@ public static class DiscordInteraction
         MessageComponent? components = null,
         bool ephemeral = false)
     {
-        var safe = text.Length <= 1900 ? text : text[..1900];
+        var embed = DiscordEmbeds.Text(text, null, context.CultureCode);
         if (context.Interaction.HasResponded)
-            await context.Interaction.FollowupAsync(safe, components: components, ephemeral: ephemeral);
+            await context.Interaction.FollowupAsync(text: null, embed: embed, components: components, ephemeral: ephemeral);
         else
-            await context.Interaction.RespondAsync(safe, components: components, ephemeral: ephemeral);
+            await context.Interaction.RespondAsync(text: null, embed: embed, components: components, ephemeral: ephemeral);
     }
 
     public static Task ReplyResultAsync<T>(
@@ -45,6 +81,13 @@ public static class DiscordInteraction
         T result,
         string? title = null,
         MessageComponent? components = null,
-        bool ephemeral = false) =>
-        ReplyAsync(context, DiscordCommand.FormatResult(result, title), components, ephemeral);
+        bool ephemeral = false)
+    {
+        var embed = DiscordEmbeds.Result(result, title, context.CultureCode);
+        if (context.Interaction.HasResponded)
+            return context.Interaction.FollowupAsync(text: null, embed: embed, components: components, ephemeral: ephemeral);
+
+        return context.Interaction.RespondAsync(text: null, embed: embed, components: components, ephemeral: ephemeral);
+    }
+
 }

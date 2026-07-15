@@ -135,7 +135,47 @@ Game stakes and payouts change the current chat wallet through the append-only e
 
 Bounded-context consumers depend only on contract interfaces, request/response records, and integration events. The monolith resolves those interfaces to in-process dispatchers; separate BFF/services resolve the same interfaces to gRPC or broker adapters in their composition roots. Generated wire models and transport clients must not enter application or contract projects.
 
+### Deployment profiles and data ownership
+
+`monolith` runs `CasinoShiz.Host` against the existing shared `postgres/cazino`
+database. `microservices` runs Backend against `backend-postgres/backend`,
+Identity against `identity-postgres/identity`, and Wallet against
+`wallet-postgres/wallet`. Each service starts only its own migration runner;
+Backend does not run Wallet or Identity migrations.
+
+The optional `distributed` Compose profile uses the same Backend image with a
+configuration-selected module set (`Backend__Modules`). It creates one
+`game-*` gRPC service per game and routes each Telegram/Discord client to that
+service through `Backend__GameAddresses__*`. Thus `game-poker` can be scaled
+independently of `game-dice`, while the old `microservices` profile remains a
+single all-games Backend deployment. Kubernetes uses the equivalent Helm chart
+under `deploy/helm/cazinoshiz`.
+
+The Backend process has no Wallet/Identity database connection. Wallet writes,
+including game payouts, admin adjustments, and responsible-gaming checks, go
+through the Wallet gRPC contract. Read models are composed by the database-free
+Admin BFF: `/api/aggregation/players/{userId}` combines Identity + Wallet, and
+`/api/aggregation/admin` combines Backend Operations + Wallet analytics. These
+are API calls, never SQL joins or shared-table reads.
+
+Use `docker compose --profile monolith run --rm db-backup` for the monolith or
+`docker compose --profile microservices run --rm db-backup-microservices` for
+three independent dumps. Dedicated microservice volumes are the migration
+boundary and should be backed up/restored independently.
+
 The native Telegram dice games (`DiceCube`, `Darts`, `Football`, `Basketball`, and `Bowling`) are split into dependency-free `Games.*.Contracts`, backend `Games.*`, and `Games.*.Telegram` adapter projects. The legacy host loads both backend and Telegram modules, so this separation does not require a distributed deployment. Darts background delivery crosses an `IDartsRollDelivery` port; only its Telegram adapter knows `ITelegramBotClient`.
+
+The native-dice gRPC client uses named channels, so those five services can be
+addressed independently as well. A Backend instance that does not own a
+native-dice module returns gRPC `UNIMPLEMENTED` instead of resolving another
+game's service from its database.
+
+Migration startup is protected by a PostgreSQL advisory lock. Game outbox and
+schedule rows use lease-based `SKIP LOCKED` claims, and command inbox rows are
+idempotent. CAP domain-event groups are derived from `Backend:ServiceName`:
+replicas of one service share a group, while different game services each
+receive the event stream for their own projections. This is the event-system
+rule required for safe horizontal scaling.
 
 For separate deployment, `Games.NativeDice.Transport.Grpc` maps the same five interfaces to gRPC. Protobuf/generated types and channel setup remain inside that transport project. `CasinoShiz.Backend` loads backend modules and maps the service; `CasinoShiz.TelegramBff` loads Telegram modules and resolves their interfaces to remote clients.
 
@@ -1010,6 +1050,8 @@ Adding a migration = one new `Migration("name", "SQL")` entry in the module's `I
 | `017_responsible_gaming_and_ops_reports` | Global player stake limits/cooldowns/self-exclusion and deduplicated weekly/anomaly report checkpoints |
 | `018_telegram_outbox_expired_lease_recovery` | Index for reclaiming expired Telegram outbox delivery leases |
 | `019_quartz_ado_job_store` | Persistent Quartz ADO job-store schema and indexes |
+| `020_game_availability`–`026_discord_outbox` | Availability, fairness, atomic command/event/schedule outboxes, and Discord delivery schema |
+| `027_schedule_outbox_ownership` | Backfills and indexes the owning `game_id`, so distributed game workers claim only their schedules |
 
 ### Module migrations
 

@@ -17,5 +17,5 @@ builder.Services.AddGrpc();
 
 var app = builder.Build();
 app.MapIdentityGrpcTransport();
-app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", service = "casinoshiz-identity" }));
+app.MapServiceDefaults();
 await app.RunAsync();

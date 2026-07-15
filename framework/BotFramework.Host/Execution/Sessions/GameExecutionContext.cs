@@ -1,9 +1,32 @@
 using Dapper;
+using BotFramework.Sdk.Execution;
 
 namespace BotFramework.Host.Execution;
 
-internal sealed class GameExecutionContext(IGameExecutionSession session) : IGameExecutionContext
+internal sealed class GameExecutionContext(
+    IGameExecutionSession session,
+    IAtomicEconomics? economics = null,
+    string? operationId = null) : IGameExecutionContext
 {
+    public string? OperationId { get; } = operationId;
+
+    public async Task<bool> ApplyWalletAsync(
+        long userId,
+        long balanceScopeId,
+    IReadOnlyList<EconomyEffect> effects,
+    string operationId,
+        CancellationToken ct)
+    {
+        var result = await (economics ?? throw new InvalidOperationException(
+                "Wallet mutations are unavailable for this execution context.")).ApplyAsync(
+            new WalletIdentity(userId, balanceScopeId),
+            effects,
+            session,
+            operationId,
+            ct).ConfigureAwait(false);
+        return !result.Rejected;
+    }
+
     public Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct) =>
         session.Connection.ExecuteAsync(new CommandDefinition(
             sql,

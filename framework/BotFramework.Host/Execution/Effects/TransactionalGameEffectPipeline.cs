@@ -54,6 +54,7 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
         if (decision.Status == DecisionStatus.Accepted)
         {
             await ApplyAcceptedAsync(
+                commandId,
                 command,
                 currentState,
                 wallet,
@@ -85,6 +86,7 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
     }
 
     private async Task ApplyAcceptedAsync(
+        string commandId,
         TCommand command,
         TState currentState,
         WalletIdentity wallet,
@@ -98,7 +100,12 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
         if (plan.Effects.Economy.Count != 0)
         {
             await playerProtection.EnforceAsync(wallet.UserId, plan.Effects.Economy, session, ct).ConfigureAwait(false);
-            var walletMutation = await economics.ApplyAsync(wallet, plan.Effects.Economy, session, ct).ConfigureAwait(false);
+            var walletMutation = await economics.ApplyAsync(
+                wallet,
+                plan.Effects.Economy,
+                session,
+                $"{commandId}:primary-wallet",
+                ct).ConfigureAwait(false);
             if (walletMutation.Rejected)
                 throw new InvalidOperationException("A decision accepted an economy mutation that the locked wallet rejected.");
         }

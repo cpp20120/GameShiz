@@ -8,7 +8,7 @@ global using BotFramework.Sdk.Events.Bus;
 global using BotFramework.Sdk.Events.Contracts;
 global using BotFramework.Sdk.Events.Meta;
 global using BotFramework.Sdk.Events.Store;
-global using BotFramework.Sdk.Events.Telegram;
+global using BotFramework.Sdk.Events;
 global using BotFramework.Sdk.Health;
 global using BotFramework.Sdk.Metrics;
 global using BotFramework.Sdk.MiniGames;

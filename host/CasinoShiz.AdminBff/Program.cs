@@ -5,6 +5,7 @@ using Games.Admin.Transport.Grpc;
 using CasinoShiz.Operations.Transport.Grpc;
 using CasinoShiz.ServiceDefaults;
 using BotFramework.Contracts.Identity;
+using BotFramework.Contracts.Operations;
 using BotFramework.Host.Contracts.Economics;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
@@ -123,7 +124,29 @@ app.MapGet("/api/aggregation/players/{userId:long}", async (
         ? Results.NotFound()
         : Results.Ok(new PlayerAggregateResponse(identityResult, walletResult));
 });
-app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", service = "casinoshiz-admin-bff" }));
+app.MapGet("/api/aggregation/admin", async (
+    IOperationsAdminService operations,
+    IWalletAnalyticsService walletAnalytics,
+    CancellationToken ct) =>
+{
+    var failuresTask = operations.ListFailuresAsync(25, null, ct);
+    var outboxTask = operations.ListOutboxAsync(25, null, ct);
+    var jobsTask = operations.ListJobsAsync(ct);
+    var walletHealthTask = walletAnalytics.GetHealthAsync(ct);
+    await Task.WhenAll(failuresTask, outboxTask, jobsTask, walletHealthTask);
+
+    return Results.Ok(new AdminAggregateResponse(
+        await failuresTask,
+        await outboxTask,
+        await jobsTask,
+        await walletHealthTask));
+});
+app.MapServiceDefaults();
 await app.RunAsync();
 
 internal sealed record PlayerAggregateResponse(PlayerIdentity? Identity, WalletAccount? Wallet);
+internal sealed record AdminAggregateResponse(
+    IReadOnlyList<OperationFailure> Failures,
+    IReadOnlyList<OperationOutbox> Outbox,
+    IReadOnlyList<OperationJob> Jobs,
+    WalletHealth WalletHealth);

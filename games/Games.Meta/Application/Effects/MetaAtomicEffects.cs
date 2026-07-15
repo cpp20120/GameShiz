@@ -1,12 +1,12 @@
 using System.Globalization;
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using BotFramework.Sdk.Execution;
 using Dapper;
 using BotFramework.Sdk.Events.Meta;
 using Games.Meta.Domain.Quests;
 using Games.Meta.Domain.Seasons;
 using Games.Meta.Infrastructure.Catalog;
-using Microsoft.Extensions.Options;
 
 namespace Games.Meta.Application.Effects;
 
@@ -90,11 +90,8 @@ internal sealed class QuestProgressAtomicEffectHandler(IQuestCatalog catalog)
 }
 
 internal sealed class QuestClaimAtomicEffectHandler(
-    IQuestCatalog catalog,
-    IOptions<BotFrameworkOptions> options) : AtomicEffectHandler<QuestClaimAtomicEffect>
+    IQuestCatalog catalog) : AtomicEffectHandler<QuestClaimAtomicEffect>
 {
-    private readonly int startingCoins = options.Value.StartingCoins;
-
     protected override async Task ApplyAsync(
         QuestClaimAtomicEffect effect,
         IAtomicEffectContext context,
@@ -171,17 +168,19 @@ internal sealed class QuestClaimAtomicEffectHandler(
             return;
         }
 
-        await EnsureWalletAsync(context, effect, ct).ConfigureAwait(false);
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        await wallet.EnsureUserAsync(effect.UserId, effect.ChatId, effect.DisplayName, ct).ConfigureAwait(false);
         if (result.RewardCoins > 0)
         {
             var amount = checked((int)Math.Min(int.MaxValue, result.RewardCoins));
-            await CreditAsync(
-                context,
-                effect,
-                amount,
-                "quest.reward",
+            var walletResult = await wallet.ApplyBatchAsync(
+                effect.UserId,
+                effect.ChatId,
+                [new WalletBatchEffect(WalletBatchEffectKind.Credit, amount, "quest.reward")],
                 $"quest:reward:{effect.SeasonId}:{effect.ChatId}:{effect.UserId}:{result.QuestId}",
                 ct).ConfigureAwait(false);
+            if (!walletResult.Applied)
+                throw new InvalidOperationException("Quest reward wallet rejected the credit.");
         }
 
         if (result.RewardXp > 0)
@@ -210,69 +209,6 @@ internal sealed class QuestClaimAtomicEffectHandler(
             }, ct).ConfigureAwait(false);
 
         context.SetOutput("result", result);
-    }
-
-    private async Task EnsureWalletAsync(
-        IAtomicEffectContext context,
-        QuestClaimAtomicEffect effect,
-        CancellationToken ct) =>
-        await context.ExecuteAsync(
-            """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @chatId, @displayName, @startingCoins)
-            ON CONFLICT (telegram_user_id, balance_scope_id)
-            DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
-            """,
-            new
-            {
-                userId = effect.UserId,
-                chatId = effect.ChatId,
-                displayName = effect.DisplayName.Length > 64 ? effect.DisplayName[..64] : effect.DisplayName,
-                startingCoins,
-            }, ct).ConfigureAwait(false);
-
-    private static async Task CreditAsync(
-        IAtomicEffectContext context,
-        QuestClaimAtomicEffect effect,
-        int amount,
-        string reason,
-        string operationId,
-        CancellationToken ct)
-    {
-        var existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-
-        var wallet = await context.QuerySingleOrDefaultAsync<WalletRow>(
-            """
-            SELECT coins AS Coins, version AS Version
-            FROM users
-            WHERE telegram_user_id = @userId AND balance_scope_id = @chatId
-            FOR UPDATE
-            """,
-            new { userId = effect.UserId, chatId = effect.ChatId }, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Quest reward wallet was not created.");
-        existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-
-        var balance = checked(wallet.Coins + amount);
-        await context.ExecuteAsync(
-            """
-            UPDATE users
-            SET coins = @balance, version = @version, updated_at = now()
-            WHERE telegram_user_id = @userId AND balance_scope_id = @chatId
-            """,
-            new { userId = effect.UserId, chatId = effect.ChatId, balance, version = checked(wallet.Version + 1) }, ct).ConfigureAwait(false);
-        await context.ExecuteAsync(
-            """
-            INSERT INTO economics_ledger
-                (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id)
-            VALUES (@userId, @chatId, @amount, @balance, @reason, @operationId)
-            """,
-            new { userId = effect.UserId, chatId = effect.ChatId, amount, balance, reason, operationId }, ct).ConfigureAwait(false);
     }
 
     private static async Task AddXpAsync(
@@ -316,5 +252,4 @@ internal sealed class QuestClaimAtomicEffectHandler(
                 new { effect.SeasonId, effect.ChatId, effect.UserId, level }, ct).ConfigureAwait(false);
     }
 
-    private sealed record WalletRow(int Coins, long Version);
 }

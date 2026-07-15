@@ -13,9 +13,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\services\CasinoShiz.Identity\CasinoShiz.Identity.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\framework\BotFramework.Rest\BotFramework.Rest.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Telegram\BotFramework.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Dice\Games.Dice.csproj" />
     <ProjectReference Include="..\..\games\Games.Dice.Telegram\Games.Dice.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Dice.Rest\Games.Dice.Rest.csproj" />
     <ProjectReference Include="..\..\games\Games.DiceCube\Games.DiceCube.csproj" />
     <ProjectReference Include="..\..\games\Games.Darts\Games.Darts.csproj" />
     <ProjectReference Include="..\..\games\Games.Football\Games.Football.csproj" />
@@ -26,6 +28,7 @@
     <ProjectReference Include="..\..\games\Games.Horse\Games.Horse.csproj" />
     <ProjectReference Include="..\..\games\Games.Poker\Games.Poker.csproj" />
     <ProjectReference Include="..\..\games\Games.Poker.Telegram\Games.Poker.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Poker.Rest\Games.Poker.Rest.csproj" />
     <ProjectReference Include="..\..\games\Games.SecretHitler\Games.SecretHitler.csproj" />
     <ProjectReference Include="..\..\games\Games.SecretHitler.Telegram\Games.SecretHitler.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Redeem\Games.Redeem.csproj" />
@@ -44,6 +47,7 @@
     <ProjectReference Include="..\..\games\Games.Transfer.Telegram\Games.Transfer.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Redeem.Telegram\Games.Redeem.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Leaderboard.Telegram\Games.Leaderboard.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Leaderboard.Rest\Games.Leaderboard.Rest.csproj" />
     <ProjectReference Include="..\..\games\Games.PixelBattle.Telegram\Games.PixelBattle.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Telegram\Games.Pick.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Telegram\Games.Blackjack.Telegram.csproj" />

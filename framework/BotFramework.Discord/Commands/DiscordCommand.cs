@@ -28,15 +28,20 @@ public static class DiscordCommand
         clientId: "discord",
         userId: context.Message.Author.Id.ToString(CultureInfo.InvariantCulture),
         scopeId: context.Message.Channel.Id.ToString(CultureInfo.InvariantCulture),
-        culture: "ru");
+        culture: context.CultureCode);
 
-    public static Task ReplyAsync(DiscordMessageContext context, string text) =>
-        context.Message.Channel.SendMessageAsync(text, messageReference: new MessageReference(context.Message.Id));
+    public static Task ReplyAsync(DiscordMessageContext context, string text, string? title = null, bool isError = false) =>
+        context.Message.Channel.SendMessageAsync(
+            text: null,
+            embed: DiscordEmbeds.Text(text, title, context.CultureCode, isError),
+            messageReference: new MessageReference(context.Message.Id));
 
     public static Task ReplyResultAsync<T>(DiscordMessageContext context, T result, string? title = null)
     {
-        var text = FormatResult(result, title);
-        return ReplyAsync(context, text.Length <= 1900 ? text : text[..1900]);
+        return context.Message.Channel.SendMessageAsync(
+            text: null,
+            embed: DiscordEmbeds.Result(result, title, context.CultureCode),
+            messageReference: new MessageReference(context.Message.Id));
     }
 
     public static string FormatResult<T>(T result, string? title = null)

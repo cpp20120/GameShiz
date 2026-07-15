@@ -133,7 +133,10 @@ public sealed class AdminEffectExecutorPostgresTests(AtomicPostgresFixture datab
                 ["ConnectionStrings:Postgres"] = database.ConnectionString,
             })
             .Build();
-        return new AdminEffectExecutor(new NpgsqlConnectionFactory(configuration), handlers);
+        return new AdminEffectExecutor(
+            new NpgsqlConnectionFactory(configuration),
+            handlers,
+            new WalletAtomicExecutionService(new NpgsqlConnectionFactory(configuration), TimeProvider.System));
     }
 
     private static AdminExecutionEnvelope Envelope() =>

@@ -15,6 +15,16 @@ internal sealed class FrameworkMigrations : IModuleMigrations
 {
     public string ModuleId => "_framework";
 
+    private static readonly HashSet<string> WalletOwnedIds =
+    [
+        "003_users",
+        "006_per_chat_wallets_and_ledger",
+        "008_users_last_daily_bonus",
+        "009_users_telegram_dice_daily",
+        "014_economics_operation_id",
+        "017_responsible_gaming_and_ops_reports",
+    ];
+
     public IReadOnlyList<Migration> Migrations { get; } =
     [
         new Migration("001_event_store", """
@@ -535,5 +545,118 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             CREATE INDEX IF NOT EXISTS ix_game_schedule_outbox_order
                 ON game_schedule_outbox (schedule_id, id, status);
             """),
+
+        new Migration("026_discord_outbox", """
+            CREATE TABLE IF NOT EXISTS discord_outbox (
+                id                  BIGSERIAL    PRIMARY KEY,
+                dedupe_key          TEXT,
+                user_id             BIGINT       NOT NULL,
+                channel_id          BIGINT       NOT NULL,
+                text                TEXT         NOT NULL,
+                title               TEXT,
+                culture             TEXT         NOT NULL DEFAULT 'ru',
+                status              TEXT         NOT NULL DEFAULT 'pending',
+                attempts            INTEGER      NOT NULL DEFAULT 0,
+                next_attempt_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                locked_until        TIMESTAMPTZ,
+                last_error          TEXT,
+                discord_message_id  BIGINT,
+                created_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                sent_at             TIMESTAMPTZ
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_discord_outbox_dedupe_key
+                ON discord_outbox (dedupe_key)
+                WHERE dedupe_key IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS ix_discord_outbox_due
+                ON discord_outbox (status, next_attempt_at, id)
+                WHERE status IN ('pending', 'sending');
+            """),
+
+        new Migration("027_schedule_outbox_ownership", """
+            ALTER TABLE game_schedule_outbox
+                ADD COLUMN IF NOT EXISTS game_id TEXT;
+
+            -- Older rows already carry the game id in the scoped schedule id
+            -- (game:aggregate:schedule). Backfill them before distributed
+            -- workers start filtering the shared outbox by module ownership.
+            UPDATE game_schedule_outbox
+            SET game_id = split_part(schedule_id, ':', 1)
+            WHERE game_id IS NULL
+              AND position(':' IN schedule_id) > 0;
+
+            CREATE INDEX IF NOT EXISTS ix_game_schedule_outbox_game_due
+                ON game_schedule_outbox (game_id, status, next_attempt_at, id)
+                WHERE status IN ('pending', 'sending');
+            """),
     ];
+
+    /// <summary>
+    /// Framework schema for a Backend instance in the microservices profile.
+    /// Wallet-owned tables are omitted. Historical backfills which selected
+    /// from users are replaced with empty-schema migrations.
+    /// </summary>
+    public IReadOnlyList<Migration> MicroservicesBackendMigrations =>
+        Migrations
+            .Where(migration => !WalletOwnedIds.Contains(migration.Id))
+            .Select(migration => migration.Id switch
+            {
+                "007_known_chats" => new Migration("007_known_chats", """
+                    CREATE TABLE IF NOT EXISTS known_chats (
+                        chat_id       BIGINT         PRIMARY KEY,
+                        chat_type     TEXT           NOT NULL,
+                        title         TEXT,
+                        username      TEXT,
+                        first_seen_at TIMESTAMPTZ    NOT NULL DEFAULT now(),
+                        last_seen_at  TIMESTAMPTZ    NOT NULL DEFAULT now()
+                    );
+                    CREATE INDEX IF NOT EXISTS ix_known_chats_last ON known_chats (last_seen_at DESC);
+                    CREATE INDEX IF NOT EXISTS ix_known_chats_type ON known_chats (chat_type);
+                    """),
+                "012_telegram_dice_daily_per_game" => new Migration("012_telegram_dice_daily_per_game", """
+                    CREATE TABLE IF NOT EXISTS telegram_dice_daily_rolls (
+                        telegram_user_id    BIGINT       NOT NULL,
+                        balance_scope_id    BIGINT       NOT NULL,
+                        game_id             TEXT         NOT NULL,
+                        rolls_on            DATE,
+                        roll_count          INTEGER      NOT NULL DEFAULT 0,
+                        updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                        PRIMARY KEY (telegram_user_id, balance_scope_id, game_id)
+                    );
+                    CREATE INDEX IF NOT EXISTS ix_telegram_dice_daily_rolls_scope_game
+                        ON telegram_dice_daily_rolls (balance_scope_id, game_id, rolls_on);
+                    """),
+                _ => migration,
+            })
+            .Append(new Migration("027_operations_report_checkpoint", """
+                CREATE TABLE IF NOT EXISTS operations_report_checkpoint (
+                    report_key       TEXT         PRIMARY KEY,
+                    period_key       TEXT         NOT NULL,
+                    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
+                );
+                """))
+            .ToArray();
+
+    /// <summary>
+    /// Framework schema for the Wallet instance. The former combined 017
+    /// migration is replaced by a wallet-only forward migration.
+    /// </summary>
+    public IReadOnlyList<Migration> WalletMigrations =>
+        Migrations
+            .Where(migration => WalletOwnedIds.Contains(migration.Id)
+                && migration.Id != "009_users_telegram_dice_daily"
+                && migration.Id != "017_responsible_gaming_and_ops_reports")
+            .Append(new Migration("027_wallet_player_protection", """
+                CREATE TABLE IF NOT EXISTS player_protection (
+                    telegram_user_id    BIGINT       PRIMARY KEY,
+                    daily_stake_limit   INTEGER,
+                    cooldown_until      TIMESTAMPTZ,
+                    self_excluded_until TIMESTAMPTZ,
+                    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                    CHECK (daily_stake_limit IS NULL OR daily_stake_limit >= 0)
+                );
+                CREATE INDEX IF NOT EXISTS ix_player_protection_active
+                    ON player_protection (cooldown_until, self_excluded_until);
+                """))
+            .ToArray();
 }

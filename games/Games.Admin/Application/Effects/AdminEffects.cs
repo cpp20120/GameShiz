@@ -1,4 +1,5 @@
 using BotFramework.Host.Admin.Execution;
+using BotFramework.Host.Contracts.Economics;
 using BotFramework.Sdk.Admin.Execution;
 using Dapper;
 using Games.Admin.Infrastructure.Models;
@@ -56,32 +57,21 @@ internal sealed class ClearChatBetsAdminEffectHandler : AdminEffectHandler<Clear
                 awaiting = (short)Games.Darts.Domain.Results.DartsRoundStatus.AwaitingOutcome,
             }, ct).ConfigureAwait(false));
 
-        foreach (var bet in deleted)
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        for (var index = 0; index < deleted.Count; index++)
         {
-            var balance = await context.QuerySingleOrDefaultAsync<int?>(
-                """
-                UPDATE users
-                SET coins = coins + @amount, version = version + 1, updated_at = now()
-                WHERE telegram_user_id = @userId AND balance_scope_id = @chatId
-                RETURNING coins
-                """,
-                new { userId = bet.UserId, chatId = bet.ChatId, amount = bet.Amount }, ct).ConfigureAwait(false)
-                ?? throw new InvalidOperationException($"Wallet {bet.UserId}:{bet.ChatId} is missing while refunding a pending bet.");
-
-            await context.ExecuteAsync(
-                """
-                INSERT INTO economics_ledger
-                    (telegram_user_id, balance_scope_id, delta, balance_after, reason)
-                VALUES (@userId, @chatId, @amount, @balance, @reason)
-                """,
-                new
-                {
-                    userId = bet.UserId,
-                    chatId = bet.ChatId,
-                    amount = bet.Amount,
-                    balance,
-                    reason = $"admin.clearbets.{bet.GameId}",
-                }, ct).ConfigureAwait(false);
+            var bet = deleted[index];
+            var result = await wallet.ApplyBatchAsync(
+                bet.UserId,
+                bet.ChatId,
+                [new WalletBatchEffect(
+                    WalletBatchEffectKind.Credit,
+                    bet.Amount,
+                    $"admin.clearbets.{bet.GameId}")],
+                $"{context.Action}:clearbets:{index}:{bet.UserId}:{bet.ChatId}",
+                ct).ConfigureAwait(false);
+            if (!result.Applied)
+                throw new InvalidOperationException($"Wallet {bet.UserId}:{bet.ChatId} rejected a pending bet refund.");
         }
 
         context.SetOutput("bets", deleted);

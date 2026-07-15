@@ -63,7 +63,7 @@ public sealed class FootballServiceTests
         var second = Throw(face: 4, amount: 25, entropy: 0.01, dropChance: 0.1);
 
         Assert.Equal(JsonSerializer.SerializeToUtf8Bytes(first), JsonSerializer.SerializeToUtf8Bytes(second));
-        Assert.Single(first.Events.OfType<TelegramMiniGameRedeemCodeDropRequested>());
+        Assert.Single(first.Events.OfType<MiniGameRedeemCodeDropRequested>());
     }
 
     [Fact]

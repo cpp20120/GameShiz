@@ -36,6 +36,9 @@ public sealed class AtomicScheduleEffectPostgresTests(AtomicPostgresFixture data
         Assert.Single(scheduler.Scheduled);
         Assert.Empty(scheduler.Cancelled);
         var scheduled = scheduler.Scheduled[0];
+        Assert.Equal("blackjack", await database.ScalarAsync<string>(
+            "SELECT game_id FROM game_schedule_outbox WHERE schedule_id = @scheduleId",
+            new { scheduleId = scheduled.ScheduleId }));
         Assert.Equal("blackjack:chat-1:game-1:turn-timeout", scheduled.ScheduleId);
         Assert.Equal("blackjack.turn-timeout", scheduled.JobKey);
         Assert.Equal(DueAt, scheduled.Schedule.RunAt);

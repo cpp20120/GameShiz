@@ -1,5 +1,7 @@
 using BotFramework.Host.Contracts.Telegram;
 using BotFramework.Host.TelegramOutbox;
+using BotFramework.Host.Contracts.Discord;
+using BotFramework.Host.DiscordOutbox;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -20,6 +22,8 @@ using BotFramework.Rendering;
 using BotFramework.Host.Configuration.Validation;
 using BotFramework.Host.Admin.Execution;
 using BotFramework.Host.Admin.Effects;
+using BotFramework.Host.Composition.ServiceDatabases;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace BotFramework.Host.Composition.Builder;
 
@@ -29,6 +33,10 @@ public static class BotFrameworkBuilderExtensions
     {
         var services = builder.Services;
         var configuration = builder.Configuration;
+        var walletRemote = string.Equals(
+            configuration["Services:Wallet:Mode"],
+            "Grpc",
+            StringComparison.OrdinalIgnoreCase);
 
         DapperTypeHandlers.Register();
 
@@ -121,14 +129,31 @@ public static class BotFrameworkBuilderExtensions
         }
 
         var pgConnStr = configuration.GetConnectionString("Postgres")!;
+        var configuredBackendServiceName = configuration["Backend:ServiceName"]
+            ?? configuration["Service:Name"];
+        var backendServiceName = configuredBackendServiceName ?? "backend";
+        // Keep the existing monolith Quartz partition so an upgrade does not
+        // orphan schedules created before the distributed profile existed.
+        var schedulerName = configuredBackendServiceName ?? "CasinoShiz";
         services.AddSingleton<DomainEventSubscriptionDispatcher>();
         if (redisEnabled)
         {
+            var consumerGroup = new string(backendServiceName
+                .Select(character => char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-')
+                .ToArray());
+            if (string.IsNullOrWhiteSpace(consumerGroup))
+                consumerGroup = "backend";
+
             services.AddCap(opts =>
             {
                 opts.UsePostgreSql(pgConnStr);
                 opts.UseRedis(redisConn!);
-                opts.DefaultGroupName = "casinoshiz";
+                // All replicas of one logical service share a group and
+                // therefore load-balance events. Different game services get
+                // different groups and each receives the event stream, so an
+                // event subscriber is not accidentally skipped by another
+                // service that does not own that subscription.
+                opts.DefaultGroupName = $"casinoshiz.domain-events.{consumerGroup}";
             });
             services.AddSingleton<CapEventBus>();
             services.AddSingleton<IDomainEventBus>(sp => sp.GetRequiredService<CapEventBus>());
@@ -144,16 +169,31 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<HealthEndpoint>();
         services.AddSingleton<ILocalizer, Localizer>();
         services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
+        services.AddHealthChecks()
+            .AddCheck<PostgresDatabaseHealthCheck>(
+                "postgres",
+                failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                tags: ["ready"]);
         services.AddSingleton<IGameExecutionSessionFactory, PostgresGameExecutionSessionFactory>();
         services.AddSingleton<ICommandInbox, PostgresCommandInbox>();
-        services.AddSingleton<IAtomicEconomics, PostgresAtomicEconomics>();
         services.AddSingleton<IAtomicQuotaStore, PostgresAtomicQuotaStore>();
         services.AddSingleton<IAtomicGameAvailability, PostgresAtomicGameAvailability>();
-        services.AddSingleton<IAtomicPlayerProtection, PostgresAtomicPlayerProtection>();
+        if (walletRemote)
+        {
+            services.AddSingleton<IAtomicEconomics, RemoteAtomicEconomics>();
+            services.AddSingleton<IAtomicPlayerProtection, RemoteAtomicPlayerProtection>();
+            services.AddScoped<IGameEffectHandler, RemoteWalletEconomyEffectHandler>();
+        }
+        else
+        {
+            services.AddSingleton<IAtomicEconomics, PostgresAtomicEconomics>();
+            services.AddSingleton<IAtomicPlayerProtection, PostgresAtomicPlayerProtection>();
+            services.AddSingleton<IWalletAtomicExecutionService, LocalWalletAtomicExecutionService>();
+            services.AddScoped<IGameEffectHandler, PostgresWalletEconomyEffectHandler>();
+        }
         services.AddSingleton<ITransactionalEventCollector, TransactionalEventCollector>();
         services.AddSingleton<ITransactionalScheduleCollector, TransactionalScheduleCollector>();
         services.AddSingleton<GameExecutionTelemetry>();
-        services.AddScoped<IGameEffectHandler, PostgresWalletEconomyEffectHandler>();
         services.AddScoped<IAtomicEffectExecutor, AtomicEffectExecutor>();
         services.AddSingleton<PostgresGameEventOutbox>();
         services.AddSingleton<PostgresGameScheduleOutbox>();
@@ -162,23 +202,32 @@ public static class BotFrameworkBuilderExtensions
         services.AddSingleton<ITelegramOutboxStore>(sp => sp.GetRequiredService<PostgresTelegramOutboxStore>());
         services.AddSingleton<ITelegramOutbox>(sp => sp.GetRequiredService<PostgresTelegramOutboxStore>());
         services.AddSingleton<ITelegramOutboxMonitor>(sp => sp.GetRequiredService<PostgresTelegramOutboxStore>());
+        services.AddSingleton<PostgresDiscordOutboxStore>();
+        services.AddSingleton<IDiscordOutboxStore>(sp => sp.GetRequiredService<PostgresDiscordOutboxStore>());
+        services.AddSingleton<IDiscordOutbox>(sp => sp.GetRequiredService<PostgresDiscordOutboxStore>());
         if (useCapOutboxTransport)
         {
             services.AddSingleton<TelegramOutboxCapRelayService>();
             services.AddSingleton<TelegramOutboxCapReceiptConsumer>();
         }
 
-        services.AddSingleton<IEconomicsService, EconomicsService>();
-        services.AddSingleton<IWalletReadService, WalletReadService>();
-        services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();
+        if (!walletRemote)
+        {
+            services.AddSingleton<IEconomicsService, EconomicsService>();
+            services.AddSingleton<IWalletReadService, WalletReadService>();
+            services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();
+        }
         services.AddSingleton<IDistributedGameLock, PostgresDistributedGameLock>();
         services.AddSingleton<IMiniGameSessionStore, PostgresMiniGameSessionStore>();
         services.AddSingleton<IMiniGameRollGateStore, PostgresMiniGameRollGateStore>();
         services.AddRegisteredConfigurationSection<DailyBonusOptions, DailyBonusOptionsValidator>(
             configuration,
             DailyBonusOptions.SectionName);
-        services.AddSingleton<IDailyBonusService, DailyBonusService>();
-        services.AddSingleton<IPlayerProtectionService, PlayerProtectionService>();
+        if (!walletRemote)
+        {
+            services.AddSingleton<IDailyBonusService, DailyBonusService>();
+            services.AddSingleton<IPlayerProtectionService, PlayerProtectionService>();
+        }
         services.AddScoped<PostgresGameAvailabilityService>();
         services.AddScoped<IGameAvailabilityService>(sp => sp.GetRequiredService<PostgresGameAvailabilityService>());
         services.AddScoped<IGameAvailabilityClient>(sp => sp.GetRequiredService<PostgresGameAvailabilityService>());
@@ -195,9 +244,18 @@ public static class BotFrameworkBuilderExtensions
         services.AddScoped<IRuntimeConfigurationService, RuntimeConfigurationService>();
         services.AddScoped<IAdminEffectExecutor, AdminEffectExecutor>();
         services.AddScoped<IAdminEffectHandler, RuntimeConfigurationPatchEffectHandler>();
-        services.AddScoped<IAdminEffectHandler, WalletAdjustmentAdminEffectHandler>();
-        services.AddScoped<IAdminEffectHandler, WalletSetAdminEffectHandler>();
-        services.AddScoped<IAdminEffectHandler, LedgerRevertAdminEffectHandler>();
+        if (walletRemote)
+        {
+            services.AddScoped<IAdminEffectHandler, RemoteWalletAdjustmentAdminEffectHandler>();
+            services.AddScoped<IAdminEffectHandler, RemoteWalletSetAdminEffectHandler>();
+            services.AddScoped<IAdminEffectHandler, RemoteLedgerRevertAdminEffectHandler>();
+        }
+        else
+        {
+            services.AddScoped<IAdminEffectHandler, WalletAdjustmentAdminEffectHandler>();
+            services.AddScoped<IAdminEffectHandler, WalletSetAdminEffectHandler>();
+            services.AddScoped<IAdminEffectHandler, LedgerRevertAdminEffectHandler>();
+        }
 
         services.AddOptions<ClickHouseOptions>()
             .Bind(configuration.GetSection(ClickHouseOptions.SectionName))
@@ -230,7 +288,7 @@ public static class BotFrameworkBuilderExtensions
         services.AddHostedService<ModuleMigrationRunner>();
         if (useCapOutboxTransport)
             services.AddHostedService(sp => sp.GetRequiredService<TelegramOutboxCapRelayService>());
-        services.AddQuartzGameScheduling(pgConnStr);
+        services.AddQuartzGameScheduling(pgConnStr, schedulerName);
         services.AddHostedService<EventAnalyticsBackfillService>();
         services.AddHostedService<GameEventOutboxDispatcher>();
         services.AddHostedService<GameScheduleOutboxDispatcher>();

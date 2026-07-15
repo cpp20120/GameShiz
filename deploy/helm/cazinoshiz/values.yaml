@@ -1,0 +1,74 @@
+imagePullSecrets: []
+
+images:
+  backend: ghcr.io/example/cazinoshiz-backend:latest
+  telegramBff: ghcr.io/example/cazinoshiz-telegram-bff:latest
+  discordBff: ghcr.io/example/cazinoshiz-discord-bff:latest
+  identity: ghcr.io/example/cazinoshiz-identity:latest
+  wallet: ghcr.io/example/cazinoshiz-wallet:latest
+  adminBff: ghcr.io/example/cazinoshiz-admin-bff:latest
+
+secrets:
+  name: cazinoshiz-secrets
+  postgresPasswordKey: postgres-password
+  redisPasswordKey: redis-password
+  telegramTokenKey: telegram-token
+  discordTokenKey: discord-token
+  operationsApiKeyKey: operations-api-key
+  adminSuperAdminTokenKey: admin-superadmin-token
+
+redis:
+  address: redis:6379
+
+databases:
+  backend:
+    database: backend
+    user: backend
+    storage: 20Gi
+  identity:
+    database: identity
+    user: identity
+    storage: 10Gi
+  wallet:
+    database: wallet
+    user: wallet
+    storage: 20Gi
+
+identity:
+  replicas: 2
+
+wallet:
+  replicas: 2
+
+games:
+  dice: { module: dice, replicas: 1, routeKey: Dice }
+  dicecube: { module: dicecube, replicas: 1, routeKey: DiceCube }
+  darts: { module: darts, replicas: 1, routeKey: Darts }
+  football: { module: football, replicas: 1, routeKey: Football }
+  basketball: { module: basketball, replicas: 1, routeKey: Basketball }
+  bowling: { module: bowling, replicas: 1, routeKey: Bowling }
+  transfer: { module: transfer, replicas: 1, routeKey: Transfer }
+  redeem: { module: redeem, replicas: 1, routeKey: Redeem }
+  leaderboard: { module: leaderboard, replicas: 1, routeKey: Leaderboard }
+  pixelbattle: { module: pixelbattle, replicas: 1, routeKey: PixelBattle }
+  pick: { module: pick, replicas: 1, routeKey: Pick }
+  blackjack: { module: blackjack, replicas: 1, routeKey: Blackjack }
+  horse: { module: horse, replicas: 1, routeKey: Horse }
+  challenges: { module: challenges, replicas: 1, routeKey: Challenges }
+  poker: { module: poker, replicas: 1, routeKey: Poker }
+  secrethitler: { module: secrethitler, replicas: 1, routeKey: SecretHitler }
+  # Meta/admin are control-plane modules. They remain independently deployable
+  # but are intentionally not treated as gameplay request workers.
+  meta: { module: meta, replicas: 1, routeKey: Meta }
+  admin: { module: admin, replicas: 1, routeKey: Admin }
+
+bff:
+  telegram:
+    enabled: true
+    replicas: 2
+  discord:
+    enabled: true
+    replicas: 2
+  admin:
+    enabled: true
+    replicas: 2

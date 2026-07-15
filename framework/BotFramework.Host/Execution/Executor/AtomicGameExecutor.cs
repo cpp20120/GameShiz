@@ -91,7 +91,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct).ConfigureAwait(false);
                 walletSnapshot = await economics.LoadAsync(wallet, session, ct).ConfigureAwait(false);
             }
-            var executionContext = new GameExecutionContext(session);
+            var executionContext = new GameExecutionContext(session, economics, commandId);
             var state = await stateStore.LoadAsync(command, executionContext, ct).ConfigureAwait(false);
 
             var quotaSnapshots = await LoadQuotaSnapshotsAsync(quotas, session, ct).ConfigureAwait(false);

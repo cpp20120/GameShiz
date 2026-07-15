@@ -19,6 +19,24 @@ public sealed class OperatorToolsTests
     }
 
     [Fact]
+    public void MicroserviceMigrationSets_KeepWalletTablesOutOfBackend()
+    {
+        var framework = new BotFramework.Host.Composition.Migrations.FrameworkMigrations();
+        var backend = framework.MicroservicesBackendMigrations;
+        var wallet = framework.WalletMigrations;
+
+        Assert.DoesNotContain(backend, migration => migration.Id is
+            "003_users" or "006_per_chat_wallets_and_ledger" or "008_users_last_daily_bonus"
+            or "009_users_telegram_dice_daily" or "014_economics_operation_id"
+            or "017_responsible_gaming_and_ops_reports");
+        Assert.Contains(wallet, migration => migration.Id == "006_per_chat_wallets_and_ledger");
+        Assert.Contains(wallet, migration => migration.Id == "027_wallet_player_protection");
+        Assert.DoesNotContain(backend, migration => migration.Sql.Contains("CREATE TABLE users", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(backend, migration => migration.Sql.Contains("CREATE TABLE player_protection", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(backend, migration => migration.Id == "027_operations_report_checkpoint");
+    }
+
+    [Fact]
     public void EconomySimulation_IsBitwiseDeterministicForSameSnapshotAndSeed()
     {
         var service = new EconomySimulationService();

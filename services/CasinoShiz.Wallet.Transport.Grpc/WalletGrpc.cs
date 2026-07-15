@@ -21,7 +21,7 @@ public sealed class WalletGrpcEndpoint(IServiceProvider services) : WalletApi.Wa
 {
     private static readonly Dictionary<string, Type> Contracts = new[]
     {
-        typeof(IEconomicsService), typeof(IDailyBonusService), typeof(IWalletReadService), typeof(IWalletAnalyticsService), typeof(IPlayerProtectionService),
+        typeof(IEconomicsService), typeof(IWalletAtomicExecutionService), typeof(IDailyBonusService), typeof(IWalletReadService), typeof(IWalletAnalyticsService), typeof(IPlayerProtectionService),
     }.ToDictionary(type => type.FullName!, StringComparer.Ordinal);
 
     public override async Task<WalletReply> Invoke(WalletCall request, ServerCallContext context)
@@ -88,6 +88,7 @@ public static class WalletGrpcExtensions
     {
         services.AddResilientGrpcClient<WalletApi.WalletApiClient>(address);
         services.AddSingleton(provider => WalletGrpcProxy<IEconomicsService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));
+        services.AddSingleton(provider => WalletGrpcProxy<IWalletAtomicExecutionService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxy<IDailyBonusService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxy<IWalletReadService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxy<IWalletAnalyticsService>.Create(provider.GetRequiredService<WalletApi.WalletApiClient>()));

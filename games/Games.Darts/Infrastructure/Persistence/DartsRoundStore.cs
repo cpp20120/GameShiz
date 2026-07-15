@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using Dapper;
 
 namespace Games.Darts.Infrastructure.Persistence;
@@ -8,8 +9,8 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
     {
         await using var conn = await connections.OpenAsync(ct);
         return await conn.QuerySingleAsync<long>(new CommandDefinition("""
-            INSERT INTO darts_rounds (user_id, chat_id, amount, created_at, status, bot_message_id, reply_to_message_id)
-            VALUES (@UserId, @ChatId, @Amount, @CreatedAt, @Status, @BotMessageId, @ReplyToMessageId)
+            INSERT INTO darts_rounds (user_id, chat_id, amount, created_at, status, bot_message_id, reply_to_message_id, channel)
+            VALUES (@UserId, @ChatId, @Amount, @CreatedAt, @Status, @BotMessageId, @ReplyToMessageId, @Channel)
             RETURNING id
             """,
             new
@@ -21,6 +22,7 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
                 Status = (short)row.Status,
                 BotMessageId = row.BotMessageId,
                 row.ReplyToMessageId,
+                Channel = row.Channel.ToString().ToLowerInvariant(),
             },
             cancellationToken: ct));
     }
@@ -36,7 +38,8 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
                    created_at AS CreatedAt,
                    status AS Status,
                    bot_message_id AS BotMessageId,
-                   reply_to_message_id AS ReplyToMessageId
+                   reply_to_message_id AS ReplyToMessageId,
+                   channel AS Channel
             FROM darts_rounds
             WHERE id = @roundId
             """,
@@ -56,7 +59,8 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
                    created_at AS CreatedAt,
                    status AS Status,
                    bot_message_id AS BotMessageId,
-                   reply_to_message_id AS ReplyToMessageId
+                   reply_to_message_id AS ReplyToMessageId,
+                   channel AS Channel
             FROM darts_rounds
             WHERE status = @queued
             ORDER BY created_at, id
@@ -136,7 +140,8 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
         DateTimeOffset CreatedAt,
         short Status,
         int? BotMessageId,
-        int ReplyToMessageId)
+        int ReplyToMessageId,
+        string? Channel)
     {
         public DartsRound ToRound() => new(
             Id,
@@ -146,6 +151,8 @@ public sealed class DartsRoundStore(INpgsqlConnectionFactory connections) : IDar
             CreatedAt,
             (DartsRoundStatus)Status,
             BotMessageId,
-            ReplyToMessageId);
+            ReplyToMessageId,
+            Enum.TryParse<BotChannel>(Channel, ignoreCase: true, out var channel)
+                ? channel : BotChannel.Telegram);
     }
 }

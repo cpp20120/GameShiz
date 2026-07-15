@@ -41,6 +41,19 @@ public sealed class PokerService(
         var source = sourceMessageId > 0
             ? sourceMessageId.ToString(CultureInfo.InvariantCulture)
             : Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+        return CreateTableWithSourceAsync(userId, displayName, chatId, source, options, ct);
+    }
+
+    public Task<CreateResult> CreateTableAsync(
+        long userId, string displayName, long chatId, string operationId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return CreateTableWithSourceAsync(userId, displayName, chatId, operationId, CurrentOptions(), ct);
+    }
+
+    private Task<CreateResult> CreateTableWithSourceAsync(
+        long userId, string displayName, long chatId, string source, PokerOptions options, CancellationToken ct)
+    {
         return createExecutor.ExecuteAsync(new(new PokerCreateCommand(
             userId, displayName, chatId, $"poker:create:{chatId}:{source}:{userId}",
             options.BuyIn, options.SmallBlind, options.BigBlind, [new(userId, chatId)])), ct);
@@ -66,31 +79,78 @@ public sealed class PokerService(
             ? sourceMessageId.ToString(CultureInfo.InvariantCulture)
             : Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         var options = CurrentOptions();
-        return await joinExecutor.ExecuteAsync(new(new PokerJoinCommand(
-            code, userId, displayName, chatId, $"poker:join:{chatId}:{source}:{userId}:{code}",
-            options.BuyIn, options.MaxPlayers, expected)), ct).ConfigureAwait(false);
+        return await JoinTableWithSourceAsync(userId, displayName, chatId, code, source, expected, options, ct)
+            .ConfigureAwait(false);
     }
 
-    public async Task<StartResult> StartHandAsync(long userId, long currentChatId, CancellationToken ct)
+    public async Task<JoinResult> JoinTableAsync(
+        long userId, string displayName, long chatId, string code, string operationId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        code = code.ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            var groupTable = await tables.FindOpenByChatAsync(chatId, ct).ConfigureAwait(false);
+            if (groupTable is null) return new(PokerError.NoTable, null, 0, CurrentOptions().MaxPlayers);
+            code = groupTable.InviteCode;
+        }
+        var expected = await ExpectedWalletsAsync(code, ct).ConfigureAwait(false);
+        expected.Add(new(userId, chatId));
+        return await JoinTableWithSourceAsync(userId, displayName, chatId, code, operationId, expected, CurrentOptions(), ct)
+            .ConfigureAwait(false);
+    }
+
+    private Task<JoinResult> JoinTableWithSourceAsync(
+        long userId, string displayName, long chatId, string code, string source,
+        List<PokerWalletRef> expected, PokerOptions options, CancellationToken ct) =>
+        joinExecutor.ExecuteAsync(new(new PokerJoinCommand(
+            code, userId, displayName, chatId, $"poker:join:{chatId}:{source}:{userId}:{code}",
+            options.BuyIn, options.MaxPlayers, expected)), ct);
+
+    public Task<StartResult> StartHandAsync(long userId, long currentChatId, CancellationToken ct)
+    {
+        return StartHandWithSourceAsync(userId, currentChatId, null, ct);
+    }
+
+    public Task<StartResult> StartHandAsync(long userId, long currentChatId, string operationId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return StartHandWithSourceAsync(userId, currentChatId, operationId, ct);
+    }
+
+    private async Task<StartResult> StartHandWithSourceAsync(
+        long userId, long currentChatId, string? operationId, CancellationToken ct)
     {
         var table = await tables.FindOpenByChatAsync(currentChatId, ct).ConfigureAwait(false);
         if (table is null) return new(PokerError.NoTable, null);
         var expected = await ExpectedWalletsAsync(table.InviteCode, ct).ConfigureAwait(false);
         return await startExecutor.ExecuteAsync(new(new PokerStartCommand(
             table.InviteCode, userId, "poker player", currentChatId,
-            $"poker:start:{table.InviteCode}:{table.LastActionAt}:{userId}", expected)), ct)
+            operationId ?? $"poker:start:{table.InviteCode}:{table.LastActionAt}:{userId}", expected)), ct)
             .ConfigureAwait(false);
     }
 
     public async Task<ActionResult> ApplyPlayerActionAsync(
         long userId, long currentChatId, string verb, int amount, CancellationToken ct)
+        => await ApplyPlayerActionWithSourceAsync(userId, currentChatId, verb, amount, null, ct).ConfigureAwait(false);
+
+    public async Task<ActionResult> ApplyPlayerActionAsync(
+        long userId, long currentChatId, string verb, int amount, string operationId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return await ApplyPlayerActionWithSourceAsync(userId, currentChatId, verb, amount, operationId, ct)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<ActionResult> ApplyPlayerActionWithSourceAsync(
+        long userId, long currentChatId, string verb, int amount, string? operationId, CancellationToken ct)
     {
         var table = await tables.FindOpenByChatAsync(currentChatId, ct).ConfigureAwait(false);
         if (table is null) return ActionFailure(PokerError.NoTable);
         var expected = await ExpectedWalletsAsync(table.InviteCode, ct).ConfigureAwait(false);
         return await turnExecutor.ExecuteAsync(new(new PokerPlayerTurnCommand(
             table.InviteCode, userId, "poker player", currentChatId,
-            $"poker:turn:{table.InviteCode}:{table.LastActionAt}:{table.CurrentSeat}:{userId}:{verb}:{amount}",
+            operationId ?? $"poker:turn:{table.InviteCode}:{table.LastActionAt}:{table.CurrentSeat}:{userId}:{verb}:{amount}",
             verb, amount, expected)), ct).ConfigureAwait(false);
     }
 
@@ -110,6 +170,16 @@ public sealed class PokerService(
     }
 
     public async Task<LeaveResult> LeaveTableAsync(long userId, long currentChatId, CancellationToken ct)
+        => await LeaveTableWithSourceAsync(userId, currentChatId, null, ct).ConfigureAwait(false);
+
+    public async Task<LeaveResult> LeaveTableAsync(long userId, long currentChatId, string operationId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
+        return await LeaveTableWithSourceAsync(userId, currentChatId, operationId, ct).ConfigureAwait(false);
+    }
+
+    private async Task<LeaveResult> LeaveTableWithSourceAsync(
+        long userId, long currentChatId, string? operationId, CancellationToken ct)
     {
         var table = await tables.FindOpenByChatAsync(currentChatId, ct).ConfigureAwait(false);
         if (table is null) return new(PokerError.NoTable, null, false);
@@ -119,7 +189,7 @@ public sealed class PokerService(
         var expected = list.Select(seat => new PokerWalletRef(seat.UserId, seat.ChatId)).ToList();
         return await leaveExecutor.ExecuteAsync(new(new PokerLeaveCommand(
             table.InviteCode, userId, leaving.DisplayName, currentChatId,
-            $"poker:leave:{table.InviteCode}:{userId}:{leaving.JoinedAt}", expected)), ct)
+            operationId ?? $"poker:leave:{table.InviteCode}:{userId}:{leaving.JoinedAt}", expected)), ct)
             .ConfigureAwait(false);
     }
 

@@ -1,11 +1,11 @@
 using System.Text.Json;
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using Games.Poker.Application.Execution;
-using Microsoft.Extensions.Options;
 
 namespace Games.Poker.Infrastructure.Persistence;
 
-public sealed class PokerExecutionStateStore<TCommand>(IOptions<BotFrameworkOptions> frameworkOptions)
+public sealed class PokerExecutionStateStore<TCommand>(IEconomicsService economics)
     : IGameStateStore<TCommand, PokerExecutionState>
     where TCommand : IPokerExecutionCommand
 {
@@ -23,22 +23,8 @@ public sealed class PokerExecutionStateStore<TCommand>(IOptions<BotFrameworkOpti
         int? actorBalance = null;
         if (command.EnsureActorWallet)
         {
-            var displayName = command.DisplayName.Length > 64 ? command.DisplayName[..64] : command.DisplayName;
-            await context.ExecuteAsync("""
-                INSERT INTO users (telegram_user_id,balance_scope_id,display_name,coins)
-                VALUES (@ActorUserId,@ChatId,@displayName,@startingCoins)
-                ON CONFLICT (telegram_user_id,balance_scope_id)
-                DO UPDATE SET display_name=EXCLUDED.display_name,updated_at=now()
-                """, new
-            {
-                command.ActorUserId, command.ChatId, displayName,
-                startingCoins = frameworkOptions.Value.StartingCoins,
-            }, ct);
-            actorBalance = await context.QuerySingleOrDefaultAsync<int?>("""
-                SELECT coins FROM users
-                WHERE telegram_user_id=@ActorUserId AND balance_scope_id=@ChatId
-                FOR UPDATE
-                """, new { command.ActorUserId, command.ChatId }, ct);
+            await economics.EnsureUserAsync(command.ActorUserId, command.ChatId, command.DisplayName, ct);
+            actorBalance = await economics.GetBalanceAsync(command.ActorUserId, command.ChatId, ct);
         }
         return new(table, seats, actorBalance);
     }

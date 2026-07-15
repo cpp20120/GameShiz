@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Sdk.Execution;
 
 namespace Games.Bowling.Application.Execution;
@@ -28,8 +29,9 @@ public sealed class BowlingRollAction : IGameAction<BowlingRollCommand, BowlingB
         if (input.Command.RedeemDropChance > 0
             && input.Entropy.GetDouble(RedeemDropEntropy) < input.Command.RedeemDropChance)
         {
-            events.Add(new TelegramMiniGameRedeemCodeDropRequested(
-                input.Command.UserId, input.Command.ChatId, MiniGameIds.Bowling, occurredAt));
+            events.Add(new MiniGameRedeemCodeDropRequested(
+                input.Command.UserId, input.Command.ChatId, MiniGameIds.Bowling, occurredAt,
+                BotChannelContext.Current));
         }
 
         return new GameDecision<BowlingBetState, BowlingRollResult>(

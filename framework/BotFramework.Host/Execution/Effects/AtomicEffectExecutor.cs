@@ -1,4 +1,5 @@
 using BotFramework.Sdk.Execution;
+using BotFramework.Host.Contracts.Economics;
 using Dapper;
 
 namespace BotFramework.Host.Execution;
@@ -13,6 +14,10 @@ public interface IAtomicEffectExecutor
 
 public interface IAtomicEffectContext
 {
+    string? OperationId => null;
+    IWalletAtomicExecutionService? Wallet => null;
+    IEconomicsService? Economics => null;
+
     Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct);
 
     Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct);
@@ -43,7 +48,9 @@ public abstract class AtomicEffectHandler<TEffect> : IAtomicEffectHandler
 internal sealed class AtomicEffectExecutor(
     IGameExecutionSessionFactory sessions,
     ICommandInbox inbox,
-    IEnumerable<IAtomicEffectHandler> handlers) : IAtomicEffectExecutor
+    IEnumerable<IAtomicEffectHandler> handlers,
+    IWalletAtomicExecutionService wallet,
+    IEconomicsService economics) : IAtomicEffectExecutor
 {
     private readonly IReadOnlyDictionary<Type, IAtomicEffectHandler> handlers = handlers
         .GroupBy(static handler => handler.EffectType)
@@ -73,7 +80,7 @@ internal sealed class AtomicEffectExecutor(
                 return existing.Result!;
             }
 
-            var context = new PostgresAtomicEffectContext(session);
+            var context = new PostgresAtomicEffectContext(session, envelope.CommandId, wallet, economics);
             foreach (var effect in plan.Effects)
             {
                 if (!handlers.TryGetValue(effect.GetType(), out var handler))
@@ -111,9 +118,17 @@ internal sealed class AtomicEffectExecutor(
             throw new ArgumentException("Atomic effect plan cannot contain null effects.", nameof(plan));
     }
 
-    private sealed class PostgresAtomicEffectContext(IGameExecutionSession session) : IAtomicEffectContext
+    private sealed class PostgresAtomicEffectContext(
+        IGameExecutionSession session,
+        string operationId,
+        IWalletAtomicExecutionService wallet,
+        IEconomicsService economics) : IAtomicEffectContext
     {
         private readonly Dictionary<string, object?> outputs = new(StringComparer.Ordinal);
+
+        public string? OperationId { get; } = operationId;
+        public IWalletAtomicExecutionService Wallet { get; } = wallet;
+        public IEconomicsService Economics { get; } = economics;
 
         public IReadOnlyDictionary<string, object?> Outputs => outputs;
 

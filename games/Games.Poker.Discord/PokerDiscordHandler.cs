@@ -1,3 +1,4 @@
+using BotFramework.Discord;
 using BotFramework.Discord.Commands;
 using BotFramework.Discord.Interactions;
 using BotFramework.Discord.Routing;
@@ -39,7 +40,9 @@ public sealed class PokerDiscordHandler(IPokerService service) : IDiscordMessage
     }
 }
 
-public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDiscordInteractionHandler
+public sealed class PokerDiscordInteractionHandler(
+    IPokerService service,
+    IDiscordComponentTokenStore tokens) : IDiscordInteractionHandler
 {
     public IEnumerable<ApplicationCommandProperties> BuildCommands()
     {
@@ -49,7 +52,7 @@ public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDis
             .AddOption(Subcommand("create", "Создать стол"))
             .AddOption(new SlashCommandOptionBuilder()
                 .WithName("join").WithDescription("Войти за стол").WithType(ApplicationCommandOptionType.SubCommand)
-                .AddOption("code", ApplicationCommandOptionType.String, "Код стола", isRequired: true))
+                .AddOption("code", ApplicationCommandOptionType.String, "Код стола", isRequired: true, isAutocomplete: true))
             .AddOption(Subcommand("start", "Начать раздачу"))
             .AddOption(Subcommand("state", "Показать стол"))
             .AddOption(Subcommand("leave", "Выйти из-за стола"))
@@ -58,16 +61,53 @@ public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDis
 
     public bool CanHandle(SocketInteraction interaction) => interaction switch
     {
-        SocketSlashCommand command => command.Data.Name == "poker",
-        SocketMessageComponent component => component.Data.CustomId.StartsWith("poker:", StringComparison.Ordinal),
+        SocketSlashCommand command => string.Equals(command.Data.Name, "poker", StringComparison.Ordinal),
+        SocketAutocompleteInteraction autocomplete => string.Equals(autocomplete.Data.CommandName, "poker", StringComparison.Ordinal),
+        SocketMessageComponent component => tokens.TryResolve(component.Data.CustomId, out var componentToken)
+            && componentToken.Action.StartsWith("poker:", StringComparison.Ordinal),
+        SocketModal modal => tokens.TryResolve(modal.Data.CustomId, out var modalToken)
+            && modalToken.Action.StartsWith("poker:", StringComparison.Ordinal),
         _ => false,
     };
 
     public async Task HandleAsync(DiscordInteractionContext context)
     {
+        if (context.Interaction is SocketAutocompleteInteraction autocomplete)
+        {
+            if (!string.Equals(autocomplete.Data.Current?.Name, "code", StringComparison.OrdinalIgnoreCase))
+            {
+                await autocomplete.RespondAsync(Array.Empty<AutocompleteResult>());
+                return;
+            }
+
+            await autocomplete.RespondAsync(
+                Array.Empty<AutocompleteResult>());
+            return;
+        }
+
         var userId = DiscordInteraction.UserId(context);
         var scopeId = DiscordInteraction.ScopeId(context);
         object? result;
+
+        if (context.Interaction is SocketModal modal)
+        {
+            var modalAction = tokens.TryResolve(modal.Data.CustomId, out var modalToken) ? modalToken.Action : string.Empty;
+            if (!string.Equals(modalAction, "poker:raise", StringComparison.Ordinal))
+            {
+                await DiscordInteraction.ReplyAsync(context, DiscordLocalization.Get("modal.unknown", context.CultureCode), ephemeral: true);
+                return;
+            }
+
+            if (!int.TryParse(DiscordInteraction.ModalValue(modal, "amount"), out var amount) || amount <= 0)
+            {
+                await DiscordInteraction.ReplyAsync(context, DiscordLocalization.Get("modal.raise.invalid", context.CultureCode), ephemeral: true);
+                return;
+            }
+
+            result = await service.ApplyPlayerActionAsync(userId, scopeId, "raise", amount, context.CancellationToken);
+            await ReplyWithControlsAsync(context, result);
+            return;
+        }
 
         if (context.Interaction is SocketSlashCommand command)
         {
@@ -84,7 +124,7 @@ public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDis
         else
         {
             var component = (SocketMessageComponent)context.Interaction;
-            var customId = component.Data.CustomId;
+            var customId = tokens.TryResolve(component.Data.CustomId, out var componentToken) ? componentToken.Action : string.Empty;
             if (customId == "poker:refresh")
                 result = (await service.FindMyTableAsync(userId, scopeId, context.CancellationToken)).Snapshot;
             else if (customId == "poker:start")
@@ -96,6 +136,17 @@ public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDis
                 var amount = int.Parse(component.Data.Values.Single(), System.Globalization.CultureInfo.InvariantCulture);
                 result = await service.ApplyPlayerActionAsync(userId, scopeId, "raise", amount, context.CancellationToken);
             }
+            else if (customId == "poker:raise-modal")
+            {
+                await context.Interaction.RespondWithModalAsync(DiscordInteraction.TextModal(
+                    tokens.Issue("poker:raise"),
+                    DiscordLocalization.Get("modal.raise.title", context.CultureCode),
+                    "amount",
+                    DiscordLocalization.Get("modal.raise.label", context.CultureCode),
+                    DiscordLocalization.Get("modal.raise.placeholder", context.CultureCode),
+                    maxLength: 9));
+                return;
+            }
             else
             {
                 var action = customId["poker:".Length..];
@@ -103,8 +154,13 @@ public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDis
             }
         }
 
+        await ReplyWithControlsAsync(context, result);
+    }
+
+    private async Task ReplyWithControlsAsync(DiscordInteractionContext context, object? result)
+    {
         var raise = new SelectMenuBuilder()
-            .WithCustomId("poker:raise")
+            .WithCustomId(tokens.Issue("poker:raise"))
             .WithPlaceholder("Размер повышения")
             .WithMinValues(1).WithMaxValues(1)
             .AddOption("10", "10")
@@ -112,13 +168,14 @@ public sealed class PokerDiscordInteractionHandler(IPokerService service) : IDis
             .AddOption("50", "50")
             .AddOption("100", "100");
         var controls = new ComponentBuilder()
-            .WithButton("Check", "poker:check", ButtonStyle.Secondary)
-            .WithButton("Call", "poker:call", ButtonStyle.Primary)
-            .WithButton("Fold", "poker:fold", ButtonStyle.Danger)
-            .WithButton("Начать", "poker:start", ButtonStyle.Success)
-            .WithButton("Обновить", "poker:refresh", ButtonStyle.Secondary)
+            .WithButton("Check", tokens.Issue("poker:check"), ButtonStyle.Secondary)
+            .WithButton("Call", tokens.Issue("poker:call"), ButtonStyle.Primary)
+            .WithButton("Fold", tokens.Issue("poker:fold"), ButtonStyle.Danger)
+            .WithButton("Начать", tokens.Issue("poker:start"), ButtonStyle.Success)
+            .WithButton("Обновить", tokens.Issue("poker:refresh"), ButtonStyle.Secondary)
             .WithSelectMenu(raise)
-            .WithButton("Выйти", "poker:leave", ButtonStyle.Danger, row: 2)
+            .WithButton("Выйти", tokens.Issue("poker:leave"), ButtonStyle.Danger, row: 2)
+            .WithButton(DiscordLocalization.Get("button.raise", context.CultureCode), tokens.Issue("poker:raise-modal"), ButtonStyle.Primary, row: 2)
             .Build();
         await DiscordInteraction.ReplyResultAsync(context, result, "Poker", controls, ephemeral: true);
     }

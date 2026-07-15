@@ -32,6 +32,8 @@ public sealed partial class DiscordHostedService(
         client.SlashCommandExecuted += OnInteractionAsync;
         client.ButtonExecuted += OnInteractionAsync;
         client.SelectMenuExecuted += OnInteractionAsync;
+        client.ModalSubmitted += OnModalSubmittedAsync;
+        client.AutocompleteExecuted += OnAutocompleteAsync;
 
         await client.LoginAsync(TokenType.Bot, _options.Token);
         await client.StartAsync();
@@ -49,6 +51,8 @@ public sealed partial class DiscordHostedService(
             client.SelectMenuExecuted -= OnInteractionAsync;
             client.ButtonExecuted -= OnInteractionAsync;
             client.SlashCommandExecuted -= OnInteractionAsync;
+            client.ModalSubmitted -= OnModalSubmittedAsync;
+            client.AutocompleteExecuted -= OnAutocompleteAsync;
             client.MessageReceived -= OnMessageReceivedAsync;
             client.Ready -= OnReadyAsync;
             client.Log -= OnDiscordLogAsync;
@@ -92,7 +96,8 @@ public sealed partial class DiscordHostedService(
             message,
             commandText,
             scope.ServiceProvider,
-            lifetime.ApplicationStopping);
+            lifetime.ApplicationStopping,
+            DiscordLocalization.Normalize(_options.DefaultCulture, _options.DefaultCulture));
         await router.RouteAsync(context);
     }
 
@@ -103,8 +108,13 @@ public sealed partial class DiscordHostedService(
         await router.RouteAsync(new DiscordInteractionContext(
             interaction,
             scope.ServiceProvider,
-            lifetime.ApplicationStopping));
+            lifetime.ApplicationStopping,
+            DiscordLocalization.Normalize(interaction.UserLocale, _options.DefaultCulture)));
     }
+
+    private Task OnModalSubmittedAsync(SocketModal modal) => OnInteractionAsync(modal);
+
+    private Task OnAutocompleteAsync(SocketAutocompleteInteraction autocomplete) => OnInteractionAsync(autocomplete);
 
     private Task OnDiscordLogAsync(LogMessage message)
     {

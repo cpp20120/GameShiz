@@ -1,0 +1,98 @@
+{{- range $name, $game := .Values.games }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: game-{{ $name }}
+  labels:
+    app.kubernetes.io/component: game-{{ $name }}
+    {{- include "cazinoshiz.labels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/component: game-{{ $name }}
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: grpc
+      port: 8081
+      targetPort: grpc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: game-{{ $name }}
+  labels:
+    app.kubernetes.io/component: game-{{ $name }}
+    {{- include "cazinoshiz.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $game.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: game-{{ $name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: game-{{ $name }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml $.Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: backend
+          image: {{ $.Values.images.backend }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 8081
+          env:
+            - name: BACKEND_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cazinoshiz.secret" $ }}
+                  key: {{ $.Values.secrets.postgresPasswordKey }}
+            - name: ConnectionStrings__Postgres
+              value: Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=$(BACKEND_POSTGRES_PASSWORD)
+            - name: Backend__Modules
+              value: {{ $game.module | quote }}
+            - name: Backend__ServiceName
+              value: game-{{ $name }}
+            - name: Redis__Enabled
+              value: "true"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cazinoshiz.secret" $ }}
+                  key: {{ $.Values.secrets.redisPasswordKey }}
+            - name: Redis__ConnectionString
+              value: {{ $.Values.redis.address }},password=$(REDIS_PASSWORD)
+            - name: TelegramOutbox__Transport
+              value: Cap
+            - name: ClickHouse__Enabled
+              value: "false"
+            - name: Bot__Enabled
+              value: "false"
+            - name: Services__Identity__Mode
+              value: Grpc
+            - name: Services__Identity__Address
+              value: http://identity:8081
+            - name: Services__Wallet__Mode
+              value: Grpc
+            - name: Services__Wallet__Address
+              value: http://wallet:8081
+            - name: Services__Operations__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cazinoshiz.secret" $ }}
+                  key: {{ $.Values.secrets.operationsApiKeyKey }}
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 10
+---
+{{- end }}

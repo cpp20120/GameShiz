@@ -1,12 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using Games.Challenges.Application.Execution;
-using Microsoft.Extensions.Options;
 
 namespace Games.Challenges.Infrastructure.Persistence;
 
-public sealed class ChallengeExecutionStateStore<TCommand>(IOptions<BotFrameworkOptions> frameworkOptions)
+public sealed class ChallengeExecutionStateStore<TCommand>(IEconomicsService economics)
     : IGameStateStore<TCommand, ChallengeExecutionState>
     where TCommand : IChallengeExecutionCommand
 {
@@ -39,10 +39,10 @@ public sealed class ChallengeExecutionStateStore<TCommand>(IOptions<BotFramework
         var targetBalance = 0;
         if (command.EnsureExpectedWallets)
         {
-            await EnsureWalletAsync(challenge.ChallengerId, challenge.ChatId, challenge.ChallengerName, context, ct);
-            await EnsureWalletAsync(challenge.TargetId, challenge.ChatId, challenge.TargetName, context, ct);
-            challengerBalance = await LoadBalanceAsync(challenge.ChallengerId, challenge.ChatId, context, ct);
-            targetBalance = await LoadBalanceAsync(challenge.TargetId, challenge.ChatId, context, ct);
+            await economics.EnsureUserAsync(challenge.ChallengerId, challenge.ChatId, challenge.ChallengerName, ct);
+            await economics.EnsureUserAsync(challenge.TargetId, challenge.ChatId, challenge.TargetName, ct);
+            challengerBalance = await economics.GetBalanceAsync(challenge.ChallengerId, challenge.ChatId, ct);
+            targetBalance = await economics.GetBalanceAsync(challenge.TargetId, challenge.ChatId, ct);
         }
         return new(challenge, false, challengerBalance, targetBalance);
     }
@@ -74,25 +74,6 @@ public sealed class ChallengeExecutionStateStore<TCommand>(IOptions<BotFramework
             terminal = challenge.Status is ChallengeStatus.Completed or ChallengeStatus.Failed or ChallengeStatus.Declined,
         }, ct);
     }
-
-    private async Task EnsureWalletAsync(
-        long userId, long chatId, string displayName, IGameExecutionContext context, CancellationToken ct)
-    {
-        if (displayName.Length > 64) displayName = displayName[..64];
-        await context.ExecuteAsync("""
-            INSERT INTO users (telegram_user_id,balance_scope_id,display_name,coins)
-            VALUES (@userId,@chatId,@displayName,@startingCoins)
-            ON CONFLICT (telegram_user_id,balance_scope_id)
-            DO UPDATE SET display_name=EXCLUDED.display_name,updated_at=now()
-            """, new { userId, chatId, displayName, startingCoins = frameworkOptions.Value.StartingCoins }, ct);
-    }
-
-    private static async Task<int> LoadBalanceAsync(
-        long userId, long chatId, IGameExecutionContext context, CancellationToken ct) =>
-        await context.QuerySingleOrDefaultAsync<int?>("""
-            SELECT coins FROM users
-            WHERE telegram_user_id=@userId AND balance_scope_id=@chatId FOR UPDATE
-            """, new { userId, chatId }, ct) ?? throw new InvalidOperationException("Challenge wallet is missing.");
 
     private const string ChallengeSelect = """
         SELECT json_build_object(

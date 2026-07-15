@@ -2,7 +2,11 @@
 
 `framework/` is the reusable runtime layer for CasinoShiz modules.
 
-The framework is split into transport-neutral contracts, backend/runtime infrastructure, and Telegram-specific adapter infrastructure. Game modules should depend on the smallest framework surface they need and must not depend on concrete deployment shape.
+The framework is split into transport-neutral contracts, backend/runtime
+infrastructure, and channel adapter infrastructure. Telegram and Discord are
+presentation/transport adapters; game contracts, decisions, effects and domain
+events do not depend on either channel or on the deployment shape. Game modules
+should depend on the smallest framework surface they need.
 
 Assembly
 
@@ -64,6 +68,12 @@ Telegram adapter runtime: bot client, polling/webhook ingress, update pipeline, 
 
 Telegram BFF, monolith compatibility host, `Games.*.Telegram` adapters
 
+`BotFramework.Discord`
+
+Discord adapter runtime: gateway ingress, message and interaction routing, slash commands, autocomplete, modals, component tokens, embeds, localization, UX rate limiting/cooldowns, health checks and delivery outbox
+
+Discord BFF and `Games.*.Discord` adapters
+
 The intended dependency direction is:
 
 ```text
@@ -75,9 +85,13 @@ Games.*.Telegram adapters
   -> BotFramework.Telegram
   -> BotFramework.Contracts / game contracts
 
+Games.*.Discord adapters
+  -> BotFramework.Discord
+  -> BotFramework.Contracts / game contracts
+
 Composition roots
   -> BotFramework.Host
-  -> BotFramework.Telegram when Telegram ingress is enabled
+  -> BotFramework.Telegram and/or BotFramework.Discord when channel ingress is enabled
 ```
 
 Modules should not reference deployment-specific hosts. Hosts select which modules and transports are active.
@@ -95,17 +109,20 @@ framework/
   BotFramework.Scheduling.Quartz/ persistent Quartz scheduler
   BotFramework.Rendering/ bounded rendering runtime and artifact/history ports
   BotFramework.Telegram/    Telegram ingress, update routing and delivery
+  BotFramework.Discord/     Discord ingress, interactions, UX and delivery
 
 games/
   Games.X.Contracts/        logical interfaces and portable DTOs
   Games.X/                  backend application/domain/infrastructure
   Games.X.Telegram/         Telegram presentation adapter
+  Games.X.Discord/          Discord presentation adapter
   Games.X.Transport.Grpc/   protobuf and remote adapters when needed
 
 host/
   CasinoShiz.Host/          combined compatibility deployment
   CasinoShiz.Backend/       Telegram-free backend process
   CasinoShiz.TelegramBff/   Telegram client process
+  CasinoShiz.DiscordBff/    Discord client process
   CasinoShiz.AdminBff/      browser/admin BFF without direct database access
 
 services/
@@ -124,7 +141,8 @@ Not every context needs every optional project. Simple modules may only have `Ga
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ L5  Presentation adapters                                                  │
 │     games/*/*.Telegram, BotFramework.Telegram                              │
-│     Telegram parsing, route attributes, message rendering, callbacks       │
+│     games/*/*.Discord, BotFramework.Discord                                │
+│     channel parsing, embeds, modals, callbacks and interactions             │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ L4  Application                                                            │
 │     games/*/Application                                                    │
@@ -144,7 +162,8 @@ Not every context needs every optional project. Simple modules may only have `Ga
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`BotFramework.Telegram` is intentionally not part of the backend SDK. Telegram is an adapter boundary, not a domain dependency.
+`BotFramework.Telegram` and `BotFramework.Discord` are intentionally not part
+of the backend SDK. Channels are adapter boundaries, not domain dependencies.
 
 ## Physical layout
 
@@ -639,7 +658,9 @@ result. Production credentials must come from secrets, not committed settings.
 
 ## Host composition
 
-The combined compatibility host can compose backend and Telegram adapters in one process:
+The combined compatibility host can compose backend and channel adapters in one
+process. The example below enables Telegram; Discord can be enabled by adding
+the Discord composition and the corresponding channel modules.
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -662,7 +683,8 @@ app.UseTelegramFramework();
 app.Run();
 ```
 
-A split deployment composes the backend and Telegram BFF separately.
+A split deployment composes the backend and each channel BFF separately. The
+backend-facing game contracts stay the same in both cases.
 
 Backend process:
 
@@ -680,6 +702,29 @@ app.UseBackendFramework();
 
 app.Run();
 ```
+
+Discord BFF process:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddServiceDefaults();
+builder.AddDiscordBackend();
+
+// Each client uses Backend:GameAddresses:<GameId> when it is set;
+// Backend:GrpcAddress remains the monolith/single-backend fallback.
+builder.Services.AddDiceGrpcClient(/* resolved Dice address */);
+builder.Services.AddPokerGrpcClient(/* resolved Poker address */);
+builder.Services.AddDiceDiscord();
+builder.Services.AddPokerDiscord();
+
+var app = builder.Build();
+app.UseDiscordBackend();
+app.Run();
+```
+
+A channel BFF owns ingress, presentation and remote client wiring. It must not
+open a game or service database directly.
 
 Telegram BFF process:
 
@@ -730,6 +775,21 @@ public sealed class MyGameTelegramModule : ITelegramModule
 }
 ```
 
+Discord modules follow the same rule with channel-specific handlers:
+
+```csharp
+public static class MyGameDiscordModule
+{
+    public static IServiceCollection AddMyGameDiscord(
+        this IServiceCollection services) => services
+        .AddScoped<IDiscordMessageHandler, MyGameDiscordHandler>()
+        .AddScoped<IDiscordInteractionHandler, MyGameDiscordInteractionHandler>();
+}
+```
+
+`IDiscordMessageHandler` and `IDiscordInteractionHandler` call logical game
+contracts. They do not move game state or persistence into the channel adapter.
+
 A new module should be able to start with a small set of contracts and grow only when it needs persistence, projections, transport adapters or Telegram presentation.
 
 ## Telegram update pipeline and routing
@@ -758,9 +818,39 @@ Supported route attributes include:
 
 Only the Telegram layer knows Telegram update types, bot clients and rendering details. Backend services receive application commands through logical contracts.
 
+## Discord interaction pipeline and UX
+
+Discord has a separate adapter runtime, but the same application boundary:
+
+```text
+Discord Gateway
+  -> DiscordHostedService
+  -> message/interaction router
+  -> UX rate limit and cooldown
+  -> channel handler
+  -> logical game contract / gRPC client
+```
+
+The interaction router supports slash commands, autocomplete, buttons/selects
+and modals. Input that is naturally multi-field (for example a table code, bet
+and raise amount) belongs in a modal rather than in a plain-text command.
+Handlers should use `DiscordEmbeds` for structured responses and
+`DiscordLocalization` for `ru`/`en` text. The adapter owns Discord-specific
+formatting; game results remain channel-neutral.
+
+Component custom IDs are backed by persistent component tokens. A token is
+validated before a component or modal handler runs, so a button from before a
+restart is rejected as stale instead of being interpreted against new state.
+Rate limiting and cooldown decisions happen at the UX layer before the handler
+is invoked. This protects both local and horizontally scaled BFF replicas; the
+underlying game executor still remains the authority for idempotency and state
+concurrency.
+
 ## Deployment shapes
 
-The framework supports two main deployment shapes.
+The framework supports one codebase across four operational shapes. The
+composition root and environment select the shape; game/application contracts
+do not change.
 
 ### Combined compatibility host
 
@@ -776,7 +866,14 @@ CasinoShiz.Host
 
 This mode is useful for local development, compatibility and simple deployment.
 
-### Split services
+The monolith keeps the existing shared `postgres/cazino` database and loads all
+registered game modules. `Backend:ServiceName` may be omitted; the framework
+keeps the legacy Quartz scheduler partition for existing schedules.
+
+### Legacy microservices profile
+
+The compatibility split keeps one all-games Backend while separating service
+and channel processes:
 
 ```text
 CasinoShiz.Backend
@@ -804,7 +901,68 @@ CasinoShiz.WalletService
   wallet, ledger, limits and protection
 ```
 
-Transport choice belongs to composition. Modules should depend on logical contracts, not on whether the target is local, gRPC or another transport.
+The service databases are separate physical ownership boundaries:
+
+```text
+Backend  -> backend-postgres/backend
+Identity -> identity-postgres/identity
+Wallet   -> wallet-postgres/wallet
+```
+
+Identity and Wallet run only their own migrations. Backend never reads their
+tables; composed admin/player views call Identity, Wallet and Backend APIs.
+
+### Distributed game profile
+
+The distributed Compose profile uses the same `CasinoShiz.Backend` image for
+each selected game service. `Backend:Modules` controls which module is loaded:
+
+```text
+Backend__Modules=dice
+Backend__ServiceName=game-dice
+ConnectionStrings__Postgres=...backend...
+```
+
+Each channel BFF resolves a game independently:
+
+```text
+Backend__GrpcAddress=http://game-admin:8081       # fallback/control plane
+Backend__GameAddresses__Poker=http://game-poker:8081
+Backend__GameAddresses__Dice=http://game-dice:8081
+```
+
+If a per-game address is absent, the BFF falls back to
+`Backend:GrpcAddress`, preserving the monolith and legacy microservices path.
+Native dice transports use named gRPC clients, so DiceCube, Darts, Football,
+Basketball and Bowling can also be routed independently.
+
+The service DNS names are stable, so scaling changes only replica count:
+
+```bash
+docker compose --profile distributed up --scale game-poker=3
+```
+
+The game service owns only its selected module migrations and schedule rows.
+Other game services may share the Backend PostgreSQL instance, but they do not
+perform cross-module table reads.
+
+### Kubernetes / Helm
+
+The Helm chart deploys the same image and configuration model as the distributed
+Compose profile. Each game is a Deployment/Service pair; Identity, Wallet and
+Backend have separate PostgreSQL StatefulSets, and Redis carries CAP/event
+transport. A game can be scaled without a code or image variant:
+
+```bash
+helm upgrade --install cazinoshiz ./deploy/helm/cazinoshiz
+kubectl scale deployment game-poker --replicas=3
+```
+
+Production installations can replace the chart's PostgreSQL/Redis templates
+with managed services by overriding addresses, credentials and storage values.
+
+Transport choice belongs to composition. Modules should depend on logical
+contracts, not on whether the target is local, gRPC or another transport.
 
 ## Persistence styles
 
@@ -902,6 +1060,23 @@ services.AddDomainEventSubscription<MySubscriber>("poker.*");
 
 `IDomainEventBus` is an abstraction. The active implementation can be in-process or backed by CAP/Redis Streams depending on composition and configuration.
 
+When Redis/CAP is enabled, the event path is:
+
+```text
+game transaction
+  -> game_event_outbox (PostgreSQL)
+  -> lease-based outbox dispatcher
+  -> CAP PostgreSQL outbox + Redis Streams
+  -> CapEventConsumer
+  -> local projections/subscribers
+```
+
+CAP consumer groups are derived from `Backend:ServiceName`. Replicas of one
+logical service use the same group and load-balance delivery. Different game
+services use different groups, so a subscriber in `game-meta` is not skipped by
+`game-poker`. Consumers and projections must still be idempotent because the
+transport is at-least-once.
+
 ## Projections
 
 Projections are module-owned read models. A projection declares which event types it handles:
@@ -947,6 +1122,27 @@ Telegram outbox records are persisted before sending. In the monolith, the local
 
 Handlers that respond immediately to live Telegram updates may still send direct Telegram responses. Critical asynchronous notifications should use the outbox.
 
+The same failure model applies to Discord: `discord_outbox` is persisted in the
+owning PostgreSQL database and Discord BFF replicas claim rows with leases.
+Message delivery is therefore independent from the update/interaction request
+that produced it.
+
+### Distributed outbox and scheduler ownership
+
+`game_event_outbox` is a fan-out source for the configured event bus. Its
+`SKIP LOCKED` lease means any healthy Backend replica can publish an event once;
+CAP then fans it out to the logical consumer groups.
+
+`game_schedule_outbox` is different: a schedule must be applied by the service
+that registered its command. Every row stores `game_id`, and a distributed
+worker claims only rows for its loaded modules. Migration
+`027_schedule_outbox_ownership` backfills older scoped schedule IDs.
+
+Quartz uses `Backend:ServiceName` as the persistent `sched_name` partition.
+Replicas of `game-poker` therefore cluster together, while a `game-dice`
+replica cannot acquire Poker triggers. The monolith falls back to the legacy
+`CasinoShiz` scheduler name for upgrade compatibility.
+
 ## Wallet and identity boundaries
 
 Wallet and identity are logical service boundaries.
@@ -954,6 +1150,24 @@ Wallet and identity are logical service boundaries.
 Backend modules should not directly query wallet or identity tables. They should use framework contracts such as wallet read/write ports, player directory ports and service adapters selected by composition.
 
 In a combined host those ports may be implemented locally. In a split deployment they may be implemented by gRPC clients pointing at `CasinoShiz.IdentityService` and `CasinoShiz.WalletService`.
+
+The Admin BFF is the composition boundary for cross-service read models. For
+example, player and admin views call Identity, Wallet and Backend Operations
+over gRPC and return one response to the browser:
+
+```text
+/api/aggregation/players/{userId}
+  -> Identity player data
+  -> Wallet balance/protection data
+
+/api/aggregation/admin
+  -> Backend operations data
+  -> Wallet analytics data
+```
+
+These are composed read models, not database joins. No BFF or Backend process
+may connect to another service's PostgreSQL database or read another service's
+tables directly.
 
 Wallet invariants such as idempotent debits/credits, balance scopes, ledger append, limits, cooldowns and self-exclusion belong to the wallet owner, not to individual game modules.
 
@@ -963,7 +1177,17 @@ Framework-owned tables are created by framework migrations first. Module migrati
 
 Migrations are forward-only raw SQL migrations executed via Dapper.
 
-When services are split, each service should own its own database/schema migrations. Backend migrations should not create or mutate wallet/identity-owned tables except during explicitly marked compatibility transitions.
+Startup uses a PostgreSQL advisory lock around the migration phase. This is
+required when Kubernetes starts many game replicas simultaneously. In the
+monolith, framework and all loaded module migrations run against `cazino`. In
+the legacy microservices profile, Backend, Identity and Wallet each run only
+their own migration set against their own connection string. In the distributed
+profile, every game process runs framework migrations plus the selected module's
+migrations against the Backend database.
+
+Backend migrations must not create or mutate Wallet/Identity-owned tables
+except during explicitly marked compatibility transitions. A module that is
+not selected must not be required for a selected service to start.
 
 ## Adding a new backend module
 

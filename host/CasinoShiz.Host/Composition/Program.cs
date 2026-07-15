@@ -35,10 +35,15 @@ using Games.Poker.Telegram;
 using Games.SecretHitler.Telegram;
 using BotFramework.Telegram.Composition;
 using BotFramework.Rendering;
+using BotFramework.Rest;
+using Games.Dice.Rest;
+using Games.Poker.Rest;
+using Games.Leaderboard.Rest;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorPages();
+builder.AddRestFramework();
 builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 
@@ -83,6 +88,10 @@ builder.AddBotFramework()
     .AddModule<AdminTelegramModule>()
     .AddModule<IdentityModule>();
 
+builder.Services.AddDiceRest();
+builder.Services.AddPokerRest();
+builder.Services.AddLeaderboardRest();
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
@@ -100,7 +109,9 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+app.UseRestFramework();
 app.UseBotFramework();
+app.MapRestFramework();
 app.MapRenderHistory();
 app.UseStaticFiles();
 app.MapRazorPages();

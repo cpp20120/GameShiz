@@ -1,11 +1,11 @@
 using System.Text.Json;
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using Games.SecretHitler.Application.Execution;
-using Microsoft.Extensions.Options;
 
 namespace Games.SecretHitler.Infrastructure.Persistence;
 
-public sealed class SecretHitlerExecutionStateStore<TCommand>(IOptions<BotFrameworkOptions> frameworkOptions)
+public sealed class SecretHitlerExecutionStateStore<TCommand>(IEconomicsService economics)
     : IGameStateStore<TCommand, SecretHitlerExecutionState>
     where TCommand : ISecretHitlerExecutionCommand
 {
@@ -29,22 +29,8 @@ public sealed class SecretHitlerExecutionStateStore<TCommand>(IOptions<BotFramew
         int? actorBalance = null;
         if (command.EnsureActorWallet)
         {
-            var name = command.DisplayName.Length > 64 ? command.DisplayName[..64] : command.DisplayName;
-            await context.ExecuteAsync("""
-                INSERT INTO users (telegram_user_id,balance_scope_id,display_name,coins)
-                VALUES (@ActorUserId,@ActorChatId,@name,@startingCoins)
-                ON CONFLICT (telegram_user_id,balance_scope_id)
-                DO UPDATE SET display_name=EXCLUDED.display_name,updated_at=now()
-                """, new
-            {
-                command.ActorUserId, command.ActorChatId, name,
-                startingCoins = frameworkOptions.Value.StartingCoins,
-            }, ct);
-            actorBalance = await context.QuerySingleOrDefaultAsync<int?>("""
-                SELECT coins FROM users
-                WHERE telegram_user_id=@ActorUserId AND balance_scope_id=@ActorChatId
-                FOR UPDATE
-                """, new { command.ActorUserId, command.ActorChatId }, ct);
+            await economics.EnsureUserAsync(command.ActorUserId, command.ActorChatId, command.DisplayName, ct);
+            actorBalance = await economics.GetBalanceAsync(command.ActorUserId, command.ActorChatId, ct);
         }
         return new(game, players, actorBalance, actorAlreadyInGame,
             string.IsNullOrEmpty(command.InviteCode) && game is not null);

@@ -24,6 +24,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
             INSERT INTO game_schedule_outbox (
                 command_id,
                 effect_index,
+                game_id,
                 schedule_id,
                 effect_kind,
                 job_key,
@@ -31,6 +32,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
                 data)
             SELECT @commandId,
                    batch.effect_index,
+                   batch.game_id,
                    batch.schedule_id,
                    batch.effect_kind,
                    batch.job_key,
@@ -38,12 +40,13 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
                    CAST(batch.data AS jsonb)
             FROM unnest(
                 CAST(@effectIndexes AS integer[]),
+                CAST(@gameIds AS text[]),
                 CAST(@scheduleIds AS text[]),
                 CAST(@effectKinds AS text[]),
                 CAST(@jobKeys AS text[]),
                 CAST(@dueAts AS timestamp with time zone[]),
                 CAST(@data AS text[]))
-                AS batch(effect_index, schedule_id, effect_kind, job_key, due_at, data)
+                AS batch(effect_index, game_id, schedule_id, effect_kind, job_key, due_at, data)
             ON CONFLICT (command_id, effect_index) DO NOTHING
             """;
 
@@ -53,6 +56,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
             {
                 commandId,
                 effectIndexes = Enumerable.Range(0, effects.Count).ToArray(),
+                gameIds = effects.Select(_ => gameId).ToArray(),
                 scheduleIds = effects.Select(effect => ScopeScheduleId(gameId, aggregateId, effect.ScheduleId)).ToArray(),
                 effectKinds = effects.Select(effect => effect.Kind == ScheduleEffectKind.Schedule ? "schedule" : "cancel").ToArray(),
                 jobKeys = effects.Select(effect => effect.JobKey).ToArray(),

@@ -65,6 +65,12 @@ public sealed class AtomicExecutionContractTests
             item => string.Equals(item.Id, "025_atomic_game_schedule_outbox", StringComparison.Ordinal));
         Assert.Contains("game_schedule_outbox", scheduleOutbox.Sql, StringComparison.Ordinal);
         Assert.Contains("UNIQUE (command_id, effect_index)", scheduleOutbox.Sql, StringComparison.Ordinal);
+
+        var scheduleOwnership = Assert.Single(
+            new FrameworkMigrations().Migrations,
+            item => string.Equals(item.Id, "027_schedule_outbox_ownership", StringComparison.Ordinal));
+        Assert.Contains("game_id", scheduleOwnership.Sql, StringComparison.Ordinal);
+        Assert.Contains("split_part(schedule_id", scheduleOwnership.Sql, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -25,10 +25,21 @@ public sealed class OwnedDatabaseMigrationRunner(
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await using var connection = await connections.OpenAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition(EnsureTrackingTable, cancellationToken: cancellationToken));
+        const string acquireLock = "SELECT pg_advisory_lock(hashtextextended('casinoshiz:owned-migrations', 0));";
+        const string releaseLock = "SELECT pg_advisory_unlock(hashtextextended('casinoshiz:owned-migrations', 0));";
+        await connection.ExecuteAsync(new CommandDefinition(acquireLock, cancellationToken: cancellationToken));
 
-        foreach (var module in migrations)
-            await ApplyAsync(module, cancellationToken);
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition(EnsureTrackingTable, cancellationToken: cancellationToken));
+
+            foreach (var module in migrations)
+                await ApplyAsync(module, cancellationToken);
+        }
+        finally
+        {
+            await connection.ExecuteAsync(new CommandDefinition(releaseLock, cancellationToken: CancellationToken.None));
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

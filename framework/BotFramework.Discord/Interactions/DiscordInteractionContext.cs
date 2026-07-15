@@ -5,4 +5,5 @@ namespace BotFramework.Discord.Interactions;
 public sealed record DiscordInteractionContext(
     SocketInteraction Interaction,
     IServiceProvider Services,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken,
+    string CultureCode = "ru");

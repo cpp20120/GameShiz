@@ -29,7 +29,9 @@ public sealed class AtomicSecretHitlerPostgresTests(AtomicPostgresFixture databa
     public async Task CreateJoinStart_CommitsAggregateWalletInboxAndOutboxExactlyOnce()
     {
         var create = Executor(new ShCreateDescriptor(), new ShCreateAction(),
-            new SecretHitlerExecutionStateStore<ShCreateCommand>(FrameworkOptions));
+            new SecretHitlerExecutionStateStore<ShCreateCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var createCommand = new ShCreateCommand(1, "p1", -100, 1, "sh-create", 50, [new(1, 1)]);
         var created = await create.ExecuteAsync(new(createCommand), CancellationToken.None);
         var duplicate = await create.ExecuteAsync(new(createCommand), CancellationToken.None);
@@ -40,7 +42,9 @@ public sealed class AtomicSecretHitlerPostgresTests(AtomicPostgresFixture databa
         for (var userId = 2; userId <= 5; userId++)
         {
             var join = Executor(new ShJoinDescriptor(), new ShJoinAction(),
-                new SecretHitlerExecutionStateStore<ShJoinCommand>(FrameworkOptions));
+                new SecretHitlerExecutionStateStore<ShJoinCommand>(new EconomicsService(
+                    new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                    NullLogger<EconomicsService>.Instance)));
             var expected = wallets.Append(new(userId, userId)).ToArray();
             var joined = await join.ExecuteAsync(new(new ShJoinCommand(created.InviteCode, userId,
                 $"p{userId}", -100, userId, $"sh-join-{userId}", 50, expected)), CancellationToken.None);
@@ -49,7 +53,9 @@ public sealed class AtomicSecretHitlerPostgresTests(AtomicPostgresFixture databa
         }
 
         var start = Executor(new ShStartDescriptor(), new ShStartAction(),
-            new SecretHitlerExecutionStateStore<ShStartCommand>(FrameworkOptions));
+            new SecretHitlerExecutionStateStore<ShStartCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var started = await start.ExecuteAsync(new(new ShStartCommand(created.InviteCode, 1,
             "p1", -100, 1, "sh-start", wallets)), CancellationToken.None);
 
@@ -68,11 +74,15 @@ public sealed class AtomicSecretHitlerPostgresTests(AtomicPostgresFixture databa
     public async Task Leave_RefundsWalletClosesGameAndReturnsDuplicateFromInbox()
     {
         var create = Executor(new ShCreateDescriptor(), new ShCreateAction(),
-            new SecretHitlerExecutionStateStore<ShCreateCommand>(FrameworkOptions));
+            new SecretHitlerExecutionStateStore<ShCreateCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var created = await create.ExecuteAsync(new(new ShCreateCommand(
             7, "p7", -700, 7, "sh-create-leave", 50, [new(7, 7)])), CancellationToken.None);
         var leave = Executor(new ShLeaveDescriptor(), new ShLeaveAction(),
-            new SecretHitlerExecutionStateStore<ShLeaveCommand>(FrameworkOptions));
+            new SecretHitlerExecutionStateStore<ShLeaveCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var command = new ShLeaveCommand(created.InviteCode, 7, "p7", -700, 7,
             "sh-leave", [new(7, 7)]);
 
