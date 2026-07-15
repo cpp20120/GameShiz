@@ -18,6 +18,17 @@
     <ProjectReference Include="..\..\games\Games.Dice\Games.Dice.csproj" />
     <ProjectReference Include="..\..\games\Games.Dice.Telegram\Games.Dice.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Dice.Rest\Games.Dice.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.NativeDice.Rest\Games.NativeDice.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Rest\Games.Blackjack.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Rest\Games.Horse.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Rest\Games.Transfer.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Rest\Games.Challenges.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Rest\Games.Pick.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Rest\Games.Redeem.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Rest\Games.PixelBattle.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Rest\Games.SecretHitler.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Rest\Games.Meta.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Rest\Games.Admin.Rest.csproj" />
     <ProjectReference Include="..\..\games\Games.DiceCube\Games.DiceCube.csproj" />
     <ProjectReference Include="..\..\games\Games.Darts\Games.Darts.csproj" />
     <ProjectReference Include="..\..\games\Games.Football\Games.Football.csproj" />

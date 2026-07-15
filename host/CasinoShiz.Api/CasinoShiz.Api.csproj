@@ -13,5 +13,27 @@
     <ProjectReference Include="..\..\games\Games.Poker.Transport.Grpc\Games.Poker.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Leaderboard.Rest\Games.Leaderboard.Rest.csproj" />
     <ProjectReference Include="..\..\games\Games.Leaderboard.Transport.Grpc\Games.Leaderboard.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.NativeDice.Rest\Games.NativeDice.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.NativeDice.Transport.Grpc\Games.NativeDice.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Rest\Games.Blackjack.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Blackjack.Transport.Grpc\Games.Blackjack.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Rest\Games.Horse.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Horse.Transport.Grpc\Games.Horse.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Rest\Games.Transfer.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Transfer.Transport.Grpc\Games.Transfer.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Rest\Games.Challenges.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Challenges.Transport.Grpc\Games.Challenges.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Rest\Games.Pick.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Pick.Transport.Grpc\Games.Pick.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Rest\Games.Redeem.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Redeem.Transport.Grpc\Games.Redeem.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Rest\Games.PixelBattle.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.PixelBattle.Transport.Grpc\Games.PixelBattle.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Rest\Games.SecretHitler.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.SecretHitler.Transport.Grpc\Games.SecretHitler.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Rest\Games.Meta.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Meta.Transport.Grpc\Games.Meta.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Rest\Games.Admin.Rest.csproj" />
+    <ProjectReference Include="..\..\games\Games.Admin.Transport.Grpc\Games.Admin.Transport.Grpc.csproj" />
   </ItemGroup>
 </Project>

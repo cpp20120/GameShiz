@@ -66,7 +66,9 @@ CasinoShiz/
 │   ├── Games.<Context>.Contracts/    — interfaces and DTOs; no Telegram, DB or gRPC
 │   ├── Games.<Context>/              — application/domain backend, stores, jobs, migrations
 │   ├── Games.<Context>.Telegram/     — commands, callbacks, keyboards and Telegram rendering
+│   ├── Games.<Context>.Rest/         — authenticated HTTP route modules for the API BFF
 │   ├── Games.<Context>.Transport.Grpc/ — generated wire types and gRPC adapters
+│   ├── Games.NativeDice.Rest/        — REST adapters for the five native-dice games
 │   ├── Games.NativeDice.Transport.Grpc/ — shared transport for the five native-dice games
 │   ├── Games.Darts.Telegram.Delivery/  — legacy direct Telegram roll delivery adapter
 │   └── Games.Horse.Rendering/        — reusable transport-neutral GIF renderer
@@ -143,6 +145,11 @@ Identity against `identity-postgres/identity`, and Wallet against
 `wallet-postgres/wallet`. Each service starts only its own migration runner;
 Backend does not run Wallet or Identity migrations.
 
+The REST BFF is `rest-api` in the microservices Compose profile and the
+`rest-api` Helm deployment. In the distributed profile it uses the same
+per-game addresses as Telegram/Discord and is exposed separately from the bot
+BFFs. The monolith exposes the same REST routes from `CasinoShiz.Host`.
+
 The optional `distributed` Compose profile uses the same Backend image with a
 configuration-selected module set (`Backend__Modules`). It creates one
 `game-*` gRPC service per game and routes each Telegram/Discord client to that
@@ -180,6 +187,32 @@ rule required for safe horizontal scaling.
 For separate deployment, `Games.NativeDice.Transport.Grpc` maps the same five interfaces to gRPC. Protobuf/generated types and channel setup remain inside that transport project. `CasinoShiz.Backend` loads backend modules and maps the service; `CasinoShiz.TelegramBff` loads Telegram modules and resolves their interfaces to remote clients.
 
 `Transfer` follows the same layout. Telegram resolves the recipient and formats replies; the backend contract performs the atomic balance transfer. Both local and gRPC compositions implement the same `ITransferService` interface.
+
+### REST API
+
+`CasinoShiz.Api` exposes the same contract interfaces over authenticated minimal
+API routes. The route shape is:
+
+```text
+/api/{version}/scopes/{scopeId}/{module}
+```
+
+Bearer JWT `sub` is the numeric player id. When `Rest:RequireScopeClaim=true`,
+the token must also contain the requested `scopeId` (or `scope_id`, `chatId`, or
+`chat_id`) claim. State-changing requests can require an `Idempotency-Key`; the
+framework converts it into the stable source id used by the existing atomic
+game commands.
+
+REST adapters are registered for every current module: `dice`, `dicecube`,
+`darts`, `football`, `basketball`, `bowling`, `blackjack`, `horse`, `poker`,
+`leaderboard`, `transfer`, `challenges`, `pick`, `redeem`, `pixelbattle`,
+`secrethitler`, `meta`, and `admin`. Native-dice `/play` routes generate the
+server-side outcome and call the same bet/settle path as the Discord adapter;
+`/bet` and `/roll` are available where a client needs a two-step flow.
+
+OpenAPI is available at `/openapi/v1.json` in development (or when explicitly
+enabled outside development). Health probes remain `/health/live` and
+`/health/ready`.
 
 ### Request flow
 

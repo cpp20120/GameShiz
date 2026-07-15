@@ -14,6 +14,17 @@
   </Folder>
   <Folder Name="/games/">
     <Project Path="games\Games.Dice.Rest\Games.Dice.Rest.csproj" />
+    <Project Path="games\Games.NativeDice.Rest\Games.NativeDice.Rest.csproj" />
+    <Project Path="games\Games.Blackjack.Rest\Games.Blackjack.Rest.csproj" />
+    <Project Path="games\Games.Horse.Rest\Games.Horse.Rest.csproj" />
+    <Project Path="games\Games.Transfer.Rest\Games.Transfer.Rest.csproj" />
+    <Project Path="games\Games.Challenges.Rest\Games.Challenges.Rest.csproj" />
+    <Project Path="games\Games.Pick.Rest\Games.Pick.Rest.csproj" />
+    <Project Path="games\Games.Redeem.Rest\Games.Redeem.Rest.csproj" />
+    <Project Path="games\Games.PixelBattle.Rest\Games.PixelBattle.Rest.csproj" />
+    <Project Path="games\Games.SecretHitler.Rest\Games.SecretHitler.Rest.csproj" />
+    <Project Path="games\Games.Meta.Rest\Games.Meta.Rest.csproj" />
+    <Project Path="games\Games.Admin.Rest\Games.Admin.Rest.csproj" />
     <Project Path="games\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />
     <Project Path="games\Games.Dice.Telegram\Games.Dice.Telegram.csproj" />
     <Project Path="games\Games.Dice.Transport.Grpc\Games.Dice.Transport.Grpc.csproj" />

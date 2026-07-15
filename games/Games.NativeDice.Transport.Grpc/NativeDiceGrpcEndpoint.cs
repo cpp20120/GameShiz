@@ -24,13 +24,19 @@ public sealed class NativeDiceGrpcEndpoint(IServiceProvider services) : NativeDi
     public override async Task<ContractReply> DiceCubeRoll(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<RollCall>();
-        return NativeDiceWireCodec.Reply(await Service<IDiceCubeService>().RollAsync(x.UserId, x.DisplayName, x.ChatId, x.Face, context.CancellationToken));
+        return NativeDiceWireCodec.Reply(await Service<IDiceCubeService>().RollAsync(
+            x.UserId, x.DisplayName, x.ChatId, x.Face, x.SourceMessageId, context.CancellationToken));
     }
 
     public override async Task<ContractReply> DiceCubeAbort(ContractCall request, ServerCallContext context)
     {
         var x = request.Read<AbortCall>();
-        await Service<IDiceCubeService>().AbortPendingBetAfterSendDiceFailedAsync(x.UserId, x.ChatId, context.CancellationToken);
+        await Service<IDiceCubeService>().AbortPendingBetAfterSendDiceFailedAsync(
+            x.UserId,
+            string.IsNullOrWhiteSpace(x.DisplayName) ? $"User ID: {x.UserId}" : x.DisplayName,
+            x.ChatId,
+            x.SourceMessageId,
+            context.CancellationToken);
         return NativeDiceWireCodec.Reply(new EmptyReply());
     }
 

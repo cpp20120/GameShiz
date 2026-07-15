@@ -173,6 +173,18 @@ public sealed class MessagingBoundaryTests
     }
 
     [Fact]
+    public void NativeDiceGrpcWire_PreservesSourceMessageForRetryableDiceCubeCalls()
+    {
+        const int sourceMessageId = 731;
+        var roll = NativeDiceWireCodec.Call(new RollCall(7, "player", 42, 6, sourceMessageId)).Read<RollCall>();
+        var abort = NativeDiceWireCodec.Call(new AbortCall(7, 42, "player", sourceMessageId)).Read<AbortCall>();
+
+        Assert.Equal(sourceMessageId, roll.SourceMessageId);
+        Assert.Equal(sourceMessageId, abort.SourceMessageId);
+        Assert.Equal("player", abort.DisplayName);
+    }
+
+    [Fact]
     public void TransferBoundary_KeepsClientAndTransportOutsideBackendContract()
     {
         AssertClean(typeof(Games.Transfer.Application.Services.ITransferService).Assembly);
