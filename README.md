@@ -20,6 +20,7 @@ This project is a simulation-only system.
 This software must not be used for real-money gambling or any commercial gambling activity.
 
 The primary purpose of this project is educational, focusing on architecture patterns such as DDD, Event Sourcing, and CQRS.
+Main Product of that bot is framework for stateful games across platforms not bot itself.
 
 ## Documentation
 
