@@ -1,4 +1,4 @@
-# CasinoShiz
+# GameShiz
 
 🚨 IMPORTANT / ВАЖНО 🚨
 THIS BOT DOES NOT AND WILL NEVER SUPPORT REAL MONEY.
