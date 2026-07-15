@@ -26,19 +26,19 @@ public sealed class GrpcDiceCubeService(GrpcClientFactory factory) : IDiceCubeSe
     public async Task<CubeRollResult> RollAsync(long userId, string displayName, long chatId, int face, CancellationToken ct) =>
         (await Client.DiceCubeRollAsync(NativeDiceWireCodec.Call(new RollCall(userId, displayName, chatId, face)), cancellationToken: ct)).Read<CubeRollResult>();
 
-    public Task<CubeRollResult> RollAsync(long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct)
-    {
-        throw new NotImplementedException();
-    }
+    public async Task<CubeRollResult> RollAsync(long userId, string displayName, long chatId, int face, int sourceMessageId, CancellationToken ct) =>
+        (await Client.DiceCubeRollAsync(
+            NativeDiceWireCodec.Call(new RollCall(userId, displayName, chatId, face, sourceMessageId)),
+            cancellationToken: ct)).Read<CubeRollResult>();
 
     public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, long chatId, CancellationToken ct) =>
         _ = await Client.DiceCubeAbortAsync(NativeDiceWireCodec.Call(new AbortCall(userId, chatId)), cancellationToken: ct);
 
-    public Task AbortPendingBetAfterSendDiceFailedAsync(long userId, string displayName, long chatId, int sourceMessageId,
-        CancellationToken ct)
-    {
-        throw new NotImplementedException();
-    }
+    public async Task AbortPendingBetAfterSendDiceFailedAsync(long userId, string displayName, long chatId, int sourceMessageId,
+        CancellationToken ct) =>
+        _ = await Client.DiceCubeAbortAsync(
+            NativeDiceWireCodec.Call(new AbortCall(userId, chatId, displayName, sourceMessageId)),
+            cancellationToken: ct);
 }
 
 public sealed class GrpcDartsService(GrpcClientFactory factory) : IDartsService

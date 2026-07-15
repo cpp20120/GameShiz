@@ -489,6 +489,32 @@ services:
     restart: unless-stopped
     networks: [internal]
 
+  rest-api:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.Api/CasinoShiz.Api.csproj
+        APP_DLL: CasinoShiz.Api.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://backend:8081"
+      Rest__Jwt__Authority: "${REST_JWT_AUTHORITY:-}"
+      Rest__Jwt__Audience: "${REST_JWT_AUDIENCE:-casinoshiz-api}"
+      Rest__Jwt__RequireHttpsMetadata: "${REST_JWT_REQUIRE_HTTPS_METADATA:-true}"
+    ports: ["5090:8080"]
+    depends_on:
+      backend: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
   telegram-bff-distributed:
     profiles: ["distributed"]
     build:
@@ -656,6 +682,69 @@ services:
       game-meta: { condition: service_healthy }
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  rest-api-distributed:
+    profiles: ["distributed"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.Api/CasinoShiz.Api.csproj
+        APP_DLL: CasinoShiz.Api.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://game-admin:8081"
+      Backend__GameAddresses__Dice: "http://game-dice:8081"
+      Backend__GameAddresses__DiceCube: "http://game-dicecube:8081"
+      Backend__GameAddresses__Darts: "http://game-darts:8081"
+      Backend__GameAddresses__Football: "http://game-football:8081"
+      Backend__GameAddresses__Basketball: "http://game-basketball:8081"
+      Backend__GameAddresses__Bowling: "http://game-bowling:8081"
+      Backend__GameAddresses__Transfer: "http://game-transfer:8081"
+      Backend__GameAddresses__Redeem: "http://game-redeem:8081"
+      Backend__GameAddresses__Leaderboard: "http://game-leaderboard:8081"
+      Backend__GameAddresses__PixelBattle: "http://game-pixelbattle:8081"
+      Backend__GameAddresses__Pick: "http://game-pick:8081"
+      Backend__GameAddresses__Blackjack: "http://game-blackjack:8081"
+      Backend__GameAddresses__Horse: "http://game-horse:8081"
+      Backend__GameAddresses__Challenges: "http://game-challenges:8081"
+      Backend__GameAddresses__Poker: "http://game-poker:8081"
+      Backend__GameAddresses__SecretHitler: "http://game-secrethitler:8081"
+      Backend__GameAddresses__Meta: "http://game-meta:8081"
+      Backend__GameAddresses__Admin: "http://game-admin:8081"
+      Rest__Jwt__Authority: "${REST_JWT_AUTHORITY:-}"
+      Rest__Jwt__Audience: "${REST_JWT_AUDIENCE:-casinoshiz-api}"
+      Rest__Jwt__RequireHttpsMetadata: "${REST_JWT_REQUIRE_HTTPS_METADATA:-true}"
+    ports: ["5091:8080"]
+    depends_on:
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+      game-dice: { condition: service_healthy }
+      game-dicecube: { condition: service_healthy }
+      game-darts: { condition: service_healthy }
+      game-football: { condition: service_healthy }
+      game-basketball: { condition: service_healthy }
+      game-bowling: { condition: service_healthy }
+      game-transfer: { condition: service_healthy }
+      game-redeem: { condition: service_healthy }
+      game-leaderboard: { condition: service_healthy }
+      game-pixelbattle: { condition: service_healthy }
+      game-pick: { condition: service_healthy }
+      game-blackjack: { condition: service_healthy }
+      game-horse: { condition: service_healthy }
+      game-challenges: { condition: service_healthy }
+      game-poker: { condition: service_healthy }
+      game-secrethitler: { condition: service_healthy }
+      game-meta: { condition: service_healthy }
+      game-admin: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
       interval: 5s

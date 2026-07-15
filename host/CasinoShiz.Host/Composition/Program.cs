@@ -37,6 +37,17 @@ using BotFramework.Telegram.Composition;
 using BotFramework.Rendering;
 using BotFramework.Rest;
 using Games.Dice.Rest;
+using Games.NativeDice.Rest;
+using Games.Blackjack.Rest;
+using Games.Horse.Rest;
+using Games.Transfer.Rest;
+using Games.Challenges.Rest;
+using Games.Pick.Rest;
+using Games.Redeem.Rest;
+using Games.PixelBattle.Rest;
+using Games.SecretHitler.Rest;
+using Games.Meta.Rest;
+using Games.Admin.Rest;
 using Games.Poker.Rest;
 using Games.Leaderboard.Rest;
 
@@ -89,6 +100,17 @@ builder.AddBotFramework()
     .AddModule<IdentityModule>();
 
 builder.Services.AddDiceRest();
+builder.Services.AddNativeDiceRest();
+builder.Services.AddBlackjackRest();
+builder.Services.AddHorseRest();
+builder.Services.AddTransferRest();
+builder.Services.AddChallengesRest();
+builder.Services.AddPickRest();
+builder.Services.AddRedeemRest();
+builder.Services.AddPixelBattleRest();
+builder.Services.AddSecretHitlerRest();
+builder.Services.AddMetaRest();
+builder.Services.AddAdminRest();
 builder.Services.AddPokerRest();
 builder.Services.AddLeaderboardRest();
 

@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><RootNamespace>Games.Redeem.Rest</RootNamespace><AllowMissingPrunePackageData>true</AllowMissingPrunePackageData><NuGetAuditMode>direct</NuGetAuditMode></PropertyGroup>
+  <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /><ProjectReference Include="..\..\framework\BotFramework.Rest\BotFramework.Rest.csproj" /><ProjectReference Include="..\Games.Redeem.Contracts\Games.Redeem.Contracts.csproj" /></ItemGroup>
+</Project>

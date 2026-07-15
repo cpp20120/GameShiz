@@ -7,6 +7,7 @@ images:
   identity: ghcr.io/example/cazinoshiz-identity:latest
   wallet: ghcr.io/example/cazinoshiz-wallet:latest
   adminBff: ghcr.io/example/cazinoshiz-admin-bff:latest
+  restApi: ghcr.io/example/cazinoshiz-api:latest
 
 secrets:
   name: cazinoshiz-secrets
@@ -72,3 +73,12 @@ bff:
   admin:
     enabled: true
     replicas: 2
+  rest:
+    enabled: true
+    replicas: 2
+
+rest:
+  jwt:
+    authority: ""
+    audience: casinoshiz-api
+    requireHttpsMetadata: true
