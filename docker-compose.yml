@@ -1,3 +1,47 @@
+x-game-backend-environment: &game-backend-environment
+  ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
+  Backend__ServiceName: "game"
+  Redis__Enabled: "true"
+  Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+  TelegramOutbox__Transport: "Cap"
+  ClickHouse__Enabled: "false"
+  Bot__Enabled: "false"
+  Services__Identity__Mode: "Grpc"
+  Services__Identity__Address: "http://identity:8081"
+  Services__Wallet__Mode: "Grpc"
+  Services__Wallet__Address: "http://wallet:8081"
+  Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+  Rendering__Minio__Enabled: "true"
+  Rendering__Minio__Endpoint: "minio:9000"
+  Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+  Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+
+x-game-backend-common: &game-backend-common
+  profiles: ["distributed"]
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      PROJECT: host/CasinoShiz.Backend/CasinoShiz.Backend.csproj
+      APP_DLL: CasinoShiz.Backend.dll
+  env_file: [.env]
+  environment:
+    <<: *game-backend-environment
+  depends_on:
+    backend-postgres: { condition: service_healthy }
+    identity: { condition: service_healthy }
+    wallet: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    minio: { condition: service_healthy }
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
+    interval: 5s
+    timeout: 3s
+    retries: 30
+    start_period: 20s
+  restart: unless-stopped
+  networks: [internal]
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -18,7 +62,7 @@ services:
       start_period: 10s
 
   backend-postgres:
-    profiles: ["microservices"]
+    profiles: ["microservices", "distributed"]
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -36,7 +80,7 @@ services:
       start_period: 10s
 
   identity-postgres:
-    profiles: ["microservices"]
+    profiles: ["microservices", "distributed"]
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -54,7 +98,7 @@ services:
       start_period: 10s
 
   wallet-postgres:
-    profiles: ["microservices"]
+    profiles: ["microservices", "distributed"]
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -222,7 +266,7 @@ services:
     env_file:
       - .env
     environment:
-      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "true"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
       ClickHouse__ConnectionString: "clickhouse://default:${CLICKHOUSE_PASSWORD}@clickhouse:8123"
@@ -259,7 +303,7 @@ services:
         APP_DLL: CasinoShiz.Backend.dll
     env_file: [.env]
     environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=cazino;Username=cazino;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "true"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
       TelegramOutbox__Transport: "Cap"
@@ -282,7 +326,7 @@ services:
       wallet: { condition: service_healthy }
       minio: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -291,7 +335,7 @@ services:
     networks: [internal]
 
   identity:
-    profiles: ["microservices"]
+    profiles: ["microservices", "distributed"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -307,7 +351,7 @@ services:
     depends_on:
       identity-postgres: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -316,7 +360,7 @@ services:
     networks: [internal]
 
   wallet:
-    profiles: ["microservices"]
+    profiles: ["microservices", "distributed"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -332,7 +376,7 @@ services:
     depends_on:
       wallet-postgres: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -379,6 +423,40 @@ services:
     restart: unless-stopped
     networks: [internal]
 
+  discord-bff:
+    profiles: ["microservices"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj
+        APP_DLL: CasinoShiz.DiscordBff.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://backend:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      Discord__Enabled: "true"
+      Discord__Token: "${DISCORD_TOKEN}"
+      Discord__CommandPrefix: "!"
+    ports: ["5086:8080"]
+    depends_on:
+      backend: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+      backend-postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
   admin-bff:
     profiles: ["microservices"]
     build:
@@ -411,6 +489,311 @@ services:
     restart: unless-stopped
     networks: [internal]
 
+  telegram-bff-distributed:
+    profiles: ["distributed"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.TelegramBff/CasinoShiz.TelegramBff.csproj
+        APP_DLL: CasinoShiz.TelegramBff.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://game-admin:8081"
+      Backend__GameAddresses__Dice: "http://game-dice:8081"
+      Backend__GameAddresses__DiceCube: "http://game-dicecube:8081"
+      Backend__GameAddresses__Darts: "http://game-darts:8081"
+      Backend__GameAddresses__Football: "http://game-football:8081"
+      Backend__GameAddresses__Basketball: "http://game-basketball:8081"
+      Backend__GameAddresses__Bowling: "http://game-bowling:8081"
+      Backend__GameAddresses__Transfer: "http://game-transfer:8081"
+      Backend__GameAddresses__Redeem: "http://game-redeem:8081"
+      Backend__GameAddresses__Leaderboard: "http://game-leaderboard:8081"
+      Backend__GameAddresses__PixelBattle: "http://game-pixelbattle:8081"
+      Backend__GameAddresses__Pick: "http://game-pick:8081"
+      Backend__GameAddresses__Blackjack: "http://game-blackjack:8081"
+      Backend__GameAddresses__Horse: "http://game-horse:8081"
+      Backend__GameAddresses__Challenges: "http://game-challenges:8081"
+      Backend__GameAddresses__Poker: "http://game-poker:8081"
+      Backend__GameAddresses__SecretHitler: "http://game-secrethitler:8081"
+      Backend__GameAddresses__Meta: "http://game-meta:8081"
+      Backend__GameAddresses__Admin: "http://game-admin:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
+      Bot__Enabled: "true"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      TelegramOutbox__Transport: "Cap"
+      Rendering__Minio__Enabled: "true"
+      Rendering__Minio__Endpoint: "minio:9000"
+      Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+    ports: ["5087:8080"]
+    extra_hosts: ["api.telegram.org:149.154.167.220"]
+    depends_on:
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+      backend-postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      game-dice: { condition: service_healthy }
+      game-dicecube: { condition: service_healthy }
+      game-darts: { condition: service_healthy }
+      game-football: { condition: service_healthy }
+      game-basketball: { condition: service_healthy }
+      game-bowling: { condition: service_healthy }
+      game-transfer: { condition: service_healthy }
+      game-redeem: { condition: service_healthy }
+      game-leaderboard: { condition: service_healthy }
+      game-pixelbattle: { condition: service_healthy }
+      game-pick: { condition: service_healthy }
+      game-blackjack: { condition: service_healthy }
+      game-horse: { condition: service_healthy }
+      game-challenges: { condition: service_healthy }
+      game-poker: { condition: service_healthy }
+      game-secrethitler: { condition: service_healthy }
+      game-meta: { condition: service_healthy }
+      game-admin: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  discord-bff-distributed:
+    profiles: ["distributed"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj
+        APP_DLL: CasinoShiz.DiscordBff.dll
+    env_file: [.env]
+    environment:
+      Backend__GrpcAddress: "http://game-admin:8081"
+      Backend__GameAddresses__Dice: "http://game-dice:8081"
+      Backend__GameAddresses__DiceCube: "http://game-dicecube:8081"
+      Backend__GameAddresses__Darts: "http://game-darts:8081"
+      Backend__GameAddresses__Football: "http://game-football:8081"
+      Backend__GameAddresses__Basketball: "http://game-basketball:8081"
+      Backend__GameAddresses__Bowling: "http://game-bowling:8081"
+      Backend__GameAddresses__Transfer: "http://game-transfer:8081"
+      Backend__GameAddresses__Redeem: "http://game-redeem:8081"
+      Backend__GameAddresses__Leaderboard: "http://game-leaderboard:8081"
+      Backend__GameAddresses__PixelBattle: "http://game-pixelbattle:8081"
+      Backend__GameAddresses__Pick: "http://game-pick:8081"
+      Backend__GameAddresses__Blackjack: "http://game-blackjack:8081"
+      Backend__GameAddresses__Horse: "http://game-horse:8081"
+      Backend__GameAddresses__Challenges: "http://game-challenges:8081"
+      Backend__GameAddresses__Poker: "http://game-poker:8081"
+      Backend__GameAddresses__SecretHitler: "http://game-secrethitler:8081"
+      Backend__GameAddresses__Meta: "http://game-meta:8081"
+      Backend__GameAddresses__Admin: "http://game-admin:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
+      ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
+      Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      Discord__Enabled: "true"
+      Discord__Token: "${DISCORD_TOKEN}"
+      Discord__CommandPrefix: "!"
+    ports: ["5088:8080"]
+    depends_on:
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+      backend-postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      game-dice: { condition: service_healthy }
+      game-dicecube: { condition: service_healthy }
+      game-darts: { condition: service_healthy }
+      game-football: { condition: service_healthy }
+      game-basketball: { condition: service_healthy }
+      game-bowling: { condition: service_healthy }
+      game-transfer: { condition: service_healthy }
+      game-leaderboard: { condition: service_healthy }
+      game-blackjack: { condition: service_healthy }
+      game-horse: { condition: service_healthy }
+      game-pick: { condition: service_healthy }
+      game-redeem: { condition: service_healthy }
+      game-challenges: { condition: service_healthy }
+      game-poker: { condition: service_healthy }
+      game-secrethitler: { condition: service_healthy }
+      game-meta: { condition: service_healthy }
+      game-pixelbattle: { condition: service_healthy }
+      game-admin: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  admin-bff-distributed:
+    profiles: ["distributed"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT: host/CasinoShiz.AdminBff/CasinoShiz.AdminBff.csproj
+        APP_DLL: CasinoShiz.AdminBff.dll
+    environment:
+      Services__Backend__Address: "http://game-admin:8080"
+      Services__Backend__GrpcAddress: "http://game-admin:8081"
+      Services__Identity__Address: "http://identity:8081"
+      Services__Wallet__Address: "http://wallet:8081"
+      Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+      Admin__SuperAdminToken: "${ADMIN_SUPERADMIN_TOKEN}"
+      Admin__ReadOnlyToken: "${ADMIN_READONLY_TOKEN:-}"
+      Admin__ActorId: "${ADMIN_ACTOR_ID:-1}"
+      Admin__DisplayName: "${ADMIN_DISPLAY_NAME:-Admin}"
+    ports: ["5089:8080"]
+    depends_on:
+      game-admin: { condition: service_healthy }
+      game-meta: { condition: service_healthy }
+      identity: { condition: service_healthy }
+      wallet: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  # Distributed game profile. Every service uses the same published backend
+  # image but loads only the module named below. Scale any one independently:
+  # docker compose --profile distributed up --scale game-poker=3
+  game-dice:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "dice"
+      Backend__ServiceName: "game-dice"
+
+  game-dicecube:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "dicecube"
+      Backend__ServiceName: "game-dicecube"
+
+  game-darts:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "darts"
+      Backend__ServiceName: "game-darts"
+
+  game-football:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "football"
+      Backend__ServiceName: "game-football"
+
+  game-basketball:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "basketball"
+      Backend__ServiceName: "game-basketball"
+
+  game-bowling:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "bowling"
+      Backend__ServiceName: "game-bowling"
+
+  game-transfer:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "transfer"
+      Backend__ServiceName: "game-transfer"
+
+  game-redeem:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "redeem"
+      Backend__ServiceName: "game-redeem"
+
+  game-leaderboard:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "leaderboard"
+      Backend__ServiceName: "game-leaderboard"
+
+  game-pixelbattle:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "pixelbattle"
+      Backend__ServiceName: "game-pixelbattle"
+
+  game-pick:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "pick"
+      Backend__ServiceName: "game-pick"
+
+  game-blackjack:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "blackjack"
+      Backend__ServiceName: "game-blackjack"
+
+  game-horse:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "horse"
+      Backend__ServiceName: "game-horse"
+
+  game-challenges:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "challenges"
+      Backend__ServiceName: "game-challenges"
+
+  game-poker:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "poker"
+      Backend__ServiceName: "game-poker"
+
+  game-secrethitler:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "secrethitler"
+      Backend__ServiceName: "game-secrethitler"
+
+  game-meta:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "meta"
+      Backend__ServiceName: "game-meta"
+
+  game-admin:
+    <<: *game-backend-common
+    environment:
+      <<: *game-backend-environment
+      Backend__Modules: "admin"
+      Backend__ServiceName: "game-admin"
+
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
@@ -437,6 +820,7 @@ services:
       - internal
 
   db-backup:
+    profiles: ["monolith"]
     image: postgres:16-alpine
     restart: "no"  
     environment:
@@ -449,6 +833,32 @@ services:
     networks:
       - internal
     command: sh -c "pg_dump -h postgres -U cazino -d cazino -f /backup/cazino_$$(date +%Y%m%d_%H%M%S).sql"
+
+  db-backup-microservices:
+    profiles: ["microservices", "distributed"]
+    image: postgres:16-alpine
+    environment:
+      BACKEND_PGPASSWORD: ${POSTGRES_PASSWORD}
+      IDENTITY_PGPASSWORD: ${POSTGRES_PASSWORD}
+      WALLET_PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backup
+    depends_on:
+      backend-postgres:
+        condition: service_healthy
+      identity-postgres:
+        condition: service_healthy
+      wallet-postgres:
+        condition: service_healthy
+    networks:
+      - internal
+    command: >-
+      sh -c "PGPASSWORD=$$BACKEND_PGPASSWORD pg_dump -h backend-postgres -U backend -d backend
+      -f /backup/backend_$$(date +%Y%m%d_%H%M%S).sql &&
+      PGPASSWORD=$$IDENTITY_PGPASSWORD pg_dump -h identity-postgres -U identity -d identity
+      -f /backup/identity_$$(date +%Y%m%d_%H%M%S).sql &&
+      PGPASSWORD=$$WALLET_PGPASSWORD pg_dump -h wallet-postgres -U wallet -d wallet
+      -f /backup/wallet_$$(date +%Y%m%d_%H%M%S).sql"
 
 networks:
   internal:

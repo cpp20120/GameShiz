@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <ProjectReference Include="..\BotFramework.Scheduling.Abstractions\BotFramework.Scheduling.Abstractions.csproj" />
   </ItemGroup>
 

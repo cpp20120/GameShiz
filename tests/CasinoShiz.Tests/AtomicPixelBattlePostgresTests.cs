@@ -80,7 +80,9 @@ public sealed class AtomicPixelBattlePostgresTests(AtomicPostgresFixture databas
             new PostgresAtomicEconomics(FrameworkOptions), new PostgresAtomicQuotaStore(),
             new PostgresAtomicPlayerProtection(time),
             new TransactionalEventCollector(new TestEventSerializer()),
-            new PixelBattleDescriptor(), new PixelBattleAction(), new PixelBattleExecutionStateStore(),
+            new PixelBattleDescriptor(), new PixelBattleAction(),
+            new PixelBattleExecutionStateStore(new WalletReadService(
+                new TestConnectionFactory(database.ConnectionString))),
             [], time, new GameExecutionTelemetry(NullLogger<GameExecutionTelemetry>.Instance));
     }
 

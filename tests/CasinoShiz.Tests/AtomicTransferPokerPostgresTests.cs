@@ -29,7 +29,8 @@ public sealed class AtomicTransferPokerPostgresTests(AtomicPostgresFixture datab
     public async Task Transfer_TwoWalletsInboxLedgerAndOutboxCommitExactlyOnce()
     {
         var executor = Executor(new TransferDescriptor(), new TransferAction(),
-            new TransferStateStore(FrameworkOptions));
+            new TransferStateStore(new EconomicsService(new TestConnectionFactory(database.ConnectionString),
+                FrameworkOptions, NullLogger<EconomicsService>.Instance)));
         var command = new TransferCommand(1, 2, 10, "sender", "recipient", 50, 2, 52, "transfer-one");
 
         var first = await executor.ExecuteAsync(new(command), CancellationToken.None);
@@ -47,21 +48,27 @@ public sealed class AtomicTransferPokerPostgresTests(AtomicPostgresFixture datab
     public async Task Poker_CreateJoinAndStartPersistAsAtomicAggregateAndRetryFromInbox()
     {
         var create = Executor(new PokerCreateDescriptor(), new PokerCreateAction(),
-            new PokerExecutionStateStore<PokerCreateCommand>(FrameworkOptions));
+            new PokerExecutionStateStore<PokerCreateCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var createCommand = new PokerCreateCommand(1, "alice", 20, "poker-create", 100, 1, 2, [new(1, 20)]);
         var created = await create.ExecuteAsync(new(createCommand), CancellationToken.None);
         var duplicate = await create.ExecuteAsync(new(createCommand), CancellationToken.None);
         Assert.Equal(created, duplicate);
 
         var join = Executor(new PokerJoinDescriptor(), new PokerJoinAction(),
-            new PokerExecutionStateStore<PokerJoinCommand>(FrameworkOptions));
+            new PokerExecutionStateStore<PokerJoinCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var joinCommand = new PokerJoinCommand(created.InviteCode, 2, "bob", 20, "poker-join", 100, 8,
             [new(1, 20), new(2, 20)]);
         var joined = await join.ExecuteAsync(new(joinCommand), CancellationToken.None);
         Assert.Equal(PokerError.None, joined.Error);
 
         var start = Executor(new PokerStartDescriptor(), new PokerStartAction(),
-            new PokerExecutionStateStore<PokerStartCommand>(FrameworkOptions));
+            new PokerExecutionStateStore<PokerStartCommand>(new EconomicsService(
+                new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                NullLogger<EconomicsService>.Instance)));
         var started = await start.ExecuteAsync(new(new PokerStartCommand(
             created.InviteCode, 1, "alice", 20, "poker-start", [new(1, 20), new(2, 20)])),
             CancellationToken.None);

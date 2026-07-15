@@ -13,15 +13,18 @@ framework/
   BotFramework.Host/        backend infrastructure and composition
   BotFramework.Rendering/   bounded render queues + media artifact/history ports
   BotFramework.Telegram/    Telegram ingress, routing and delivery
+  BotFramework.Discord/     Discord gateway, interactions and delivery
 games/
   Games.X.Contracts/        logical interfaces and portable DTOs
   Games.X/                  backend application/domain/infrastructure
   Games.X.Telegram/         Telegram presentation adapter
+  Games.X.Discord/          Discord presentation adapter
   Games.X.Transport.Grpc/   protobuf and remote adapters
 host/
   CasinoShiz.Host/          combined compatibility deployment + Razor admin
   CasinoShiz.Backend/       Telegram-free backend process
   CasinoShiz.TelegramBff/   Telegram client process
+  CasinoShiz.DiscordBff/    Discord client process
   CasinoShiz.AdminBff/      browser admin BFF without database access
 tests/CasinoShiz.Tests/     behavior and dependency-boundary tests
 ```
@@ -35,38 +38,59 @@ Horse rendering is isolated in `Games.Horse.Rendering`. See
 
 ```mermaid
 flowchart LR
-    player["Telegram users<br/>private chats and groups"]
+    player["Telegram and Discord users<br/>private chats, groups and servers"]
     admin["Bot administrators"]
     telegram["Telegram Bot API"]
+    discord["Discord Gateway / API"]
 
     subgraph system["CasinoShiz"]
-        bff["Telegram BFF<br/>client adapters"]
+        telegramBff["Telegram BFF<br/>client adapters"]
+        discordBff["Discord BFF<br/>client adapters"]
         backend["Backend<br/>game services + persistence"]
         legacy["Legacy Host<br/>combined deployment + admin UI"]
         contracts["Logical contracts<br/>interfaces + events"]
         webapp["PixelBattle WebApp"]
+        identity["Identity service"]
+        wallet["Wallet service"]
     end
 
-    postgres[("PostgreSQL<br/>wallets, games, events")]
+    postgres[("PostgreSQL<br/>monolith: cazino")]
+    backendpg[("PostgreSQL<br/>micro: backend")]
+    identitypg[("PostgreSQL<br/>micro: identity")]
+    walletpg[("PostgreSQL<br/>micro: wallet")]
+    aggregator["Admin BFF<br/>composed read models"]
     redis[("Redis<br/>update streams + CAP transport")]
     clickhouse[("ClickHouse<br/>product analytics")]
     monitoring["Prometheus + Grafana"]
 
     player <-->|"commands, callbacks, dice"| telegram
-    telegram <-->|"polling or webhook"| bff
+    player <-->|"commands, interactions, components"| discord
+    telegram <-->|"polling or webhook"| telegramBff
     telegram <-->|"legacy mode"| legacy
+    discord <-->|"gateway/webhooks"| discordBff
+    discord <-->|"legacy mode"| legacy
     player <-->|"Telegram WebApp"| webapp
     admin -->|"HTTPS /admin"| legacy
+    admin --> aggregator
 
-    bff --> contracts
+    telegramBff --> contracts
+    discordBff --> contracts
     backend --> contracts
     legacy --> contracts
-    bff -->|"gRPC adapters"| backend
+    telegramBff -->|"gRPC adapters"| backend
+    discordBff -->|"gRPC adapters"| backend
     backend --> webapp
     legacy --> webapp
     backend <--> postgres
     legacy <--> postgres
-    bff <--> redis
+    backend <--> backendpg
+    aggregator -->|"gRPC read APIs"| backend
+    aggregator -->|"gRPC read APIs"| identity
+    aggregator -->|"gRPC read APIs"| wallet
+    identity --> identitypg
+    wallet --> walletpg
+    telegramBff <--> redis
+    discordBff <--> redis
     legacy <--> redis
     backend --> clickhouse
     legacy --> clickhouse
@@ -77,11 +101,12 @@ flowchart LR
     monitoring --> clickhouse
 ```
 
-The repository supports two deployment shapes. `CasinoShiz.Host` is the compatible
-modular-monolith composition. The split composition runs `CasinoShiz.Backend` and
-`CasinoShiz.TelegramBff`; both depend on logical contracts while gRPC stays inside
-transport projects. A bounded context can therefore remain in-process or cross the
-process boundary without changing its application-facing interface.
+The repository supports one codebase across four deployment shapes: the combined
+compatibility host, the legacy microservices profile, the distributed per-game
+Compose profile, and Kubernetes/Helm. `CasinoShiz.Host` keeps the existing
+monolith path; BFFs and Backend can be split without changing logical contracts.
+A bounded context can therefore remain in-process, run as a dedicated game
+service, or cross a gRPC boundary without changing its application-facing API.
 
 ## Runtime Containers
 
@@ -93,6 +118,12 @@ flowchart TB
         router["UpdateRouter"]
         adapters["Games.*.Telegram adapters"]
         clients["contract interfaces<br/>gRPC implementations"]
+    end
+    subgraph discordProcess["CasinoShiz.DiscordBff process"]
+        gateway["Discord gateway / interactions"]
+        discordRouter["message + interaction routers"]
+        discordAdapters["Games.*.Discord adapters"]
+        discordClients["named gRPC clients"]
     end
     subgraph backendProcess["CasinoShiz.Backend process"]
         grpc["gRPC endpoints"]
@@ -106,6 +137,7 @@ flowchart TB
     rd[("Redis")]
     ch[("ClickHouse")]
     tg["Telegram Bot API"]
+    ds["Discord Gateway / API"]
 
     tg --> webhook
     webhook --> pipeline
@@ -113,6 +145,11 @@ flowchart TB
     router --> adapters
     adapters --> clients
     clients --> grpc
+    ds --> gateway
+    gateway --> discordRouter
+    discordRouter --> discordAdapters
+    discordAdapters --> discordClients
+    discordClients --> grpc
     grpc --> services
     services --> framework
     jobs --> services
@@ -123,22 +160,30 @@ flowchart TB
     framework <--> rd
     framework --> ch
     adapters --> tg
+    discordAdapters --> ds
 ```
+
+The BFF processes contain channel-specific ingress, UX and presentation only.
+They call Backend through logical contracts and named gRPC clients; they do not
+open game, Identity or Wallet databases. Backend instances may be the combined
+all-games process, a legacy service, or one module-selected game process.
 
 ## Host Composition
 
-Each composition root selects backend modules, Telegram adapter modules, or both.
-Backend modules own persistence/migrations/jobs; adapter modules own handlers and
-client presentation. Transport registration belongs only to Backend/BFF programs.
+Each composition root selects backend modules, Telegram adapters, Discord adapters,
+or any combination of them. Backend modules own persistence, migrations and jobs;
+channel adapters own handlers, UX and client presentation. Transport registration
+belongs only to Backend/BFF programs.
 
 ```mermaid
 flowchart LR
     program["Program.cs"]
-    builder["AddBotFramework()<br/>or AddBackendFramework()<br/>or AddTelegramBff()"]
+    builder["AddBotFramework()<br/>or AddBackendFramework()<br/>or AddTelegramBff()<br/>or AddDiscordBackend()"]
     addmodule["AddModule&lt;T&gt;()"]
 
     subgraph framework["Framework registration"]
         telegram["Telegram runtime<br/>(adapter composition only)"]
+        discord["Discord runtime<br/>(adapter composition only)"]
         update["Update pipeline + router<br/>(adapter composition only)"]
         economics["Economics + daily limits"]
         tuning["Runtime tuning"]
@@ -149,6 +194,7 @@ flowchart LR
 
     subgraph contribution["Module contribution"]
         handlers["IUpdateHandler<br/>(Telegram module)"]
+        discordHandlers["Discord message/interaction handlers"]
         services["Module services"]
         commands["BotCommand"]
         locales["LocaleBundle"]
@@ -164,6 +210,8 @@ flowchart LR
     program --> addmodule
     builder --> framework
     addmodule --> contribution
+    discord --> app
+    discordHandlers --> loaded
     contribution --> loaded
     framework --> app
     loaded --> app
@@ -261,6 +309,46 @@ flowchart LR
 Only the first matching route is dispatched. Longer command names win ties, so
 `/picklottery` takes precedence over `/pick`.
 
+## Discord Interaction Flow
+
+Discord has a separate gateway and interaction pipeline, but it stops at the same
+logical application boundary as Telegram. The adapter owns Discord-specific
+parsing and presentation; game commands, decisions, effects and events remain
+channel-neutral.
+
+```mermaid
+flowchart TD
+    gateway["Discord Gateway"]
+    hosted["DiscordHostedService"]
+    router["message / interaction router"]
+    ux["UX rate limit + cooldown"]
+    handler["channel handler"]
+    contract["logical game contract"]
+    grpc["named gRPC client"]
+    backend["selected Backend / game service"]
+    response["Discord embed / component response"]
+
+    gateway --> hosted --> router --> ux --> handler
+    handler --> contract
+    contract --> grpc --> backend
+    backend --> handler --> response
+```
+
+The router handles slash commands, autocomplete, buttons, selects and modals.
+Multi-field input such as a table code, bet or raise amount is collected with a
+modal. `DiscordEmbeds` renders structured responses and `DiscordLocalization`
+provides RU/EN text. Rate limiting and cooldown checks run before the handler,
+while the Backend executor remains authoritative for idempotency and state
+concurrency.
+
+Component custom IDs use persistent component tokens. A token is validated before
+the component or modal handler runs, so a button created before a restart is
+rejected as stale rather than being applied to a new process state. Discord
+outbound messages use a durable outbox and can be claimed by any healthy BFF
+replica. Discord integration tests exercise these routes with mock interaction
+objects, including autocomplete, modal submission, localization and stale-token
+rejection; they do not require a live Discord gateway.
+
 ## Redis Update Delivery
 
 Redis Streams preserve per-chat ordering by assigning the same chat to the same
@@ -304,7 +392,7 @@ Most command paths follow the same dependency direction:
 
 ```mermaid
 flowchart LR
-    route["Route attribute"]
+    route["Telegram route / Discord interaction"]
     handler["Application handler"]
     contract["Contract interface"]
     transport{"Composition"}
@@ -314,7 +402,7 @@ flowchart LR
     store["Store or repository"]
     shared["Shared host services"]
     pg[("PostgreSQL")]
-    telegram["Telegram Bot API"]
+    channel["Telegram Bot API / Discord API"]
 
     route --> handler
     handler --> contract
@@ -327,14 +415,15 @@ flowchart LR
     service --> shared
     store --> pg
     shared --> pg
-    handler --> telegram
+    handler --> channel
 ```
 
-Handlers live in `Games.*.Telegram`, parse Telegram input, and render responses.
-They know a logical interface, not whether it is local or remote. Backend services
-own orchestration; domain objects own rules; stores own persistence. Protobuf,
-generated clients, and channels remain in `Games.*.Transport.Grpc`. Cross-cutting
-balance, analytics, tuning, locking, and event behavior belongs to framework services.
+Handlers live in `Games.*.Telegram` or `Games.*.Discord`, parse channel input, and
+render channel responses. They know a logical interface, not whether it is local
+or remote. Backend services own orchestration; domain objects own rules; stores
+own persistence. Protobuf and generated clients remain in transport projects;
+channel SDKs remain in channel adapters. Cross-cutting balance, analytics, tuning,
+locking, and event behavior belongs to framework services.
 
 ## Atomic Execution Kernel And Effect System
 
@@ -347,7 +436,7 @@ arrive at the same `IAtomicGameExecutor<TCommand,TState,TResult>`.
 
 ```mermaid
 flowchart LR
-    request["Telegram / gRPC / HTTP request"]
+    request["Telegram / Discord / gRPC / HTTP request"]
     envelope["Framework envelope<br/>stable command id"]
     transaction["PostgreSQL transaction"]
     locks["Sorted advisory locks<br/>command + aggregate + wallets + quotas"]
@@ -369,7 +458,7 @@ The game action is synchronous and has no infrastructure dependencies. It sees
 only the command, loaded state, snapshots, named entropy and framework time. It
 returns a `GameDecision` containing the new state, public result and complete
 materialized effect lists. Randomness, clocks, database reads, analytics calls,
-Telegram sends and service resolution do not occur inside `Decide`.
+Telegram/Discord sends and service resolution do not occur inside `Decide`.
 
 ```mermaid
 flowchart TB
@@ -536,10 +625,10 @@ sequenceDiagram
 Cancellation or failure before commit rolls back every transactional lane. If a
 response is lost after commit, retrying the same command id returns the stored
 result without repeating effects. A fresh command id is a new command, so the
-stable id should come from Telegram update identity, callback identity, gRPC
-metadata, or an HTTP idempotency header.
+stable id should come from Telegram update identity, Discord interaction/component
+identity, gRPC metadata, or an HTTP idempotency header.
 
-Analytics, ClickHouse writes, CAP publication, Telegram notifications and other
+Analytics, ClickHouse writes, CAP publication, Telegram/Discord notifications and other
 remote operations are not transactional custom effects. They consume committed
 domain events/outbox records. Live transports may broadcast after the executor
 returns; PixelBattle additionally sends periodic full-grid snapshots so an
@@ -627,8 +716,8 @@ the separate `IPlayerDirectory` port. Composition chooses their implementation:
 - combined host/backend: local PostgreSQL services;
 - split deployment: `CasinoShiz.IdentityService` and `CasinoShiz.WalletService`
   reached through adapters in `*.Transport.Grpc`;
-- Telegram BFF: always consumes the logical ports and does not know whether their
-  target is the main backend or a dedicated service.
+- Telegram and Discord BFFs: always consume the logical ports and do not know
+  whether their target is the main backend or a dedicated service.
 
 Backend selection is configured with `Services:{Identity|Wallet}:Mode` (`Local` or
 `Grpc`) and `Address`. The BFF accepts independent
@@ -643,6 +732,34 @@ as a compatibility surface. In a split deployment the browser reaches them only
 through Admin BFF, so the existing operator UI remains intact while pages migrate
 to owning-context contracts incrementally.
 
+### Physical data ownership
+
+The microservices deployment makes the logical boundaries physical. Each service
+has its own PostgreSQL database and migration set:
+
+```mermaid
+flowchart LR
+    backend["Backend / game services"] --> backendDb[("backend PostgreSQL")]
+    identity["Identity service"] --> identityDb[("identity PostgreSQL")]
+    wallet["Wallet service"] --> walletDb[("wallet PostgreSQL")]
+    backend -. "Identity gRPC" .-> identity
+    backend -. "Wallet gRPC" .-> wallet
+    admin["Admin BFF / aggregation"] -. "gRPC composed reads" .-> backend
+    admin -. "gRPC composed reads" .-> identity
+    admin -. "gRPC composed reads" .-> wallet
+```
+
+Backend may read only Backend-owned tables in microservices mode. Identity and
+Wallet start with their own connection strings and execute only their migrations;
+neither service depends on the compatibility `cazino` database. The monolith
+profile intentionally keeps the existing shared `postgres/cazino` database for
+backward compatibility, while service boundaries remain contract-level.
+
+No cross-database joins or shared-table reads are allowed. A player or admin view
+that needs several contexts is a composed read model assembled by Admin BFF from
+Identity, Wallet and Backend APIs. Writes follow the same rule: the owning service
+validates and mutates its own data, and other services receive commands or events.
+
 ## Admin BFF
 
 `CasinoShiz.AdminBff` owns browser login/session state and registers no database
@@ -655,6 +772,24 @@ The proxy implementation is YARP. External gRPC clients are created through the
 shared resilient client factory in `CasinoShiz.ServiceDefaults`; composition roots
 also use that project for OpenTelemetry and common health registration.
 
+Admin BFF is also the aggregation boundary for cross-service read models. Typical
+views are composed through APIs such as:
+
+```text
+GET /api/aggregation/players/{userId}
+  -> Identity player/profile data
+  -> Wallet balance/protection data
+
+GET /api/aggregation/admin
+  -> Backend operations data
+  -> Wallet analytics data
+```
+
+The response is assembled in the BFF from gRPC clients. It is not a SQL join and
+does not expose another service's tables. Backend, Identity, Wallet and both
+channel BFFs expose liveness/readiness checks; readiness includes only the
+dependencies owned or required by that process.
+
 The first migrated vertical slice contains wallet inspection, idempotent balance
 adjustment and identity lookup. Each rendered adjustment carries a stable operation
 ID, so repeating the same browser POST cannot apply the ledger mutation twice.
@@ -665,9 +800,10 @@ is linked into Backend at build time; it is not duplicated in AdminBff. A page c
 later move behind an owning-context contract after its read/mutation contract and
 server-side audit semantics exist.
 
-Wallet identity is `(telegram_user_id, balance_scope_id)`. The balance scope is
-normally the Telegram chat id, so one person has independent balances in different
-groups and in private chat.
+The current compatibility wallet identity is `(telegram_user_id, balance_scope_id)`.
+Identity maps external channel identities to the logical player id; the balance
+scope is normally the originating chat/server scope, so one person can have
+independent balances in different groups, servers and private chats.
 
 ```mermaid
 sequenceDiagram
@@ -776,6 +912,19 @@ Subscriptions use event-name patterns such as `sh.game_ended`, `sh.*`,
 `*.game_ended`, or `*`. Subscribers must be idempotent because distributed
 delivery is at least once.
 
+In distributed mode the transactional source is the Backend-owned
+`game_event_outbox`. A lease-based dispatcher publishes committed rows through
+the CAP PostgreSQL outbox into Redis Streams; consumers then update only their
+local projections or call another service API. `Backend:ServiceName` determines
+the logical consumer group: replicas of `game-poker` share one group and load
+balance, while `game-poker` and `game-dice` receive independent fan-out copies.
+
+Schedules use the same transactional boundary but different ownership. Every
+`game_schedule_outbox` row carries `game_id`; a worker claims only rows for
+modules loaded by its service. Quartz uses `Backend:ServiceName` as the persistent
+`sched_name` partition, so replicas of one game cluster together and cannot acquire
+another game's triggers. The monolith keeps the legacy `CasinoShiz` scheduler name.
+
 ## Telegram Outbox
 
 Critical Telegram messages emitted outside the live update response path are
@@ -818,6 +967,28 @@ only after the Telegram BFF receipt. Telegram itself has no idempotency key, so
 notifications must still tolerate at-least-once delivery. Live handler replies,
 validation errors, menus, and other immediate user interactions still use direct
 `ctx.Bot.SendMessage(...)` calls.
+
+## Discord Outbox
+
+Discord interaction responses can be immediate, but notifications and deferred
+messages are persisted in `discord_outbox` before delivery. Discord BFF replicas
+claim due rows with leases, retry transient failures, and preserve a deduplication
+key. This keeps delivery independent from the interaction request and makes the
+same outbox safe for combined, split and horizontally scaled deployments.
+
+```mermaid
+flowchart LR
+    handler["Discord handler / event subscriber"]
+    outbox["discord_outbox"]
+    claim["lease claim<br/>FOR UPDATE SKIP LOCKED"]
+    bff["Discord BFF replica"]
+    api["Discord API"]
+    retry["retry metadata / expired lease"]
+
+    handler --> outbox --> claim --> bff --> api
+    api -->|"success"| outbox
+    bff -->|"transient failure"| retry --> outbox
+```
 
 ## Seasonal Meta Projections
 
@@ -1009,24 +1180,33 @@ JSON while keeping the same role boundary as the on-screen audit view.
 
 ### Docker Compose
 
-The compose file exposes two explicit application profiles. `monolith` runs
-`CasinoShiz.Host`; `microservices` runs Backend, Identity, Wallet, TelegramBff,
-and AdminBff as separate containers. Both profiles reuse PostgreSQL and the
-observability infrastructure. Internal calls use service DNS names and gRPC;
-only composition/environment values differ between deployment modes.
+The compose file exposes three application profiles. `monolith` runs
+`CasinoShiz.Host` against the existing shared `postgres/cazino` database;
+`microservices` runs Backend, Identity, Wallet, TelegramBff, DiscordBff, and
+AdminBff as separate containers with physical service databases; `distributed`
+runs one module-selected Backend per game and channel-specific BFFs. The
+monolith and legacy microservices profiles are preserved. Internal calls use
+service DNS names and gRPC; only composition and environment values differ
+between deployment modes.
 
 ```bash
 docker compose --profile monolith up --build
 docker compose --profile microservices up --build
+docker compose --profile distributed up --build
+docker compose --profile microservices config
 ```
+
+The last command is a safe topology check: it must resolve
+`backend-postgres`, `identity-postgres` and `wallet-postgres` with independent
+named volumes before the profile is started.
 
 ```mermaid
 flowchart TB
-    internet["Telegram / browser"]
+    internet["Telegram / Discord / browser"]
 
     subgraph compose["Docker Compose network"]
-        bot["CasinoShiz bot"]
-        postgres[("PostgreSQL 16")]
+        bot["Telegram + Discord BFFs"]
+        postgres[("PostgreSQL 16<br/>profile-owned databases")]
         redis[("Redis")]
         clickhouse[("ClickHouse")]
         prometheus["Prometheus"]
@@ -1053,35 +1233,104 @@ flowchart TB
     grafana --> clickhouse
 ```
 
+### Compose profile ownership and scaling
+
+| Profile | Application shape | PostgreSQL ownership |
+|---|---|---|
+| `monolith` | `CasinoShiz.Host` with all selected modules and Telegram/Discord adapters | shared `postgres/cazino` for compatibility |
+| `microservices` | all-games Backend + Identity + Wallet + channel BFFs + Admin BFF | `backend-postgres/backend`, `identity-postgres/identity`, `wallet-postgres/wallet` |
+| `distributed` | one module-selected Backend per game + channel BFFs + Admin BFF | Backend game services share `backend-postgres`; Identity and Wallet retain their own databases |
+
+The microservices profile enforces physical data ownership. Backend, Identity and
+Wallet have separate connection strings, health checks and migration sets. BFFs
+and Backend do not connect to another service's database; aggregation is performed
+over gRPC APIs.
+
+The distributed profile reuses the same Backend image and selects a module at
+startup. For example:
+
+```yaml
+Backend__Modules: dice
+Backend__ServiceName: game-dice
+ConnectionStrings__Postgres: Host=backend-postgres;Database=backend
+```
+
+Channel BFFs route each logical game through `Backend:GameAddresses:<GameId>` and
+fall back to `Backend:GrpcAddress` for a monolith or single Backend. Stable Compose
+DNS names make replica changes an infrastructure operation:
+
+```bash
+docker compose --profile distributed up --build --scale game-poker=3
+```
+
+All Backend replicas use PostgreSQL advisory migration locks. Event outbox rows are
+leased with `SKIP LOCKED`; schedule rows are claimed only by the service that owns
+their `game_id`; Quartz partitions triggers by `Backend:ServiceName`. Therefore
+replicas load-balance one logical game service without executing another game's
+migrations or scheduled work.
+
 ### Kubernetes / Helm
 
 ```mermaid
 flowchart TB
-    telegram["Telegram"]
+    channels["Telegram / Discord"]
     ingress["Ingress"]
 
     subgraph cluster["Kubernetes cluster"]
-        deployment["CasinoShiz Deployment"]
-        service["Bot Service"]
-        pgsvc["Postgres Service"]
-        pgstate[("Postgres StatefulSet")]
+        telegramBff["Telegram BFF<br/>Deployment + Service"]
+        discordBff["Discord BFF<br/>Deployment + Service"]
+        adminBff["Admin BFF<br/>Deployment + Service"]
+        games["game-* Deployments + Services<br/>one per selected module"]
+        backendSvc["Backend PostgreSQL Service"]
+        backendState[("Backend PostgreSQL StatefulSet")]
+        identitySvc["Identity PostgreSQL Service"]
+        identityState[("Identity PostgreSQL StatefulSet")]
+        walletSvc["Wallet PostgreSQL Service"]
+        walletState[("Wallet PostgreSQL StatefulSet")]
         rdsvc["Redis Service"]
         rdstate[("Redis StatefulSet")]
         secret["Kubernetes Secret"]
     end
 
-    telegram --> ingress
-    ingress --> service
-    service --> deployment
-    secret --> deployment
-    deployment --> pgsvc
-    pgsvc --> pgstate
-    deployment --> rdsvc
+    channels --> ingress
+    ingress --> telegramBff
+    ingress --> discordBff
+    ingress --> adminBff
+    telegramBff --> games
+    discordBff --> games
+    adminBff --> games
+    games --> backendSvc
+    backendSvc --> backendState
+    games --> identitySvc
+    identitySvc --> identityState
+    games --> walletSvc
+    walletSvc --> walletState
+    games --> rdsvc
     rdsvc --> rdstate
+    secret --> telegramBff
+    secret --> discordBff
+    secret --> adminBff
+    secret --> games
 ```
 
-The shipped Helm chart includes the bot, PostgreSQL, and Redis. ClickHouse and the
-monitoring stack are external or disabled by default in that topology.
+The Helm chart uses the same image/configuration model as the distributed Compose
+profile. Each game is a Deployment/Service pair with `Backend:Modules` and
+`Backend:ServiceName`; scaling a game changes only its replica count. Identity,
+Wallet and Backend use separate PostgreSQL StatefulSets/Services and volumes.
+Redis carries CAP/event transport and distributed coordination. ClickHouse,
+MinIO and the monitoring stack may be external or disabled by default.
+
+The chart can be installed without changing application code:
+
+```bash
+helm upgrade --install cazinoshiz ./deploy/helm/cazinoshiz
+kubectl scale deployment game-poker --replicas=3
+```
+
+Managed PostgreSQL and Redis can replace the chart-managed dependencies by
+overriding service addresses, credentials and storage values. Backups must be
+configured per owned database; restoring Backend, Identity or Wallet does not
+require cross-database joins.
 
 ## Failure And Recovery Boundaries
 
@@ -1090,15 +1339,18 @@ flowchart LR
     updateFailure["Update processing failure"]
     eventFailure["Projection/event dispatch failure"]
     telegramFailure["Async Telegram send failure"]
+    discordFailure["Async Discord send failure"]
     infraFailure["Optional analytics failure"]
 
     updateRetry["Redis pending retry<br/>or polling retry"]
     updateDlq["Update DLQ"]
     failureStore[("event_dispatch_failures")]
     telegramOutbox[("telegram_outbox")]
+    discordOutbox[("discord_outbox")]
     retry["Admin/debug retry"]
     replay["Event replay / projection rebuild"]
     telegramRetry["Local dispatcher or CAP relay retry"]
+    discordRetry["Discord BFF lease retry"]
     adminRecovery["/admin/recovery<br/>SuperAdmin confirmation"]
     eventRetry["IEventDispatchRetryService"]
     outboxNow["Reschedule unsent row now"]
@@ -1111,9 +1363,12 @@ flowchart LR
     failureStore --> retry
     failureStore --> replay
     telegramFailure --> telegramOutbox
+    discordFailure --> discordOutbox
     telegramOutbox --> telegramRetry
+    discordOutbox --> discordRetry
     failureStore --> adminRecovery
     telegramOutbox --> adminRecovery
+    discordOutbox --> adminRecovery
     adminRecovery -->|"single confirmed event"| eventRetry
     eventRetry --> failureStore
     adminRecovery -->|"single pending/sending row"| outboxNow
@@ -1129,7 +1384,8 @@ admins may inspect up to 100 current failures, but only SuperAdmin may confirm a
 retry. Event retry redispatches the persisted event. Outbox recovery preserves the
 payload, attempt count, deduplication key, and previous error while making an unsent
 record immediately eligible; sent, missing, or concurrently changed records are not
-mutated. Successful mutation attempts are appended to `admin_audit`.
+mutated. The same lease/retry model applies to Telegram and Discord delivery.
+Successful mutation attempts are appended to `admin_audit`.
 
 The browser admin is a separate `CasinoShiz.AdminBff` process and never reads
 PostgreSQL directly. It uses transport-neutral Identity, Wallet, and Operations
@@ -1147,20 +1403,36 @@ audited even when Wallet runs as a separate service.
 ```mermaid
 flowchart BT
     host["CasinoShiz.Host"]
+    telegramBff["CasinoShiz.TelegramBff"]
+    discordBff["CasinoShiz.DiscordBff"]
+    adminBff["CasinoShiz.AdminBff"]
     game["Games.* modules"]
+    telegramChannel["Games.*.Telegram"]
+    discordChannel["Games.*.Discord"]
     frameworkHost["BotFramework.Host"]
+    telegramFramework["BotFramework.Telegram"]
+    discordFramework["BotFramework.Discord"]
     sdk["BotFramework.Sdk"]
 
     host --> game
     host --> frameworkHost
+    telegramBff --> telegramChannel
+    discordBff --> discordChannel
+    adminBff --> frameworkHost
     game --> frameworkHost
+    telegramChannel --> telegramFramework
+    discordChannel --> discordFramework
     game --> sdk
     frameworkHost --> sdk
+    telegramFramework --> frameworkHost
+    discordFramework --> frameworkHost
 ```
 
 - `BotFramework.Sdk` contains contracts and shared event vocabulary.
 - `BotFramework.Host` implements infrastructure and cross-cutting services.
 - each `Games.*` project owns one bounded feature/module;
 - `CasinoShiz.Host` selects modules and maps distribution-specific endpoints;
+- `CasinoShiz.TelegramBff`, `CasinoShiz.DiscordBff` and `CasinoShiz.AdminBff` are
+  composition roots, not data owners;
 - modules should communicate through SDK contracts and domain events rather than
   importing another game's internals.

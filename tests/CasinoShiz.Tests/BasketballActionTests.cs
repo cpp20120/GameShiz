@@ -53,7 +53,7 @@ public sealed class BasketballActionTests
         Assert.Equal(150, decision.Result.Balance);
         Assert.Single(decision.Events.OfType<BasketballThrowCompleted>());
         Assert.Single(decision.Events.OfType<GameCompletedMetaEvent>());
-        Assert.Empty(decision.Events.OfType<TelegramMiniGameRedeemCodeDropRequested>());
+        Assert.Empty(decision.Events.OfType<MiniGameRedeemCodeDropRequested>());
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class BasketballActionTests
         Assert.Equal(
             JsonSerializer.SerializeToUtf8Bytes(first),
             JsonSerializer.SerializeToUtf8Bytes(second));
-        Assert.Single(first.Events.OfType<TelegramMiniGameRedeemCodeDropRequested>());
+        Assert.Single(first.Events.OfType<MiniGameRedeemCodeDropRequested>());
     }
 
     [Fact]

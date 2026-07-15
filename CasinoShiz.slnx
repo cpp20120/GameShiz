@@ -2,6 +2,7 @@
   <Folder Name="/framework/">
     <Project Path="framework\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <Project Path="framework\BotFramework.Discord\BotFramework.Discord.csproj" />
+    <Project Path="framework\BotFramework.Rest\BotFramework.Rest.csproj" />
     <Project Path="framework\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <Project Path="framework\BotFramework.Sdk.Testing\BotFramework.Sdk.Testing.csproj" />
     <Project Path="framework\BotFramework.Host\BotFramework.Host.csproj" />
@@ -12,6 +13,7 @@
     <Project Path="framework\BotFramework.Rendering\BotFramework.Rendering.csproj" />
   </Folder>
   <Folder Name="/games/">
+    <Project Path="games\Games.Dice.Rest\Games.Dice.Rest.csproj" />
     <Project Path="games\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />
     <Project Path="games\Games.Dice.Telegram\Games.Dice.Telegram.csproj" />
     <Project Path="games\Games.Dice.Transport.Grpc\Games.Dice.Transport.Grpc.csproj" />
@@ -31,6 +33,8 @@
     <Project Path="games\Games.Poker.Contracts\Games.Poker.Contracts.csproj" />
     <Project Path="games\Games.Poker.Telegram\Games.Poker.Telegram.csproj" />
     <Project Path="games\Games.Poker.Transport.Grpc\Games.Poker.Transport.Grpc.csproj" />
+    <Project Path="games\Games.Poker.Rest\Games.Poker.Rest.csproj" />
+    <Project Path="games\Games.Leaderboard.Rest\Games.Leaderboard.Rest.csproj" />
     <Project Path="games\Games.SecretHitler\Games.SecretHitler.csproj" />
     <Project Path="games\Games.SecretHitler.Contracts\Games.SecretHitler.Contracts.csproj" />
     <Project Path="games\Games.SecretHitler.Telegram\Games.SecretHitler.Telegram.csproj" />
@@ -84,6 +88,7 @@
   </Folder>
   <Folder Name="/host/">
     <Project Path="host/CasinoShiz.AdminBff/CasinoShiz.AdminBff.csproj" />
+    <Project Path="host/CasinoShiz.Api/CasinoShiz.Api.csproj" />
     <Project Path="host/CasinoShiz.DiscordBff/CasinoShiz.DiscordBff.csproj" />
     <Project Path="host\CasinoShiz.Backend\CasinoShiz.Backend.csproj" />
     <Project Path="host\CasinoShiz.Host\CasinoShiz.Host.csproj" />

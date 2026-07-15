@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Host.Execution;
 using Games.Darts.Application.Execution;
 
@@ -19,13 +20,14 @@ public sealed class DartsPlaceBetStateStore : IGameStateStore<DartsPlaceBetComma
     {
         var round = state.Round ?? throw new InvalidOperationException("Accepted darts bet has no round.");
         var inserted = await context.ExecuteAsync("""
-            INSERT INTO darts_rounds (id,user_id,chat_id,amount,created_at,status,bot_message_id,reply_to_message_id)
-            VALUES (@Id,@UserId,@ChatId,@Amount,@CreatedAt,@Status,@BotMessageId,@ReplyToMessageId)
+            INSERT INTO darts_rounds (id,user_id,chat_id,amount,created_at,status,bot_message_id,reply_to_message_id,channel)
+            VALUES (@Id,@UserId,@ChatId,@Amount,@CreatedAt,@Status,@BotMessageId,@ReplyToMessageId,@Channel)
             ON CONFLICT (id) DO NOTHING
             """, new
         {
             round.Id, round.UserId, round.ChatId, round.Amount, round.CreatedAt,
             Status = (short)round.Status, round.BotMessageId, round.ReplyToMessageId,
+            Channel = round.Channel.ToString().ToLowerInvariant(),
         }, ct);
         if (inserted != 1) throw new InvalidOperationException("Darts round id already exists.");
     }
@@ -57,7 +59,7 @@ internal static class DartsAtomicSql
 {
     private const string Select = """
         SELECT id AS Id,user_id AS UserId,chat_id AS ChatId,amount AS Amount,created_at AS CreatedAt,
-               status AS Status,bot_message_id AS BotMessageId,reply_to_message_id AS ReplyToMessageId
+               status AS Status,bot_message_id AS BotMessageId,reply_to_message_id AS ReplyToMessageId,channel AS Channel
         FROM darts_rounds
         """;
 
@@ -75,10 +77,12 @@ internal static class DartsAtomicSql
     }
 
     private sealed record Row(long Id, long UserId, long ChatId, int Amount, DateTime CreatedAt,
-        short Status, int? BotMessageId, int ReplyToMessageId)
+        short Status, int? BotMessageId, int ReplyToMessageId, string? Channel)
     {
         public DartsRound ToDomain() => new(Id, UserId, ChatId, Amount,
             new DateTimeOffset(DateTime.SpecifyKind(CreatedAt, DateTimeKind.Utc)),
-            (DartsRoundStatus)Status, BotMessageId, ReplyToMessageId);
+            (DartsRoundStatus)Status, BotMessageId, ReplyToMessageId,
+            Enum.TryParse<BotChannel>(Channel, ignoreCase: true, out var channel)
+                ? channel : BotChannel.Telegram);
     }
 }

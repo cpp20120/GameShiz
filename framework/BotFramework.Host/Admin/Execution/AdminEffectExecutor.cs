@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BotFramework.Sdk.Admin.Execution;
+using BotFramework.Host.Contracts.Economics;
 using Dapper;
 using Npgsql;
 
@@ -15,6 +16,8 @@ public interface IAdminEffectExecutor
 
 public interface IAdminExecutionContext
 {
+    IWalletAtomicExecutionService? Wallet => null;
+
     AdminActor Actor { get; }
 
     string Action { get; }
@@ -47,7 +50,8 @@ public abstract class AdminEffectHandler<TEffect> : IAdminEffectHandler
 
 internal sealed class AdminEffectExecutor(
     INpgsqlConnectionFactory connections,
-    IEnumerable<IAdminEffectHandler> handlers) : IAdminEffectExecutor
+    IEnumerable<IAdminEffectHandler> handlers,
+    IWalletAtomicExecutionService wallet) : IAdminEffectExecutor
 {
     private readonly IReadOnlyDictionary<Type, IAdminEffectHandler> handlers = handlers
         .GroupBy(static handler => handler.EffectType)
@@ -63,7 +67,7 @@ internal sealed class AdminEffectExecutor(
 
         await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
-        var context = new PostgresAdminExecutionContext(connection, transaction, envelope.Actor, envelope.Action);
+        var context = new PostgresAdminExecutionContext(connection, transaction, envelope.Actor, envelope.Action, wallet);
 
         try
         {
@@ -105,7 +109,8 @@ internal sealed class AdminEffectExecutor(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         AdminActor actor,
-        string action) : IAdminExecutionContext
+        string action,
+        IWalletAtomicExecutionService wallet) : IAdminExecutionContext
     {
         private readonly Dictionary<string, object?> outputs = new(StringComparer.Ordinal);
 
@@ -114,6 +119,7 @@ internal sealed class AdminEffectExecutor(
         public AdminActor Actor => actor;
 
         public string Action => action;
+        public IWalletAtomicExecutionService Wallet { get; } = wallet;
 
         public Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct) =>
             connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct));

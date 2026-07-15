@@ -264,6 +264,36 @@ Run the same application boundaries as separate processes:
 docker compose --profile microservices up --build
 ```
 
+For independent game deployments, use the distributed Compose profile. It
+starts one Backend composition per game, plus separate Telegram and Discord
+BFFs. Scale a game without changing code:
+
+```bash
+docker compose --profile distributed up --build
+docker compose --profile distributed up --scale game-poker=3
+```
+
+Kubernetes uses the same `Backend__Modules` and `Backend__GameAddresses__*`
+configuration through the Helm chart:
+
+```bash
+helm upgrade --install cazinoshiz ./deploy/helm/cazinoshiz
+kubectl scale deployment game-poker --replicas=3
+```
+
+The profiles deliberately keep different database ownership. Monolith uses the
+shared `postgres/cazino`; microservices use `backend-postgres/backend`,
+`identity-postgres/identity`, and `wallet-postgres/wallet`. Backend, Identity,
+and Wallet run only their own migrations, and BFF aggregation uses gRPC APIs
+instead of cross-database reads.
+
+Back up the active profile with:
+
+```bash
+docker compose --profile monolith run --rm db-backup
+docker compose --profile microservices run --rm db-backup-microservices
+```
+
 Useful local URLs:
 
 -   Monolith: `http://localhost:4000`
@@ -271,6 +301,7 @@ Useful local URLs:
 -   Identity: `http://localhost:5082/health/live`
 -   Wallet: `http://localhost:5083/health/live`
 -   Telegram BFF: `http://localhost:5084/health/live`
+-   Discord BFF: `http://localhost:5086/health/ready` (microservices) or `http://localhost:5088/health/ready` (distributed)
 -   Admin BFF: `http://localhost:5085`
 -   Grafana: `http://localhost:3001`
 -   Prometheus: `http://localhost:9090`

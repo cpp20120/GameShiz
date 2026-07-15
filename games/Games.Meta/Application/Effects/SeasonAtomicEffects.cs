@@ -1,24 +1,21 @@
 using System.Globalization;
 using System.Text.Json;
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using BotFramework.Sdk.Execution;
 using Dapper;
 using Games.Meta.Application.Clans;
 using Games.Meta.Application.Models;
 using Games.Meta.Domain.Seasons;
-using Microsoft.Extensions.Options;
 
 namespace Games.Meta.Application.Effects;
 
 public sealed record SeasonPlayerRewardsAtomicEffect(long SeasonId) : IAtomicEffect;
 public sealed record SeasonClanRewardsAtomicEffect(long SeasonId) : IAtomicEffect;
 
-internal abstract class SeasonRewardsAtomicEffectHandler<TEffect>(
-    IOptions<BotFrameworkOptions> options) : AtomicEffectHandler<TEffect>
+internal abstract class SeasonRewardsAtomicEffectHandler<TEffect> : AtomicEffectHandler<TEffect>
     where TEffect : class, IAtomicEffect
 {
-    protected readonly int StartingCoins = options.Value.StartingCoins;
-
     protected static Task<string?> ConfigAsync(IAtomicEffectContext context, long seasonId, CancellationToken ct) =>
         context.QuerySingleOrDefaultAsync<string?>("SELECT config::text FROM meta_seasons WHERE id = @seasonId FOR UPDATE", new { seasonId }, ct);
 
@@ -33,25 +30,16 @@ internal abstract class SeasonRewardsAtomicEffectHandler<TEffect>(
         CancellationToken ct)
     {
         if (amount <= 0) return;
-        await context.ExecuteAsync(
-            """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @chatId, @displayName, @startingCoins)
-            ON CONFLICT (telegram_user_id, balance_scope_id)
-            DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
-            """,
-            new { userId, chatId, displayName, startingCoins = StartingCoins }, ct).ConfigureAwait(false);
-        var existing = await context.QuerySingleOrDefaultAsync<int?>("SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId", new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-        var wallet = await context.QuerySingleOrDefaultAsync<WalletRow>(
-            "SELECT coins AS Coins, version AS Version FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @chatId FOR UPDATE",
-            new { userId, chatId }, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Season reward wallet is missing.");
-        existing = await context.QuerySingleOrDefaultAsync<int?>("SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId", new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-        var balance = checked(wallet.Coins + amount);
-        await context.ExecuteAsync("UPDATE users SET coins = @balance, version = @version, updated_at = now() WHERE telegram_user_id = @userId AND balance_scope_id = @chatId", new { userId, chatId, balance, version = checked(wallet.Version + 1) }, ct).ConfigureAwait(false);
-        await context.ExecuteAsync("INSERT INTO economics_ledger (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id) VALUES (@userId, @chatId, @amount, @balance, @reason, @operationId)", new { userId, chatId, amount, balance, reason, operationId }, ct).ConfigureAwait(false);
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        await wallet.EnsureUserAsync(userId, chatId, displayName, ct).ConfigureAwait(false);
+        var result = await wallet.ApplyBatchAsync(
+            userId,
+            chatId,
+            [new WalletBatchEffect(WalletBatchEffectKind.Credit, amount, reason)],
+            operationId,
+            ct).ConfigureAwait(false);
+        if (!result.Applied)
+            throw new InvalidOperationException("Season reward wallet rejected the credit.");
     }
 
     protected static Task AppendHistoryAsync(IAtomicEffectContext context, long seasonId, string eventType, object payload, CancellationToken ct) =>
@@ -59,11 +47,9 @@ internal abstract class SeasonRewardsAtomicEffectHandler<TEffect>(
             "INSERT INTO meta_event_log (event_type, aggregate_type, aggregate_id, season_id, payload) VALUES (@eventType, 'season', @aggregateId, @seasonId, CAST(@payload AS jsonb))",
             new { eventType, aggregateId = seasonId.ToString(CultureInfo.InvariantCulture), seasonId, payload = JsonSerializer.Serialize(payload) }, ct);
 
-    protected sealed record WalletRow(int Coins, long Version);
 }
 
-internal sealed class SeasonPlayerRewardsAtomicEffectHandler(
-    IOptions<BotFrameworkOptions> options) : SeasonRewardsAtomicEffectHandler<SeasonPlayerRewardsAtomicEffect>(options)
+internal sealed class SeasonPlayerRewardsAtomicEffectHandler : SeasonRewardsAtomicEffectHandler<SeasonPlayerRewardsAtomicEffect>
 {
     protected override async Task ApplyAsync(SeasonPlayerRewardsAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct)
     {
@@ -98,8 +84,7 @@ internal sealed class SeasonPlayerRewardsAtomicEffectHandler(
     }
 }
 
-internal sealed class SeasonClanRewardsAtomicEffectHandler(
-    IOptions<BotFrameworkOptions> options) : SeasonRewardsAtomicEffectHandler<SeasonClanRewardsAtomicEffect>(options)
+internal sealed class SeasonClanRewardsAtomicEffectHandler : SeasonRewardsAtomicEffectHandler<SeasonClanRewardsAtomicEffect>
 {
     protected override async Task ApplyAsync(SeasonClanRewardsAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct)
     {

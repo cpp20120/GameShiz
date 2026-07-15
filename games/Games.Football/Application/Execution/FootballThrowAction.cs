@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Sdk.Execution;
 
 namespace Games.Football.Application.Execution;
@@ -28,8 +29,9 @@ public sealed class FootballThrowAction : IGameAction<FootballThrowCommand, Foot
         if (input.Command.RedeemDropChance > 0
             && input.Entropy.GetDouble(RedeemDropEntropy) < input.Command.RedeemDropChance)
         {
-            events.Add(new TelegramMiniGameRedeemCodeDropRequested(
-                input.Command.UserId, input.Command.ChatId, MiniGameIds.Football, occurredAt));
+            events.Add(new MiniGameRedeemCodeDropRequested(
+                input.Command.UserId, input.Command.ChatId, MiniGameIds.Football, occurredAt,
+                BotChannelContext.Current));
         }
         return new(
             DecisionStatus.Accepted,

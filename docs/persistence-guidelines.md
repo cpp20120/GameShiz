@@ -27,4 +27,36 @@ Rules:
 
 ## Physical ownership in microservices mode
 
-The `microservices` Docker Compose profile uses independent PostgreSQL instances and volumes for Backend, Identity, and Wallet. The monolith profile keeps the shared `cazino` database for backwards compatibility. Cross-service read composition belongs in a BFF/aggregator and must use service APIs; direct cross-database joins are forbidden. Identity migrations do not backfill from the Wallet `users` table in distributed mode.
+The deployment profiles intentionally have different persistence topologies:
+
+| Profile | Process | PostgreSQL owner | Migration runner |
+|---|---|---|---|
+| `monolith` | `cazino-bot` | shared `postgres/cazino` | full framework + loaded game migrations |
+| `microservices` | `backend` | `backend-postgres/backend` | Backend framework/game migrations only |
+| `microservices` | `identity` | `identity-postgres/identity` | Identity migrations only |
+| `microservices` | `wallet` | `wallet-postgres/wallet` | Wallet migrations only |
+
+Wallet-owned tables (`users`, `economics_ledger`, `player_protection`) are never
+created by the Backend microservices migration set. Backend-owned operational,
+game, outbox, quota, and event tables stay in `backend`. Identity owns only
+`player_identities`. A fresh microservices deployment should use its dedicated
+volumes; an old shared database is not an automatic migration source.
+
+Backend game/admin code uses wallet and identity contracts. The Wallet atomic
+batch API persists an operation id and performs the complete balance/ledger
+mutation in the Wallet transaction, so retrying a request after a gRPC failure
+does not double-apply it. There are no cross-database joins or shared-table
+reads. The Admin BFF exposes composed read models under
+`/api/aggregation/players/{userId}` and `/api/aggregation/admin`, combining
+Identity, Wallet, and Backend Operations responses through service APIs.
+
+Backups follow the same ownership boundary:
+
+```bash
+docker compose --profile monolith run --rm db-backup
+docker compose --profile microservices run --rm db-backup-microservices
+```
+
+The microservices backup writes independent `backend_*.sql`, `identity_*.sql`,
+and `wallet_*.sql` files. Restore each dump into its matching PostgreSQL
+instance; do not merge them or restore a Wallet dump into Backend.

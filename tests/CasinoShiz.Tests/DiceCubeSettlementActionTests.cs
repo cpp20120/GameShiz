@@ -52,7 +52,7 @@ public sealed class DiceCubeSettlementActionTests
     {
         var decision = Roll(6, redeemDropChance: 0.1, entropy: 0.01);
 
-        Assert.IsType<TelegramMiniGameRedeemCodeDropRequested>(decision.Events[2]);
+        Assert.IsType<MiniGameRedeemCodeDropRequested>(decision.Events[2]);
     }
 
     [Fact]

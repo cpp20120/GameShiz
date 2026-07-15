@@ -45,19 +45,25 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAcces
 
 var backendAddress = builder.Configuration["Backend:GrpcAddress"]
     ?? throw new InvalidOperationException("Set Backend:GrpcAddress for the Telegram BFF.");
-builder.Services.AddDiceGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddNativeDiceGrpcClients(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddTransferGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddRedeemGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddLeaderboardGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddPickGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddBlackjackGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddHorseGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddChallengeGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddPokerGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddSecretHitlerGrpcClient(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddMetaGrpcClients(new Uri(backendAddress, UriKind.Absolute));
-builder.Services.AddAdminGrpcClients(new Uri(backendAddress, UriKind.Absolute));
+var backendUri = new Uri(backendAddress, UriKind.Absolute);
+builder.Services.AddDiceGrpcClient(builder.Configuration.ResolveGameAddress("Dice", backendUri));
+builder.Services.AddNativeDiceGrpcClients(
+    builder.Configuration.ResolveGameAddress("DiceCube", backendUri),
+    builder.Configuration.ResolveGameAddress("Darts", backendUri),
+    builder.Configuration.ResolveGameAddress("Football", backendUri),
+    builder.Configuration.ResolveGameAddress("Basketball", backendUri),
+    builder.Configuration.ResolveGameAddress("Bowling", backendUri));
+builder.Services.AddTransferGrpcClient(builder.Configuration.ResolveGameAddress("Transfer", backendUri));
+builder.Services.AddRedeemGrpcClient(builder.Configuration.ResolveGameAddress("Redeem", backendUri));
+builder.Services.AddLeaderboardGrpcClient(builder.Configuration.ResolveGameAddress("Leaderboard", backendUri));
+builder.Services.AddPickGrpcClient(builder.Configuration.ResolveGameAddress("Pick", backendUri));
+builder.Services.AddBlackjackGrpcClient(builder.Configuration.ResolveGameAddress("Blackjack", backendUri));
+builder.Services.AddHorseGrpcClient(builder.Configuration.ResolveGameAddress("Horse", backendUri));
+builder.Services.AddChallengeGrpcClient(builder.Configuration.ResolveGameAddress("Challenges", backendUri));
+builder.Services.AddPokerGrpcClient(builder.Configuration.ResolveGameAddress("Poker", backendUri));
+builder.Services.AddSecretHitlerGrpcClient(builder.Configuration.ResolveGameAddress("SecretHitler", backendUri));
+builder.Services.AddMetaGrpcClients(builder.Configuration.ResolveGameAddress("Meta", backendUri));
+builder.Services.AddAdminGrpcClients(builder.Configuration.ResolveGameAddress("Admin", backendUri));
 var identityAddress = builder.Configuration["Services:Identity:Address"] ?? backendAddress;
 var walletAddress = builder.Configuration["Services:Wallet:Address"] ?? backendAddress;
 builder.Services.AddIdentityGrpcClient(new Uri(identityAddress, UriKind.Absolute));

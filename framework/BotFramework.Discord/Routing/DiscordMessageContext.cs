@@ -6,4 +6,5 @@ public sealed record DiscordMessageContext(
     SocketMessage Message,
     string CommandText,
     IServiceProvider Services,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken,
+    string CultureCode = "ru");

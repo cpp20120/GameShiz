@@ -1,4 +1,5 @@
 using System.Globalization;
+using BotFramework.Contracts.Messaging;
 using BotFramework.Host.Contracts.Telegram;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,12 +11,14 @@ public sealed partial class RedeemDropSubscriber(
     ILocalizer localizer,
     ILogger<RedeemDropSubscriber> logger) : IDomainEventSubscriber
 {
-    private const string DropEventType = "telegram_dice.redeem_code_drop_requested";
+    private const string DropEventType = "minigame.redeem_code_drop_requested";
 
     public async Task HandleAsync(IDomainEvent ev, CancellationToken ct)
     {
         if (!string.Equals(ev.EventType, DropEventType, StringComparison.Ordinal)) return;
-        if (!TryReadDrop(ev, out var userId, out var chatId, out var gameId)) return;
+        if (ev is not MiniGameRedeemCodeDropRequested drop
+            || drop.Channel != BotChannel.Telegram
+            || !TryReadDrop(drop, out var userId, out var chatId, out var gameId)) return;
 
         try
         {
@@ -58,6 +61,6 @@ public sealed partial class RedeemDropSubscriber(
     private static string ReadString(Type type, object instance, string propertyName) =>
         type.GetProperty(propertyName)?.GetValue(instance) as string ?? "";
 
-    [LoggerMessage(LogLevel.Warning, "redeem.drop_failed")]
+    [LoggerMessage(LogLevel.Warning, "redeem.telegram_drop_failed")]
     partial void LogDropFailed(Exception ex);
 }

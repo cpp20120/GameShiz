@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Sdk.Execution;
 
 namespace Games.DiceCube.Application.Execution;
@@ -59,11 +60,12 @@ public sealed class DiceCubeRollAction
         if (input.Command.RedeemDropChance > 0
             && input.Entropy.GetDouble(RedeemDropEntropy) < input.Command.RedeemDropChance)
         {
-            events.Add(new TelegramMiniGameRedeemCodeDropRequested(
+            events.Add(new MiniGameRedeemCodeDropRequested(
                 input.Command.UserId,
                 input.Command.ChatId,
                 MiniGameIds.DiceCube,
-                occurredAt));
+                occurredAt,
+                BotChannelContext.Current));
         }
 
         return new GameDecision<DiceCubePlaceBetState, CubeRollResult>(

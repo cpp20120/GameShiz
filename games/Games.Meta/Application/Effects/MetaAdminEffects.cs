@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using BotFramework.Host.Admin.Execution;
+using BotFramework.Host.Contracts.Economics;
 using BotFramework.Sdk.Admin.Execution;
 using Dapper;
 using Games.Meta.Application.Clans;
@@ -54,24 +55,6 @@ internal abstract class MetaAdminEffectHandler<TEffect> : AdminEffectHandler<TEf
             },
             ct);
 
-    protected static async Task<WalletRow> LockWalletAsync(
-        IAdminExecutionContext context,
-        long userId,
-        long chatId,
-        CancellationToken ct)
-    {
-        var row = await context.QuerySingleOrDefaultAsync<WalletRow>(
-            """
-            SELECT coins AS Coins, version AS Version
-            FROM users
-            WHERE telegram_user_id = @userId AND balance_scope_id = @chatId
-            FOR UPDATE
-            """,
-            new { userId, chatId },
-            ct).ConfigureAwait(false);
-        return row ?? throw new InvalidOperationException($"Wallet {userId}:{chatId} is missing.");
-    }
-
     protected static async Task CreditAsync(
         IAdminExecutionContext context,
         long userId,
@@ -82,47 +65,18 @@ internal abstract class MetaAdminEffectHandler<TEffect> : AdminEffectHandler<TEf
         string operationId,
         CancellationToken ct)
     {
-        await context.ExecuteAsync(
-            """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @chatId, @displayName, 0)
-            ON CONFLICT (telegram_user_id, balance_scope_id)
-            DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
-            """,
-            new { userId, chatId, displayName, }, ct).ConfigureAwait(false);
-
-        var existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-
-        var wallet = await LockWalletAsync(context, userId, chatId, ct).ConfigureAwait(false);
-        // Another reward command may have inserted the same deterministic
-        // operation while this transaction waited for the wallet row lock.
-        // Re-check after FOR UPDATE to keep reward delivery idempotent.
-        existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-
-        var balance = checked(wallet.Coins + amount);
-        await context.ExecuteAsync(
-            """
-            UPDATE users
-            SET coins = @balance, version = @version, updated_at = now()
-            WHERE telegram_user_id = @userId AND balance_scope_id = @chatId
-            """,
-            new { userId, chatId, balance, version = checked(wallet.Version + 1) }, ct).ConfigureAwait(false);
-        await context.ExecuteAsync(
-            """
-            INSERT INTO economics_ledger
-                (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id)
-            VALUES (@userId, @chatId, @amount, @balance, @reason, @operationId)
-            """,
-            new { userId, chatId, amount, balance, reason, operationId }, ct).ConfigureAwait(false);
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        await wallet.EnsureUserAsync(userId, chatId, displayName, ct).ConfigureAwait(false);
+        var result = await wallet.ApplyBatchAsync(
+            userId,
+            chatId,
+            [new WalletBatchEffect(WalletBatchEffectKind.Credit, amount, reason)],
+            operationId,
+            ct).ConfigureAwait(false);
+        if (!result.Applied)
+            throw new InvalidOperationException("Meta reward wallet rejected the credit.");
     }
 
-    protected sealed record WalletRow(int Coins, long Version);
 }
 
 internal sealed class MetaSeasonCreateAdminEffectHandler : MetaAdminEffectHandler<MetaSeasonCreateAdminEffect>

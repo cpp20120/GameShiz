@@ -32,7 +32,9 @@ public sealed class AtomicChallengeRedeemPostgresTests(AtomicPostgresFixture dat
     {
         var id = Guid.Parse("44444444-4444-4444-4444-444444444444");
         var create = Executor(new ChallengeCreateDescriptor(), new ChallengeCreateAction(),
-            new ChallengeExecutionStateStore<ChallengeCreateCommand>(FrameworkOptions));
+            new ChallengeExecutionStateStore<ChallengeCreateCommand>(
+                new EconomicsService(new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                    NullLogger<EconomicsService>.Instance)));
         var created = await create.ExecuteAsync(new(new ChallengeCreateCommand(
             id, 1, "alice", new(2, "bob"), 10, 25, ChallengeGame.Dice,
             1, 1000, TimeSpan.FromMinutes(10), "challenge-create", [new(1, 10)])),
@@ -41,7 +43,9 @@ public sealed class AtomicChallengeRedeemPostgresTests(AtomicPostgresFixture dat
 
         var wallets = new ChallengeWalletRef[] { new(1, 10), new(2, 10) };
         var accept = Executor(new ChallengeAcceptDescriptor(), new ChallengeAcceptAction(),
-            new ChallengeExecutionStateStore<ChallengeAcceptCommand>(FrameworkOptions));
+            new ChallengeExecutionStateStore<ChallengeAcceptCommand>(
+                new EconomicsService(new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                    NullLogger<EconomicsService>.Instance)));
         var acceptCommand = new ChallengeAcceptCommand(id, 2, "bob", 10, "challenge-accept", wallets);
         var accepted = await accept.ExecuteAsync(new(acceptCommand), CancellationToken.None);
         var duplicate = await accept.ExecuteAsync(new(acceptCommand), CancellationToken.None);
@@ -50,7 +54,9 @@ public sealed class AtomicChallengeRedeemPostgresTests(AtomicPostgresFixture dat
         Assert.Equal(75, await Balance(2, 10));
 
         var complete = Executor(new ChallengeCompleteDescriptor(), new ChallengeCompleteAction(),
-            new ChallengeExecutionStateStore<ChallengeCompleteCommand>(FrameworkOptions));
+            new ChallengeExecutionStateStore<ChallengeCompleteCommand>(
+                new EconomicsService(new TestConnectionFactory(database.ConnectionString), FrameworkOptions,
+                    NullLogger<EconomicsService>.Instance)));
         var result = await complete.ExecuteAsync(new(new ChallengeCompleteCommand(
             id, 1, "alice", 10, 6, 3, 250, "challenge-complete", wallets)), CancellationToken.None);
 

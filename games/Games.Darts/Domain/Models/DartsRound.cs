@@ -1,3 +1,5 @@
+using BotFramework.Contracts.Messaging;
+
 namespace Games.Darts.Domain.Models;
 
 public sealed record DartsRound(
@@ -8,4 +10,5 @@ public sealed record DartsRound(
     DateTimeOffset CreatedAt,
     DartsRoundStatus Status,
     int? BotMessageId,
-    int ReplyToMessageId);
+    int ReplyToMessageId,
+    BotChannel Channel = BotChannel.Telegram);

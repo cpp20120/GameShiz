@@ -32,6 +32,7 @@ using Games.Meta.Infrastructure.Modules;
 using Games.Meta.Transport.Grpc;
 using Games.Admin.Infrastructure.Modules;
 using Games.Admin.Transport.Grpc;
+using CasinoShiz.Backend;
 using CasinoShiz.Identity;
 using CasinoShiz.Identity.Transport.Grpc;
 using CasinoShiz.Wallet.Transport.Grpc;
@@ -56,25 +57,9 @@ builder.AddServiceDefaults();
 builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 
+var selectedModules = BackendModuleComposition.Resolve(builder.Configuration);
 var framework = builder.AddBackendFramework()
-    .AddModule<DiceModule>()
-    .AddModule<DiceCubeModule>()
-    .AddModule<DartsRemoteModule>()
-    .AddModule<FootballModule>()
-    .AddModule<BasketballModule>()
-    .AddModule<BowlingModule>()
-    .AddModule<TransferModule>()
-    .AddModule<RedeemModule>()
-    .AddModule<LeaderboardModule>()
-    .AddModule<PixelBattleModule>()
-    .AddModule<PickModule>()
-    .AddModule<BlackjackModule>()
-    .AddModule<HorseModule>()
-    .AddModule<ChallengeModule>()
-    .AddModule<PokerModule>()
-    .AddModule<SecretHitlerModule>()
-    .AddModule<MetaModule>()
-    .AddModule<AdminModule>();
+    .AddSelectedModules(selectedModules);
 
 var walletRemote = string.Equals(builder.Configuration["Services:Wallet:Mode"], "Grpc", StringComparison.OrdinalIgnoreCase);
 var identityRemote = string.Equals(builder.Configuration["Services:Identity:Mode"], "Grpc", StringComparison.OrdinalIgnoreCase);
@@ -89,6 +74,8 @@ if (identityRemote)
 builder.Services.AddGrpc(options => options.Interceptors.Add<BotFramework.Host.Games.GameAvailabilityGrpcInterceptor>());
 
 var app = builder.Build();
+
+app.UseTransportChannelContext();
 
 app.UseStaticFiles();
 app.UseSession();
@@ -116,26 +103,11 @@ app.Use(async (context, next) =>
     context.Session.SetAdminSession(new AdminSession(actorId, actorName, role));
     await next();
 });
-app.MapDiceGrpcTransport();
-app.MapNativeDiceGrpcTransport();
-app.MapTransferGrpcTransport();
-app.MapRedeemGrpcTransport();
-app.MapLeaderboardGrpcTransport();
-app.MapPixelBattle();
-app.MapPixelBattleGrpcTransport();
-app.MapPickGrpcTransport();
-app.MapBlackjackGrpcTransport();
-app.MapHorseGrpcTransport();
-app.MapChallengeGrpcTransport();
-app.MapPokerGrpcTransport();
-app.MapSecretHitlerGrpcTransport();
-app.MapMetaGrpcTransport();
-app.MapAdminGrpcTransport();
+app.MapSelectedTransports(selectedModules);
 app.MapRenderHistory();
-app.MapOperationsGrpcTransport();
 app.MapRazorPages();
 if (!walletRemote) app.MapWalletGrpcTransport();
 if (!identityRemote) app.MapIdentityGrpcTransport();
-app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", service = "casinoshiz-backend" }));
+app.MapServiceDefaults();
 
 await app.RunAsync();

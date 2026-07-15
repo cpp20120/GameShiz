@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 
 namespace BotFramework.Host.Composition.ServiceDatabases;
@@ -28,6 +29,11 @@ public static class ServiceDatabaseBuilderExtensions
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionString), "ConnectionStrings:Postgres is required.")
             .ValidateOnStart();
         builder.Services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
+        builder.Services.AddHealthChecks()
+            .AddCheck<PostgresDatabaseHealthCheck>(
+                "postgres",
+                failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                tags: ["ready"]);
         foreach (var migration in migrations)
             builder.Services.AddSingleton<IModuleMigrations>(migration);
         builder.Services.AddHostedService<OwnedDatabaseMigrationRunner>();
@@ -52,6 +58,7 @@ public static class ServiceDatabaseBuilderExtensions
         builder.Services.AddHostedService(provider => provider.GetRequiredService<RuntimeTuningAccessor>());
 
         builder.Services.AddSingleton<IEconomicsService, EconomicsService>();
+        builder.Services.AddSingleton<IWalletAtomicExecutionService, WalletAtomicExecutionService>();
         builder.Services.AddSingleton<IWalletReadService, WalletReadService>();
         builder.Services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();
         builder.Services.AddSingleton<IDailyBonusService, DailyBonusService>();
@@ -61,21 +68,7 @@ public static class ServiceDatabaseBuilderExtensions
 
     private sealed class WalletOwnedMigrations : IModuleMigrations
     {
-        private static readonly HashSet<string> OwnedIds =
-        [
-            "003_users",
-            "006_per_chat_wallets_and_ledger",
-            "008_users_last_daily_bonus",
-            "009_users_telegram_dice_daily",
-            "010_runtime_tuning",
-            "012_telegram_dice_daily_per_game",
-            "014_economics_operation_id",
-            "017_responsible_gaming_and_ops_reports",
-        ];
-
         public string ModuleId => "wallet";
-        public IReadOnlyList<Migration> Migrations { get; } = new FrameworkMigrations().Migrations
-            .Where(migration => OwnedIds.Contains(migration.Id))
-            .ToArray();
+        public IReadOnlyList<Migration> Migrations { get; } = new FrameworkMigrations().WalletMigrations;
     }
 }

@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using BotFramework.Sdk.Execution;
 
 namespace Games.Dice.Application.Execution;
@@ -81,11 +82,12 @@ public sealed class DiceAction : IGameAction<DiceCommand, NoGameState, DicePlayR
         if (command.RedeemDropChance > 0 &&
             input.Entropy.GetDouble(RedeemDropEntropy) < command.RedeemDropChance)
         {
-            domainEvents.Add(new TelegramMiniGameRedeemCodeDropRequested(
+            domainEvents.Add(new MiniGameRedeemCodeDropRequested(
                 command.UserId,
                 command.ChatId,
                 MiniGameIds.Dice,
-                rolledAt.ToUnixTimeMilliseconds()));
+                rolledAt.ToUnixTimeMilliseconds(),
+                BotChannelContext.Current));
         }
 
         return new GameDecision<NoGameState, DicePlayResult>(

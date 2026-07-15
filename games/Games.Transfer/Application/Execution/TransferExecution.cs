@@ -1,7 +1,7 @@
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using BotFramework.Sdk.Events.Meta;
 using BotFramework.Sdk.Execution;
-using Microsoft.Extensions.Options;
 
 namespace Games.Transfer.Application.Execution;
 
@@ -70,33 +70,14 @@ public sealed class TransferDescriptor
         [new WalletIdentity(command.ToUserId, command.ChatId).LockKey];
 }
 
-public sealed class TransferStateStore(IOptions<BotFrameworkOptions> frameworkOptions)
+public sealed class TransferStateStore(IEconomicsService economics)
     : IGameStateStore<TransferCommand, TransferState>
 {
     public async Task<TransferState> LoadAsync(
         TransferCommand command, IGameExecutionContext context, CancellationToken ct)
     {
-        var displayName = command.RecipientDisplayName.Length > 64
-            ? command.RecipientDisplayName[..64]
-            : command.RecipientDisplayName;
-        await context.ExecuteAsync("""
-            INSERT INTO users (telegram_user_id,balance_scope_id,display_name,coins)
-            VALUES (@ToUserId,@ChatId,@displayName,@startingCoins)
-            ON CONFLICT (telegram_user_id,balance_scope_id)
-            DO UPDATE SET display_name=EXCLUDED.display_name,updated_at=now()
-            """, new
-        {
-            command.ToUserId,
-            command.ChatId,
-            displayName,
-            startingCoins = frameworkOptions.Value.StartingCoins,
-        }, ct);
-        var balance = await context.QuerySingleOrDefaultAsync<int?>("""
-            SELECT coins FROM users
-            WHERE telegram_user_id=@ToUserId AND balance_scope_id=@ChatId
-            FOR UPDATE
-            """, new { command.ToUserId, command.ChatId }, ct)
-            ?? throw new InvalidOperationException("Recipient wallet was not created.");
+        await economics.EnsureUserAsync(command.ToUserId, command.ChatId, command.RecipientDisplayName, ct);
+        var balance = await economics.GetBalanceAsync(command.ToUserId, command.ChatId, ct);
         return new(balance);
     }
 

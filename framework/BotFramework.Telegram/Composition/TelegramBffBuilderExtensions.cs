@@ -20,6 +20,7 @@ public static class TelegramBffBuilderExtensions
 {
     public static IBotFrameworkBuilder AddTelegramBff(this IHostApplicationBuilder builder)
     {
+        builder.Configuration["Transport:Channel"] = "telegram";
         var services = builder.Services;
         var configuration = builder.Configuration;
         services.AddBotFrameworkRendering(configuration);

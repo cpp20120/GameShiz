@@ -67,7 +67,7 @@ public sealed class BowlingMultiplierTests
         var second = Roll(6, 50, 0.01, 0.1);
 
         Assert.Equal(JsonSerializer.SerializeToUtf8Bytes(first), JsonSerializer.SerializeToUtf8Bytes(second));
-        Assert.Single(first.Events.OfType<TelegramMiniGameRedeemCodeDropRequested>());
+        Assert.Single(first.Events.OfType<MiniGameRedeemCodeDropRequested>());
     }
 
     [Fact]

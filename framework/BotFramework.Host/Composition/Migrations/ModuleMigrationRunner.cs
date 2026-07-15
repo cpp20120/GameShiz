@@ -25,12 +25,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using Dapper;
+using Microsoft.Extensions.Configuration;
 
 namespace BotFramework.Host.Composition.Migrations;
 
 public sealed partial class ModuleMigrationRunner(
     INpgsqlConnectionFactory connections,
     LoadedModules loadedModules,
+    IConfiguration configuration,
     ILogger<ModuleMigrationRunner> logger) : IHostedService
 {
     private const string EnsureTrackingTable = """
@@ -46,18 +48,57 @@ public sealed partial class ModuleMigrationRunner(
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await using var conn = await connections.OpenAsync(cancellationToken);
-        await conn.ExecuteAsync(new CommandDefinition(EnsureTrackingTable, cancellationToken: cancellationToken));
+        // A deployment can start many game-owned pods at once. Serialize the
+        // migration phase across all of them; the lock is session-scoped and
+        // therefore remains held while ApplyModuleAsync opens its worker
+        // connections.
+        const string acquireLock = "SELECT pg_advisory_lock(hashtextextended('casinoshiz:module-migrations', 0));";
+        const string releaseLock = "SELECT pg_advisory_unlock(hashtextextended('casinoshiz:module-migrations', 0));";
+        await conn.ExecuteAsync(new CommandDefinition(acquireLock, cancellationToken: cancellationToken));
 
-        // Framework-owned schema first (module_events / module_snapshots tables).
-        await ApplyModuleAsync(new FrameworkMigrations(), cancellationToken);
+        try
+        {
+            await conn.ExecuteAsync(new CommandDefinition(EnsureTrackingTable, cancellationToken: cancellationToken));
 
-        foreach (var module in loadedModules.Migrations)
-            await ApplyModuleAsync(module, cancellationToken);
+            // Framework-owned schema first (module_events / module_snapshots tables).
+            var walletRemote = string.Equals(
+                configuration["Services:Wallet:Mode"],
+                "Grpc",
+                StringComparison.OrdinalIgnoreCase);
+            var frameworkMigrations = new FrameworkMigrations();
+            await ApplyModuleAsync(
+                walletRemote ? new DeploymentMigrations("_framework", frameworkMigrations.MicroservicesBackendMigrations)
+                             : frameworkMigrations,
+                cancellationToken);
 
-        LogMigrationsComplete(loadedModules.Migrations.Count + 1);
+            foreach (var module in loadedModules.Migrations)
+                await ApplyModuleAsync(PrepareModuleMigrations(module, walletRemote), cancellationToken);
+
+            LogMigrationsComplete(loadedModules.Migrations.Count + 1);
+        }
+        finally
+        {
+            await conn.ExecuteAsync(new CommandDefinition(releaseLock, cancellationToken: CancellationToken.None));
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private static IModuleMigrations PrepareModuleMigrations(IModuleMigrations module, bool walletRemote)
+    {
+        if (!walletRemote || !string.Equals(module.ModuleId, "blackjack", StringComparison.OrdinalIgnoreCase))
+            return module;
+
+        // The legacy Blackjack backfill joined users. New Backend databases do
+        // not own that table, and fresh databases have no legacy hands to
+        // backfill, so record the migration without executing that old join.
+        var migrations = module.Migrations
+            .Select(migration => migration.Id == "002_atomic_execution_state"
+                ? new Migration(migration.Id, "SELECT 1;")
+                : migration)
+            .ToArray();
+        return new DeploymentMigrations(module.ModuleId, migrations);
+    }
 
     private async Task ApplyModuleAsync(IModuleMigrations module, CancellationToken ct)
     {
@@ -99,6 +140,9 @@ public sealed partial class ModuleMigrationRunner(
             }
         }
     }
+
+    private sealed record DeploymentMigrations(string ModuleId, IReadOnlyList<Migration> Migrations)
+        : IModuleMigrations;
 
     private static async Task<Dictionary<string, string>> LoadAppliedAsync(
         Npgsql.NpgsqlConnection conn, string moduleId, CancellationToken ct)

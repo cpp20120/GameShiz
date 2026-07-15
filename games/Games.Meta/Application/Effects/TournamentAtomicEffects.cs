@@ -1,9 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using BotFramework.Sdk.Execution;
 using Dapper;
-using Microsoft.Extensions.Options;
 
 namespace Games.Meta.Application.Effects;
 
@@ -122,28 +122,6 @@ internal abstract class TournamentAtomicEffectHandler<TEffect> : AtomicEffectHan
                 payload = JsonSerializer.Serialize(payload),
             }, ct).ConfigureAwait(false);
 
-    protected static async Task EnsureWalletAsync(
-        IAtomicEffectContext context,
-        long userId,
-        long chatId,
-        string displayName,
-        int startingCoins,
-        CancellationToken ct) =>
-        await context.ExecuteAsync(
-            """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @chatId, @displayName, @startingCoins)
-            ON CONFLICT (telegram_user_id, balance_scope_id)
-            DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
-            """,
-            new
-            {
-                userId,
-                chatId,
-                displayName = displayName.Length > 64 ? displayName[..64] : displayName,
-                startingCoins,
-            }, ct).ConfigureAwait(false);
-
     protected static async Task<bool> TryDebitAsync(
         IAtomicEffectContext context,
         long userId,
@@ -154,28 +132,14 @@ internal abstract class TournamentAtomicEffectHandler<TEffect> : AtomicEffectHan
         CancellationToken ct)
     {
         if (amount <= 0) return true;
-        var existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return existing.Value >= 0;
-
-        var wallet = await context.QuerySingleOrDefaultAsync<WalletRow>(
-            "SELECT coins AS Coins, version AS Version FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @chatId FOR UPDATE",
-            new { userId, chatId }, ct).ConfigureAwait(false);
-        if (wallet is null || wallet.Coins < amount) return false;
-        existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return true;
-
-        var balance = wallet.Coins - amount;
-        await context.ExecuteAsync(
-            "UPDATE users SET coins = @balance, version = @version, updated_at = now() WHERE telegram_user_id = @userId AND balance_scope_id = @chatId",
-            new { userId, chatId, balance, version = checked(wallet.Version + 1) }, ct).ConfigureAwait(false);
-        await context.ExecuteAsync(
-            "INSERT INTO economics_ledger (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id) VALUES (@userId, @chatId, @delta, @balance, @reason, @operationId)",
-            new { userId, chatId, delta = -amount, balance, reason, operationId }, ct).ConfigureAwait(false);
-        return true;
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        var result = await wallet.ApplyBatchAsync(
+            userId,
+            chatId,
+            [new WalletBatchEffect(WalletBatchEffectKind.Debit, amount, reason)],
+            operationId,
+            ct).ConfigureAwait(false);
+        return result.Applied && !result.Rejected;
     }
 
     protected static async Task CreditAsync(
@@ -186,30 +150,19 @@ internal abstract class TournamentAtomicEffectHandler<TEffect> : AtomicEffectHan
         int amount,
         string reason,
         string operationId,
-        int startingCoins,
         CancellationToken ct)
     {
         if (amount <= 0) return;
-        await EnsureWalletAsync(context, userId, chatId, displayName, startingCoins, ct).ConfigureAwait(false);
-        var existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-        var wallet = await context.QuerySingleOrDefaultAsync<WalletRow>(
-            "SELECT coins AS Coins, version AS Version FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @chatId FOR UPDATE",
-            new { userId, chatId }, ct).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Tournament wallet is missing.");
-        existing = await context.QuerySingleOrDefaultAsync<int?>(
-            "SELECT balance_after FROM economics_ledger WHERE operation_id = @operationId",
-            new { operationId }, ct).ConfigureAwait(false);
-        if (existing.HasValue) return;
-        var balance = checked(wallet.Coins + amount);
-        await context.ExecuteAsync(
-            "UPDATE users SET coins = @balance, version = @version, updated_at = now() WHERE telegram_user_id = @userId AND balance_scope_id = @chatId",
-            new { userId, chatId, balance, version = checked(wallet.Version + 1) }, ct).ConfigureAwait(false);
-        await context.ExecuteAsync(
-            "INSERT INTO economics_ledger (telegram_user_id, balance_scope_id, delta, balance_after, reason, operation_id) VALUES (@userId, @chatId, @amount, @balance, @reason, @operationId)",
-            new { userId, chatId, amount, balance, reason, operationId }, ct).ConfigureAwait(false);
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        await wallet.EnsureUserAsync(userId, chatId, displayName, ct).ConfigureAwait(false);
+        var result = await wallet.ApplyBatchAsync(
+            userId,
+            chatId,
+            [new WalletBatchEffect(WalletBatchEffectKind.Credit, amount, reason)],
+            operationId,
+            ct).ConfigureAwait(false);
+        if (!result.Applied)
+            throw new InvalidOperationException("Tournament wallet rejected a credit.");
     }
 
     protected static async Task CompleteTournamentAsync(
@@ -264,7 +217,6 @@ internal abstract class TournamentAtomicEffectHandler<TEffect> : AtomicEffectHan
     protected static bool IsSupportedGame(string gameKey) =>
         gameKey is "dice" or "dicecube" or "darts" or "football" or "basketball" or "bowling";
 
-    protected sealed record WalletRow(int Coins, long Version);
 }
 
 internal sealed class TournamentCreateAtomicEffectHandler : TournamentAtomicEffectHandler<TournamentCreateAtomicEffect>
@@ -293,11 +245,8 @@ internal sealed class TournamentCreateAtomicEffectHandler : TournamentAtomicEffe
     }
 }
 
-internal sealed class TournamentJoinAtomicEffectHandler(
-    IOptions<BotFrameworkOptions> options) : TournamentAtomicEffectHandler<TournamentJoinAtomicEffect>
+internal sealed class TournamentJoinAtomicEffectHandler : TournamentAtomicEffectHandler<TournamentJoinAtomicEffect>
 {
-    private readonly int startingCoins = options.Value.StartingCoins;
-
     protected override async Task ApplyAsync(TournamentJoinAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct)
     {
         var tournament = await TournamentAsync(context, effect.TournamentId, true, ct).ConfigureAwait(false);
@@ -330,7 +279,8 @@ internal sealed class TournamentJoinAtomicEffectHandler(
             return;
         }
 
-        await EnsureWalletAsync(context, effect.UserId, effect.ChatId, effect.DisplayName, startingCoins, ct).ConfigureAwait(false);
+        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+        await wallet.EnsureUserAsync(effect.UserId, effect.ChatId, effect.DisplayName, ct).ConfigureAwait(false);
         if (!await TryDebitAsync(context, effect.UserId, effect.ChatId, tournament.EntryFee, "tournament.entry_fee", $"tournament:entry:{tournament.Id}:{effect.ChatId}:{effect.UserId}", ct).ConfigureAwait(false))
         {
             context.SetOutput("result", new TournamentJoinResult(false, "Недостаточно монет для entry fee.", tournament));
@@ -391,11 +341,8 @@ internal sealed class TournamentStartAtomicEffectHandler : TournamentAtomicEffec
     }
 }
 
-internal sealed class TournamentReportAtomicEffectHandler(
-    IOptions<BotFrameworkOptions> options) : TournamentAtomicEffectHandler<TournamentReportAtomicEffect>
+internal sealed class TournamentReportAtomicEffectHandler : TournamentAtomicEffectHandler<TournamentReportAtomicEffect>
 {
-    private readonly int startingCoins = options.Value.StartingCoins;
-
     protected override async Task ApplyAsync(TournamentReportAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct)
     {
         var match = await MatchAsync(context, effect.MatchId, true, ct).ConfigureAwait(false);
@@ -414,7 +361,7 @@ internal sealed class TournamentReportAtomicEffectHandler(
         if (finished) await CompleteTournamentAsync(context, match.TournamentId, effect.VictorUserId, ct).ConfigureAwait(false);
         else await AdvanceAsync(context, match.TournamentId, match.Round, match.MatchIndex, effect.VictorUserId, victorName, ct).ConfigureAwait(false);
         if (finished && tournament.PrizePool > 0)
-            await CreditAsync(context, effect.VictorUserId, tournament.ChatId, victorName, checked((int)Math.Min(int.MaxValue, tournament.PrizePool)), "tournament.prize", $"tournament:prize:{tournament.Id}:{effect.VictorUserId}", startingCoins, ct).ConfigureAwait(false);
+            await CreditAsync(context, effect.VictorUserId, tournament.ChatId, victorName, checked((int)Math.Min(int.MaxValue, tournament.PrizePool)), "tournament.prize", $"tournament:prize:{tournament.Id}:{effect.VictorUserId}", ct).ConfigureAwait(false);
         var updatedMatch = await MatchAsync(context, effect.MatchId, false, ct).ConfigureAwait(false);
         var victor = await PlayerAsync(context, match.TournamentId, effect.VictorUserId, false, ct).ConfigureAwait(false);
         await AppendHistoryAsync(context, finished ? "tournament.finished" : "tournament.match_reported", tournament.SeasonId, tournament.ChatId, effect.VictorUserId, tournament.Id.ToString(CultureInfo.InvariantCulture), new { effect.MatchId, effect.VictorUserId, finished }, ct).ConfigureAwait(false);
@@ -422,11 +369,8 @@ internal sealed class TournamentReportAtomicEffectHandler(
     }
 }
 
-internal sealed class TournamentFinishAtomicEffectHandler(
-    IOptions<BotFrameworkOptions> options) : TournamentAtomicEffectHandler<TournamentFinishAtomicEffect>
+internal sealed class TournamentFinishAtomicEffectHandler : TournamentAtomicEffectHandler<TournamentFinishAtomicEffect>
 {
-    private readonly int startingCoins = options.Value.StartingCoins;
-
     protected override async Task ApplyAsync(TournamentFinishAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct)
     {
         var tournament = await TournamentAsync(context, effect.TournamentId, true, ct).ConfigureAwait(false);
@@ -435,17 +379,14 @@ internal sealed class TournamentFinishAtomicEffectHandler(
         { context.SetOutput("result", null); return; }
         await CompleteTournamentAsync(context, effect.TournamentId, effect.VictorUserId, ct).ConfigureAwait(false);
         if (tournament.PrizePool > 0)
-            await CreditAsync(context, effect.VictorUserId, tournament.ChatId, player.DisplayName, checked((int)Math.Min(int.MaxValue, tournament.PrizePool)), "tournament.prize", $"tournament:prize:{tournament.Id}:{effect.VictorUserId}", startingCoins, ct).ConfigureAwait(false);
+            await CreditAsync(context, effect.VictorUserId, tournament.ChatId, player.DisplayName, checked((int)Math.Min(int.MaxValue, tournament.PrizePool)), "tournament.prize", $"tournament:prize:{tournament.Id}:{effect.VictorUserId}", ct).ConfigureAwait(false);
         await AppendHistoryAsync(context, "tournament.finished", tournament.SeasonId, tournament.ChatId, effect.VictorUserId, tournament.Id.ToString(CultureInfo.InvariantCulture), new { effect.TournamentId, effect.VictorUserId, tournament.PrizePool, via = "manual" }, ct).ConfigureAwait(false);
         context.SetOutput("result", player with { Status = "winner" });
     }
 }
 
-internal sealed class TournamentCancelAtomicEffectHandler(
-    IOptions<BotFrameworkOptions> options) : TournamentAtomicEffectHandler<TournamentCancelAtomicEffect>
+internal sealed class TournamentCancelAtomicEffectHandler : TournamentAtomicEffectHandler<TournamentCancelAtomicEffect>
 {
-    private readonly int startingCoins = options.Value.StartingCoins;
-
     protected override async Task ApplyAsync(TournamentCancelAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct)
     {
         var tournament = await TournamentAsync(context, effect.TournamentId, true, ct).ConfigureAwait(false);
@@ -457,7 +398,7 @@ internal sealed class TournamentCancelAtomicEffectHandler(
         await context.ExecuteAsync("UPDATE meta_tournaments SET status = 'cancelled', updated_at = now() WHERE id = @tournamentId", new { effect.TournamentId }, ct).ConfigureAwait(false);
         if (tournament.EntryFee > 0)
             foreach (var player in players)
-                await CreditAsync(context, player.UserId, tournament.ChatId, player.DisplayName, tournament.EntryFee, "tournament.cancel.refund", $"tournament:cancel-refund:{tournament.Id}:{player.UserId}", startingCoins, ct).ConfigureAwait(false);
+                await CreditAsync(context, player.UserId, tournament.ChatId, player.DisplayName, tournament.EntryFee, "tournament.cancel.refund", $"tournament:cancel-refund:{tournament.Id}:{player.UserId}", ct).ConfigureAwait(false);
         await AppendHistoryAsync(context, "tournament.cancelled", tournament.SeasonId, tournament.ChatId, effect.ActorUserId, tournament.Id.ToString(CultureInfo.InvariantCulture), new { effect.TournamentId, tournament.EntryFee, refundedPlayers = players.Select(x => x.UserId).ToArray() }, ct).ConfigureAwait(false);
         context.SetOutput("result", players);
     }

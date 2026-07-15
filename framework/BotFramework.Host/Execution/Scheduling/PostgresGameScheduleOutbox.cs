@@ -7,7 +7,8 @@ internal sealed class PostgresGameScheduleOutbox(INpgsqlConnectionFactory connec
     public async Task<IReadOnlyList<GameScheduleOutboxItem>> ClaimAsync(
         int limit,
         TimeSpan lease,
-        CancellationToken ct)
+        CancellationToken ct,
+        IReadOnlySet<string>? ownedGameIds = null)
     {
         await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
         await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
@@ -18,6 +19,7 @@ internal sealed class PostgresGameScheduleOutbox(INpgsqlConnectionFactory connec
                 FROM game_schedule_outbox AS candidate
                 WHERE ((candidate.status = 'pending' AND candidate.next_attempt_at <= now())
                     OR (candidate.status = 'sending' AND candidate.locked_until <= now()))
+                  AND (@claimAll OR candidate.game_id = ANY(@gameIds))
                   AND NOT EXISTS (
                       SELECT 1
                       FROM game_schedule_outbox AS earlier
@@ -46,6 +48,8 @@ internal sealed class PostgresGameScheduleOutbox(INpgsqlConnectionFactory connec
             {
                 limit = Math.Clamp(limit, 1, 100),
                 leaseMs = Math.Max(1, lease.TotalMilliseconds),
+                claimAll = ownedGameIds is null,
+                gameIds = ownedGameIds?.ToArray() ?? [],
             },
             transaction,
             cancellationToken: ct)).ConfigureAwait(false);

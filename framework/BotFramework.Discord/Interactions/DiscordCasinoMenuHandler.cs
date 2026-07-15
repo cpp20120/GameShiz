@@ -3,7 +3,7 @@ using Discord.WebSocket;
 
 namespace BotFramework.Discord.Interactions;
 
-public sealed class DiscordCasinoMenuHandler : IDiscordInteractionHandler
+public sealed class DiscordCasinoMenuHandler(IDiscordComponentTokenStore tokens) : IDiscordInteractionHandler
 {
     public IEnumerable<ApplicationCommandProperties> BuildCommands()
     {
@@ -15,8 +15,9 @@ public sealed class DiscordCasinoMenuHandler : IDiscordInteractionHandler
 
     public bool CanHandle(SocketInteraction interaction) => interaction switch
     {
-        SocketSlashCommand command => command.Data.Name == "casino",
-        SocketMessageComponent component => component.Data.CustomId == "casino:menu",
+        SocketSlashCommand command => string.Equals(command.Data.Name, "casino", StringComparison.Ordinal),
+        SocketMessageComponent component => tokens.TryResolve(component.Data.CustomId, out var token)
+            && string.Equals(token.Action, "casino:menu", StringComparison.Ordinal),
         _ => false,
     };
 
@@ -27,30 +28,33 @@ public sealed class DiscordCasinoMenuHandler : IDiscordInteractionHandler
             var section = component.Data.Values.FirstOrDefault() ?? "games";
             var text = section switch
             {
-                "games" => "Игры: `/blackjack`, `/poker`, `/secret-hitler`, `/pick`, `/horse`, `/pixelbattle`.",
-                "economy" => "Экономика: `/profile balance`, `/profile daily`, `/transfer`, `/redeem`.",
-                "social" => "Социальное: `/challenge`, `/profile top`, `/profile global-top`.",
-                "admin" => "Администрирование: `/casino-admin` (доступно только allowlisted пользователям и ролям).",
-                _ => "Используй slash-команды — Discord покажет доступные параметры автоматически.",
+                "games" => DiscordLocalization.Get("casino.games", context.CultureCode),
+                "economy" => DiscordLocalization.Get("casino.economy", context.CultureCode),
+                "social" => DiscordLocalization.Get("casino.social", context.CultureCode),
+                "admin" => DiscordLocalization.Get("casino.admin", context.CultureCode),
+                _ => DiscordLocalization.Get("casino.fallback", context.CultureCode),
             };
             await DiscordInteraction.ReplyAsync(context, text, ephemeral: true);
             return;
         }
 
         var menu = new SelectMenuBuilder()
-            .WithCustomId("casino:menu")
-            .WithPlaceholder("Выбери раздел")
+            .WithCustomId(tokens.Issue("casino:menu"))
+            .WithPlaceholder(DiscordLocalization.Get("casino.menu.placeholder", context.CultureCode))
             .WithMinValues(1)
             .WithMaxValues(1)
-            .AddOption("Игры", "games", "Карточные, PvP и мини-игры", new Emoji("🎮"))
-            .AddOption("Экономика", "economy", "Баланс, бонусы, переводы и промокоды", new Emoji("💰"))
-            .AddOption("Социальное", "social", "Челленджи и рейтинги", new Emoji("🏆"))
-            .AddOption("Администрирование", "admin", "Защищённые admin-команды", new Emoji("🛡️"));
+            .AddOption(DiscordLocalization.Get("casino.games.label", context.CultureCode), "games", DiscordLocalization.Get("casino.games.hint", context.CultureCode), new Emoji("🎮"))
+            .AddOption(DiscordLocalization.Get("casino.economy.label", context.CultureCode), "economy", DiscordLocalization.Get("casino.economy.hint", context.CultureCode), new Emoji("💰"))
+            .AddOption(DiscordLocalization.Get("casino.social.label", context.CultureCode), "social", DiscordLocalization.Get("casino.social.hint", context.CultureCode), new Emoji("🏆"))
+            .AddOption(DiscordLocalization.Get("casino.admin.label", context.CultureCode), "admin", DiscordLocalization.Get("casino.admin.hint", context.CultureCode), new Emoji("🛡️"));
 
-        var components = new ComponentBuilder().WithSelectMenu(menu).Build();
+        var components = new ComponentBuilder()
+            .WithSelectMenu(menu)
+            .WithButton(DiscordLocalization.Get("button.code", context.CultureCode), tokens.Issue("redeem:code-modal"), ButtonStyle.Primary, new Emoji("🎟️"), row: 1)
+            .Build();
         await DiscordInteraction.ReplyAsync(
             context,
-            "**CasinoShiz**\nВыбери раздел. Prefix-команды продолжают работать, но slash-команды дают подсказки и компоненты.",
+            DiscordLocalization.Get("casino.menu.description", context.CultureCode),
             components,
             ephemeral: true);
     }

@@ -16,5 +16,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
+    <ProjectReference Include="..\BotFramework.Host\BotFramework.Host.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Games.Dice.Rest</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\framework\BotFramework.Rest\BotFramework.Rest.csproj" />
+    <ProjectReference Include="..\Games.Dice.Contracts\Games.Dice.Contracts.csproj" />
+  </ItemGroup>
+</Project>

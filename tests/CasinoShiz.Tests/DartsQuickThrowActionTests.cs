@@ -62,7 +62,7 @@ public sealed class DartsQuickThrowActionTests
     {
         var decision = Decide(redeemChance: 0.1, entropy: 0.01);
 
-        Assert.IsType<TelegramMiniGameRedeemCodeDropRequested>(decision.Events[2]);
+        Assert.IsType<MiniGameRedeemCodeDropRequested>(decision.Events[2]);
     }
 
     private static GameDecision<NoGameState, DartsThrowResult> Decide(

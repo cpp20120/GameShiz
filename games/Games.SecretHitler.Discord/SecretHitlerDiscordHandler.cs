@@ -1,3 +1,4 @@
+using BotFramework.Discord;
 using BotFramework.Discord.Commands;
 using BotFramework.Discord.Interactions;
 using BotFramework.Discord.Routing;
@@ -41,7 +42,9 @@ public sealed class SecretHitlerDiscordHandler(ISecretHitlerService service) : I
     }
 }
 
-public sealed class SecretHitlerDiscordInteractionHandler(ISecretHitlerService service) : IDiscordInteractionHandler
+public sealed class SecretHitlerDiscordInteractionHandler(
+    ISecretHitlerService service,
+    IDiscordComponentTokenStore tokens) : IDiscordInteractionHandler
 {
     public IEnumerable<ApplicationCommandProperties> BuildCommands()
     {
@@ -51,7 +54,7 @@ public sealed class SecretHitlerDiscordInteractionHandler(ISecretHitlerService s
             .AddOption(Subcommand("create", "Создать игру"))
             .AddOption(new SlashCommandOptionBuilder()
                 .WithName("join").WithDescription("Войти в игру").WithType(ApplicationCommandOptionType.SubCommand)
-                .AddOption("code", ApplicationCommandOptionType.String, "Код игры", isRequired: true))
+                .AddOption("code", ApplicationCommandOptionType.String, "Код игры", isRequired: true, isAutocomplete: true))
             .AddOption(Subcommand("start", "Начать игру"))
             .AddOption(Subcommand("state", "Показать состояние"))
             .AddOption(Subcommand("leave", "Покинуть игру"))
@@ -60,13 +63,21 @@ public sealed class SecretHitlerDiscordInteractionHandler(ISecretHitlerService s
 
     public bool CanHandle(SocketInteraction interaction) => interaction switch
     {
-        SocketSlashCommand command => command.Data.Name == "secret-hitler",
-        SocketMessageComponent component => component.Data.CustomId.StartsWith("secret-hitler:", StringComparison.Ordinal),
+        SocketSlashCommand command => string.Equals(command.Data.Name, "secret-hitler", StringComparison.Ordinal),
+        SocketAutocompleteInteraction autocomplete => string.Equals(autocomplete.Data.CommandName, "secret-hitler", StringComparison.Ordinal),
+        SocketMessageComponent component => tokens.TryResolve(component.Data.CustomId, out var componentToken)
+            && componentToken.Action.StartsWith("secret-hitler:", StringComparison.Ordinal),
         _ => false,
     };
 
     public async Task HandleAsync(DiscordInteractionContext context)
     {
+        if (context.Interaction is SocketAutocompleteInteraction autocomplete)
+        {
+            await autocomplete.RespondAsync(Array.Empty<AutocompleteResult>());
+            return;
+        }
+
         var userId = DiscordInteraction.UserId(context);
         object? result;
 
@@ -85,7 +96,7 @@ public sealed class SecretHitlerDiscordInteractionHandler(ISecretHitlerService s
         else
         {
             var component = (SocketMessageComponent)context.Interaction;
-            var id = component.Data.CustomId;
+            var id = tokens.TryResolve(component.Data.CustomId, out var componentToken) ? componentToken.Action : string.Empty;
             result = id switch
             {
                 "secret-hitler:start" => await service.StartGameAsync(userId, context.CancellationToken),
@@ -99,18 +110,18 @@ public sealed class SecretHitlerDiscordInteractionHandler(ISecretHitlerService s
             };
         }
 
-        var nominate = new SelectMenuBuilder().WithCustomId("secret-hitler:nominate").WithPlaceholder("Номинировать игрока").WithMinValues(1).WithMaxValues(1);
+        var nominate = new SelectMenuBuilder().WithCustomId(tokens.Issue("secret-hitler:nominate")).WithPlaceholder("Номинировать игрока").WithMinValues(1).WithMaxValues(1);
         for (var i = 1; i <= 10; i++) nominate.AddOption($"Позиция {i}", i.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        var discard = new SelectMenuBuilder().WithCustomId("secret-hitler:discard").WithPlaceholder("Президент: сбросить карту").WithMinValues(1).WithMaxValues(1)
+        var discard = new SelectMenuBuilder().WithCustomId(tokens.Issue("secret-hitler:discard")).WithPlaceholder("Президент: сбросить карту").WithMinValues(1).WithMaxValues(1)
             .AddOption("Карта 0", "0").AddOption("Карта 1", "1").AddOption("Карта 2", "2");
-        var enact = new SelectMenuBuilder().WithCustomId("secret-hitler:enact").WithPlaceholder("Канцлер: принять карту").WithMinValues(1).WithMaxValues(1)
+        var enact = new SelectMenuBuilder().WithCustomId(tokens.Issue("secret-hitler:enact")).WithPlaceholder("Канцлер: принять карту").WithMinValues(1).WithMaxValues(1)
             .AddOption("Карта 0", "0").AddOption("Карта 1", "1");
         var controls = new ComponentBuilder()
-            .WithButton("Начать", "secret-hitler:start", ButtonStyle.Success)
-            .WithButton("Ja", "secret-hitler:vote:ja", ButtonStyle.Success)
-            .WithButton("Nein", "secret-hitler:vote:nein", ButtonStyle.Danger)
-            .WithButton("Обновить", "secret-hitler:refresh", ButtonStyle.Secondary)
-            .WithButton("Выйти", "secret-hitler:leave", ButtonStyle.Danger)
+            .WithButton("Начать", tokens.Issue("secret-hitler:start"), ButtonStyle.Success)
+            .WithButton("Ja", tokens.Issue("secret-hitler:vote:ja"), ButtonStyle.Success)
+            .WithButton("Nein", tokens.Issue("secret-hitler:vote:nein"), ButtonStyle.Danger)
+            .WithButton("Обновить", tokens.Issue("secret-hitler:refresh"), ButtonStyle.Secondary)
+            .WithButton("Выйти", tokens.Issue("secret-hitler:leave"), ButtonStyle.Danger)
             .WithSelectMenu(nominate)
             .WithSelectMenu(discard)
             .WithSelectMenu(enact)

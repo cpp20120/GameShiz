@@ -19,5 +19,6 @@ internal interface IAtomicEconomics
         WalletIdentity wallet,
         IReadOnlyList<EconomyEffect> effects,
         IGameExecutionSession session,
+        string operationId,
         CancellationToken ct);
 }

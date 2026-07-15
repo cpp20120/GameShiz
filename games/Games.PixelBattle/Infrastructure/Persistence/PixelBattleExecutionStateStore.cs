@@ -1,17 +1,16 @@
 using BotFramework.Host.Execution;
+using BotFramework.Host.Contracts.Economics;
 using Games.PixelBattle.Application.Execution;
 
 namespace Games.PixelBattle.Infrastructure.Persistence;
 
-public sealed class PixelBattleExecutionStateStore
+public sealed class PixelBattleExecutionStateStore(IWalletReadService wallet)
     : IGameStateStore<PixelBattleCommand, PixelBattleExecutionState>
 {
     public async Task<PixelBattleExecutionState> LoadAsync(
         PixelBattleCommand command, IGameExecutionContext context, CancellationToken ct)
     {
-        var knownUser = await context.QuerySingleOrDefaultAsync<bool>(
-            "SELECT EXISTS(SELECT 1 FROM users WHERE telegram_user_id=@UserId)",
-            new { command.UserId }, ct);
+        var knownUser = await wallet.ExistsAsync(command.UserId, ct);
         var tile = PixelBattleConstants.IsValidIndex(command.Index)
             ? await context.QuerySingleOrDefaultAsync<PixelBattleTileState>("""
                 SELECT index AS Index,color AS Color,version AS Version,updated_by AS UpdatedBy

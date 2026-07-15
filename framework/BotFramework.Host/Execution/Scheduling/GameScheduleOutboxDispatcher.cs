@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BotFramework.Host.Composition.Modules;
 using BotFramework.Scheduling.Abstractions;
 
 namespace BotFramework.Host.Execution;
@@ -6,7 +7,8 @@ namespace BotFramework.Host.Execution;
 internal sealed partial class GameScheduleOutboxDispatcher(
     PostgresGameScheduleOutbox outbox,
     IGameScheduler scheduler,
-    ILogger<GameScheduleOutboxDispatcher> logger) : BackgroundService
+    ILogger<GameScheduleOutboxDispatcher> logger,
+    LoadedModules? loadedModules = null) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -29,7 +31,14 @@ internal sealed partial class GameScheduleOutboxDispatcher(
 
     internal async Task DispatchBatchAsync(CancellationToken ct)
     {
-        var batch = await outbox.ClaimAsync(50, TimeSpan.FromMinutes(1), ct).ConfigureAwait(false);
+        var ownedGameIds = loadedModules?.Modules
+            .Select(module => module.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var batch = await outbox.ClaimAsync(
+            50,
+            TimeSpan.FromMinutes(1),
+            ct,
+            ownedGameIds).ConfigureAwait(false);
         foreach (var item in batch)
         {
             try

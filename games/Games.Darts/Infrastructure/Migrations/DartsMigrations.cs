@@ -32,5 +32,9 @@ public sealed class DartsMigrations : IModuleMigrations
             SELECT user_id, chat_id, amount, created_at, 0, 0 FROM darts_bets;
             DROP TABLE darts_bets;
             """),
+        new Migration("003_round_channel", """
+            ALTER TABLE darts_rounds
+                ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'telegram';
+            """),
     ];
 }
