@@ -327,6 +327,129 @@ tests/
 
 Not every context needs every optional project. Simple modules may only have `Games.X` and `Games.X.Telegram`. Split-service modules may additionally provide `Games.X.Contracts` and `Games.X.Transport.Grpc`.
 
+## Framework source tree
+
+The following map describes the checked-in source layout of `framework/`.
+Build output (`bin/`, `obj/`) is intentionally omitted. The project name and
+namespace do not always have the same suffix: for example, the source project
+`BotFramework.Sdk.Testing` produces the package `BotFramework.Testing`.
+
+```text
+framework/
+├── BotFramework.Contracts/             # public, transport-neutral contracts
+│   ├── Caching/                         # cache ports and cache metadata
+│   ├── Economics/                       # wallet and economic service contracts
+│   ├── Games/                           # portable game-facing contracts
+│   ├── Identity/                        # player and identity contracts
+│   ├── Messaging/                       # channel and request metadata
+│   ├── Observability/                   # meters and telemetry contracts
+│   ├── Operations/                      # operational/service contracts
+│   ├── RateLimiting/                    # limiter decisions and policies
+│   ├── ResponsibleGaming/               # protection and player-stat contracts
+│   ├── Tenancy/                         # opaque ids and tenant context
+│   └── Transport/                       # pagination and wire-level contracts
+├── BotFramework.Sdk/                    # pure module and game abstractions
+│   ├── Admin/                           # admin commands and effects
+│   ├── Commands/                        # command and request contracts
+│   ├── Configuration/                   # neutral options/validation contracts
+│   ├── Domain/                          # aggregates, rules and state primitives
+│   ├── Events/                          # domain events and event contracts
+│   ├── Execution/                       # actions, decisions and effects
+│   ├── Health/                          # health/readiness abstractions
+│   ├── Metrics/                         # SDK-level telemetry abstractions
+│   ├── MiniGames/                       # mini-game contracts
+│   ├── Modules/                         # module registration contracts
+│   ├── Projections/                     # projection/read-model contracts
+│   └── Snapshots/                       # snapshot contracts
+├── BotFramework.Sdk.Testing/            # test doubles for SDK consumers
+│   ├── Fakes/
+│   └── Repositories/
+├── BotFramework.Rest/                   # REST middleware and route support
+│   └── RateLimiting/                    # REST limiter options and adapter
+├── BotFramework.Client/                 # typed REST client package
+│   ├── Generated/                       # NSwag-generated client; do not edit
+│   ├── openapi-v1.json                  # checked-in source OpenAPI contract
+│   └── openapi-client.nswag.json        # NSwag generation configuration
+├── BotFramework.Telegram.Abstractions/  # transport-facing Telegram contracts
+│   ├── MiniGames/
+│   ├── Pipeline/
+│   ├── Tenancy/
+│   └── UpdateHandling/
+├── BotFramework.Discord.Abstractions/  # transport-facing Discord contracts
+├── BotFramework.Host/                   # backend runtime and infrastructure
+│   ├── Admin/                            # admin effects and execution
+│   ├── Analytics/                        # analytics/query integrations
+│   ├── Caching/                          # cache implementations
+│   ├── Commands/                         # command middleware and dispatch
+│   ├── Composition/                      # Host builders and migrations
+│   ├── Configuration/                    # runtime configuration
+│   ├── Contracts/                        # internal Host contracts
+│   ├── DiscordOutbox/                    # Discord delivery outbox
+│   ├── Economics/                        # wallet/economy implementations
+│   ├── Events/                           # event bus and outbox dispatch
+│   ├── Execution/                        # atomic game execution pipeline
+│   ├── Fairness/                         # fairness and entropy services
+│   ├── Games/                            # game runtime composition
+│   ├── Health/                           # database/dependency health checks
+│   ├── Localization/                     # backend localization services
+│   ├── Messaging/                        # request/transport support
+│   ├── Persistence/                      # PostgreSQL stores and migrations
+│   ├── Random/                           # framework entropy providers
+│   ├── RateLimiting/                     # Redis/DB limiter implementations
+│   ├── Redis/                            # Redis infrastructure
+│   ├── Runtime/                          # hosted services and lifecycle
+│   ├── Security/                         # auth and authorization
+│   ├── TelegramOutbox/                   # Telegram delivery outbox
+│   └── Tenancy/                          # tenant provisioning and resolution
+├── BotFramework.Telegram/                # Telegram adapter runtime
+│   ├── Composition/                      # Telegram builder extensions
+│   ├── Hosting/                          # hosted polling/webhook services
+│   ├── Outbox/                            # Telegram delivery workers
+│   ├── Pipeline/                          # update middleware
+│   └── Redis/                             # Telegram adapter state
+├── BotFramework.Discord/                 # Discord adapter runtime
+│   ├── Commands/                          # slash/message command handling
+│   ├── Composition/                      # Discord builder extensions
+│   ├── Hosting/                           # gateway and hosted services
+│   ├── Interactions/                      # buttons, selects, modals and tokens
+│   └── Routing/                           # message and interaction routing
+├── BotFramework.Scheduling.Abstractions/ # transport-neutral schedule contracts
+├── BotFramework.Scheduling.Quartz/       # persistent Quartz implementation
+└── BotFramework.Rendering/               # bounded rendering and media history
+```
+
+### Where new code belongs
+
+| Need | Project/location | Boundary rule |
+|---|---|---|
+| Public DTO, opaque id, tenant or pagination contract | `BotFramework.Contracts` | No database, transport SDK or Host dependency |
+| Pure game action, domain rule, effect or module contract | `BotFramework.Sdk` | Synchronous decision code must remain deterministic and I/O-free |
+| Consumer test fake or in-memory repository | `BotFramework.Sdk.Testing` | Keep test-only helpers out of runtime packages |
+| REST middleware, route metadata or typed HTTP client | `BotFramework.Rest` / `BotFramework.Client` | REST details must not leak into game/domain contracts |
+| Telegram/Discord-specific contract | `BotFramework.*.Abstractions` | Keep channel types out of the neutral SDK |
+| Ingress, routing, presentation or delivery | `BotFramework.Telegram` / `BotFramework.Discord` | Adapters call logical module contracts; they do not own persistence |
+| PostgreSQL, Redis, outbox, migrations or atomic execution | `BotFramework.Host` | Infrastructure is selected by a composition root |
+| Durable scheduling | `BotFramework.Scheduling.*` | Quartz is an implementation, not a module-facing contract |
+| GIF/PNG rendering and artifact history | `BotFramework.Rendering` | Rendering runs after commit and never participates in the game transaction |
+
+Keep public package dependencies pointed inward:
+
+```text
+BotFramework.Contracts
+        ↑
+BotFramework.Sdk ────────┐
+        ↑                │
+Abstractions ────────────┤
+        ↑                │
+Host ───┴── Telegram / Discord / Rest / Client adapters
+```
+
+`BotFramework.Client/Generated/` is regenerated from `openapi-v1.json`; change
+the OpenAPI document or NSwag settings first and run the documented generation
+command. Do not hand-edit generated files. New framework projects should also
+be added to `CasinoShiz.slnx`, package smoke validation, public API manifests
+and this map when they become part of the supported surface.
+
 ## Layering
 
 ```text
