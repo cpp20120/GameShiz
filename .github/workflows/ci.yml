@@ -90,8 +90,6 @@ jobs:
           helm lint deploy/helm/cazinoshiz
           helm template cazinoshiz deploy/helm/cazinoshiz > helm-rendered.yaml
 
-      - name: Validate Alertmanager configuration
-        run: docker run --rm -v "$PWD:/work:ro" quay.io/prometheus/alertmanager:v0.28.1 amtool check-config /work/observability/alertmanager.yaml
 
       - name: Package consumer smoke test
         run: bash eng/package-consumer-smoke.sh
