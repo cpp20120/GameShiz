@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 feed="$repo_root/.artifacts/local-feed"
-template_package="$feed/BotFramework.Templates.0.9.0-preview.1.nupkg"
+template_package="$feed/BotFramework.GameTemplates.0.9.0-preview.2.nupkg"
 consumer="$(mktemp -d "${TMPDIR:-/tmp}/botframework-template-consumer.XXXXXX")"
 hive="$(mktemp -d "${TMPDIR:-/tmp}/botframework-template-hive.XXXXXX")"
 

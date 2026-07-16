@@ -9,7 +9,7 @@
     <RootNamespace>BotFramework.Contracts</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>BotFramework.Contracts</PackageId>
-    <Version>0.9.0-preview.1</Version>
+    <Version>0.9.0-preview.2</Version>
     <Description>Transport-neutral contracts and tenant context for BotFramework.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

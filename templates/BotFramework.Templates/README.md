@@ -1,9 +1,9 @@
-# BotFramework.Templates
+# BotFramework.GameTemplates
 
-Install the `0.9.0-preview.1` package and run:
+Install the `0.9.0-preview.2` package and run:
 
 ```bash
-dotnet new install BotFramework.Templates::0.9.0-preview.1
+dotnet new install BotFramework.GameTemplates::0.9.0-preview.2
 dotnet new botframework-game -n CoinFlip --module-id coin-flip
 ```
 

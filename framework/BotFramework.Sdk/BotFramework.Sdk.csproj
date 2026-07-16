@@ -9,7 +9,7 @@
     <RootNamespace>BotFramework.Sdk</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>BotFramework.Sdk</PackageId>
-    <Version>0.9.0-preview.1</Version>
+    <Version>0.9.0-preview.2</Version>
     <Description>Core DDD game-module SDK for BotFramework.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

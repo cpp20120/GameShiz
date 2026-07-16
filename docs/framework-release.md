@@ -18,13 +18,13 @@ From the repository root, run:
 ```bash
 bash eng/verify-public-api.sh
 bash eng/package-consumer-smoke.sh
-bash eng/pack-framework.sh 0.9.0-preview.1
+bash eng/pack-framework.sh 0.9.0-preview.2
 ```
 
 The last command writes packages to:
 
 ```text
-.artifacts/framework-release/0.9.0-preview.1/
+.artifacts/framework-release/0.9.0-preview.2/
 ```
 
 It packs the exact package list used by the release workflow and enables
@@ -34,10 +34,11 @@ empty before a new pack so that a release cannot silently reuse stale artifacts.
 ## Manual NuGet push
 
 Create a scoped NuGet API key that can push the `BotFramework.*` package ids,
-then push the generated packages:
+including `BotFramework.GameTemplates` and `BotFramework.Testing`, then push the
+generated packages:
 
 ```bash
-for package in .artifacts/framework-release/0.9.0-preview.1/*.nupkg; do
+for package in .artifacts/framework-release/0.9.0-preview.2/*.nupkg; do
   dotnet nuget push "$package" \
     --api-key "$NUGET_API_KEY" \
     --source https://api.nuget.org/v3/index.json \
@@ -54,8 +55,8 @@ The checked-in `.github/workflows/publish-framework.yml` is the normal path for
 the public release. After the release commit is on `master`:
 
 ```bash
-git tag -a framework-v0.9.0-preview.1 -m "BotFramework 0.9.0-preview.1"
-git push origin framework-v0.9.0-preview.1
+git tag -a framework-v0.9.0-preview.2 -m "BotFramework 0.9.0-preview.2"
+git push origin framework-v0.9.0-preview.2
 ```
 
 The workflow derives the package version from the tag, runs the build, tests,

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-version="${1:-0.9.0-preview.1}"
+version="${1:-0.9.0-preview.2}"
 output_dir="${2:-$repo_root/.artifacts/framework-release/$version}"
 
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
@@ -19,7 +19,8 @@ fi
 mkdir -p "$output_dir"
 
 if [[ "${SKIP_RESTORE:-0}" != "1" ]]; then
-  dotnet restore "$repo_root/CasinoShiz.slnx"
+  dotnet restore "$repo_root/CasinoShiz.slnx" \
+    -p:AllowMissingPrunePackageData=true
 fi
 
 projects=(
@@ -47,6 +48,7 @@ for project in "${multi_target_projects[@]}"; do
     -p:TargetFrameworks=net8.0%3Bnet10.0 \
     -p:TargetFramework= \
     -p:BuildInParallel=false \
+    -p:AllowMissingPrunePackageData=true \
     -p:RestoreUseSkipNonexistentTargets=false
 done
 
@@ -82,7 +84,7 @@ expected_packages=(
   BotFramework.Telegram.Abstractions
   BotFramework.Discord.Abstractions
   BotFramework.Client
-  BotFramework.Templates
+  BotFramework.GameTemplates
 )
 
 for package_id in "${expected_packages[@]}"; do

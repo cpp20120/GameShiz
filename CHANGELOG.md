@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0-preview.2
+
+Corrected framework preview publication. The template package is published as
+`BotFramework.GameTemplates` because the shorter `BotFramework.Templates` id is
+already owned on NuGet. The release keeps the `dotnet new botframework-game`
+short name and publishes the complete nine-package surface.
+
+See the [complete 0.9.0-preview.2 release notes](docs/releases/0.9.0-preview.2.md)
+and the [framework publishing guide](docs/framework-release.md).
+
 ## 0.9.0-preview.1
 
 Breaking preview release. Public REST now uses `/api/v1/tenants/{tenantId}/scopes/{scopeId}/{module}`. SDK consumers use opaque `TenantId`, `ScopeId`, `PlayerId`, and `RequestId`, scoped `TenantContext`, stable RFC 7807 error codes, string idempotency keys, and tenant-aware gRPC metadata.

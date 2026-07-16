@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <PackageId>BotFramework.Templates</PackageId>
+    <PackageId>BotFramework.GameTemplates</PackageId>
     <PackageType>Template</PackageType>
-    <PackageVersion>0.9.0-preview.1</PackageVersion>
-    <Version>0.9.0-preview.1</Version>
+    <PackageVersion>0.9.0-preview.2</PackageVersion>
+    <Version>0.9.0-preview.2</Version>
     <Description>dotnet new templates for BotFramework 0.9-preview game modules.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>

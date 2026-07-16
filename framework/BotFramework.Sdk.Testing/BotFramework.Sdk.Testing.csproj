@@ -10,7 +10,7 @@
     <IsPackable>true</IsPackable>
     <PackageId>BotFramework.Testing</PackageId>
     <Description>Test fixtures and fakes for BotFramework contracts.</Description>
-    <Version>0.9.0-preview.1</Version>
+    <Version>0.9.0-preview.2</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/cpp20120/CazinoShiz</RepositoryUrl>

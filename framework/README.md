@@ -3,7 +3,7 @@
 `framework/` is the reusable runtime layer for CasinoShiz modules.
 
 Release notes and the NuGet/GitHub publishing procedure live in
-[`docs/releases/0.9.0-preview.1.md`](../docs/releases/0.9.0-preview.1.md) and
+[`docs/releases/0.9.0-preview.2.md`](../docs/releases/0.9.0-preview.2.md) and
 [`docs/framework-release.md`](../docs/framework-release.md).
 
 The framework is split into transport-neutral contracts, backend/runtime
@@ -76,7 +76,7 @@ They are not dependencies of a pure domain or contracts project.
 
 All preview packages use the `0.9.0-preview.N` version line and carry this
 framework README, MIT license metadata, repository metadata, SourceLink,
-embedded symbols and deterministic package output. `BotFramework.Templates`
+embedded symbols and deterministic package output. `BotFramework.GameTemplates`
 is a separate `dotnet new` consumer artifact.
 
 ### Canonical REST contract
@@ -181,7 +181,7 @@ builds the atomic scaffold and runs its isolated tests.
 Install the scaffold from a feed or NuGet preview source:
 
 ```bash
-dotnet new install BotFramework.Templates::0.9.0-preview.1
+dotnet new install BotFramework.GameTemplates::0.9.0-preview.2
 dotnet new botframework-game -n CoinFlip --module-id coin-flip
 ```
 

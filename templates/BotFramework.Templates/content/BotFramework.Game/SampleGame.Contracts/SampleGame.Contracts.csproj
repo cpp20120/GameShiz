@@ -6,6 +6,6 @@
     <RootNamespace>SampleGame.Contracts</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="BotFramework.Contracts" Version="0.9.0-preview.1" />
+    <PackageReference Include="BotFramework.Contracts" Version="0.9.0-preview.2" />
   </ItemGroup>
 </Project>

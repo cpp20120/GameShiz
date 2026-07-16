@@ -7,6 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../SampleGame.Application/SampleGame.Application.csproj" />
-    <PackageReference Include="BotFramework.Discord.Abstractions" Version="0.9.0-preview.1" />
+    <PackageReference Include="BotFramework.Discord.Abstractions" Version="0.9.0-preview.2" />
   </ItemGroup>
 </Project>

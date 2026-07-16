@@ -3,7 +3,7 @@
     <RootNamespace>BotFramework.Rest</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>BotFramework.Rest</PackageId>
-    <Version>0.9.0-preview.1</Version>
+    <Version>0.9.0-preview.2</Version>
     <Description>Canonical tenant-aware REST transport for BotFramework.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
