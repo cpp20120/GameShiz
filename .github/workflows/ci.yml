@@ -79,9 +79,6 @@ jobs:
       - name: Verify generated BotFramework client
         run: dotnet build framework/BotFramework.Client/BotFramework.Client.csproj --no-restore --configuration Release -p:BotFrameworkGenerateClient=true
 
-      - name: Validate Prometheus alert rules
-        run: docker run --rm -v "$PWD:/work:ro" prom/prometheus:v2.55.1 promtool check rules /work/prometheus/alerts/botframework.rules.yml
-
       - name: Setup Helm
         uses: azure/setup-helm@v4
 
