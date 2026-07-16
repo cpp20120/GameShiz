@@ -18,20 +18,20 @@ for package in "${packages[@]}"; do
 done
 
 test -f "$repo_root/framework/BotFramework.Client/Generated/GeneratedBotFrameworkClient.cs"
-rg -q "Generated using the NSwag toolchain" \
+grep -qF -- "Generated using the NSwag toolchain" \
   "$repo_root/framework/BotFramework.Client/Generated/GeneratedBotFrameworkClient.cs"
 
 # The package smoke pack enables the SDK's built-in ApiCompat validation. Keep
 # the shipped manifests in the repository as the review-facing API inventory.
-rg -q "EnablePackageValidation=true" "$repo_root/eng/package-consumer-smoke.sh"
+grep -qF -- "EnablePackageValidation=true" "$repo_root/eng/package-consumer-smoke.sh"
 
-if rg -n "Compile Include=.*BotFramework\.Host|Compile Include=.*BotFramework/Host" \
+if grep -R -nE -- "Compile Include=.*BotFramework\.Host|Compile Include=.*BotFramework/Host" \
   "$repo_root/framework/BotFramework.Contracts"; then
   echo "BotFramework.Contracts must not compile-link Host sources." >&2
   exit 1
 fi
 
-if rg -n '/api/\{[^}]+\}/scopes/\{scopeId\}' \
+if grep -R -nE -- '/api/\{[^}]+\}/scopes/\{scopeId\}' \
   "$repo_root/framework" "$repo_root/docs" "$repo_root/samples" "$repo_root/templates"; then
   echo "The removed scope-only REST route is still documented or mapped." >&2
   exit 1
