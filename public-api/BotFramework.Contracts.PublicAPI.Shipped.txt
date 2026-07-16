@@ -1,0 +1,9 @@
+# BotFramework.Contracts 0.9.0-preview.1
+BotFramework.Contracts.Tenancy.TenantId
+BotFramework.Contracts.Tenancy.ScopeId
+BotFramework.Contracts.Tenancy.PlayerId
+BotFramework.Contracts.Tenancy.RequestId
+BotFramework.Contracts.Tenancy.TenantContext
+BotFramework.Contracts.Tenancy.ITenantContextAccessor
+BotFramework.Contracts.RateLimiting.IRateLimiter
+BotFramework.Contracts.Transport.CursorPage`1

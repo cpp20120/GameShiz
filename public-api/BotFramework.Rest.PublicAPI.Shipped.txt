@@ -1,0 +1,3 @@
+# BotFramework.Rest 0.9.0-preview.1
+BotFramework.Rest.RestFrameworkOptions
+BotFramework.Rest.RestRequestContext

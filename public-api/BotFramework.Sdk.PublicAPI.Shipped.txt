@@ -1,0 +1,3 @@
+# BotFramework.Sdk 0.9.0-preview.1
+BotFramework.Sdk
+BotFramework.Sdk.AtomicGameSchedule

@@ -1,0 +1,2 @@
+# BotFramework.Testing 0.9.0-preview.1
+BotFramework.Sdk.Testing
