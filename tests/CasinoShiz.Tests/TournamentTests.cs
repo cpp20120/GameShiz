@@ -400,6 +400,115 @@ public sealed class TournamentServiceTests
         Assert.Null(current);
     }
 
+    [Fact]
+    public async Task TournamentCommandExecutor_CompensatesWalletWhenLocalTransitionIsRejected()
+    {
+        var meta = new MetaServiceStub
+        {
+            Season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}"),
+        };
+        var store = new TournamentStoreStub
+        {
+            GetResult = Tournament(7, 7, 100, "dice", "open", 100, 8, 42, 500),
+            JoinResult = new TournamentJoinResult(false, "capacity race"),
+        };
+        var economics = new FakeEconomicsService();
+        var wallet = new RecordingWallet();
+        var executor = new TournamentCommandExecutor(
+            meta,
+            store,
+            new TournamentAtomicEffectExecutor(meta, store, economics, new RecordingHistoryStore()),
+            wallet);
+
+        var result = await executor.JoinAsync(7, 55, 100, "Bob", "command-join", default);
+
+        Assert.False(result.Joined);
+        Assert.Collection(
+            wallet.Mutations,
+            debit =>
+            {
+                Assert.Equal(WalletBatchEffectKind.Debit, debit.Effect.Kind);
+                Assert.Equal("tournament.entry_fee", debit.Effect.Reason);
+                Assert.Equal("tournament:workflow:join:debit:command-join", debit.OperationId);
+            },
+            credit =>
+            {
+                Assert.Equal(WalletBatchEffectKind.Credit, credit.Effect.Kind);
+                Assert.Equal("tournament.entry_fee.rollback", credit.Effect.Reason);
+                Assert.Equal("tournament:workflow:join:compensation:command-join", credit.OperationId);
+            });
+    }
+
+    [Fact]
+    public async Task TournamentCommandExecutor_CompensatesPrizeWhenReportCommitIsRejected()
+    {
+        var meta = new MetaServiceStub
+        {
+            Season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}"),
+        };
+        var match = new TournamentMatchInfo(1, 7, 1, 1, "ready", 42, "Alice", 55, "Bob", null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var store = new TournamentStoreStub
+        {
+            GetResult = Tournament(7, 7, 100, "dice", "started", 100, 2, 42, 500, 2),
+            Matches = [match],
+            ReportResult = new TournamentReportResult(false, false, "commit rejected", match),
+        };
+        var wallet = new RecordingWallet();
+        var executor = new TournamentCommandExecutor(
+            meta,
+            store,
+            new TournamentAtomicEffectExecutor(meta, store, new FakeEconomicsService(), new RecordingHistoryStore()),
+            wallet);
+
+        var result = await executor.ReportMatchAsync(1, 42, 42, "command-report", default);
+
+        Assert.False(result.Updated);
+        Assert.Collection(
+            wallet.Mutations,
+            payout =>
+            {
+                Assert.Equal(WalletBatchEffectKind.Credit, payout.Effect.Kind);
+                Assert.Equal("tournament.prize", payout.Effect.Reason);
+                Assert.Equal("tournament:prize:7:42", payout.OperationId);
+            },
+            rollback =>
+            {
+                Assert.Equal(WalletBatchEffectKind.Debit, rollback.Effect.Kind);
+                Assert.Equal("tournament.prize.rollback", rollback.Effect.Reason);
+                Assert.Equal("tournament:workflow:prize:compensation:command-report", rollback.OperationId);
+            });
+    }
+
+    [Fact]
+    public async Task TournamentCommandExecutor_RefundsPlayersAddedDuringCancelPreparation()
+    {
+        var meta = new MetaServiceStub
+        {
+            Season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}"),
+        };
+        var latePlayer = new TournamentPlayerInfo(7, 55, "Bob", "joined", DateTimeOffset.UtcNow);
+        var store = new TournamentStoreStub
+        {
+            GetResult = Tournament(7, 7, 100, "dice", "open", 100, 8, 42, 100),
+            Players = [],
+            CancelResult = [latePlayer],
+        };
+        var wallet = new RecordingWallet();
+        var executor = new TournamentCommandExecutor(
+            meta,
+            store,
+            new TournamentAtomicEffectExecutor(meta, store, new FakeEconomicsService(), new RecordingHistoryStore()),
+            wallet);
+
+        var result = await executor.CancelAsync(7, 42, "command-cancel", default);
+
+        Assert.NotNull(result);
+        var refund = Assert.Single(wallet.Mutations);
+        Assert.Equal(WalletBatchEffectKind.Credit, refund.Effect.Kind);
+        Assert.Equal("tournament.cancel.refund", refund.Effect.Reason);
+        Assert.Equal("tournament:cancel-refund:7:55", refund.OperationId);
+    }
+
     private static TournamentInfo Tournament(long id, long seasonId, long chatId, string gameKey, string status, int entryFee, int maxPlayers, long createdBy, long prizePool, int playerCount = 0) =>
         new(id, seasonId, chatId, gameKey, "single_elim", status, entryFee, maxPlayers, createdBy, DateTimeOffset.UtcNow, playerCount, prizePool);
 
@@ -452,14 +561,17 @@ public sealed class TournamentServiceTests
                             result = new(false, "Этот турнир создан в другом чате.");
                         else
                         {
-                            await economics.EnsureUserAsync(join.UserId, join.ChatId, join.DisplayName, ct);
-                            var debitOk = tournament.EntryFee <= 0 || await economics.TryDebitAsync(join.UserId, join.ChatId, tournament.EntryFee, "tournament.entry_fee", ct);
+                            if (!join.WalletAlreadyApplied)
+                                await economics.EnsureUserAsync(join.UserId, join.ChatId, join.DisplayName, ct);
+                            var debitOk = join.WalletAlreadyApplied
+                                || tournament.EntryFee <= 0
+                                || await economics.TryDebitAsync(join.UserId, join.ChatId, tournament.EntryFee, "tournament.entry_fee", ct);
                             result = debitOk
                                 ? await store.JoinAsync(join.TournamentId, join.UserId, join.DisplayName, ct)
                                 : new(false, "Недостаточно монет для entry fee.", tournament);
                             if (result.Joined)
                                 await AppendAsync("tournament.joined", tournament.Id, tournament.SeasonId, join.ChatId, join.UserId, result, ct);
-                            else if (tournament.EntryFee > 0)
+                            else if (tournament.EntryFee > 0 && !join.WalletAlreadyApplied)
                                 await economics.CreditAsync(join.UserId, join.ChatId, tournament.EntryFee, "tournament.entry_fee.refund", ct);
                         }
                         outputs["result"] = result;
@@ -485,7 +597,7 @@ public sealed class TournamentServiceTests
                                 await AppendAsync("tournament.match_reported", tournament.Id, tournament.SeasonId, tournament.ChatId, report.VictorUserId, result.Match, ct);
                                 if (result.Finished && result.Victor is not null)
                                 {
-                                    if (tournament.PrizePool > 0)
+                                    if (tournament.PrizePool > 0 && !report.PrizeAlreadyPaid)
                                         await economics.CreditAsync(result.Victor.UserId, tournament.ChatId, checked((int)tournament.PrizePool), "tournament.prize", ct);
                                     await AppendAsync("tournament.finished", tournament.Id, tournament.SeasonId, tournament.ChatId, result.Victor.UserId, result.Victor, ct);
                                 }
@@ -500,7 +612,7 @@ public sealed class TournamentServiceTests
                         var result = before is null ? null : await store.FinishAsync(finish.TournamentId, finish.ActorUserId, finish.VictorUserId, ct);
                         if (before is not null && result is not null)
                         {
-                            if (before.PrizePool > 0)
+                            if (before.PrizePool > 0 && !finish.PrizeAlreadyPaid)
                                 await economics.CreditAsync(result.UserId, before.ChatId, checked((int)before.PrizePool), "tournament.prize", ct);
                             await AppendAsync("tournament.finished", before.Id, before.SeasonId, before.ChatId, result.UserId, result, ct);
                         }
@@ -513,7 +625,7 @@ public sealed class TournamentServiceTests
                         var result = before is null ? null : await store.CancelAsync(cancel.TournamentId, cancel.ActorUserId, ct);
                         if (before is not null && result is not null)
                         {
-                            if (before.EntryFee > 0)
+                            if (before.EntryFee > 0 && !cancel.RefundsAlreadyPaid)
                                 foreach (var player in result)
                                     await economics.CreditAsync(player.UserId, before.ChatId, before.EntryFee, "tournament.cancel.refund", ct);
                             await AppendAsync("tournament.cancelled", before.Id, before.SeasonId, before.ChatId, cancel.ActorUserId, result, ct);
@@ -570,4 +682,30 @@ public sealed class TournamentServiceTests
         public Task<IReadOnlyList<MetaHistoryEvent>> ListAsync(string? eventType, string? aggregateType, string? aggregateId, long? chatId, long? userId, int limit, CancellationToken ct) => throw new NotImplementedException();
         public Task<MetaHistoryStats> GetStatsAsync(CancellationToken ct) => throw new NotImplementedException();
     }
+
+    private sealed class RecordingWallet : IWalletAtomicExecutionService
+    {
+        public List<WalletMutation> Mutations { get; } = [];
+
+        public Task EnsureUserAsync(long userId, long balanceScopeId, string displayName, CancellationToken ct) => Task.CompletedTask;
+
+        public Task<int> GetBalanceAsync(long userId, long balanceScopeId, CancellationToken ct) => Task.FromResult(1_000);
+
+        public Task<WalletBatchMutationResult> ApplyBatchAsync(
+            long userId,
+            long balanceScopeId,
+            IReadOnlyList<WalletBatchEffect> effects,
+            string operationId,
+            CancellationToken ct)
+        {
+            Mutations.Add(new WalletMutation(userId, balanceScopeId, effects.Single(), operationId));
+            return Task.FromResult(new WalletBatchMutationResult(true, false, 1_000));
+        }
+    }
+
+    private sealed record WalletMutation(
+        long UserId,
+        long BalanceScopeId,
+        WalletBatchEffect Effect,
+        string OperationId);
 }

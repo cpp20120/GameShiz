@@ -22,7 +22,26 @@ for project in \
     -p:TargetFrameworks=net10.0 -p:EnablePackageValidation=true
 done
 
-dotnet restore "$repo_root/samples/CoinFlip/CoinFlip.Tests/CoinFlip.Tests.csproj" --configfile "$repo_root/samples/CoinFlip/NuGet.config"
-dotnet test "$repo_root/samples/CoinFlip/CoinFlip.Tests/CoinFlip.Tests.csproj" --no-restore --configuration Release
+dotnet restore "$repo_root/samples/CoinFlip/CoinFlip.Tests/CoinFlip.Tests.csproj" \
+  --configfile "$repo_root/samples/CoinFlip/NuGet.config" \
+  -p:RestoreUseSkipNonexistentTargets=false
+
+for project in \
+  "$repo_root/samples/CoinFlip/CoinFlip.Domain/CoinFlip.Domain.csproj" \
+  "$repo_root/samples/CoinFlip/CoinFlip.Contracts/CoinFlip.Contracts.csproj" \
+  "$repo_root/samples/CoinFlip/CoinFlip.Application/CoinFlip.Application.csproj" \
+  "$repo_root/samples/CoinFlip/CoinFlip.Tests/CoinFlip.Tests.csproj"; do
+  dotnet build "$project" \
+    --configuration Release \
+    --no-restore \
+    -p:BuildInParallel=false \
+    -p:BuildProjectReferences=false
+done
+
+dotnet test "$repo_root/samples/CoinFlip/CoinFlip.Tests/CoinFlip.Tests.csproj" \
+  --no-restore \
+  --no-build \
+  --configuration Release \
+  -p:BuildInParallel=false
 
 bash "$repo_root/eng/template-consumer-smoke.sh"

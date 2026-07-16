@@ -2,6 +2,10 @@
 
 `framework/` is the reusable runtime layer for CasinoShiz modules.
 
+Release notes and the NuGet/GitHub publishing procedure live in
+[`docs/releases/0.9.0-preview.1.md`](../docs/releases/0.9.0-preview.1.md) and
+[`docs/framework-release.md`](../docs/framework-release.md).
+
 The framework is split into transport-neutral contracts, backend/runtime
 infrastructure, and channel adapter infrastructure. Telegram and Discord are
 presentation/transport adapters; game contracts, decisions, effects and domain
@@ -59,6 +63,7 @@ The supported package-only surface is:
 | `BotFramework.Contracts` | Opaque ids, tenant context, transport contracts, errors, pagination and limiter contracts | `net8.0;net10.0` |
 | `BotFramework.Sdk` | Pure module, domain, decision/effect, event and scheduling abstractions | `net8.0;net10.0` |
 | `BotFramework.Testing` | Test doubles and in-memory SDK fixtures | `net8.0;net10.0` |
+| `BotFramework.Scheduling.Abstractions` | Transport-neutral scheduled command contracts | `net8.0;net10.0` |
 | `BotFramework.Rest` | Canonical REST middleware and route-module contract | `net10.0` |
 | `BotFramework.Telegram.Abstractions` | Telegram update and tenant-resolution contracts | `net10.0` |
 | `BotFramework.Discord.Abstractions` | Discord tenant-resolution contracts | `net10.0` |
@@ -400,7 +405,8 @@ framework/
 │   ├── Runtime/                          # hosted services and lifecycle
 │   ├── Security/                         # auth and authorization
 │   ├── TelegramOutbox/                   # Telegram delivery outbox
-│   └── Tenancy/                          # tenant provisioning and resolution
+│   ├── Tenancy/                          # tenant provisioning and resolution
+│   └── Workflows/                         # durable command workflows, steps and replay
 ├── BotFramework.Telegram/                # Telegram adapter runtime
 │   ├── Composition/                      # Telegram builder extensions
 │   ├── Hosting/                          # hosted polling/webhook services
@@ -429,6 +435,7 @@ framework/
 | Telegram/Discord-specific contract | `BotFramework.*.Abstractions` | Keep channel types out of the neutral SDK |
 | Ingress, routing, presentation or delivery | `BotFramework.Telegram` / `BotFramework.Discord` | Adapters call logical module contracts; they do not own persistence |
 | PostgreSQL, Redis, outbox, migrations or atomic execution | `BotFramework.Host` | Infrastructure is selected by a composition root |
+| Long-running command workflow, durable retry or operator replay | `BotFramework.Host.Workflows` | Modules provide commands/handlers; Host owns Wolverine and workflow persistence |
 | Durable scheduling | `BotFramework.Scheduling.*` | Quartz is an implementation, not a module-facing contract |
 | GIF/PNG rendering and artifact history | `BotFramework.Rendering` | Rendering runs after commit and never participates in the game transaction |
 
@@ -833,6 +840,43 @@ including wallet, quota, state, records and outbox rows.
 External work that must not affect the game commit belongs behind a committed
 domain event/outbox consumer. Analytics, Telegram delivery and other remote calls
 must not be implemented as transactional custom effect handlers.
+
+### Durable workflow boundary
+
+The framework exposes `BotFramework.Host.Workflows` as a reusable long-running
+workflow primitive. A module implements immutable commands with
+`IDurableWorkflowCommand`, registers its handler assembly, and calls:
+
+```csharp
+builder.AddDurableWorkflows(typeof(MyWorkflowHandler).Assembly);
+```
+
+The framework owns PostgreSQL-backed durable command delivery, correlation,
+partitioning, retries, step persistence, replay and generic saga state. The module
+uses `IDurableWorkflowDispatcher` at its transport/application boundary and
+`IDurableWorkflowStepExecutor` inside a command handler. Domain mutation remains in
+the module's own AtomicEffect/transaction boundary.
+
+`durable_workflow_steps` stores workflow/command/causation ids, command type,
+original `command_json`, payload, result, status and terminal marker. It is an
+operator-visible timeline and recovery projection, not the source of domain truth.
+`IDurableWorkflowReplayService` requeues a failed or non-terminal command while
+keeping its original command id, so application inboxes and external operation-id
+idempotency can protect against duplicate mutations.
+
+The smallest consumer example is
+`samples/CoinFlip/CoinFlip.Workflow/CoinFlipWorkflow.cs`. It shows the command,
+handler and transport/application dispatcher boundary without importing any
+game-specific workflow code into the framework.
+
+Meta's tournament workflow is the first consumer. Its Wallet mutations are workflow
+steps, outside the local Backend transaction:
+join entry fees, final prizes and cancellation refunds use stable Wallet operation
+ids. Definitive local rejection triggers a compensating `.rollback` mutation. A
+process/network failure is retried durably with the same command and operation ids;
+the client may receive `Pending` while that retry continues. The existing Telegram
+and Discord client outboxes remain the delivery mechanism for notifications, and
+the CAP domain-event outbox remains unchanged.
 
 ### State stores and concurrency profiles
 

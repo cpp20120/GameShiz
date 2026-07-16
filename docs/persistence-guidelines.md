@@ -50,6 +50,15 @@ reads. The Admin BFF exposes composed read models under
 `/api/aggregation/players/{userId}` and `/api/aggregation/admin`, combining
 Identity, Wallet, and Backend Operations responses through service APIs.
 
+Durable workflows follow the same ownership rule. `durable_workflow_steps`, the
+Wolverine durable message store and the generic saga are Backend-owned when a
+workflow runs in Backend; they use that process's `ConnectionStrings:Postgres`
+(`backend-postgres/backend` in the microservices profile). A workflow may call
+Wallet or Identity through their contracts, outbox or gRPC adapters, but it
+must not open their connections or join their tables. A workflow spanning more
+than one service is therefore a message choreography with idempotent operation
+ids, not a distributed PostgreSQL transaction.
+
 Backups follow the same ownership boundary:
 
 ```bash

@@ -560,6 +560,39 @@ The command must still use an atomic/effect executor. Quartz retries therefore
 retry the same idempotent command semantics, while rendering, ClickHouse analytics
 and Telegram delivery remain asynchronous post-commit consumers.
 
+### Long-lived tournament workflow
+
+Tournament commands use the framework's `BotFramework.Host.Workflows` boundary in
+the Backend. `ITournamentService` keeps the existing public contract, but command
+execution is routed through `ITournamentWorkflow`; the workflow handler delegates
+the actual local transition to `TournamentCommandExecutor` and the existing
+`IAtomicEffectExecutor`. The framework owns the Wolverine adapter, correlation,
+durable step delivery, partitioning, replay and persisted generic saga state.
+
+After a local effect commits, the handler uses `IDurableWorkflowStepExecutor` to
+emit a `DurableWorkflowStep` through the framework. `durable_workflow_steps` is an
+audit and recovery projection with `workflow_id`, `command_id`, `command_type`,
+`causation_id`, the full original `command_json`, result, status, terminal marker
+and payload. A bounded
+facade wait returns a typed result when the command finishes quickly; otherwise it
+returns `Pending` for the user-facing create/join/report contracts while the durable
+command continues in the background.
+
+The split Wallet boundary is explicit. Join debits, prizes and cancellation refunds
+are applied through `IWalletAtomicExecutionService` before the local tournament
+transition, using stable Wallet operation ids. If the local transition is definitively
+rejected, a compensating credit/debit is sent with a `.rollback` reason. If the
+process fails after the Wallet step but before the local commit, the framework
+retry policy retries the same command and the Wallet operation id plus AtomicEffect
+inbox make the retry safe. The domain tables, AtomicEffect inbox and CAP event
+outbox remain the source of domain truth; the workflow table is the operator-visible
+recovery timeline.
+
+The admin tournament page is deliberately a control plane, not a second mutation
+engine: SuperAdmin can inspect command/result JSON and replay a failed or non-terminal
+step. Replay reuses the original command id. Telegram/Discord client outboxes and
+the CAP domain-event outbox remain unchanged.
+
 ### Aggregate and lock scope
 
 The descriptor maps a command to its consistency boundary. Commands sharing any

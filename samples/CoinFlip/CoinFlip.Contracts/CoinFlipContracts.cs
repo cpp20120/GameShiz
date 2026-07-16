@@ -12,4 +12,10 @@ public sealed record CoinFlipCommand(
     public string MessageType => "coin-flip.flip.v1";
 }
 
-public sealed record CoinFlipReply(string Side, int Flips, int Heads, int Tails);
+public sealed record CoinFlipReply(
+    string Side,
+    int Flips,
+    int Heads,
+    int Tails,
+    bool Pending = false,
+    string? CommandId = null);

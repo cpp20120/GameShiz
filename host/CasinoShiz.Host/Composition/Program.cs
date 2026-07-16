@@ -29,6 +29,7 @@ using Games.Blackjack.Telegram;
 using Games.Horse.Telegram;
 using Games.Challenges.Telegram;
 using Games.Meta.Telegram;
+using Games.Meta.Application.Tournaments;
 using Games.Admin.Telegram;
 using CasinoShiz.Identity;
 using Games.Poker.Telegram;
@@ -52,6 +53,8 @@ using Games.Poker.Rest;
 using Games.Leaderboard.Rest;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddDurableWorkflows(typeof(TournamentWorkflowHandler).Assembly);
 
 builder.Services.AddRazorPages();
 builder.AddRestFramework();

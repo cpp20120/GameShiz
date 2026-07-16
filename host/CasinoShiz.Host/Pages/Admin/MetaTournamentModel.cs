@@ -1,19 +1,29 @@
 using Dapper;
+using BotFramework.Host.Workflows;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace CasinoShiz.Host.Pages.Admin;
 
-public sealed class MetaTournamentModel(INpgsqlConnectionFactory connections) : PageModel
+public sealed class MetaTournamentModel(
+    INpgsqlConnectionFactory connections,
+    IDurableWorkflowReplayService replay,
+    IAdminAuditLog audit) : PageModel
 {
     public MetaTournamentDetail? Tournament { get; private set; }
     public IReadOnlyList<MetaTournamentPlayerRow> Players { get; private set; } = [];
     public IReadOnlyList<MetaTournamentMatchRow> Matches { get; private set; } = [];
+    public IReadOnlyList<MetaTournamentWorkflowStepRow> WorkflowSteps { get; private set; } = [];
+    public string? Flash { get; private set; }
+    public bool FlashError { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(long id, CancellationToken ct)
     {
         var actor = HttpContext.Session.GetAdminSession();
         if (actor is null) return RedirectToPage("/Admin/Login");
+
+        Flash = TempData["TournamentFlash"] as string;
+        FlashError = TempData["TournamentFlashError"] is true;
 
         const string tournamentSql = """
             SELECT t.id AS Id,
@@ -66,12 +76,81 @@ public sealed class MetaTournamentModel(INpgsqlConnectionFactory connections) : 
             ORDER BY round ASC, match_index ASC
             """;
 
+        const string workflowSql = """
+            SELECT id AS Id,
+                   workflow_id AS WorkflowId,
+                   command_id AS CommandId,
+                   command_type AS CommandType,
+                   aggregate_id AS AggregateId,
+                   operation AS Operation,
+                   status AS Status,
+                   terminal AS Terminal,
+                   causation_id AS CausationId,
+                   command_json::text AS CommandJson,
+                   payload::text AS PayloadJson,
+                   error AS Error,
+                   occurred_at AS OccurredAt
+            FROM durable_workflow_steps
+            WHERE aggregate_id = CAST(@id AS text)
+               OR workflow_id = ('tournament:' || CAST(@id AS text))
+            ORDER BY occurred_at DESC, id DESC
+            LIMIT 100
+            """;
+
         await using var conn = await connections.OpenAsync(ct);
         Tournament = await conn.QuerySingleOrDefaultAsync<MetaTournamentDetail>(new CommandDefinition(tournamentSql, new { id }, cancellationToken: ct));
         if (Tournament is null) return NotFound();
 
         Players = (await conn.QueryAsync<MetaTournamentPlayerRow>(new CommandDefinition(playersSql, new { id }, cancellationToken: ct))).ToList();
         Matches = (await conn.QueryAsync<MetaTournamentMatchRow>(new CommandDefinition(matchesSql, new { id }, cancellationToken: ct))).ToList();
+        WorkflowSteps = (await conn.QueryAsync<MetaTournamentWorkflowStepRow>(new CommandDefinition(workflowSql, new { id }, cancellationToken: ct))).ToList();
         return Page();
     }
+
+    public async Task<IActionResult> OnPostReplayAsync(long id, long tournamentId, CancellationToken ct)
+    {
+        var actor = HttpContext.Session.GetAdminSession();
+        if (actor?.Role != AdminRole.SuperAdmin) return Forbid();
+
+        try
+        {
+            var result = await replay.ReplayAsync(id, ct);
+            await audit.LogAsync(
+                actor.UserId,
+                actor.Name,
+                "meta_tournament.workflow_replay",
+                new { stepId = id, tournamentId, enqueued = result.Enqueued, result.Message },
+                ct);
+            TempData["TournamentFlash"] = result.Message;
+            TempData["TournamentFlashError"] = !result.Enqueued;
+        }
+        catch (Exception exception)
+        {
+            await audit.LogAsync(
+                actor.UserId,
+                actor.Name,
+                "meta_tournament.workflow_replay",
+                new { stepId = id, tournamentId, enqueued = false, error = exception.Message },
+                ct);
+            TempData["TournamentFlash"] = $"Replay не отправлен: {exception.Message}";
+            TempData["TournamentFlashError"] = true;
+        }
+
+        return RedirectToPage(new { id = tournamentId });
+    }
 }
+
+public sealed record MetaTournamentWorkflowStepRow(
+    long Id,
+    string WorkflowId,
+    string CommandId,
+    string CommandType,
+    string? AggregateId,
+    string Operation,
+    string Status,
+    bool Terminal,
+    string? CausationId,
+    string CommandJson,
+    string PayloadJson,
+    string? Error,
+    DateTimeOffset OccurredAt);

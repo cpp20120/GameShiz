@@ -34,6 +34,9 @@ public sealed class OperatorToolsTests
         Assert.DoesNotContain(backend, migration => migration.Sql.Contains("CREATE TABLE users", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(backend, migration => migration.Sql.Contains("CREATE TABLE player_protection", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(backend, migration => migration.Id == "027_operations_report_checkpoint");
+        Assert.Contains(backend, migration => migration.Id == "035_durable_workflow_steps");
+        Assert.DoesNotContain(wallet, migration => migration.Id == "035_durable_workflow_steps");
+        Assert.DoesNotContain(backend, migration => migration.Sql.Contains("player_identities", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

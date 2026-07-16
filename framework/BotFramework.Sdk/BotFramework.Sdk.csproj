@@ -4,6 +4,7 @@
 
 
 
+    <TargetFramework></TargetFramework>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <RootNamespace>BotFramework.Sdk</RootNamespace>
     <IsPackable>true</IsPackable>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>CoinFlip.Workflow</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../CoinFlip.Contracts/CoinFlip.Contracts.csproj" />
+    <ProjectReference Include="../CoinFlip.Domain/CoinFlip.Domain.csproj" />
+    <!-- Runtime composition is source-referenced here. The package-only
+         sample stays transport/domain-only; this project is the Host workflow
+         adapter example. -->
+    <ProjectReference Include="../../../framework/BotFramework.Host/BotFramework.Host.csproj" />
+  </ItemGroup>
+</Project>

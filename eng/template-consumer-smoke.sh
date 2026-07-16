@@ -31,6 +31,7 @@ while IFS= read -r -d '' project; do
     --source "$feed" \
     --source https://api.nuget.org/v3/index.json \
     -p:TargetFrameworks=net10.0 \
+    -p:RestoreUseSkipNonexistentTargets=false \
     --ignore-failed-sources
   dotnet build "$project" --configuration Release \
     -p:TargetFrameworks=net10.0 \

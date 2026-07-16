@@ -46,6 +46,7 @@ using System.Text;
 using CasinoShiz.Host.Pages.Admin;
 using CasinoShiz.ServiceDefaults;
 using BotFramework.Rendering;
+using Games.Meta.Application.Tournaments;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options =>
@@ -58,6 +59,8 @@ builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 
 var selectedModules = BackendModuleComposition.Resolve(builder.Configuration);
+if (selectedModules.Contains("meta"))
+    builder.AddDurableWorkflows(typeof(TournamentWorkflowHandler).Assembly);
 var framework = builder.AddBackendFramework()
     .AddSelectedModules(selectedModules);
 

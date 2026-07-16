@@ -1055,6 +1055,33 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 ON tenant_schedule_outbox (tenant_key, scope_key, schedule_id, id, status);
             """),
 
+        new Migration("035_durable_workflow_steps", """
+            CREATE TABLE IF NOT EXISTS durable_workflow_steps (
+                id             BIGSERIAL PRIMARY KEY,
+                workflow_id    TEXT        NOT NULL,
+                command_id     TEXT        NOT NULL,
+                command_type   TEXT        NOT NULL,
+                aggregate_id   TEXT        NULL,
+                operation      TEXT        NOT NULL,
+                status         TEXT        NOT NULL,
+                terminal       BOOLEAN     NOT NULL DEFAULT false,
+                causation_id   TEXT        NULL,
+                command_json   JSONB       NOT NULL DEFAULT '{}'::jsonb,
+                payload        JSONB       NOT NULL DEFAULT '{}'::jsonb,
+                result         JSONB       NULL,
+                error          TEXT        NULL,
+                occurred_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+                CONSTRAINT ck_durable_workflow_steps_status
+                    CHECK (status IN ('accepted', 'completed', 'rejected', 'failed'))
+            );
+
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_durable_workflow_steps_command
+                ON durable_workflow_steps (command_id);
+
+            CREATE INDEX IF NOT EXISTS ix_durable_workflow_steps_workflow
+                ON durable_workflow_steps (workflow_id, occurred_at ASC, id ASC);
+            """),
+
     ];
 
     /// <summary>

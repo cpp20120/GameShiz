@@ -11,6 +11,11 @@
 <h2>Tournament #@Model.Tournament.Id replay</h2>
 <p class="muted"><a href="/admin/meta-tournaments">← Back to tournaments</a></p>
 
+@if (!string.IsNullOrEmpty(Model.Flash))
+{
+    <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
+}
+
 <div class="cards">
     <div class="stat"><div class="label">Status</div><div class="value">@Model.Tournament.Status</div></div>
     <div class="stat"><div class="label">Game</div><div class="value">@Model.Tournament.GameKey</div><div class="muted">@Model.Tournament.Type</div></div>
@@ -75,6 +80,48 @@
                 </div>
             }
         </div>
+    }
+</div>
+
+<div class="card">
+    <h3>Workflow steps</h3>
+    <p class="muted">Durable orchestration markers. Domain state still comes from tournament tables and AtomicEffect history.</p>
+    @if (Model.WorkflowSteps.Count == 0)
+    {
+        <p class="muted">No workflow steps recorded yet.</p>
+    }
+    else
+    {
+        <table>
+            <thead><tr><th>Time</th><th>Operation</th><th>Status</th><th>Command / causation</th><th>Payload</th><th>Action</th></tr></thead>
+            <tbody>
+            @foreach (var step in Model.WorkflowSteps)
+            {
+                <tr>
+                    <td class="muted">@step.OccurredAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td><code>@step.Operation</code>@if (step.Terminal) { <span class="muted"> · terminal</span> }</td>
+                    <td><code>@step.Status</code>@if (!string.IsNullOrWhiteSpace(step.Error)) { <div class="muted">@step.Error</div> }</td>
+                    <td><code>@step.CommandId</code><br /><span class="muted">@step.CausationId</span></td>
+                    <td>
+                        <details><summary>payload</summary><pre style="max-width: 520px; white-space: pre-wrap">@step.PayloadJson</pre></details>
+                        <details><summary>command</summary><pre style="max-width: 520px; white-space: pre-wrap">@step.CommandJson</pre></details>
+                    </td>
+                    <td>
+                    @if (step.Status == "failed" || !step.Terminal)
+                    {
+                        <form method="post" asp-page-handler="Replay" asp-route-id="@step.Id" asp-route-tournamentId="@Model.Tournament.Id" class="inline" onsubmit="return confirm('Replay workflow command @step.CommandId?');">
+                            <button type="submit" class="danger">Replay</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <span class="muted">—</span>
+                    }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
     }
 </div>
 

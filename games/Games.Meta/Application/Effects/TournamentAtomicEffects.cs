@@ -19,12 +19,13 @@ public sealed record TournamentJoinAtomicEffect(
     long TournamentId,
     long UserId,
     long ChatId,
-    string DisplayName) : IAtomicEffect;
+    string DisplayName,
+    bool WalletAlreadyApplied = false) : IAtomicEffect;
 
 public sealed record TournamentStartAtomicEffect(long TournamentId, long UserId) : IAtomicEffect;
-public sealed record TournamentReportAtomicEffect(long MatchId, long ActorUserId, long VictorUserId) : IAtomicEffect;
-public sealed record TournamentFinishAtomicEffect(long TournamentId, long ActorUserId, long VictorUserId) : IAtomicEffect;
-public sealed record TournamentCancelAtomicEffect(long TournamentId, long ActorUserId) : IAtomicEffect;
+public sealed record TournamentReportAtomicEffect(long MatchId, long ActorUserId, long VictorUserId, bool PrizeAlreadyPaid = false) : IAtomicEffect;
+public sealed record TournamentFinishAtomicEffect(long TournamentId, long ActorUserId, long VictorUserId, bool PrizeAlreadyPaid = false) : IAtomicEffect;
+public sealed record TournamentCancelAtomicEffect(long TournamentId, long ActorUserId, bool RefundsAlreadyPaid = false) : IAtomicEffect;
 
 internal abstract class TournamentAtomicEffectHandler<TEffect> : AtomicEffectHandler<TEffect>
     where TEffect : class, IAtomicEffect
@@ -279,12 +280,15 @@ internal sealed class TournamentJoinAtomicEffectHandler : TournamentAtomicEffect
             return;
         }
 
-        var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
-        await wallet.EnsureUserAsync(effect.UserId, effect.ChatId, effect.DisplayName, ct).ConfigureAwait(false);
-        if (!await TryDebitAsync(context, effect.UserId, effect.ChatId, tournament.EntryFee, "tournament.entry_fee", $"tournament:entry:{tournament.Id}:{effect.ChatId}:{effect.UserId}", ct).ConfigureAwait(false))
+        if (!effect.WalletAlreadyApplied)
         {
-            context.SetOutput("result", new TournamentJoinResult(false, "Недостаточно монет для entry fee.", tournament));
-            return;
+            var wallet = context.Wallet ?? throw new InvalidOperationException("Wallet boundary is not configured.");
+            await wallet.EnsureUserAsync(effect.UserId, effect.ChatId, effect.DisplayName, ct).ConfigureAwait(false);
+            if (!await TryDebitAsync(context, effect.UserId, effect.ChatId, tournament.EntryFee, "tournament.entry_fee", $"tournament:entry:{tournament.Id}:{effect.ChatId}:{effect.UserId}", ct).ConfigureAwait(false))
+            {
+                context.SetOutput("result", new TournamentJoinResult(false, "Недостаточно монет для entry fee.", tournament));
+                return;
+            }
         }
 
         await context.ExecuteAsync(
@@ -360,7 +364,7 @@ internal sealed class TournamentReportAtomicEffectHandler : TournamentAtomicEffe
         var finished = match.Round >= maxRound;
         if (finished) await CompleteTournamentAsync(context, match.TournamentId, effect.VictorUserId, ct).ConfigureAwait(false);
         else await AdvanceAsync(context, match.TournamentId, match.Round, match.MatchIndex, effect.VictorUserId, victorName, ct).ConfigureAwait(false);
-        if (finished && tournament.PrizePool > 0)
+        if (finished && tournament.PrizePool > 0 && !effect.PrizeAlreadyPaid)
             await CreditAsync(context, effect.VictorUserId, tournament.ChatId, victorName, checked((int)Math.Min(int.MaxValue, tournament.PrizePool)), "tournament.prize", $"tournament:prize:{tournament.Id}:{effect.VictorUserId}", ct).ConfigureAwait(false);
         var updatedMatch = await MatchAsync(context, effect.MatchId, false, ct).ConfigureAwait(false);
         var victor = await PlayerAsync(context, match.TournamentId, effect.VictorUserId, false, ct).ConfigureAwait(false);
@@ -378,7 +382,7 @@ internal sealed class TournamentFinishAtomicEffectHandler : TournamentAtomicEffe
         if (tournament is null || player is null || tournament.CreatedBy != effect.ActorUserId || !string.Equals(tournament.Status, "started", StringComparison.Ordinal) || !string.Equals(player.Status, "joined", StringComparison.Ordinal))
         { context.SetOutput("result", null); return; }
         await CompleteTournamentAsync(context, effect.TournamentId, effect.VictorUserId, ct).ConfigureAwait(false);
-        if (tournament.PrizePool > 0)
+        if (tournament.PrizePool > 0 && !effect.PrizeAlreadyPaid)
             await CreditAsync(context, effect.VictorUserId, tournament.ChatId, player.DisplayName, checked((int)Math.Min(int.MaxValue, tournament.PrizePool)), "tournament.prize", $"tournament:prize:{tournament.Id}:{effect.VictorUserId}", ct).ConfigureAwait(false);
         await AppendHistoryAsync(context, "tournament.finished", tournament.SeasonId, tournament.ChatId, effect.VictorUserId, tournament.Id.ToString(CultureInfo.InvariantCulture), new { effect.TournamentId, effect.VictorUserId, tournament.PrizePool, via = "manual" }, ct).ConfigureAwait(false);
         context.SetOutput("result", player with { Status = "winner" });
@@ -396,7 +400,7 @@ internal sealed class TournamentCancelAtomicEffectHandler : TournamentAtomicEffe
             "SELECT tournament_id AS TournamentId, user_id AS UserId, display_name AS DisplayName, status, joined_at AS JoinedAt FROM meta_tournament_players WHERE tournament_id = @tournamentId AND status = 'joined' ORDER BY joined_at ASC",
             new { effect.TournamentId }, ct).ConfigureAwait(false);
         await context.ExecuteAsync("UPDATE meta_tournaments SET status = 'cancelled', updated_at = now() WHERE id = @tournamentId", new { effect.TournamentId }, ct).ConfigureAwait(false);
-        if (tournament.EntryFee > 0)
+        if (tournament.EntryFee > 0 && !effect.RefundsAlreadyPaid)
             foreach (var player in players)
                 await CreditAsync(context, player.UserId, tournament.ChatId, player.DisplayName, tournament.EntryFee, "tournament.cancel.refund", $"tournament:cancel-refund:{tournament.Id}:{player.UserId}", ct).ConfigureAwait(false);
         await AppendHistoryAsync(context, "tournament.cancelled", tournament.SeasonId, tournament.ChatId, effect.ActorUserId, tournament.Id.ToString(CultureInfo.InvariantCulture), new { effect.TournamentId, tournament.EntryFee, refundedPlayers = players.Select(x => x.UserId).ToArray() }, ct).ConfigureAwait(false);

@@ -23,6 +23,8 @@ public sealed class MetaModule : IModule
             .AddScoped<IClanStore, ClanStore>()
             .AddScoped<IClanService, ClanService>()
             .AddScoped<ITournamentStore, TournamentStore>()
+            .AddScoped<TournamentCommandExecutor>()
+            .AddScoped<ITournamentWorkflow, DurableTournamentWorkflow>()
             .AddScoped<ITournamentService, TournamentService>()
             .AddScoped<IRiskStore, RiskStore>()
             .AddScoped<IRiskService, RiskService>()

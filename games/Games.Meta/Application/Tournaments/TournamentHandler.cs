@@ -56,7 +56,9 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             return;
         }
         var result = await tournaments.CreateAsync(msg.Chat.Id, user.Id, parts[2], entryFee, maxPlayers, ctx.Ct);
-        await SendHtmlAsync(ctx, msg, result.Tournament is null
+        await SendHtmlAsync(ctx, msg, result.Pending
+            ? $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>"
+            : result.Tournament is null
             ? $"❌ {Html(result.Message)}"
             : string.Create(CultureInfo.InvariantCulture, $"🏆 {Html(result.Message)} ID <code>{result.Tournament.Id}</code> · game <b>{Html(result.Tournament.GameKey)}</b> · fee <b>{result.Tournament.EntryFee}</b> · players <code>0/{result.Tournament.MaxPlayers}</code>"));
     }
@@ -69,7 +71,9 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             return;
         }
         var result = await tournaments.JoinAsync(tournamentId, user.Id, msg.Chat.Id, DisplayName(user), ctx.Ct);
-        await SendHtmlAsync(ctx, msg, result.Tournament is null
+        await SendHtmlAsync(ctx, msg, result.Pending
+            ? $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>"
+            : result.Tournament is null
             ? $"❌ {Html(result.Message)}"
             : $"✅ {Html(result.Message)} Турнир <code>{result.Tournament.Id}</code>: <code>{result.Tournament.PlayerCount}/{result.Tournament.MaxPlayers}</code>, prize <b>{result.Tournament.PrizePool}</b>");
     }
@@ -141,7 +145,9 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             return;
         }
         var result = await tournaments.ReportMatchAsync(matchId, user.Id, victorUserId, ctx.Ct);
-        await SendHtmlAsync(ctx, msg, !result.Updated
+        await SendHtmlAsync(ctx, msg, result.Pending
+            ? $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>"
+            : !result.Updated
             ? $"❌ {Html(result.Message)}"
             : result.Finished
                 ? $"🏆 {Html(result.Message)} Победитель: <b>{Html(result.Victor?.DisplayName ?? victorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture))}</b>."
