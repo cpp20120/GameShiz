@@ -38,8 +38,8 @@ public sealed class FootballBetStateStore :
                 """
                 INSERT INTO mini_game_sessions (user_id, chat_id, game_id, expires_at, updated_at)
                 VALUES (@userId, @chatId, @gameId, @expiresAt, now())
-                ON CONFLICT (user_id, chat_id) DO UPDATE SET
-                    game_id = EXCLUDED.game_id, expires_at = EXCLUDED.expires_at, updated_at = now()
+                ON CONFLICT (user_id, chat_id, game_id) DO UPDATE SET
+                    expires_at = EXCLUDED.expires_at, updated_at = now()
                 """,
                 new
                 {

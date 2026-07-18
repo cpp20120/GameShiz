@@ -5,7 +5,6 @@ using BotFramework.Sdk.Execution;
 using Games.Horse.Application.Execution;
 using BotFramework.Rendering;
 using Games.Horse.Rendering;
-using Microsoft.Extensions.Options;
 
 namespace Games.Horse.Application.Services;
 
@@ -18,12 +17,12 @@ public sealed class HorseService(
     IRenderQueue renders,
     IRenderHistory renderHistory,
     TimeProvider timeProvider,
-    IOptions<HorseOptions> options) : IHorseService
+    IRuntimeTuningAccessor tuning) : IHorseService
 {
-    private readonly HorseOptions opts = options.Value;
+    private HorseOptions Options => tuning.GetSection<HorseOptions>(HorseOptions.SectionName);
 
-    public int HorseCount => opts.HorseCount;
-    public int MinBetsToRun => opts.MinBetsToRun;
+    public int HorseCount => Options.HorseCount;
+    public int MinBetsToRun => Options.MinBetsToRun;
 
     public Task<BetResult> PlaceBetAsync(
         long userId, string displayName, long balanceScopeId, int horseId, int amount,
@@ -34,6 +33,7 @@ public sealed class HorseService(
         long userId, string displayName, long balanceScopeId, int horseId, int amount,
         int sourceMessageId, CancellationToken ct)
     {
+        var opts = Options;
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
         var commandId = sourceMessageId != 0
             ? $"horse:bet:{balanceScopeId}:{sourceMessageId}:{userId}"
@@ -45,6 +45,7 @@ public sealed class HorseService(
 
     public async Task<RaceInfo> GetTodayInfoAsync(long? balanceScopeIdOnly, CancellationToken ct)
     {
+        var opts = Options;
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
         var bets = balanceScopeIdOnly is { } scope
             ? await betStore.ListByRaceDateAndScopeAsync(raceDate, scope, ct).ConfigureAwait(false)
@@ -56,6 +57,7 @@ public sealed class HorseService(
 
     public async Task<TodayRaceResult> GetTodayResultAsync(long viewerBalanceScopeId, CancellationToken ct)
     {
+        var opts = Options;
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
         var local = await resultStore.FindAsync(raceDate, viewerBalanceScopeId, ct).ConfigureAwait(false);
         if (local is not null) return new(local.Winner, local.FileId);
@@ -69,6 +71,7 @@ public sealed class HorseService(
     public async Task<RaceOutcome> RunRaceAsync(
         long callerUserId, HorseRunKind kind, long chatScopeId, CancellationToken ct)
     {
+        var opts = Options;
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
         var resultScope = kind == HorseRunKind.Global ? 0L : chatScopeId;
         var bets = kind == HorseRunKind.Global

@@ -17,6 +17,15 @@ scrape_configs:
     static_configs:
       - targets: ["postgres-exporter:9187"]
 
+  - job_name: postgres-microservices
+    static_configs:
+      - targets: ["backend-postgres-exporter:9187"]
+        labels: { database: backend }
+      - targets: ["identity-postgres-exporter:9187"]
+        labels: { database: identity }
+      - targets: ["wallet-postgres-exporter:9187"]
+        labels: { database: wallet }
+
   - job_name: redis
     static_configs:
       - targets: ["redis-exporter:9121"]

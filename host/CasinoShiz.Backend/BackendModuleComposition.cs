@@ -73,6 +73,15 @@ internal static class BackendModuleComposition
                 $"Backend:Modules contains unknown module(s): {string.Join(", ", unknown)}. "
                 + $"Known modules: {string.Join(", ", AllModules)}.");
 
+        // The admin Razor pages are hosted by the admin backend but use the
+        // meta and horse application services directly. Keep the deployment
+        // config concise while ensuring those page dependencies are present.
+        if (requested.Contains("admin"))
+        {
+            requested.Add("meta");
+            requested.Add("horse");
+        }
+
         return requested;
     }
 

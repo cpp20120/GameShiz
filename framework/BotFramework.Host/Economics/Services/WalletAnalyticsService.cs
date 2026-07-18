@@ -142,4 +142,25 @@ public sealed class WalletAnalyticsService(INpgsqlConnectionFactory connections)
               count(DISTINCT telegram_user_id) FILTER(WHERE reason IN('transfer.send','transfer.receive'))::bigint AS Users
             FROM economics_ledger WHERE created_at>=@from
             """, new { from }, ct);
+
+    public async Task<IReadOnlyList<WalletLedgerEntry>> ListLedgerAsync(
+        long? userId, long? balanceScopeId, int limit, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        return (await connection.QueryAsync<WalletLedgerEntry>(new CommandDefinition("""
+            SELECT id AS Id,
+                   telegram_user_id AS UserId,
+                   balance_scope_id AS BalanceScopeId,
+                   delta AS Delta,
+                   balance_after AS BalanceAfter,
+                   reason AS Reason,
+                   created_at AS CreatedAt
+            FROM economics_ledger
+            WHERE (@userId IS NULL OR telegram_user_id = @userId)
+              AND (@balanceScopeId IS NULL OR balance_scope_id = @balanceScopeId)
+            ORDER BY id DESC
+            LIMIT @limit
+            """, new { userId, balanceScopeId, limit = Math.Clamp(limit, 1, 1000) },
+            cancellationToken: ct))).AsList();
+    }
 }

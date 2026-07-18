@@ -107,7 +107,7 @@ public sealed partial class DartsBotDiceSender(
 
         try
         {
-            await Task.Delay(4000, ct);
+            await Task.Delay(2000, ct);
             await bot.SendMessage(
                 job.ChatId,
                 text,

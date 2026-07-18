@@ -15,6 +15,8 @@ public sealed record LedgerHealth(long RowsWindow, long CreditsWindow, long Debi
 public sealed record WalletPeriodSummary(long ActiveUsers, long Stake, long Payout, IReadOnlyList<LedgerGameVolume> TopGames);
 public sealed record WalletMutationHealth(long LargestMutation, long HugeMutations);
 public sealed record WalletSocialActivity(long Transfers, long TransferCoins, long Users);
+public sealed record WalletLedgerEntry(long Id, long UserId, long BalanceScopeId, int Delta,
+    int BalanceAfter, string Reason, DateTimeOffset CreatedAt);
 
 public interface IWalletAnalyticsService
 {
@@ -30,4 +32,6 @@ public interface IWalletAnalyticsService
     Task<WalletPeriodSummary> GetPeriodSummaryAsync(DateTimeOffset from, DateTimeOffset to, int topGames, CancellationToken ct);
     Task<WalletMutationHealth> GetMutationHealthAsync(int windowMinutes, int hugeThreshold, CancellationToken ct);
     Task<WalletSocialActivity> GetSocialActivityAsync(DateTimeOffset from, CancellationToken ct);
+    Task<IReadOnlyList<WalletLedgerEntry>> ListLedgerAsync(long? userId, long? balanceScopeId,
+        int limit, CancellationToken ct);
 }

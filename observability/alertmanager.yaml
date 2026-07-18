@@ -11,7 +11,7 @@ route:
 receivers:
   - name: generic-webhook
     webhook_configs:
-      - url: '${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9999/alerts}'
+      - url: 'http://localhost:9999/alerts'
         send_resolved: true
 
 # Telegram and Slack can be added as ordinary receivers. Keeping the default

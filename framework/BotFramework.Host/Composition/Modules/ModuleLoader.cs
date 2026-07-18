@@ -73,7 +73,11 @@ public static class ModuleLoader
                     dict[$"{module.Id}.{key}"] = value;
             }
 
-            botCommands.AddRange(module.GetBotCommands());
+            foreach (var command in module.GetBotCommands())
+            {
+                if (!botCommands.Any(existing => string.Equals(existing.Command, command.Command, StringComparison.Ordinal)))
+                    botCommands.Add(command);
+            }
             loaded.Add(module);
         }
 

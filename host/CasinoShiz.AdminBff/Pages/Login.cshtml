@@ -1,4 +1,4 @@
 @page "/admin/login"
 @model LoginModel
 @{ ViewData["Title"] = "Login"; }
-<div class="card"><h1>Admin login</h1><form method="post"><input asp-for="Token" type="password" autofocus/><button>Sign in</button></form>@if(Model.Error is not null){<p class="error">@Model.Error</p>}</div>
+<div class="login-shell"><div class="card"><div class="eyebrow">CasinoShiz control plane</div><h1>Admin login</h1><p class="lede">Enter an operator token to continue.</p><form method="post"><label>Access token<input asp-for="Token" type="password" autofocus /></label><button type="submit">Sign in</button></form>@if (Model.Error is not null) { <p class="error">@Model.Error</p> }</div></div>

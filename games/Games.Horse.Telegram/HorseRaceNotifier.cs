@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -10,12 +9,10 @@ public sealed partial class HorseRaceNotifier(
     ITelegramBotClient bot,
     IHorseService service,
     ILocalizer localizer,
-    IOptions<HorseOptions> options,
+    IRuntimeTuningAccessor tuning,
     IHostApplicationLifetime lifetime,
     ILogger<HorseRaceNotifier> logger) : IHorseRaceNotifier
 {
-    private readonly HorseOptions _opts = options.Value;
-
     public async Task SendResultGifsAsync(RaceOutcome outcome, string raceDate, CancellationToken ct)
     {
         var targetChatIds = outcome.BetScopeIds;
@@ -59,7 +56,8 @@ public sealed partial class HorseRaceNotifier(
     {
         var targetChatIds = outcome.BetScopeIds;
         var transactions = outcome.Transactions;
-        var delayMs = _opts.HorseCount == 2 ? _opts.AnnounceDelay1V1Ms : _opts.AnnounceDelayMs;
+        var opts = tuning.GetSection<HorseOptions>(HorseOptions.SectionName);
+        var delayMs = opts.HorseCount == 2 ? opts.AnnounceDelay1V1Ms : opts.AnnounceDelayMs;
         var announceCt = lifetime.ApplicationStopping;
 
         _ = Task.Run(async () =>

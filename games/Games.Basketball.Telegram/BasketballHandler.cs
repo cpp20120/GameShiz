@@ -235,7 +235,7 @@ public sealed partial class BasketballHandler(
                 r.DailyRollLimit);
             try
             {
-                await Task.Delay(4000, ctx.Ct);
+                await Task.Delay(2000, ctx.Ct);
                 await ctx.Bot.SendMessage(chatId, text,
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
             }

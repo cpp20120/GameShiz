@@ -12,6 +12,37 @@ public sealed class BasketballTelegramModule : IModule
         services.AddHandler<BasketballHandler>();
 
     public IModuleMigrations? GetMigrations() => null;
-    public IReadOnlyList<BotCommand> GetBotCommands() => [];
-    public IReadOnlyList<LocaleBundle> GetLocales() => [];
+    public IReadOnlyList<BotCommand> GetBotCommands() =>
+    [
+        new BotCommand("/basket", "basketball.cmd.basket"),
+        new BotCommand("/basketball", "basketball.cmd.basketball"),
+    ];
+    public IReadOnlyList<LocaleBundle> GetLocales() =>
+    [
+        new LocaleBundle("ru", new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["display_name"] = "Баскетбол",
+            ["cmd.basket"] = "Поставить на баскетбол",
+            ["cmd.basketball"] = "Поставить на баскетбол",
+            ["usage"] = "🏀 <b>Баскетбол</b>\n"
+                + "<code>/basket</code>, <code>/basketball</code>, <code>basket</code> или <code>basketball</code> — ставка по умолчанию <b>{0}</b>.\n"
+                + "<code>/basket bet &lt;сумма&gt;</code> или <code>basketball bet</code> — своя ставка.\n"
+                + "Можно просто отправить 🏀 — применится ставка по умолчанию.\n"
+                + "Справка: <code>/basket help</code>",
+            ["bet.usage"] = "Неверная сумма. Примеры: <code>/basket</code>, <code>/basketball bet</code>, <code>basketball bet 50</code> или просто 🏀",
+            ["bet.accepted"] = "Ставка {0} принята. Сейчас бот кинет 🏀 — свой 🏀 не отправляй.\nВыплаты: 4 (в кольцо)→x2, 5 (чистый бросок)→x2",
+            ["roll.wait_bot"] = "Эта ставка ждёт бросок <b>от бота</b>. Свой 🏀 не отправляй — один бросок на ставку.",
+            ["bet.invalid"] = "Неверная сумма ставки",
+            ["bet.not_enough"] = "Недостаточно монет (баланс: {0})",
+            ["bet.already_pending"] = "У тебя уже есть ставка {0} в этом чате — дождись броска бота 🏀",
+            ["bet.busy_other"] = "Сначала дождись броска бота в {0} — в этом чате только одна активная мини-игра.",
+            ["bet.daily_roll_limit"] = "Лимит бросков баскета на сегодня исчерпан ({0}/{1}). Попробуй завтра. 🏀",
+            ["bet.failed"] = "Не удалось принять ставку",
+            ["throw.no_bet"] = "Сначала сделай ставку: <code>/basket</code>, <code>/basketball bet</code>, <code>basketball bet &lt;сумма&gt;</code> или просто отправь 🏀.",
+            ["throw.quick_wait"] = "⏳ Нет ставки — применяю ставку по умолчанию и считаю результат…",
+            ["throw.win"] = "Выпало <b>{0}</b> — x{1}. Ставка: {2} · выплата: <b>{3}</b> · чистыми: <b>+{4}</b>. Баланс: {5}",
+            ["throw.lose"] = "Выпало <b>{0}</b>. <b>Проигрыш: −{1}</b> монет (ставка сгорела). Баланс: {2}",
+            ["throw.daily_roll_remaining"] = "Осталось попыток <b>{0}/{1}</b>",
+        }),
+    ];
 }

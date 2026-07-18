@@ -25,6 +25,9 @@ public sealed class HorseOptions
     /// <summary>When true, a background job runs one global race per calendar day after the configured local time (if <see cref="MinBetsToRun"/> is met).</summary>
     public bool AutoRunEnabled { get; init; }
 
+    /// <summary>Run the scheduled race every N calendar days. A value of 1 means every day.</summary>
+    public int AutoRunEveryDays { get; init; } = 1;
+
     /// <summary>Local wall-clock hour (0–23) in <see cref="TimezoneOffsetHours"/> after which the auto-run may fire.</summary>
     public int AutoRunLocalHour { get; init; } = 21;
 

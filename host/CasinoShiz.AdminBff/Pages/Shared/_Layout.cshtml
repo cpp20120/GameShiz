@@ -1,21 +1,60 @@
-@{ var title = ViewData["Title"] as string ?? "Admin"; }
-<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>@title · CasinoShiz Admin</title><link rel="stylesheet" href="~/admin.css"/></head><body>
-<header><h1>🎰 CasinoShiz</h1><nav>
-<a href="/admin" class="@(Context.Request.Path.Equals("/admin") ? "active" : "")">Dashboard</a>
-<a href="/admin/people" class="@(Context.Request.Path.StartsWithSegments("/admin/people") ? "active" : "")">People</a>
-<a href="/admin/groups" class="@(Context.Request.Path.StartsWithSegments("/admin/groups") ? "active" : "")">Chats</a>
-<a href="/admin/users" class="@(Context.Request.Path.StartsWithSegments("/admin/users") ? "active" : "")">Wallets</a>
-<a href="/admin/bets" class="@(Context.Request.Path.StartsWithSegments("/admin/bets") ? "active" : "")">Bets</a>
-<a href="/admin/challenges" class="@(Context.Request.Path.StartsWithSegments("/admin/challenges") ? "active" : "")">1v1</a>
-<a href="/admin/ledger" class="@(Context.Request.Path.StartsWithSegments("/admin/ledger") ? "active" : "")">Ledger</a>
-<a href="/admin/history" class="@(Context.Request.Path.StartsWithSegments("/admin/history") ? "active" : "")">History</a>
-<a href="/admin/settings" class="@(Context.Request.Path.StartsWithSegments("/admin/settings") ? "active" : "")">Settings</a>
-<a href="/admin/meta" class="@(Context.Request.Path.StartsWithSegments("/admin/meta") ? "active" : "")">Meta</a>
-<a href="/admin/horse" class="@(Context.Request.Path.StartsWithSegments("/admin/horse") ? "active" : "")">Horse</a>
-<a href="/admin/events" class="@(Context.Request.Path.StartsWithSegments("/admin/events") ? "active" : "")">Events</a>
-<a href="/admin/recovery" class="@(Context.Request.Path.StartsWithSegments("/admin/recovery") ? "active" : "")">Recovery</a>
-<a href="/admin/game-availability" class="@(Context.Request.Path.StartsWithSegments("/admin/game-availability") ? "active" : "")">Availability</a>
-<a href="/admin/operator-tools" class="@(Context.Request.Path.StartsWithSegments("/admin/operator-tools") ? "active" : "")">Tools</a>
-<a href="/admin/audit" class="@(Context.Request.Path.StartsWithSegments("/admin/audit") ? "active" : "")">Audit</a>
-</nav><div class="header-right"><a href="/admin/logout">Logout</a></div></header><main>@RenderBody()</main></body></html>
+@{
+    var title = ViewData["Title"] as string ?? "Admin";
+    var currentPath = Context.Request.Path.Value ?? "";
+    bool IsActive(string route) => currentPath.Equals(route, StringComparison.OrdinalIgnoreCase)
+        || currentPath.StartsWith(route + "/", StringComparison.OrdinalIgnoreCase);
+    var isMetaPage = (currentPath.Equals("/admin/meta", StringComparison.OrdinalIgnoreCase)
+        || currentPath.StartsWith("/admin/meta-", StringComparison.OrdinalIgnoreCase))
+        && !IsActive("/admin/meta-economy");
+}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@title · CasinoShiz Admin</title>
+    <link rel="stylesheet" href="~/admin.css" />
+</head>
+<body>
+<header class="admin-header">
+    <div class="header-main">
+        <a class="brand" href="/admin" aria-label="CasinoShiz Admin">
+            <span class="brand-mark">🎰</span><span>CasinoShiz <small>/ admin</small></span>
+        </a>
+        <div class="header-right"><a href="/admin/logout">Logout</a></div>
+    </div>
+    <div class="nav-shell">
+        <nav class="admin-nav" aria-label="Admin sections">
+            <a href="/admin" class="@(IsActive("/admin") && currentPath.Equals("/admin", StringComparison.OrdinalIgnoreCase) ? "active" : "")">Dashboard</a>
+            <a href="/admin/people" class="@(IsActive("/admin/people") ? "active" : "")">People</a>
+            <a href="/admin/identity" class="@(IsActive("/admin/identity") ? "active" : "")">Identity</a>
+            <a href="/admin/groups" class="@(IsActive("/admin/groups") ? "active" : "")">Chats</a>
+            <a href="/admin/users" class="@(IsActive("/admin/users") ? "active" : "")">Wallets</a>
+            <span class="nav-separator" aria-hidden="true"></span>
+            <a href="/admin/bets" class="@(IsActive("/admin/bets") ? "active" : "")">Bets</a>
+            <a href="/admin/challenges" class="@(IsActive("/admin/challenges") ? "active" : "")">1v1</a>
+            <a href="/admin/horse" class="@(IsActive("/admin/horse") ? "active" : "")">Horse</a>
+            <span class="nav-separator" aria-hidden="true"></span>
+            <a href="/admin/ledger" class="@(IsActive("/admin/ledger") ? "active" : "")">Ledger</a>
+            <a href="/admin/history" class="@(IsActive("/admin/history") ? "active" : "")">History</a>
+            <a href="/admin/settings" class="@(IsActive("/admin/settings") ? "active" : "")">Settings</a>
+            <a href="/admin/meta" class="@(isMetaPage ? "active" : "")">Meta</a>
+            <a href="/admin/meta-economy" class="@(IsActive("/admin/meta-economy") ? "active" : "")">Economy</a>
+            <span class="nav-separator" aria-hidden="true"></span>
+            <a href="/admin/events" class="@(IsActive("/admin/events") ? "active" : "")">Events</a>
+            <a href="/admin/recovery" class="@(IsActive("/admin/recovery") ? "active" : "")">Recovery</a>
+            <a href="/admin/game-availability" class="@(IsActive("/admin/game-availability") ? "active" : "")">Availability</a>
+            <a href="/admin/operator-tools" class="@(IsActive("/admin/operator-tools") ? "active" : "")">Tools</a>
+            <a href="/admin/audit" class="@(IsActive("/admin/audit") ? "active" : "")">Audit</a>
+        </nav>
+    </div>
+</header>
+<main>@RenderBody()</main>
+<script>
+    (() => {
+        const active = document.querySelector('.admin-nav a.active');
+        active?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    })();
+</script>
+</body>
+</html>

@@ -212,7 +212,7 @@ public sealed partial class PickDailyLotteryHandler(
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
             default:
-                await ctx.Bot.SendMessage(chatId, Loc("err"),
+                await ctx.Bot.SendMessage(chatId, Loc("err.generic"),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 return;
         }

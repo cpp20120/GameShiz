@@ -27,6 +27,7 @@
     }
 
     <form method="post" asp-page-handler="Run" style="margin-top: 12px">
+        @Html.AntiForgeryToken()
         <button type="submit" @(Model.BetsToday < Model.MinBets ? "disabled" : "")>
             Run today's race
         </button>
@@ -44,6 +45,24 @@
     {
         <img class="horse-gif" src="/admin/horse/image?date=@Model.TodayRaceDate&kind=gif" alt="Race animation" />
     }
+</div>
+
+<div class="card">
+    <h3>Automatic Quartz race</h3>
+    <p class="muted">The Telegram edge checks the persistent Quartz schedule every minute. The race itself runs every N calendar days at the selected local time; changes apply without a restart.</p>
+    <form method="post" asp-page-handler="Schedule">
+        @Html.AntiForgeryToken()
+        <label>
+            <input asp-for="Schedule.Enabled" type="checkbox" />
+            Enable automatic races
+        </label>
+        <label>Every (days) <input asp-for="Schedule.EveryDays" type="number" min="1" max="31" step="1" /></label>
+        <label>Local hour <input asp-for="Schedule.LocalHour" type="number" min="0" max="23" step="1" /></label>
+        <label>Local minute <input asp-for="Schedule.LocalMinute" type="number" min="0" max="59" step="1" /></label>
+        <label>UTC offset <input asp-for="Schedule.TimezoneOffsetHours" type="number" min="-14" max="14" step="1" /></label>
+        <p class="muted">Current admin actor for scheduled settlement: @(Model.ConfiguredAdmins.Count > 0 ? Model.ConfiguredAdmins[0].ToString() : "not configured").</p>
+        <button type="submit">Save horse schedule</button>
+    </form>
 </div>
 
 <div class="card">

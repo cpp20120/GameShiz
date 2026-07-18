@@ -29,7 +29,6 @@ public sealed class HorseModule : IModule
             .AddScoped<GameExecutionDescriptor<HorseRunCommand, HorseRaceState, RaceOutcome>, HorseRunDescriptor>()
             .AddScoped<IGameStateStore<HorseRunCommand, HorseRaceState>, HorseRunStateStore>()
             .AddScoped<IRenderJob<HorseRaceRenderSpec>, HorseRaceRenderJob>()
-            .AddRecurringScheduledCommand<HorseRaceScheduledCommand>()
             .AddRecurringScheduledCommand<HorseRenderPrewarmScheduledCommand>();
     }
 

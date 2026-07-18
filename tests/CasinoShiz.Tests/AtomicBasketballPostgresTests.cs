@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Dapper;
 using BotFramework.Host.Composition.Builder;
 using BotFramework.Host.Events.Serialization;
 using BotFramework.Host.Execution;
@@ -21,6 +22,23 @@ public sealed class AtomicBasketballPostgresTests(AtomicPostgresFixture database
 
     public Task InitializeAsync() => database.ResetAsync();
     public Task DisposeAsync() => Task.CompletedTask;
+
+    [Fact]
+    public async Task MiniGameSessions_AllowDifferentGamesInTheSameChat()
+    {
+        await using var connection = new NpgsqlConnection(database.ConnectionString);
+        await connection.OpenAsync();
+        await connection.ExecuteAsync(
+            """
+            INSERT INTO mini_game_sessions (user_id, chat_id, game_id, expires_at)
+            VALUES
+                (42, 84, 'dicecube', now() + interval '3 minutes'),
+                (42, 84, 'basketball', now() + interval '3 minutes')
+            """);
+
+        Assert.Equal(2, await Scalar<int>("SELECT count(*) FROM mini_game_sessions"));
+        Assert.Equal(2, await Scalar<int>("SELECT count(DISTINCT game_id) FROM mini_game_sessions"));
+    }
 
     [Fact]
     public async Task PlaceBet_CommitsWalletQuotaStateSessionInboxAndEventTogether()

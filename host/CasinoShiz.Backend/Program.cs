@@ -21,6 +21,7 @@ using Games.Pick.Transport.Grpc;
 using Games.Blackjack.Infrastructure.Modules;
 using Games.Blackjack.Transport.Grpc;
 using Games.Horse.Infrastructure.Modules;
+using Games.Horse.Application.Jobs;
 using Games.Horse.Transport.Grpc;
 using Games.Challenges.Infrastructure.Modules;
 using Games.Challenges.Transport.Grpc;
@@ -63,6 +64,8 @@ if (selectedModules.Contains("meta"))
     builder.AddDurableWorkflows(typeof(TournamentWorkflowHandler).Assembly);
 var framework = builder.AddBackendFramework()
     .AddSelectedModules(selectedModules);
+if (selectedModules.Contains("horse"))
+    builder.Services.AddHostedService<HorseLegacyScheduleCleanup>();
 
 var walletRemote = string.Equals(builder.Configuration["Services:Wallet:Mode"], "Grpc", StringComparison.OrdinalIgnoreCase);
 var identityRemote = string.Equals(builder.Configuration["Services:Identity:Mode"], "Grpc", StringComparison.OrdinalIgnoreCase);

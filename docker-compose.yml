@@ -155,7 +155,7 @@ services:
       start_period: 5s
 
   minio:
-    image: minio/minio:RELEASE.2025-10-15T17-29-55Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -186,6 +186,39 @@ services:
     networks:
       - internal
 
+  backend-postgres-exporter:
+    profiles: ["microservices", "distributed"]
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://backend:${POSTGRES_PASSWORD}@backend-postgres:5432/backend?sslmode=disable"
+    depends_on:
+      backend-postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  identity-postgres-exporter:
+    profiles: ["microservices", "distributed"]
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://identity:${POSTGRES_PASSWORD}@identity-postgres:5432/identity?sslmode=disable"
+    depends_on:
+      identity-postgres:
+        condition: service_healthy
+    networks: [internal]
+
+  wallet-postgres-exporter:
+    profiles: ["microservices", "distributed"]
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://wallet:${POSTGRES_PASSWORD}@wallet-postgres:5432/wallet?sslmode=disable"
+    depends_on:
+      wallet-postgres:
+        condition: service_healthy
+    networks: [internal]
+
   redis-exporter:
     image: oliver006/redis_exporter:v1.66.0
     restart: unless-stopped
@@ -199,7 +232,7 @@ services:
       - internal
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    image: ghcr.io/google/cadvisor:0.55.1
     restart: unless-stopped
     privileged: true
     devices:
@@ -281,9 +314,7 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.28.1
     restart: unless-stopped
-    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--config.expand-env=true", "--storage.path=/alertmanager"]
-    environment:
-      ALERTMANAGER_WEBHOOK_URL: "${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9999/alerts}"
+    command: ["--config.file=/etc/alertmanager/alertmanager.yaml", "--storage.path=/alertmanager"]
     volumes:
       - ./observability/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
       - alertmanager_data:/alertmanager
@@ -300,7 +331,7 @@ services:
         PROJECT: host/CasinoShiz.Host/CasinoShiz.Host.csproj
         APP_DLL: CasinoShiz.Host.dll
     ports:
-      - "4000:8080"
+      - "${BOT_HTTP_PORT:-4000}:8080"
     extra_hosts:
       - "api.telegram.org:149.154.167.220"
     env_file:
@@ -346,6 +377,8 @@ services:
       ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__Enabled: "true"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "backend"
       TelegramOutbox__Transport: "Cap"
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
@@ -358,7 +391,7 @@ services:
       Rendering__Minio__Endpoint: "minio:9000"
       Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
       Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
-    ports: ["5081:8080"]
+    ports: ["${BACKEND_HTTP_PORT:-5081}:8080"]
     depends_on:
       backend-postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -387,7 +420,9 @@ services:
       Redis__Enabled: "false"
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
-    ports: ["5082:8080"]
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "identity"
+    ports: ["${IDENTITY_HTTP_PORT:-5082}:8080"]
     depends_on:
       identity-postgres: { condition: service_healthy }
     healthcheck:
@@ -412,7 +447,9 @@ services:
       Redis__Enabled: "false"
       ClickHouse__Enabled: "false"
       Bot__Enabled: "false"
-    ports: ["5083:8080"]
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "wallet"
+    ports: ["${WALLET_HTTP_PORT:-5083}:8080"]
     depends_on:
       wallet-postgres: { condition: service_healthy }
     healthcheck:
@@ -440,12 +477,14 @@ services:
       Bot__Enabled: "true"
       ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "telegram-bff"
       TelegramOutbox__Transport: "Cap"
       Rendering__Minio__Enabled: "true"
       Rendering__Minio__Endpoint: "minio:9000"
       Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
       Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
-    ports: ["5084:8080"]
+    ports: ["${TELEGRAM_BFF_HTTP_PORT:-5084}:8080"]
     extra_hosts: ["api.telegram.org:149.154.167.220"]
     depends_on:
       backend: { condition: service_healthy }
@@ -478,10 +517,12 @@ services:
       Services__Wallet__Address: "http://wallet:8081"
       ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
-      Discord__Enabled: "true"
-      Discord__Token: "${DISCORD_TOKEN}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "discord-bff"
+      Discord__Enabled: "${Discord__Enabled:-false}"
+      Discord__Token: "${Discord__Token:-}"
       Discord__CommandPrefix: "!"
-    ports: ["5086:8080"]
+    ports: ["${DISCORD_BFF_HTTP_PORT:-5086}:8080"]
     depends_on:
       backend: { condition: service_healthy }
       identity: { condition: service_healthy }
@@ -511,11 +552,13 @@ services:
       Services__Identity__Address: "http://identity:8081"
       Services__Wallet__Address: "http://wallet:8081"
       Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "admin-bff"
       Admin__SuperAdminToken: "${ADMIN_SUPERADMIN_TOKEN}"
       Admin__ReadOnlyToken: "${ADMIN_READONLY_TOKEN:-}"
       Admin__ActorId: "${ADMIN_ACTOR_ID:-1}"
       Admin__DisplayName: "${ADMIN_DISPLAY_NAME:-Admin}"
-    ports: ["5085:8080"]
+    ports: ["${ADMIN_BFF_HTTP_PORT:-5085}:8080"]
     depends_on:
       backend: { condition: service_healthy }
       identity: { condition: service_healthy }
@@ -540,10 +583,14 @@ services:
     env_file: [.env]
     environment:
       Backend__GrpcAddress: "http://backend:8081"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "rest-api"
+      RateLimit__Enabled: "false"
+      Rest__ExposeOpenApiOutsideDevelopment: "true"
       Rest__Jwt__Authority: "${REST_JWT_AUTHORITY:-}"
       Rest__Jwt__Audience: "${REST_JWT_AUDIENCE:-casinoshiz-api}"
       Rest__Jwt__RequireHttpsMetadata: "${REST_JWT_REQUIRE_HTTPS_METADATA:-true}"
-    ports: ["5090:8080"]
+    ports: ["127.0.0.1:${REST_API_HTTP_PORT:-5090}:8080"]
     depends_on:
       backend: { condition: service_healthy }
     healthcheck:
@@ -552,6 +599,24 @@ services:
       timeout: 3s
       retries: 20
       start_period: 10s
+    restart: unless-stopped
+    networks: [internal]
+
+  nginx:
+    profiles: ["microservices"]
+    image: nginx:1.27-alpine
+    ports:
+      - "${PUBLIC_HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/rest-api.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      rest-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
     restart: unless-stopped
     networks: [internal]
 
@@ -589,12 +654,14 @@ services:
       Bot__Enabled: "true"
       ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "telegram-bff-distributed"
       TelegramOutbox__Transport: "Cap"
       Rendering__Minio__Enabled: "true"
       Rendering__Minio__Endpoint: "minio:9000"
       Rendering__Minio__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
       Rendering__Minio__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
-    ports: ["5087:8080"]
+    ports: ["${TELEGRAM_BFF_DISTRIBUTED_HTTP_PORT:-5087}:8080"]
     extra_hosts: ["api.telegram.org:149.154.167.220"]
     depends_on:
       identity: { condition: service_healthy }
@@ -662,10 +729,12 @@ services:
       Services__Wallet__Address: "http://wallet:8081"
       ConnectionStrings__Postgres: "Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=${POSTGRES_PASSWORD}"
       Redis__ConnectionString: "redis:6379,password=${REDIS_PASSWORD}"
-      Discord__Enabled: "true"
-      Discord__Token: "${DISCORD_TOKEN}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "discord-bff-distributed"
+      Discord__Enabled: "${Discord__Enabled:-false}"
+      Discord__Token: "${Discord__Token:-}"
       Discord__CommandPrefix: "!"
-    ports: ["5088:8080"]
+    ports: ["${DISCORD_BFF_DISTRIBUTED_HTTP_PORT:-5088}:8080"]
     depends_on:
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
@@ -712,11 +781,13 @@ services:
       Services__Identity__Address: "http://identity:8081"
       Services__Wallet__Address: "http://wallet:8081"
       Services__Operations__ApiKey: "${OPERATIONS_API_KEY}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "admin-bff-distributed"
       Admin__SuperAdminToken: "${ADMIN_SUPERADMIN_TOKEN}"
       Admin__ReadOnlyToken: "${ADMIN_READONLY_TOKEN:-}"
       Admin__ActorId: "${ADMIN_ACTOR_ID:-1}"
       Admin__DisplayName: "${ADMIN_DISPLAY_NAME:-Admin}"
-    ports: ["5089:8080"]
+    ports: ["${ADMIN_BFF_DISTRIBUTED_HTTP_PORT:-5089}:8080"]
     depends_on:
       game-admin: { condition: service_healthy }
       game-meta: { condition: service_healthy }
@@ -742,6 +813,10 @@ services:
     env_file: [.env]
     environment:
       Backend__GrpcAddress: "http://game-admin:8081"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "rest-api-distributed"
+      RateLimit__Enabled: "false"
+      Rest__ExposeOpenApiOutsideDevelopment: "true"
       Backend__GameAddresses__Dice: "http://game-dice:8081"
       Backend__GameAddresses__DiceCube: "http://game-dicecube:8081"
       Backend__GameAddresses__Darts: "http://game-darts:8081"
@@ -763,7 +838,7 @@ services:
       Rest__Jwt__Authority: "${REST_JWT_AUTHORITY:-}"
       Rest__Jwt__Audience: "${REST_JWT_AUDIENCE:-casinoshiz-api}"
       Rest__Jwt__RequireHttpsMetadata: "${REST_JWT_REQUIRE_HTTPS_METADATA:-true}"
-    ports: ["5091:8080"]
+    ports: ["127.0.0.1:${REST_API_DISTRIBUTED_HTTP_PORT:-5091}:8080"]
     depends_on:
       identity: { condition: service_healthy }
       wallet: { condition: service_healthy }
@@ -794,6 +869,24 @@ services:
     restart: unless-stopped
     networks: [internal]
 
+  nginx-distributed:
+    profiles: ["distributed"]
+    image: nginx:1.27-alpine
+    ports:
+      - "${PUBLIC_DISTRIBUTED_HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/rest-api-distributed.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      rest-api-distributed: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health/live || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    networks: [internal]
+
   # Distributed game profile. Every service uses the same published backend
   # image but loads only the module named below. Scale any one independently:
   # docker compose --profile distributed up --scale game-poker=3
@@ -803,6 +896,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "dice"
       Backend__ServiceName: "game-dice"
+      OTEL_SERVICE_NAME: "game-dice"
 
   game-dicecube:
     <<: *game-backend-common
@@ -810,6 +904,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "dicecube"
       Backend__ServiceName: "game-dicecube"
+      OTEL_SERVICE_NAME: "game-dicecube"
 
   game-darts:
     <<: *game-backend-common
@@ -817,6 +912,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "darts"
       Backend__ServiceName: "game-darts"
+      OTEL_SERVICE_NAME: "game-darts"
 
   game-football:
     <<: *game-backend-common
@@ -824,6 +920,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "football"
       Backend__ServiceName: "game-football"
+      OTEL_SERVICE_NAME: "game-football"
 
   game-basketball:
     <<: *game-backend-common
@@ -831,6 +928,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "basketball"
       Backend__ServiceName: "game-basketball"
+      OTEL_SERVICE_NAME: "game-basketball"
 
   game-bowling:
     <<: *game-backend-common
@@ -838,6 +936,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "bowling"
       Backend__ServiceName: "game-bowling"
+      OTEL_SERVICE_NAME: "game-bowling"
 
   game-transfer:
     <<: *game-backend-common
@@ -845,6 +944,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "transfer"
       Backend__ServiceName: "game-transfer"
+      OTEL_SERVICE_NAME: "game-transfer"
 
   game-redeem:
     <<: *game-backend-common
@@ -852,6 +952,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "redeem"
       Backend__ServiceName: "game-redeem"
+      OTEL_SERVICE_NAME: "game-redeem"
 
   game-leaderboard:
     <<: *game-backend-common
@@ -859,6 +960,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "leaderboard"
       Backend__ServiceName: "game-leaderboard"
+      OTEL_SERVICE_NAME: "game-leaderboard"
 
   game-pixelbattle:
     <<: *game-backend-common
@@ -866,6 +968,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "pixelbattle"
       Backend__ServiceName: "game-pixelbattle"
+      OTEL_SERVICE_NAME: "game-pixelbattle"
 
   game-pick:
     <<: *game-backend-common
@@ -873,6 +976,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "pick"
       Backend__ServiceName: "game-pick"
+      OTEL_SERVICE_NAME: "game-pick"
 
   game-blackjack:
     <<: *game-backend-common
@@ -880,6 +984,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "blackjack"
       Backend__ServiceName: "game-blackjack"
+      OTEL_SERVICE_NAME: "game-blackjack"
 
   game-horse:
     <<: *game-backend-common
@@ -887,6 +992,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "horse"
       Backend__ServiceName: "game-horse"
+      OTEL_SERVICE_NAME: "game-horse"
 
   game-challenges:
     <<: *game-backend-common
@@ -894,6 +1000,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "challenges"
       Backend__ServiceName: "game-challenges"
+      OTEL_SERVICE_NAME: "game-challenges"
 
   game-poker:
     <<: *game-backend-common
@@ -901,6 +1008,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "poker"
       Backend__ServiceName: "game-poker"
+      OTEL_SERVICE_NAME: "game-poker"
 
   game-secrethitler:
     <<: *game-backend-common
@@ -908,6 +1016,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "secrethitler"
       Backend__ServiceName: "game-secrethitler"
+      OTEL_SERVICE_NAME: "game-secrethitler"
 
   game-meta:
     <<: *game-backend-common
@@ -915,6 +1024,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "meta"
       Backend__ServiceName: "game-meta"
+      OTEL_SERVICE_NAME: "game-meta"
 
   game-admin:
     <<: *game-backend-common
@@ -922,6 +1032,7 @@ services:
       <<: *game-backend-environment
       Backend__Modules: "admin"
       Backend__ServiceName: "game-admin"
+      OTEL_SERVICE_NAME: "game-admin"
 
   grafana:
     image: grafana/grafana:11.2.0

@@ -1,8 +1,13 @@
 @page "/admin/users"
 @model WalletsModel
 @{ ViewData["Title"] = "Wallets"; }
-<h1>Wallets</h1><form method="get"><input asp-for="Query" placeholder="user, scope or name"/><button>Search</button></form>
-@if(Model.Error is not null){<p class="error">@Model.Error</p>}
-<table><thead><tr><th>User</th><th>Scope</th><th>Name</th><th>Coins</th><th>Updated</th><th>Adjustment</th></tr></thead><tbody>
-@foreach(var row in Model.Rows){<tr><td>@row.UserId</td><td>@row.BalanceScopeId</td><td>@row.DisplayName</td><td>@row.Coins</td><td>@row.UpdatedAt</td><td>@if(Model.CanMutate){<form method="post"><input type="hidden" name="userId" value="@row.UserId"/><input type="hidden" name="scopeId" value="@row.BalanceScopeId"/><input type="hidden" name="operationId" value="admin-bff:@Guid.NewGuid().ToString("N")"/><input name="delta" type="number" required/><button>Apply</button></form>}else{<span>Read-only</span>}</td></tr>}
-</tbody></table>
+<div class="page-heading"><div><div class="eyebrow">Wallet service</div><h1>Wallets</h1><p class="lede">Inspect balances by player and scope. Adjustments are explicit SuperAdmin operations and append to the ledger.</p></div><a class="button secondary" href="/admin/users">Refresh</a></div>
+@if (Model.Error is not null) { <div class="flash error">@Model.Error</div> }
+<div class="card toolbar-card"><form method="get" class="toolbar"><label>Search wallets<input asp-for="Query" placeholder="user, scope or name" /></label><button type="submit">Search</button><a class="button secondary" href="/admin/users">Clear</a></form></div>
+<div class="card table-card"><div class="card-heading"><div><h2>Wallet accounts</h2><p class="muted">Showing @Model.Rows.Count rows, newest updates first.</p></div><span class="pill">@(Model.CanMutate ? "SuperAdmin actions enabled" : "Read only")</span></div><div class="table-wrap"><table><thead><tr><th>User</th><th>Scope</th><th>Name</th><th>Coins</th><th>Updated</th><th>Adjustment</th></tr></thead><tbody>
+@foreach (var row in Model.Rows)
+{
+    <tr><td><code>@row.UserId</code></td><td><code>@row.BalanceScopeId</code></td><td>@row.DisplayName</td><td><b>@row.Coins.ToString("N0")</b></td><td class="muted">@row.UpdatedAt</td><td>@if (Model.CanMutate) { <form method="post" class="inline"><input type="hidden" name="userId" value="@row.UserId" /><input type="hidden" name="scopeId" value="@row.BalanceScopeId" /><input type="hidden" name="operationId" value="admin-bff:@Guid.NewGuid().ToString("N")" /><input name="delta" type="number" required placeholder="± coins" /><button type="submit">Apply</button></form> } else { <span class="muted">Read only</span> }</td></tr>
+}
+@if (Model.Rows.Count == 0) { <tr><td colspan="6" class="empty">No wallets match the filter.</td></tr> }
+</tbody></table></div></div>

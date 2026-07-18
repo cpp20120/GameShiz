@@ -23,11 +23,9 @@ namespace Games.Horse.Application.Handlers;
 public sealed partial class HorseHandler(
     IHorseService service,
     ILocalizer localizer,
-    IOptions<HorseOptions> options,
+    IRuntimeTuningAccessor tuning,
     IHorseRaceNotifier notifier) : IUpdateHandler
 {
-    private readonly HorseOptions _opts = options.Value;
-
     public async Task HandleAsync(UpdateContext ctx)
     {
         var msg = ctx.Update.Message;
@@ -35,6 +33,8 @@ public sealed partial class HorseHandler(
 
         var userId = msg.From?.Id ?? 0;
         if (userId == 0) return;
+
+        var opts = tuning.GetSection<HorseOptions>(HorseOptions.SectionName);
 
         if (msg.Text.StartsWith("/horserun", StringComparison.OrdinalIgnoreCase))
         {
@@ -54,11 +54,12 @@ public sealed partial class HorseHandler(
             case "":
             case "help":
                 await ctx.Bot.SendMessage(msg.Chat.Id,
-                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("help"), _opts.HorseCount, _opts.MinBetsToRun),
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("help"), opts.HorseCount, opts.MinBetsToRun),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
             default:
-                await ctx.Bot.SendMessage(msg.Chat.Id, string.Format(Loc("unknown_action"), action),
+                await ctx.Bot.SendMessage(msg.Chat.Id,
+                    string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("unknown_action"), action),
                     replyParameters: reply, cancellationToken: ctx.Ct);
                 break;
         }
@@ -71,7 +72,8 @@ public sealed partial class HorseHandler(
 
         if (parts.Length < 2 || !int.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out int horseId))
         {
-            await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.no_horse"), _opts.HorseCount),
+            await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.no_horse"),
+                    tuning.GetSection<HorseOptions>(HorseOptions.SectionName).HorseCount),
                 replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }
@@ -88,7 +90,8 @@ public sealed partial class HorseHandler(
         var text = r.Error switch
         {
             HorseError.None => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.accepted"), r.Amount, r.HorseId),
-            HorseError.InvalidHorseId => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.invalid_horse"), _opts.HorseCount),
+            HorseError.InvalidHorseId => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.invalid_horse"),
+                tuning.GetSection<HorseOptions>(HorseOptions.SectionName).HorseCount),
             HorseError.InvalidAmount => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.invalid_amount"), r.RemainingCoins),
             _ => Loc("bet.failed"),
         };
@@ -126,7 +129,8 @@ public sealed partial class HorseHandler(
         if (outcome.Error == HorseError.NotAdmin) return;
         if (outcome.Error == HorseError.NotEnoughBets)
         {
-            await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("run.not_enough_bets"), _opts.MinBetsToRun),
+            await ctx.Bot.SendMessage(chatId, string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("run.not_enough_bets"),
+                tuning.GetSection<HorseOptions>(HorseOptions.SectionName).MinBetsToRun),
                 replyParameters: reply, cancellationToken: ctx.Ct);
             return;
         }

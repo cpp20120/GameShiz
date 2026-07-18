@@ -221,7 +221,7 @@
   "schemaVersion": 39,
   "tags": [ "casino", "clickhouse", "product", "economy", "meta" ],
   "templating": { "list": [] },
-  "time": { "from": "now-24h", "to": "now" },
+  "time": { "from": "now-30d", "to": "now" },
   "timepicker": {},
   "timezone": "",
   "title": "CasinoShiz Product Analytics",

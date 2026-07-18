@@ -333,7 +333,13 @@ public sealed partial class MetaMenuHandler(
     }
 
     private static InlineKeyboardMarkup GamesMarkup(long ownerId) => new([
-        [Button("↻ Обновить", ownerId, "games")],
+        [CopyCommand("🎲 /dice", "/dice"), CopyCommand("🎯 /darts", "/darts")],
+        [CopyCommand("⚽ /football", "/football"), CopyCommand("🏀 /basket", "/basket")],
+        [CopyCommand("🎳 /bowling", "/bowling"), CopyCommand("🎰 /slots", "/slots")],
+        [CopyCommand("🃏 /blackjack", "/blackjack"), CopyCommand("♠️ /poker", "/poker")],
+        [CopyCommand("🎩 /sh", "/sh"), CopyCommand("🐎 /horse", "/horse")],
+        [CopyCommand("⚔️ /challenge", "/challenge"), CopyCommand("🎯 /pick", "/pick")],
+        [CopyCommand("🎟 /picklottery", "/picklottery"), CopyCommand("🖼 /pixelbattle", "/pixelbattle")],
         [Button("← Меню", ownerId, "home")],
     ]);
 
@@ -349,6 +355,9 @@ public sealed partial class MetaMenuHandler(
         return InlineKeyboardButton.WithCallbackData(text, data);
     }
 
+    private static InlineKeyboardButton CopyCommand(string label, string command) =>
+        InlineKeyboardButton.WithCopyText(label, new CopyTextButton { Text = command });
+
     private static string GamesText() => string.Join("\n", [
         "🎮 <b>Игры</b>",
         "",
@@ -363,7 +372,7 @@ public sealed partial class MetaMenuHandler(
         "<b>Прочее</b>",
         "🎯 /pick · 🎟 /picklottery · 🖼 /pixelbattle",
         "",
-        "<i>Нажми на команду в сообщении, чтобы вставить её в поле ввода.</i>",
+        "<i>Нажми кнопку, чтобы скопировать команду, затем отправь её.</i>",
     ]);
 
     private static (long OwnerId, string Action, string? Argument)? ParseCallback(string? data)

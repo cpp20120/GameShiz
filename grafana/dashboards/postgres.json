@@ -1,0 +1,192 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "PostgreSQL health and capacity for the monolith and all microservice databases.",
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "PostgreSQL up",
+      "description": "Number of healthy PostgreSQL exporters.",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(pg_up{job=~\"postgres|postgres-microservices\"})", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" }
+    },
+    {
+      "type": "stat",
+      "title": "Exporter scrape errors",
+      "description": "Current scrape errors reported by postgres-exporter.",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(pg_exporter_last_scrape_error{job=~\"postgres|postgres-microservices\"})", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 2 }] } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" }
+    },
+    {
+      "type": "stat",
+      "title": "Active connections",
+      "description": "Active connections across cazino, backend, identity and wallet.",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(label_replace(pg_stat_database_numbackends{job=\"postgres\",datname=\"cazino\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_stat_database_numbackends{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"})", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" }
+    },
+    {
+      "type": "stat",
+      "title": "Total database size",
+      "description": "User database sizes, excluding template and postgres maintenance databases.",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(label_replace(pg_database_size_bytes{job=\"postgres\",datname=\"cazino\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_database_size_bytes{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"})", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" }
+    },
+    {
+      "type": "stat",
+      "title": "Deadlocks · 5m",
+      "description": "Deadlocks observed during the last five minutes.",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum(increase(pg_stat_database_deadlocks{job=~\"postgres|postgres-microservices\",datname!~\"template0|template1|postgres\"}[5m]))", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" }
+    },
+    {
+      "type": "stat",
+      "title": "Cache hit ratio",
+      "description": "Shared buffer cache hit ratio across user databases.",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "100 * sum(rate(pg_stat_database_blks_hit{job=~\"postgres|postgres-microservices\",datname!~\"template0|template1|postgres\"}[5m])) / clamp_min(sum(rate(pg_stat_database_blks_hit{job=~\"postgres|postgres-microservices\",datname!~\"template0|template1|postgres\"}[5m])) + sum(rate(pg_stat_database_blks_read{job=~\"postgres|postgres-microservices\",datname!~\"template0|template1|postgres\"}[5m])), 1)", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 95 }, { "color": "green", "value": 99 }] } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value_and_name" }
+    },
+    {
+      "type": "timeseries",
+      "title": "Availability by database",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "label_replace(pg_up{job=\"postgres\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_up{job=\"postgres-microservices\"}", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Active connections by database",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (database) (label_replace(pg_stat_database_numbackends{job=\"postgres\",datname=\"cazino\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_stat_database_numbackends{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"})", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Database size",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "label_replace(pg_database_size_bytes{job=\"postgres\",datname=\"cazino\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_database_size_bytes{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "bytes", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Transactions rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (database) (label_replace(rate(pg_stat_database_xact_commit{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_xact_commit{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m]))", "legendFormat": "{{database}} commit", "refId": "A" },
+        { "expr": "sum by (database) (label_replace(rate(pg_stat_database_xact_rollback{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_xact_rollback{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m]))", "legendFormat": "{{database}} rollback", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache hit ratio by database",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "100 * sum by (database) (label_replace(rate(pg_stat_database_blks_hit{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_blks_hit{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m])) / clamp_min(sum by (database) (label_replace(rate(pg_stat_database_blks_hit{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_blks_hit{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m])) + sum by (database) (label_replace(rate(pg_stat_database_blks_read{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_blks_read{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m])), 1)", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2, "min": 0, "max": 100 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Locks by database and mode",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (database, mode) (label_replace(pg_locks_count{job=\"postgres\",datname=\"cazino\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_locks_count{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"})", "legendFormat": "{{database}} · {{mode}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Connection utilization",
+      "description": "Active connections divided by max_connections for each PostgreSQL instance.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "100 * sum by (database) (label_replace(pg_stat_database_numbackends{job=\"postgres\",datname=\"cazino\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_stat_database_numbackends{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}) / on (database) (label_replace(pg_settings_max_connections{job=\"postgres\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_settings_max_connections{job=\"postgres-microservices\"})", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 70 }, { "color": "red", "value": 90 }] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Database block activity",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (database) (label_replace(rate(pg_stat_database_blks_read{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_blks_read{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m]))", "legendFormat": "{{database}} read", "refId": "A" },
+        { "expr": "sum by (database) (label_replace(rate(pg_stat_database_blks_hit{job=\"postgres\",datname=\"cazino\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_database_blks_hit{job=\"postgres-microservices\",datname=~\"backend|identity|wallet\"}[5m]))", "legendFormat": "{{database}} cache hit", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Checkpoints by database",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (database) (label_replace(rate(pg_stat_bgwriter_checkpoints_timed_total{job=\"postgres\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_bgwriter_checkpoints_timed_total{job=\"postgres-microservices\"}[5m]))", "legendFormat": "{{database}} timed", "refId": "A" },
+        { "expr": "sum by (database) (label_replace(rate(pg_stat_bgwriter_checkpoints_req_total{job=\"postgres\"}[5m]), \"database\", \"monolith\", \"job\", \"postgres\") or rate(pg_stat_bgwriter_checkpoints_req_total{job=\"postgres-microservices\"}[5m]))", "legendFormat": "{{database}} requested", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Exporter scrape duration",
+      "description": "Time spent collecting metrics from each PostgreSQL instance.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "label_replace(pg_exporter_last_scrape_duration_seconds{job=\"postgres\"}, \"database\", \"monolith\", \"job\", \"postgres\") or pg_exporter_last_scrape_duration_seconds{job=\"postgres-microservices\"}", "legendFormat": "{{database}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["casinoshiz", "prometheus", "postgresql", "database"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "CasinoShiz — PostgreSQL",
+  "uid": "casinoshiz-postgresql",
+  "version": 1,
+  "weekStart": ""
+}

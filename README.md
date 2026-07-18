@@ -298,6 +298,8 @@ docker compose --profile microservices run --rm db-backup-microservices
 Useful local URLs:
 
 -   Monolith: `http://localhost:4000`
+-   REST edge / Swagger: `http://localhost/swagger` (Nginx; `PUBLIC_HTTP_PORT`)
+-   REST BFF direct/debug: `http://127.0.0.1:5090/swagger` (loopback-only; use Nginx externally)
 -   Backend: `http://localhost:5081/health/live`
 -   Identity: `http://localhost:5082/health/live`
 -   Wallet: `http://localhost:5083/health/live`
@@ -542,7 +544,13 @@ Enables scheduled horse races.
 
 no
 
-Local scheduled race time.
+Local scheduled race time. Quartz checks the persistent schedule every minute.
+
+`Games__horse__AutoRunEveryDays`
+
+no
+
+Run the global race every N calendar days (`1` = daily, `7` = weekly).
 
 `Games__horse__TimezoneOffsetHours`
 

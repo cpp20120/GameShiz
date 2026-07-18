@@ -172,7 +172,7 @@ public sealed partial class ChallengeHandler(
                 return;
             }
 
-            await Task.Delay(4000, ctx.Ct);
+            await Task.Delay(2000, ctx.Ct);
             var result = await service.CompleteAcceptedAsync(challenge, c.Value, t.Value, ctx.Ct);
             await ctx.Bot.SendMessage(challenge.ChatId, ResultText(result),
                 parseMode: ParseMode.Html, cancellationToken: ctx.Ct);

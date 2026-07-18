@@ -1,6 +1,7 @@
 using BotFramework.Host.Composition.Builder;
 using BotFramework.Host.Configuration.RuntimeTuning;
 using BotFramework.Host.Persistence.Connections;
+using BotFramework.Scheduling.Quartz;
 using Games.Dice.Telegram;
 using Games.Dice.Transport.Grpc;
 using Games.NativeDice.Transport.Grpc;
@@ -42,6 +43,11 @@ builder.Services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>
 builder.Services.AddSingleton<RuntimeTuningAccessor>();
 builder.Services.AddSingleton<IRuntimeTuningAccessor>(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
+
+var schedulerPostgres = builder.Configuration.GetConnectionString("Postgres")
+    ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required for Telegram Quartz scheduling.");
+builder.Services.AddQuartzGameScheduling(schedulerPostgres, "CasinoShizTelegram");
+builder.Services.AddQuartzRecurringCommandBootstrapper();
 
 var backendAddress = builder.Configuration["Backend:GrpcAddress"]
     ?? throw new InvalidOperationException("Set Backend:GrpcAddress for the Telegram BFF.");

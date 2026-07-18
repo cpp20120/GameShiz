@@ -210,8 +210,11 @@ server-side outcome and call the same bet/settle path as the Discord adapter;
 `/bet` and `/roll` are available where a client needs a two-step flow.
 
 OpenAPI is available at `/openapi/v1.json` in development (or when explicitly
-enabled outside development). Health probes remain `/health/live` and
-`/health/ready`.
+enabled outside development). The REST BFF also serves Swagger UI at
+`/swagger`; in the Compose microservices profile the public Nginx edge exposes
+it at `http://localhost/swagger` and proxies to `rest-api:8080`. The direct
+REST BFF port remains `5090` for local diagnostics. Health probes remain
+`/health/live` and `/health/ready`.
 
 ### Request flow
 
@@ -475,7 +478,7 @@ This is parimutuel with a structural `1.1` divisor + integer floor — roughly a
 
 **Place labels** are baked into the GIF: each horse gets a place when its progress first reaches 100%, and the renderer draws a high-contrast badge (`1st`, `2nd`, …) on the horse plus a status column on the right. `FinishHoldFrames` keeps the final state visible at the end of the loop. Ordinal suffix logic: `(place % 100) ∈ {11, 12, 13}` → `th`; otherwise `place % 10` picks `st`, `nd`, `rd`, `th`.
 
-**Auto-run.** `HorseScheduledRaceJob` runs **one global** race per calendar day after `Games:horse:AutoRunLocalHour:Minute` (when `AutoRunEnabled = true` and there are at least `MinBetsToRun` bets across all chats). It settles like `/horserun global` and posts the result GIF only to chats that placed bets. Default schedule: 21:00 in UTC+7.
+**Auto-run.** `Games.Horse.Telegram.HorseRaceScheduledCommand` is registered through the framework `IRecurringScheduledCommand` Quartz integration. Quartz wakes it every minute; it runs **one global** race at the configured local time every `AutoRunEveryDays` calendar days (`1` = daily, `7` = weekly), when `AutoRunEnabled = true` and there are at least `MinBetsToRun` bets across all chats. In microservices the Telegram edge owns this command so the settled result and GIF are delivered to the chats that placed bets. The schedule is editable at `/admin/horse` and is reloaded from runtime tuning without a restart. Default: daily at 21:00 in UTC+7.
 
 **Manual run.** `/horserun` (admin only):
 
@@ -1452,7 +1455,7 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 | `meta:BigPayoutMinimum` | Single-game payout threshold for the Большой занос achievement; default `1000` |
 | `admin:Admins` | Per-module admin list (unioned with `Bot:Admins`) |
 
-`Games:horse` — `HorseCount`, `MinBetsToRun`, `AnnounceDelayMs`, `AnnounceDelay1v1Ms` (used when `HorseCount` is 2, longer delay so the winner message does not appear before the GIF finishes), `TimezoneOffsetHours`, `Admins` (Telegram user IDs allowed to `/horserun` in addition to `Bot:Admins`), `AutoRunEnabled`, `AutoRunLocalHour`, `AutoRunLocalMinute`. When `AutoRunEnabled` is true, `HorseScheduledRaceJob` runs **one global** race per calendar day after the configured local time, if there are enough bets (`MinBetsToRun`). It settles like `/horserun global` and posts the result GIF only to chats that placed bets.
+`Games:horse` — `HorseCount`, `MinBetsToRun`, `AnnounceDelayMs`, `AnnounceDelay1v1Ms` (used when `HorseCount` is 2, longer delay so the winner message does not appear before the GIF finishes), `TimezoneOffsetHours`, `Admins` (Telegram user IDs allowed to `/horserun` in addition to `Bot:Admins`), `AutoRunEnabled`, `AutoRunEveryDays`, `AutoRunLocalHour`, `AutoRunLocalMinute`. When `AutoRunEnabled` is true, the Quartz command runs **one global** race every `AutoRunEveryDays` calendar days at the configured local time, if there are enough bets (`MinBetsToRun`).
 
 `Games:challenges`:
 

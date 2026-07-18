@@ -4,7 +4,7 @@ WORKDIR /src
 ARG PROJECT=host/CasinoShiz.Host/CasinoShiz.Host.csproj
 ARG APP_DLL=CasinoShiz.Host.dll
 
-COPY CasinoShiz.slnx Directory.Build.props ./
+COPY CasinoShiz.slnx Directory.Build.props Directory.Packages.props ./
 COPY framework/ framework/
 COPY games/ games/
 COPY host/ host/

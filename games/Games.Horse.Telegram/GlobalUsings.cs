@@ -1,3 +1,4 @@
+global using BotFramework.Host.Configuration.RuntimeTuning;
 global using BotFramework.Host.Contracts.Localization;
 global using BotFramework.Sdk.Modules;
 global using BotFramework.Sdk.Modules.Migrations;

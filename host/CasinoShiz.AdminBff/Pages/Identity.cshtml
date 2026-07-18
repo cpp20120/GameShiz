@@ -1,6 +1,10 @@
-@page "/admin/people"
+@page "/admin/identity"
 @model IdentityModel
 @{ ViewData["Title"] = "Identity"; }
-<h1>Identity</h1><form method="get"><input asp-for="Query" placeholder="Telegram ID or @@username"/><button>Find</button></form>
-@if(Model.Error is not null){<p class="error">@Model.Error</p>}
-@if(Model.Identity is not null){<div class="card"><dl><dt>User ID</dt><dd>@Model.Identity.UserId</dd><dt>Name</dt><dd>@Model.Identity.DisplayName</dd><dt>Username</dt><dd>@Model.Identity.Username</dd><dt>Last seen</dt><dd>@Model.Identity.LastSeenAt</dd></dl></div>}
+<div class="page-heading"><div><div class="eyebrow">Identity service</div><h1>Identity lookup</h1><p class="lede">Find a player by Telegram ID or username and inspect the canonical identity record.</p></div></div>
+<div class="card toolbar-card"><form method="get" class="toolbar"><label>Player<input asp-for="Query" placeholder="Telegram ID or @@username" /></label><button type="submit">Find player</button></form></div>
+@if (Model.Error is not null) { <div class="flash error">@Model.Error</div> }
+@if (Model.Identity is not null)
+{
+    <div class="card"><div class="card-heading"><div><h2>Player found</h2><p class="muted">Canonical identity from the identity service.</p></div><span class="pill ok">match</span></div><dl><dt>User ID</dt><dd><code>@Model.Identity.UserId</code></dd><dt>Name</dt><dd>@Model.Identity.DisplayName</dd><dt>Username</dt><dd>@(string.IsNullOrWhiteSpace(Model.Identity.Username) ? "—" : "@" + Model.Identity.Username)</dd><dt>Last seen</dt><dd>@Model.Identity.LastSeenAt</dd></dl></div>
+}

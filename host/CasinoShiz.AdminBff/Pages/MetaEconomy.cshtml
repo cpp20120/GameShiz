@@ -1,0 +1,21 @@
+@page "/admin/meta-economy"
+@model MetaEconomyModel
+@{ ViewData["Title"] = "Meta economy"; }
+
+<div class="page-heading"><div><div class="eyebrow">Wallet analytics</div><h1>Meta economy</h1><p class="lede">Actual supply flows from the wallet service plus a transparent scenario calculator for seasons, quests and rewards.</p></div><a class="button secondary" href="/admin/meta-economy">Refresh</a></div>
+@if (Model.Error is not null) { <div class="flash error">@Model.Error</div> }
+
+<div class="card"><div class="card-heading"><div><h2>Live economy</h2><p class="muted">Across all wallet scopes · @Model.Engagement.Users.ToString("N0") users / @Model.Engagement.BalanceScopes.ToString("N0") scopes</p></div><span class="pill ok">wallet service</span></div>
+    <div class="cards compact">
+        <div class="stat"><div class="label">Coin supply</div><div class="value">@Model.Totals.CoinSupply.ToString("N0")</div></div><div class="stat"><div class="label">Wallets</div><div class="value">@Model.Totals.Wallets.ToString("N0")</div></div><div class="stat"><div class="label">New / 24h</div><div class="value">@Model.Engagement.NewWallets24H.ToString("N0")</div></div><div class="stat"><div class="label">Transacting / 24h</div><div class="value">@Model.Engagement.TransactingUsers24H.ToString("N0")</div></div><div class="stat"><div class="label">Ledger net</div><div class="value">@(Model.Health.NetWindow >= 0 ? "+" : "")@Model.Health.NetWindow.ToString("N0")</div></div><div class="stat"><div class="label">Rows in window</div><div class="value">@Model.Health.RowsWindow.ToString("N0")</div></div>
+    </div>
+</div>
+
+<div class="card"><div class="card-heading"><div><h2>Scenario calculator</h2><p class="muted">This is a forecast, not a mutation of the economy.</p></div></div>
+<form method="get" class="form-grid">
+    <label>Days<input type="number" asp-for="Days" min="1" max="365" /></label><label>Players<input type="number" asp-for="Players" min="1" /></label><label>Games / player / day<input type="number" asp-for="GamesPerPlayerPerDay" min="0" step="0.1" /></label><label>Average stake<input type="number" asp-for="AverageStake" min="0" /></label><label>Average RTP %<input type="number" asp-for="AverageRtpPercent" min="0" step="0.1" /></label><label>Daily bonus / player<input type="number" asp-for="DailyBonusPerPlayer" min="0" step="0.1" /></label><label>Quest coins / player / day<input type="number" asp-for="QuestCoinsPerPlayerPerDay" min="0" step="0.1" /></label><label>Season pool<input type="number" asp-for="SeasonRewardPool" min="0" /></label><label>Clan pool<input type="number" asp-for="ClanRewardPool" min="0" /></label><label>Transfer fees / day<input type="number" asp-for="TransferFeesPerDay" min="0" step="0.1" /></label><button type="submit">Recalculate</button>
+</form>
+<div class="cards compact"><div class="stat"><div class="label">Games</div><div class="value">@Model.Simulation.Games.ToString("N0")</div></div><div class="stat"><div class="label">Turnover</div><div class="value">@Model.Simulation.Stake.ToString("N0")</div></div><div class="stat"><div class="label">Faucets</div><div class="value positive">+@Model.Simulation.Faucets.ToString("N0")</div></div><div class="stat"><div class="label">Sinks</div><div class="value negative">-@Model.Simulation.Sinks.ToString("N0")</div></div><div class="stat"><div class="label">Net supply</div><div class="value">@(Model.Simulation.Net >= 0 ? "+" : "")@Model.Simulation.Net.ToString("N0")</div></div></div>
+</div>
+
+<div class="card table-card"><div class="card-heading"><div><h2>Ledger reasons</h2><p class="muted">Top reasons over the selected @Model.Days-day window.</p></div></div><div class="table-wrap"><table><thead><tr><th>Reason</th><th>Rows</th><th>Credits</th><th>Debits</th><th>Net</th></tr></thead><tbody>@foreach (var row in Model.Reasons) { <tr><td><code>@row.Reason</code></td><td>@row.Rows.ToString("N0")</td><td class="positive">+@row.Credits.ToString("N0")</td><td class="negative">-@row.Debits.ToString("N0")</td><td>@(row.Net >= 0 ? "+" : "")@row.Net.ToString("N0")</td></tr> } @if (Model.Reasons.Count == 0) { <tr><td colspan="5" class="empty">No ledger data for this window.</td></tr> }</tbody></table></div></div>

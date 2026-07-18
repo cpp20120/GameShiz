@@ -32,7 +32,7 @@ public sealed class ChatsStore(INpgsqlConnectionFactory connections, IWalletRead
                    kc.first_seen_at  AS FirstSeenAt,
                    kc.last_seen_at   AS LastSeenAt,
                    0 AS UserCount,
-                   0 AS TotalCoins
+                   0::BIGINT AS TotalCoins
             FROM known_chats kc
             {typeClause}
             ORDER BY kc.last_seen_at DESC

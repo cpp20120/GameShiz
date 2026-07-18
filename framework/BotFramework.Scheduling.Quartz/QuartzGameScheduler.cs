@@ -1,3 +1,4 @@
+using System.Globalization;
 using BotFramework.Scheduling.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -66,9 +67,9 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
         var job = JobBuilder.Create(jobType)
             .WithIdentity(jobKey)
             .UsingJobData("command-key", command.JobKey)
-            .UsingJobData("max-attempts", Math.Max(1, command.Schedule.EffectivePolicy.MaxAttempts))
-            .UsingJobData("retry-backoff-ms", (long)Math.Max(0, command.Schedule.EffectivePolicy.EffectiveRetryBackoff.TotalMilliseconds))
-            .UsingJobData("batch-size", Math.Max(1, command.Schedule.EffectivePolicy.BatchSize))
+            .UsingJobData("max-attempts", Math.Max(1, command.Schedule.EffectivePolicy.MaxAttempts).ToString(CultureInfo.InvariantCulture))
+            .UsingJobData("retry-backoff-ms", ((long)Math.Max(0, command.Schedule.EffectivePolicy.EffectiveRetryBackoff.TotalMilliseconds)).ToString(CultureInfo.InvariantCulture))
+            .UsingJobData("batch-size", Math.Max(1, command.Schedule.EffectivePolicy.BatchSize).ToString(CultureInfo.InvariantCulture))
             .StoreDurably()
             .Build();
         foreach (var pair in command.Data ?? new Dictionary<string, string>(StringComparer.Ordinal))
@@ -207,8 +208,8 @@ internal static class ScheduledCommandQuartzJobRunner
             .Where(item => !string.Equals(item, "command-key", StringComparison.Ordinal))
             .ToDictionary(item => item, item => context.MergedJobDataMap.GetString(item) ?? "", StringComparer.Ordinal);
 
-        var maxAttempts = Math.Max(1, context.MergedJobDataMap.GetInt("max-attempts"));
-        var retryBackoffMs = Math.Max(0, context.MergedJobDataMap.GetLong("retry-backoff-ms"));
+        var maxAttempts = Math.Max(1, ParseInt(context.MergedJobDataMap, "max-attempts", 1));
+        var retryBackoffMs = Math.Max(0, ParseLong(context.MergedJobDataMap, "retry-backoff-ms", 0));
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
@@ -225,6 +226,16 @@ internal static class ScheduledCommandQuartzJobRunner
 
         throw new InvalidOperationException("Scheduled command execution exhausted its retry policy.");
     }
+
+    private static int ParseInt(JobDataMap data, string key, int fallback) =>
+        int.TryParse(data.GetString(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : fallback;
+
+    private static long ParseLong(JobDataMap data, string key, long fallback) =>
+        long.TryParse(data.GetString(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : fallback;
 }
 
 [DisallowConcurrentExecution]

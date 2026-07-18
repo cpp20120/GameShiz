@@ -166,10 +166,10 @@ The admin dashboard table shows:
 
 ### Horse scheduled races
 
-Horse races already have a module job:
+Horse races are driven by the framework Quartz command:
 
 ```text
-HorseScheduledRaceJob
+Games.Horse.Telegram.HorseRaceScheduledCommand
 ```
 
 Enable daily autorun with:
@@ -178,11 +178,12 @@ Enable daily autorun with:
 Games__horse__AutoRunEnabled=true
 Games__horse__AutoRunLocalHour=21
 Games__horse__AutoRunLocalMinute=0
+Games__horse__AutoRunEveryDays=1
 Games__horse__TimezoneOffsetHours=7
 Games__horse__Admins__0=925337014
 ```
 
-The job runs at most one global race per local calendar day after the configured local time, if enough bets exist.
+Quartz wakes the command every minute. It runs at most one global race on the configured local time every N calendar days (`1` = daily, `7` = weekly), if enough bets exist. The same values are editable in the admin Horse page and are loaded from the runtime tuning overlay without a restart.
 
 Manual runs remain available through admin commands/UI.
 

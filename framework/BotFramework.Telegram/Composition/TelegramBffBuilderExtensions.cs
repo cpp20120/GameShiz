@@ -1,4 +1,6 @@
 using BotFramework.Host.Localization;
+using BotFramework.Host.Analytics;
+using BotFramework.Host.Contracts.Analytics;
 using BotFramework.Host.Pipeline.Middleware;
 using BotFramework.Host.Pipeline.Routing;
 using BotFramework.Host.Runtime.Hosting;
@@ -53,6 +55,7 @@ public static class TelegramBffBuilderExtensions
         services.AddSingleton<IRateLimiter, BotFramework.Host.RateLimiting.RedisRateLimiter>();
         services.TryAddSingleton<IRateLimitPolicyProvider, DefaultRateLimitPolicyProvider>();
         services.AddSingleton<ILocalizer, Localizer>();
+        services.TryAddSingleton<IAnalyticsService, NoOpAnalyticsService>();
         services.AddHostedService<BotHostedService>();
         var useCapOutboxTransport = string.Equals(
             configuration[$"{TelegramOutboxTransportOptions.SectionName}:Transport"],

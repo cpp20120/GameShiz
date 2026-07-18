@@ -1082,6 +1082,24 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 ON durable_workflow_steps (workflow_id, occurred_at ASC, id ASC);
             """),
 
+        new Migration("036_multi_game_mini_game_sessions", """
+            DO $$
+            BEGIN
+                IF to_regclass('public.mini_game_sessions') IS NULL THEN
+                    RETURN;
+                END IF;
+
+                ALTER TABLE mini_game_sessions
+                    DROP CONSTRAINT IF EXISTS mini_game_sessions_pkey;
+                ALTER TABLE mini_game_sessions
+                    ADD CONSTRAINT mini_game_sessions_pkey
+                    PRIMARY KEY (user_id, chat_id, game_id);
+            END $$;
+
+            CREATE INDEX IF NOT EXISTS ix_mini_game_sessions_user_chat
+                ON mini_game_sessions (user_id, chat_id, updated_at DESC);
+            """),
+
     ];
 
     /// <summary>
@@ -1136,7 +1154,8 @@ internal sealed class FrameworkMigrations : IModuleMigrations
     /// </summary>
     public IReadOnlyList<Migration> WalletMigrations =>
         Migrations
-            .Where(migration => WalletOwnedIds.Contains(migration.Id)
+            .Where(migration => (WalletOwnedIds.Contains(migration.Id)
+                || migration.Id == "010_runtime_tuning")
                 && migration.Id != "009_users_telegram_dice_daily"
                 && migration.Id != "017_responsible_gaming_and_ops_reports")
             .Append(new Migration("027_wallet_player_protection", """

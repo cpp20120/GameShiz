@@ -69,6 +69,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\CasinoShiz.AdminBff\wwwroot\admin.css" Link="wwwroot\admin.css" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="wwwroot\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

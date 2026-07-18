@@ -17,12 +17,18 @@ public sealed class DiceTelegramModule : IModule
         services.AddHandler<DiceHandler>();
 
     public IModuleMigrations? GetMigrations() => null;
-    public IReadOnlyList<BotCommand> GetBotCommands() => [];
+    public IReadOnlyList<BotCommand> GetBotCommands() =>
+    [
+        new BotCommand("/slot", "dice.cmd.slot"),
+        new BotCommand("/slots", "dice.cmd.slots"),
+    ];
     public IReadOnlyList<LocaleBundle> GetLocales() =>
     [
         new LocaleBundle("ru", new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["display_name"] = "Слоты",
+            ["cmd.slot"] = "Крутить слот",
+            ["cmd.slots"] = "Крутить слоты",
             ["err.forwarded"] = "Не обманывай меня! 😠",
             ["err.not_enough_coins"] = "Кажется, у кого-то закончились монеты. 😢\nКрутить барабан стоит {0} монет.",
             ["err.daily_roll_limit"] = "Лимит спинов слотов на сегодня исчерпан ({0}/{1}). Попробуй завтра. 🎰",

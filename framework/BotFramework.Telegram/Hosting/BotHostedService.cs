@@ -110,7 +110,7 @@ public sealed partial class BotHostedService(
         if (loadedModules.BotCommands.Count == 0) return;
 
         var tg = loadedModules.BotCommands
-            .Select(c => new TgBotCommand { Command = c.Command, Description = c.DescriptionKey })
+            .Select(c => new TgBotCommand { Command = c.Command, Description = LocalizeCommandDescription(c) })
             .ToArray();
 
         try
@@ -122,6 +122,22 @@ public sealed partial class BotHostedService(
         {
             LogFailedToRegisterCommands(ex);
         }
+    }
+
+    private string LocalizeCommandDescription(BotCommand command)
+    {
+        var cultures = new[] { _options.DefaultCulture, "ru" }
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var culture in cultures)
+        {
+            if (loadedModules.LocalesByCulture.TryGetValue(culture, out var strings)
+                && strings.TryGetValue(command.DescriptionKey, out var description)
+                && !string.IsNullOrWhiteSpace(description))
+                return description;
+        }
+
+        return command.DescriptionKey;
     }
 
     private async Task RunPollingWithSupervision(CancellationToken ct)
@@ -158,20 +174,31 @@ public sealed partial class BotHostedService(
                 var updates = await botClient.GetUpdates(offset, timeout: 30, cancellationToken: ct);
                 foreach (var update in updates)
                 {
-                    if (publisher is not null)
+                    try
                     {
-                        await publisher.PublishAsync(update, ct);
+                        if (publisher is not null)
+                        {
+                            await publisher.PublishAsync(update, ct);
+                        }
+                        else
+                        {
+                            using var scope = serviceProvider.CreateScope();
+                            var pipeline = scope.ServiceProvider.GetRequiredService<UpdatePipeline>();
+                            var ctx = new UpdateContext(botClient, update, scope.ServiceProvider, ct);
+                            await pipeline.InvokeAsync(ctx);
+                        }
                     }
-                    else
+                    catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
                     {
-                        using var scope = serviceProvider.CreateScope();
-                        var pipeline = scope.ServiceProvider.GetRequiredService<UpdatePipeline>();
-                        var ctx = new UpdateContext(botClient, update, scope.ServiceProvider, ct);
-                        await pipeline.InvokeAsync(ctx);
+                        // A poison update must not be replayed forever. Handlers can
+                        // send a response before a downstream failure, so replaying
+                        // the same Telegram update would duplicate user-visible work.
+                        LogUpdateProcessingFailed(update.Id, ex);
                     }
-
-                    // Advance offset only after successful processing/publication.
-                    offset = update.Id + 1;
+                    finally
+                    {
+                        offset = update.Id + 1;
+                    }
                 }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -209,6 +236,9 @@ public sealed partial class BotHostedService(
 
     [LoggerMessage(LogLevel.Error, "Error during polling")]
     partial void LogErrorDuringPolling(Exception exception);
+
+    [LoggerMessage(LogLevel.Error, "Telegram update {UpdateId} failed; acknowledging it to avoid replay loop")]
+    partial void LogUpdateProcessingFailed(int updateId, Exception exception);
 
     [LoggerMessage(LogLevel.Information, "Bot stopped")]
     partial void LogBotStopped();

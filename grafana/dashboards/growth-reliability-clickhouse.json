@@ -134,13 +134,13 @@
     {
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "gridPos": { "h": 9, "w": 12, "x": 12, "y": 90 }, "id": 22,
-      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'duration ms' AS metric, toFloat64OrZero(params['duration_ms']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'failures', if(params['outcome'] = 'error', 1, 0) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'freshness seconds', dateDiff('second', created_at, now()) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
+      "targets": [{ "format": 0, "refId": "A", "rawSql": "SELECT created_at AS time, metric, value FROM (SELECT created_at, 'duration ms' AS metric, toFloat64OrZero(params['duration_ms']) AS value FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'failures', toFloat64(if(params['outcome'] = 'error', 1, 0)) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at) UNION ALL SELECT created_at, 'freshness seconds', toFloat64(dateDiff('second', created_at, now())) FROM cazinoshiz.events_v2 WHERE event_type = 'meta_analytics.snapshot_job_health' AND project = 'cazinoshiz' AND $__timeFilter(created_at)) ORDER BY time ASC, metric ASC" }],
       "title": "Snapshot job duration, failures and freshness", "type": "timeseries"
     },
     {
       "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 99 }, "id": 23,
-      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT database, table, formatReadableSize(sum(bytes_on_disk)) AS disk_size, sum(rows) AS rows, count() AS active_parts, round(sum(bytes_on_disk) / greatest(sum(rows), 1), 2) AS bytes_per_row FROM system.parts WHERE active AND database NOT IN ('system','information_schema','INFORMATION_SCHEMA') GROUP BY database, table ORDER BY sum(bytes_on_disk) DESC" }],
+      "targets": [{ "format": 1, "refId": "A", "rawSql": "SELECT database, table, formatReadableSize(sum(bytes_on_disk)) AS disk_size, sum(rows) AS row_count, count() AS active_parts, round(sum(bytes_on_disk) / greatest(sum(rows), 1), 2) AS bytes_per_row FROM system.parts WHERE active AND database NOT IN ('system','information_schema','INFORMATION_SCHEMA') GROUP BY database, table ORDER BY sum(bytes_on_disk) DESC" }],
       "title": "ClickHouse storage and active parts", "type": "table"
     },
     {

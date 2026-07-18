@@ -26,7 +26,7 @@ internal sealed class PostgresMiniGameSessionStore(INpgsqlConnectionFactory conn
             """
             INSERT INTO mini_game_sessions (user_id, chat_id, game_id, expires_at, updated_at)
             VALUES (@userId, @chatId, @gameId, @expiresAt, now())
-            ON CONFLICT (user_id, chat_id) DO NOTHING
+            ON CONFLICT (user_id, chat_id, game_id) DO NOTHING
             RETURNING 1
             """,
             new { userId, chatId, gameId, expiresAt },
@@ -39,21 +39,10 @@ internal sealed class PostgresMiniGameSessionStore(INpgsqlConnectionFactory conn
             return new MiniGameSessionBeginResult(Ok: true, BlockingGameId: null);
         }
 
-        var blocker = await conn.ExecuteScalarAsync<string?>(new CommandDefinition(
-            """
-            SELECT game_id
-            FROM mini_game_sessions
-            WHERE user_id = @userId AND chat_id = @chatId
-            FOR UPDATE
-            """,
-            new { userId, chatId },
-            transaction: tx,
-            cancellationToken: ct));
-
         await tx.CommitAsync(ct);
-        return string.Equals(blocker, gameId
-, StringComparison.Ordinal) ? new MiniGameSessionBeginResult(Ok: true, BlockingGameId: null)
-            : new MiniGameSessionBeginResult(Ok: false, blocker);
+        // The conflict target includes game_id, therefore a conflict can only mean
+        // that this same game already owns the slot. Cross-game sessions coexist.
+        return new MiniGameSessionBeginResult(Ok: true, BlockingGameId: null);
     }
 
     public async Task RegisterPlacedBetAsync(long userId, long chatId, string gameId, CancellationToken ct)
@@ -64,8 +53,7 @@ internal sealed class PostgresMiniGameSessionStore(INpgsqlConnectionFactory conn
             """
             INSERT INTO mini_game_sessions (user_id, chat_id, game_id, expires_at, updated_at)
             VALUES (@userId, @chatId, @gameId, @expiresAt, now())
-            ON CONFLICT (user_id, chat_id) DO UPDATE SET
-                game_id = EXCLUDED.game_id,
+            ON CONFLICT (user_id, chat_id, game_id) DO UPDATE SET
                 expires_at = EXCLUDED.expires_at,
                 updated_at = now()
             """,

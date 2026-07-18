@@ -1,0 +1,28 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {"type":"stat","title":"Container count","gridPos":{"h":4,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"count(container_last_seen{container_label_com_docker_compose_project=~\".+\"})","refId":"A"}],"options":{"reduceOptions":{"calcs":["lastNotNull"]},"textMode":"value"}},
+    {"type":"stat","title":".NET services reporting","gridPos":{"h":4,"w":6,"x":0,"y":4},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"count(count by (service_name) (dotnet_process_memory_working_set_bytes))","refId":"A"}],"options":{"reduceOptions":{"calcs":["lastNotNull"]},"textMode":"value"}},
+    {"type":"stat","title":"Postgres up","gridPos":{"h":4,"w":3,"x":0,"y":32},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(pg_up{job=~\"postgres|postgres-microservices\"})","refId":"A"}],"options":{"reduceOptions":{"calcs":["lastNotNull"]},"textMode":"value"}},
+    {"type":"stat","title":"Redis up","gridPos":{"h":4,"w":3,"x":3,"y":32},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(redis_up)","refId":"A"}],"options":{"reduceOptions":{"calcs":["lastNotNull"]},"textMode":"value"}},
+    {"type":"timeseries","title":"Container CPU by service","gridPos":{"h":8,"w":18,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service!=\"\"}[5m]))","legendFormat":"{{container_label_com_docker_compose_service}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"percentunit","min":0},"overrides":[]}},
+    {"type":"timeseries","title":"Container memory","gridPos":{"h":8,"w":12,"x":0,"y":8},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service!=\"\"})","legendFormat":"{{container_label_com_docker_compose_service}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"bytes"},"overrides":[]}},
+    {"type":"timeseries","title":"HTTP request rate","gridPos":{"h":8,"w":12,"x":12,"y":8},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=\"\"}[5m]))","legendFormat":"{{service_name}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"reqps"},"overrides":[]}},
+    {"type":"timeseries","title":"HTTP p95 latency","gridPos":{"h":8,"w":12,"x":0,"y":16},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=\"\"}[5m])))","legendFormat":"{{service_name}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"s"},"overrides":[]}},
+    {"type":"timeseries","title":"Postgres connections by database","gridPos":{"h":8,"w":12,"x":12,"y":16},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (database) (pg_stat_database_numbackends{database=~\"backend|identity|wallet\"})","legendFormat":"{{database}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"short"},"overrides":[]}},
+    {"type":"timeseries","title":".NET memory by service","gridPos":{"h":8,"w":12,"x":0,"y":24},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service_name) (dotnet_process_memory_working_set_bytes)","legendFormat":"{{service_name}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"bytes"},"overrides":[]}},
+    {"type":"timeseries","title":".NET GC collections","gridPos":{"h":8,"w":12,"x":12,"y":24},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service_name) (rate(dotnet_gc_collections_total[5m]))","legendFormat":"{{service_name}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"cps"},"overrides":[]}},
+    {"type":"timeseries","title":"HTTP 5xx rate","gridPos":{"h":8,"w":12,"x":6,"y":32},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=\"\",http_response_status_code=~\"5..\"}[5m]))","legendFormat":"{{service_name}}","refId":"A"}],"fieldConfig":{"defaults":{"unit":"reqps"},"overrides":[]}}
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["cazinoshiz", "microservices", "containers"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "browser",
+  "title": "CasinoShiz · Microservices overview",
+  "uid": "cazinoshiz-microservices",
+  "version": 1
+}

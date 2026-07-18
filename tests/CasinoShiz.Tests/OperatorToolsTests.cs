@@ -16,6 +16,8 @@ public sealed class OperatorToolsTests
             && migration.Sql.Contains("IF NOT EXISTS game_availability_overrides", StringComparison.Ordinal));
         Assert.Contains(migrations, migration => migration.Id == "021_fairness_audit"
             && migration.Sql.Contains("IF NOT EXISTS fairness_audit", StringComparison.Ordinal));
+        Assert.Contains(migrations, migration => migration.Id == "036_multi_game_mini_game_sessions"
+            && migration.Sql.Contains("PRIMARY KEY (user_id, chat_id, game_id)", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -35,7 +37,9 @@ public sealed class OperatorToolsTests
         Assert.DoesNotContain(backend, migration => migration.Sql.Contains("CREATE TABLE player_protection", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(backend, migration => migration.Id == "027_operations_report_checkpoint");
         Assert.Contains(backend, migration => migration.Id == "035_durable_workflow_steps");
+        Assert.Contains(backend, migration => migration.Id == "036_multi_game_mini_game_sessions");
         Assert.DoesNotContain(wallet, migration => migration.Id == "035_durable_workflow_steps");
+        Assert.DoesNotContain(wallet, migration => migration.Id == "036_multi_game_mini_game_sessions");
         Assert.DoesNotContain(backend, migration => migration.Sql.Contains("player_identities", StringComparison.OrdinalIgnoreCase));
     }
 

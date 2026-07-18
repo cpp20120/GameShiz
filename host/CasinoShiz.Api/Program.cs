@@ -28,6 +28,7 @@ using Games.SecretHitler.Rest;
 using Games.SecretHitler.Transport.Grpc;
 using Games.Transfer.Rest;
 using Games.Transfer.Transport.Grpc;
+using Microsoft.OpenApi;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,6 +44,27 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.AddServiceDefaults();
 builder.AddRestFramework();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "CasinoShiz REST API",
+        Version = "v1",
+        Description = "Tenant- and scope-aware REST BFF for CasinoShiz."
+    });
+    options.AddSecurityDefinition("bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "JWT Authorization header using the Bearer scheme."
+    });
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("bearer", document)] = []
+    });
+});
 
 var backendAddress = builder.Configuration["Backend:GrpcAddress"]
     ?? throw new InvalidOperationException("Backend:GrpcAddress is required for the REST BFF.");
@@ -84,6 +106,16 @@ builder.Services.AddLeaderboardRest();
 
 var app = builder.Build();
 app.UseRestFramework();
+if (app.Configuration.GetValue("Rest:OpenApiEnabled", true))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "CasinoShiz REST API v1");
+        options.RoutePrefix = "swagger";
+        options.DocumentTitle = "CasinoShiz REST API — Swagger";
+    });
+}
 app.MapRestFramework();
 
 await app.RunAsync();

@@ -48,7 +48,11 @@ public sealed class BotFrameworkBuilder : IBotFrameworkBuilder
                 dict[$"{module.Id}.{key}"] = value;
         }
 
-        _botCommands.AddRange(module.GetBotCommands());
+        foreach (var command in module.GetBotCommands())
+        {
+            if (!_botCommands.Any(existing => string.Equals(existing.Command, command.Command, StringComparison.Ordinal)))
+                _botCommands.Add(command);
+        }
         _modules.Add(module);
 
         return this;

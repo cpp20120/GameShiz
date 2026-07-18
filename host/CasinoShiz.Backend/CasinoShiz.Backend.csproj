@@ -51,13 +51,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\CasinoShiz.AdminBff\wwwroot\admin.css" Link="wwwroot\admin.css" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\games\Games.PixelBattle\wwwroot\pixelbattle\**\*" Link="wwwroot\pixelbattle\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\CasinoShiz.Host\Pages\Admin\**\*.cshtml"
-             Exclude="..\CasinoShiz.Host\Pages\Admin\Login.cshtml;..\CasinoShiz.Host\Pages\Admin\Auth.cshtml;..\CasinoShiz.Host\Pages\Admin\Logout.cshtml"
-             Link="Pages\Admin\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Content Include="..\CasinoShiz.Host\Pages\Shared\_Layout.cshtml" Link="Pages\Shared\_Layout.cshtml" />
-    <Content Include="..\CasinoShiz.Host\Pages\_ViewImports.cshtml" Link="Pages\_ViewImports.cshtml" />
-    <Content Include="..\CasinoShiz.Host\Pages\_ViewStart.cshtml" Link="Pages\_ViewStart.cshtml" />
+    <RazorGenerate Include="..\CasinoShiz.Host\Pages\Admin\**\*.cshtml"
+                   Exclude="..\CasinoShiz.Host\Pages\Admin\Login.cshtml;..\CasinoShiz.Host\Pages\Admin\Auth.cshtml;..\CasinoShiz.Host\Pages\Admin\Logout.cshtml"
+                   Link="Pages\Admin\%(RecursiveDir)%(Filename)%(Extension)" />
+    <RazorGenerate Include="..\CasinoShiz.Host\Pages\Shared\_Layout.cshtml" Link="Pages\Shared\_Layout.cshtml" />
     <Compile Include="..\CasinoShiz.Host\Pages\Admin\**\*.cs"
              Exclude="..\CasinoShiz.Host\Pages\Admin\Login.cshtml.cs;..\CasinoShiz.Host\Pages\Admin\Auth.cshtml.cs;..\CasinoShiz.Host\Pages\Admin\Logout.cshtml.cs"
              Link="Pages\Admin\%(RecursiveDir)%(Filename)%(Extension)" />
