@@ -31,7 +31,8 @@ public static class LegacyBotFrameworkBuilderExtensions
         });
         services.AddSingleton<UpdateRouter>();
         services.AddScoped<UpdatePipeline>();
-        services.AddSingleton<ITelegramTenantContextResolver, TelegramTenantContextResolver>();
+        services.AddSingleton<ITelegramTenantContextResolver>(_ =>
+            new TelegramTenantContextResolver(configuration["Bot:TenantKey"]));
         services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<RateLimitRequestState>();
         services.AddSingleton<IUpdateMiddleware, UpdateAnalyticsMiddleware>();

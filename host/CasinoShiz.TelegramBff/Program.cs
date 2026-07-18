@@ -46,7 +46,11 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAcces
 
 var schedulerPostgres = builder.Configuration.GetConnectionString("Postgres")
     ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required for Telegram Quartz scheduling.");
-builder.Services.AddQuartzGameScheduling(schedulerPostgres, "CasinoShizTelegram");
+var tenantKey = builder.Configuration["Bot:TenantKey"]?.Trim();
+var schedulerName = string.IsNullOrWhiteSpace(tenantKey)
+    ? "CasinoShizTelegram"
+    : $"CasinoShizTelegram-{tenantKey}";
+builder.Services.AddQuartzGameScheduling(schedulerPostgres, schedulerName);
 builder.Services.AddQuartzRecurringCommandBootstrapper();
 
 var backendAddress = builder.Configuration["Backend:GrpcAddress"]

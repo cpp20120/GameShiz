@@ -16,7 +16,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
-    options.Cookie.Name = "casinoshiz.admin";
+    options.Cookie.Name = builder.Configuration["Admin:CookieName"] ?? "casinoshiz.admin";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;

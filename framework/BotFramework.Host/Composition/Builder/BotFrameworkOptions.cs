@@ -22,6 +22,13 @@ public sealed class BotFrameworkOptions
     public string Token { get; set; } = "";
 
     /// <summary>
+    /// Optional stable namespace for deployments sharing the same databases.
+    /// When set, Telegram tenant ids are prefixed with this value so two bots
+    /// can use the same chat ids without sharing tenant state.
+    /// </summary>
+    public string TenantKey { get; set; } = "";
+
+    /// <summary>
     /// True when running behind a Telegram webhook (updates arrive via HTTP POST
     /// at /{Token}). False for dev polling.
     /// </summary>
