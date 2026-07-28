@@ -197,7 +197,9 @@ public sealed class MetaHandlerTests
         {
             Assert.Contains("Игры", request.Text, StringComparison.Ordinal);
             var markup = (InlineKeyboardMarkup)request.ReplyMarkup!;
-            Assert.Contains(markup.InlineKeyboard.SelectMany(x => x), button => button.Text.Contains("Обновить", StringComparison.Ordinal));
+            Assert.Contains(
+                markup.InlineKeyboard.SelectMany(x => x),
+                button => string.Equals(button.CopyText?.Text, "/dice", StringComparison.Ordinal));
         });
 
         harness.DailyBonus.Result = new DailyBonusClaimResult(DailyBonusClaimStatus.Claimed, 25, 125);
@@ -221,6 +223,47 @@ public sealed class MetaHandlerTests
 
         await InvokeCallbackAsync(harness, "mm:42:close", owner, chatId, messageId);
         AssertRequestCall<EditMessageTextRequest>(harness.Bot, request => Assert.Equal("Меню закрыто.", request.Text));
+    }
+
+    [Fact]
+    public async Task MetaHandler_ReportsEmptyAndInvalidBranches()
+    {
+        var harness = CreateHarness();
+        var user = new User { Id = 42, FirstName = "Alice" };
+        const long chatId = 100L;
+        const int messageId = 12;
+
+        harness.Meta.Top = [];
+        await InvokeMessageAsync(harness, "/topseason", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("топ пока пуст", request.Text, StringComparison.Ordinal));
+
+        harness.Quests.ClaimResult = null;
+        await InvokeMessageAsync(harness, "/quest claim missing", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("Квест не найден", request.Text, StringComparison.Ordinal));
+
+        harness.Quests.ClaimResult = new QuestClaimResult("quest-1", "Quest", 10, 20, Claimed: false);
+        await InvokeMessageAsync(harness, "/quest claim quest-1", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("ещё не выполнен", request.Text, StringComparison.Ordinal));
+
+        harness.Clans.ClanByTag = null;
+        await InvokeMessageAsync(harness, "/clan info TAG", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("Клан не найден", request.Text, StringComparison.Ordinal));
+
+        await InvokeMessageAsync(harness, "/clan members TAG", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Equal("❌ Клан не найден.", request.Text));
+
+        await InvokeMessageAsync(harness, "/clan create", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("/clan create", request.Text, StringComparison.Ordinal));
+
+        await InvokeMessageAsync(harness, "/clan join", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("/clan join", request.Text, StringComparison.Ordinal));
+
+        await InvokeMessageAsync(harness, "/clan unknown", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("/clan info", request.Text, StringComparison.Ordinal));
+
+        harness.Clans.Top = [];
+        await InvokeMessageAsync(harness, "/clan top", user, chatId, messageId);
+        AssertRequestCall<SendMessageRequest>(harness.Bot, request => Assert.Contains("Кланов пока нет", request.Text, StringComparison.Ordinal));
     }
 
     private static Harness CreateHarness()

@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace BotFramework.Host.Composition.ServiceDatabases;
 
-public sealed class OwnedDatabaseMigrationRunner(
+public sealed partial class OwnedDatabaseMigrationRunner(
     INpgsqlConnectionFactory connections,
     IEnumerable<IModuleMigrations> migrations,
     ILogger<OwnedDatabaseMigrationRunner> logger) : IHostedService
@@ -68,7 +68,10 @@ public sealed class OwnedDatabaseMigrationRunner(
                 new { moduleId = module.ModuleId, migrationId = migration.Id, contentHash = migration.ContentHash },
                 transaction: transaction, cancellationToken: ct));
             await transaction.CommitAsync(ct);
-            logger.LogInformation("Applied owned migration {ModuleId}:{MigrationId}", module.ModuleId, migration.Id);
+            LogMigrationApplied(logger, module.ModuleId, migration.Id);
         }
     }
+
+    [LoggerMessage(LogLevel.Information, "Applied owned migration {ModuleId}:{MigrationId}")]
+    private static partial void LogMigrationApplied(ILogger logger, string moduleId, string migrationId);
 }

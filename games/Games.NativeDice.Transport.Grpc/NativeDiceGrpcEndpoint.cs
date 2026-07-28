@@ -37,7 +37,7 @@ public sealed class NativeDiceGrpcEndpoint(IServiceProvider services) : NativeDi
             x.ChatId,
             x.SourceMessageId,
             context.CancellationToken);
-        return NativeDiceWireCodec.Reply(new EmptyReply());
+        return NativeDiceWireCodec.Reply(EmptyReply.Create());
     }
 
     public override async Task<ContractReply> DartsPlaceBet(ContractCall request, ServerCallContext context)
@@ -62,7 +62,7 @@ public sealed class NativeDiceGrpcEndpoint(IServiceProvider services) : NativeDi
     {
         var x = request.Read<DartsAbortCall>();
         await Service<IDartsService>().AbortQueuedRoundIfBetReplyFailedAsync(x.RoundId, x.UserId, x.ChatId, context.CancellationToken);
-        return NativeDiceWireCodec.Reply(new EmptyReply());
+        return NativeDiceWireCodec.Reply(EmptyReply.Create());
     }
 
     public override async Task<ContractReply> FootballPlaceBet(ContractCall request, ServerCallContext context)
@@ -87,7 +87,7 @@ public sealed class NativeDiceGrpcEndpoint(IServiceProvider services) : NativeDi
             x.ChatId,
             x.SourceMessageId,
             context.CancellationToken);
-        return NativeDiceWireCodec.Reply(new EmptyReply());
+        return NativeDiceWireCodec.Reply(EmptyReply.Create());
     }
 
     public override async Task<ContractReply> BasketballPlaceBet(ContractCall request, ServerCallContext context)
@@ -117,7 +117,7 @@ public sealed class NativeDiceGrpcEndpoint(IServiceProvider services) : NativeDi
             x.ChatId,
             x.SourceMessageId,
             context.CancellationToken);
-        return NativeDiceWireCodec.Reply(new EmptyReply());
+        return NativeDiceWireCodec.Reply(EmptyReply.Create());
     }
 
     public override async Task<ContractReply> BowlingPlaceBet(ContractCall request, ServerCallContext context)

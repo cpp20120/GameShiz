@@ -68,7 +68,7 @@ public sealed partial class AdminService(
                     DisplayName: displayName,
                     AllowNegative: false)],
                 outputs => (int)outputs["balance"]!),
-            ct).ConfigureAwait(false);
+            ct);
 
         var after = await store.FindUserAsync(targetUserId, balanceScopeId, ct);
         if (after == null) return null;
@@ -100,7 +100,7 @@ public sealed partial class AdminService(
                 [],
                 [new ClearChatBetsAdminEffect(chatId)],
                 outputs => (IReadOnlyList<Games.Admin.Infrastructure.Models.PendingChatBet>)outputs["bets"]!),
-            ct).ConfigureAwait(false);
+            ct);
         foreach (var bet in deleted)
         {
             BotMiniGameSession.ClearCompletedRound(bet.UserId, bet.ChatId, bet.GameId);
@@ -162,7 +162,7 @@ public sealed partial class AdminService(
                 new AdminEffectPlan<bool>(
                     true,
                     [new DisplayNameOverrideAdminEffect(oldName, null)]),
-                ct).ConfigureAwait(false);
+                ct);
             return new RenameResult(RenameOp.Cleared, oldName, newName);
         }
 
@@ -174,7 +174,7 @@ public sealed partial class AdminService(
             new AdminEffectPlan<bool>(
                 true,
                 [new DisplayNameOverrideAdminEffect(oldName, newName)]),
-            ct).ConfigureAwait(false);
+            ct);
         return new RenameResult(RenameOp.Set, oldName, newName);
     }
 

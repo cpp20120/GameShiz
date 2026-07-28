@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Games.Meta.Application.Quests;
 
-public sealed class QuestProjection(
+public sealed partial class QuestProjection(
     IQuestService quests,
     IMetaService meta,
     IMetaHistoryStore history,
@@ -37,14 +37,11 @@ public sealed class QuestProjection(
                     },
                     ct);
 
-                logger.LogInformation(
-                    "Completed quest {QuestId} for user {UserId} in chat {ChatId}: {Progress}/{Target}",
-                    update.QuestId,
-                    ev.UserId,
-                    ev.ChatId,
-                    update.Progress,
-                    update.Target);
+                LogQuestCompleted(update.QuestId, ev.UserId, ev.ChatId, update.Progress, update.Target);
             }
         }
     }
+
+    [LoggerMessage(EventId = 2702, Level = LogLevel.Information, Message = "Completed quest {QuestId} for user {UserId} in chat {ChatId}: {Progress}/{Target}")]
+    private partial void LogQuestCompleted(string questId, long userId, long chatId, int progress, int target);
 }

@@ -48,6 +48,12 @@ public sealed class DiceCubeSettlementActionTests
     }
 
     [Fact]
+    public void RollDecide_RequiresDailyQuotaSnapshotWhenBetExists()
+    {
+        Assert.Throws<InvalidOperationException>(() => Roll(4, includeQuota: false));
+    }
+
+    [Fact]
     public void RollDecide_RedeemDropUsesProvidedEntropy()
     {
         var decision = Roll(6, redeemDropChance: 0.1, entropy: 0.01);
@@ -82,17 +88,28 @@ public sealed class DiceCubeSettlementActionTests
         Assert.Empty(decision.Quotas);
     }
 
+    [Fact]
+    public void AbortDecide_RequiresDailyQuotaSnapshotWhenBetExists()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            new DiceCubeAbortAction().Decide(new GameActionInput<DiceCubePlaceBetState, DiceCubeAbortCommand>(
+                new DiceCubeAbortCommand(1, "player", 100, "abort"),
+                new DiceCubePlaceBetState(Bet), new WalletSnapshot(50),
+                new Dictionary<string, QuotaSnapshot>(), new EntropyValue([]), Now)));
+    }
+
     private static GameDecision<DiceCubePlaceBetState, CubeRollResult> Roll(
         int face,
         bool hasPending = true,
         double redeemDropChance = 0,
-        double entropy = 0.5) =>
+        double entropy = 0.5,
+        bool includeQuota = true) =>
         new DiceCubeRollAction().Decide(
             new GameActionInput<DiceCubePlaceBetState, DiceCubeRollCommand>(
                 new DiceCubeRollCommand(1, "player", 100, face, "roll", redeemDropChance),
                 new DiceCubePlaceBetState(hasPending ? Bet : null),
                 new WalletSnapshot(50),
-                Quotas(),
+                includeQuota ? Quotas() : new Dictionary<string, QuotaSnapshot>(),
                 new EntropyValue([KeyValuePair.Create(DiceCubeRollAction.RedeemDropEntropy, entropy)]),
                 Now));
 

@@ -7,7 +7,7 @@ public static class HandEvaluator
         '2' => 2, '3' => 3, '4' => 4, '5' => 5, '6' => 6,
         '7' => 7, '8' => 8, '9' => 9, 'T' => 10,
         'J' => 11, 'Q' => 12, 'K' => 13, 'A' => 14,
-        _ => throw new ArgumentException($"Invalid card: {card}"),
+        _ => throw new ArgumentException($"Invalid card: {card}", nameof(card)),
     };
 
     private static char SuitOf(string card) => card[1];
@@ -15,7 +15,7 @@ public static class HandEvaluator
     public static HandRank EvaluateBest(IEnumerable<string> sevenCards)
     {
         var cards = sevenCards.Where(c => !string.IsNullOrEmpty(c)).ToArray();
-        if (cards.Length < 5) throw new ArgumentException("Need at least 5 cards");
+        if (cards.Length < 5) throw new ArgumentException("Need at least 5 cards", nameof(sevenCards));
 
         HandRank best = default;
         var hasBest = false;
@@ -23,16 +23,22 @@ public static class HandEvaluator
         for (var a = 0; a < n - 4; a++)
         {
             for (var b = a + 1; b < n - 3; b++)
-        for (var c = b + 1; c < n - 2; c++)
-        for (var d = c + 1; d < n - 1; d++)
-        for (var e = d + 1; e < n; e++)
-        {
-            var five = new[] { cards[a], cards[b], cards[c], cards[d], cards[e] };
-            var rank = EvaluateFive(five);
-            if (hasBest && rank.CompareTo(best) <= 0) continue;
-            best = rank;
-            hasBest = true;
-        }
+            {
+                for (var c = b + 1; c < n - 2; c++)
+                {
+                    for (var d = c + 1; d < n - 1; d++)
+                    {
+                        for (var e = d + 1; e < n; e++)
+                        {
+                            var five = new[] { cards[a], cards[b], cards[c], cards[d], cards[e] };
+                            var rank = EvaluateFive(five);
+                            if (hasBest && rank.CompareTo(best) <= 0) continue;
+                            best = rank;
+                            hasBest = true;
+                        }
+                    }
+                }
+            }
         }
 
         return best;
@@ -91,10 +97,13 @@ public static class HandEvaluator
         }
 
         if (groups[0].Count != 2) return new HandRank(HandCategory.HighCard, ranks);
-        {
-            var kickers = ranks.Where(r => r != groups[0].Rank).Take(3).ToArray();
-            return new HandRank(HandCategory.Pair, [groups[0].Rank, kickers[0], kickers[1], kickers[2]]);
-        }
+        return EvaluatePair(groups[0].Rank, ranks);
+    }
+
+    private static HandRank EvaluatePair(int pairRank, int[] ranks)
+    {
+        var kickers = ranks.Where(r => r != pairRank).Take(3).ToArray();
+        return new HandRank(HandCategory.Pair, [pairRank, kickers[0], kickers[1], kickers[2]]);
     }
 
     private static int StraightHigh(int[] sortedDesc)

@@ -20,8 +20,8 @@ public sealed class PostgresTenantContextProvisioner(INpgsqlConnectionFactory co
 
         try
         {
-            await using var connection = await connections.OpenAsync(cancellationToken).ConfigureAwait(false);
-            await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            await using var connection = await connections.OpenAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         var tenantKey = await connection.QuerySingleAsync<long>(new CommandDefinition(
             """
@@ -37,7 +37,7 @@ public sealed class PostgresTenantContextProvisioner(INpgsqlConnectionFactory co
                 displayName = context.TenantId.Value,
             },
             transaction,
-            cancellationToken: cancellationToken)).ConfigureAwait(false);
+            cancellationToken: cancellationToken));
 
         var scopeKey = await connection.QuerySingleAsync<long>(new CommandDefinition(
             """
@@ -54,7 +54,7 @@ public sealed class PostgresTenantContextProvisioner(INpgsqlConnectionFactory co
                 isMain = string.Equals(context.ScopeId.Value, "main", StringComparison.Ordinal),
             },
             transaction,
-            cancellationToken: cancellationToken)).ConfigureAwait(false);
+            cancellationToken: cancellationToken));
 
         if (!string.IsNullOrWhiteSpace(context.ChannelContainerId))
         {
@@ -77,10 +77,10 @@ public sealed class PostgresTenantContextProvisioner(INpgsqlConnectionFactory co
                     scopeKey,
                 },
                 transaction,
-                cancellationToken: cancellationToken)).ConfigureAwait(false);
+                cancellationToken: cancellationToken));
         }
 
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch
         {

@@ -36,7 +36,6 @@ public sealed class DiceService(
             false,
             diceOpts.Cost,
             diceOpts.RedeemDropChance);
-        return await executor.ExecuteAsync(new GameExecutionEnvelope<DiceCommand>(command), ct)
-            .ConfigureAwait(false);
+        return await executor.ExecuteAsync(new GameExecutionEnvelope<DiceCommand>(command), ct);
     }
 }

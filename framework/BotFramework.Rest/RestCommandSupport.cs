@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 using BotFramework.Contracts.Tenancy;
 
@@ -25,7 +26,7 @@ public static class RestCommandSupport
         RestIdempotency.ToStableSourceId(OperationId(context, options, module, action));
 
     public static long ScopeId(RestRequestContext context, string name = "scopeId") =>
-        long.TryParse(context.ScopeId, out var value)
+        long.TryParse(context.ScopeId, CultureInfo.InvariantCulture, out var value)
             ? value
             : throw new RestBadRequestException($"{name} must be a numeric scope.");
 

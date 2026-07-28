@@ -7,7 +7,7 @@ public static class ShTransitions
     public const int HitlerChancellorThreshold = 3;
     public const int ElectionTrackerCap = 3;
 
-    public static void StartGame(SecretHitlerGame game, List<SecretHitlerPlayer> players)
+    public static void StartGame(SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players)
     {
         ShRoleDealer.DealRoles(players);
 
@@ -34,7 +34,7 @@ public static class ShTransitions
 
     public static void StartGame(
         SecretHitlerGame game,
-        List<SecretHitlerPlayer> players,
+        IReadOnlyList<SecretHitlerPlayer> players,
         IReadOnlyList<double> roleEntropy,
         IReadOnlyList<double> deckEntropy)
     {
@@ -43,7 +43,7 @@ public static class ShTransitions
         InitializeStartedGame(game, players);
     }
 
-    private static void InitializeStartedGame(SecretHitlerGame game, List<SecretHitlerPlayer> players)
+    private static void InitializeStartedGame(SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players)
     {
         game.DiscardState = "";
         game.LiberalPolicies = 0;
@@ -63,7 +63,7 @@ public static class ShTransitions
     }
 
     public static ShValidation ValidateNomination(
-        SecretHitlerGame game, SecretHitlerPlayer president, int chancellorPosition, List<SecretHitlerPlayer> players)
+        SecretHitlerGame game, SecretHitlerPlayer president, int chancellorPosition, IReadOnlyList<SecretHitlerPlayer> players)
     {
         if (game.Phase != ShPhase.Nomination) return ShValidation.WrongPhase;
         if (president.Position != game.CurrentPresidentPosition) return ShValidation.NotPresident;
@@ -86,7 +86,7 @@ public static class ShTransitions
         return ShValidation.Ok;
     }
 
-    public static void ApplyNomination(SecretHitlerGame game, int chancellorPosition, List<SecretHitlerPlayer> players)
+    public static void ApplyNomination(SecretHitlerGame game, int chancellorPosition, IReadOnlyList<SecretHitlerPlayer> players)
     {
         game.NominatedChancellorPosition = chancellorPosition;
         game.Phase = ShPhase.Election;
@@ -102,7 +102,7 @@ public static class ShTransitions
     }
 
     public static ShAfterVoteResult? ApplyVote(
-        SecretHitlerGame game, SecretHitlerPlayer voter, ShVote vote, List<SecretHitlerPlayer> players)
+        SecretHitlerGame game, SecretHitlerPlayer voter, ShVote vote, IReadOnlyList<SecretHitlerPlayer> players)
     {
         voter.LastVote = vote;
 
@@ -151,7 +151,7 @@ public static class ShTransitions
         SecretHitlerGame game,
         SecretHitlerPlayer voter,
         ShVote vote,
-        List<SecretHitlerPlayer> players,
+        IReadOnlyList<SecretHitlerPlayer> players,
         IReadOnlyList<double> reshuffleEntropy)
     {
         voter.LastVote = vote;
@@ -185,7 +185,7 @@ public static class ShTransitions
     }
 
     private static ShAfterVoteResult FailElection(
-        SecretHitlerGame game, List<SecretHitlerPlayer> players, int ja, int nein,
+        SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players, int ja, int nein,
         IReadOnlyList<double> reshuffleEntropy)
     {
         game.ElectionTracker++;
@@ -218,7 +218,7 @@ public static class ShTransitions
     }
 
     private static ShAfterVoteResult FailElection(
-        SecretHitlerGame game, List<SecretHitlerPlayer> players, int ja, int nein)
+        SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players, int ja, int nein)
     {
         game.ElectionTracker++;
         game.NominatedChancellorPosition = -1;
@@ -287,7 +287,7 @@ public static class ShTransitions
     }
 
     public static ShAfterEnactResult ApplyChancellorEnact(
-        SecretHitlerGame game, int enactIndex, List<SecretHitlerPlayer> players)
+        SecretHitlerGame game, int enactIndex, IReadOnlyList<SecretHitlerPlayer> players)
     {
         var received = ShPolicyDeck.Parse(game.ChancellorReceived);
         var enacted = received[enactIndex];
@@ -333,7 +333,7 @@ public static class ShTransitions
         return ShAfterEnactKind.NextRound;
     }
 
-    private static void AdvancePresident(SecretHitlerGame game, List<SecretHitlerPlayer> players)
+    private static void AdvancePresident(SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players)
     {
         var alive = players.Where(p => p.IsAlive).OrderBy(p => p.Position).ToList();
         var startIdx = alive.FindIndex(p => p.Position == game.CurrentPresidentPosition);

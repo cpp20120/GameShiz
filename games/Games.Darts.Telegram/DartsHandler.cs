@@ -21,37 +21,38 @@ public sealed partial class DartsHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
+        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal)
+            && diceMsg is { } diceMessage)
         {
-            var hasBoundRound = DartsDiceRoundBinding.TryGetRoundId(diceMsg.Chat.Id, diceMsg.MessageId, out var roundId);
+            var hasBoundRound = DartsDiceRoundBinding.TryGetRoundId(diceMessage.Chat.Id, diceMessage.MessageId, out var roundId);
 
             // User sent 🎯 without a prior /darts command → quick-play path.
-            if (!hasBoundRound && diceMsg.From is { IsBot: false } userFrom && diceMsg.Dice is { Value: > 0 })
+            if (!hasBoundRound && diceMessage.From is { IsBot: false } userFrom && diceMessage.Dice is { Value: > 0 })
             {
                 var userQuickId   = userFrom.Id;
                 if (userQuickId == 0) return;
                 var userQuickName = userFrom.Username ?? userFrom.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {userQuickId}");
-                var quickReply    = new ReplyParameters { MessageId = diceMsg.MessageId };
-                await HandleQuickPlayAsync(ctx, diceMsg, userQuickId, userQuickName, diceMsg.Chat.Id, quickReply);
+                var quickReply    = new ReplyParameters { MessageId = diceMessage.MessageId };
+                await HandleQuickPlayAsync(ctx, diceMessage, userQuickId, userQuickName, diceMessage.Chat.Id, quickReply);
                 return;
             }
 
             if (!hasBoundRound) return;
-            if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMsg, out var uid, out var dname))
+            if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMessage, out var uid, out var dname))
                 return;
-            if (diceMsg.From is { IsBot: false }
-                && (BotMiniGameRollGate.ShouldIgnoreUserThrow(RollGateId, uid, diceMsg.Chat.Id)
-                    || await RollGates.ShouldIgnoreUserThrowAsync(RollGateId, uid, diceMsg.Chat.Id, ctx.Ct)))
+            if (diceMessage.From is { IsBot: false }
+                && (BotMiniGameRollGate.ShouldIgnoreUserThrow(RollGateId, uid, diceMessage.Chat.Id)
+                    || await RollGates.ShouldIgnoreUserThrowAsync(RollGateId, uid, diceMessage.Chat.Id, ctx.Ct)))
             {
-                await ctx.Bot.SendMessage(diceMsg.Chat.Id, Loc("roll.wait_bot"),
+                await ctx.Bot.SendMessage(diceMessage.Chat.Id, Loc("roll.wait_bot"),
                     parseMode: ParseMode.Html,
-                    replyParameters: new ReplyParameters { MessageId = diceMsg.MessageId },
+                    replyParameters: new ReplyParameters { MessageId = diceMessage.MessageId },
                     cancellationToken: ctx.Ct);
                 return;
             }
 
-            var diceReply = new ReplyParameters { MessageId = diceMsg.MessageId };
-            await HandleThrowAsync(ctx, diceMsg, roundId, uid, dname, diceMsg.Chat.Id, diceReply);
+            var diceReply = new ReplyParameters { MessageId = diceMessage.MessageId };
+            await HandleThrowAsync(ctx, diceMessage, roundId, uid, dname, diceMessage.Chat.Id, diceReply);
             return;
         }
 
@@ -188,7 +189,7 @@ public sealed partial class DartsHandler(
 
         try
         {
-            var face = msg.Dice!.Value;
+            var face = msg.Dice.Value;
             var r = await service.ThrowAsync(roundId, userId, displayName, chatId, msg.MessageId, face, ctx.Ct);
 
             if (r.Outcome == DartsThrowOutcome.NoBet)

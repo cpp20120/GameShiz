@@ -16,9 +16,9 @@ public sealed class CoinFlipService(ICoinFlipStateStore store)
     public async Task<CoinFlipReply> ExecuteAsync(CoinFlipCommand command, int entropy, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var state = await store.LoadAsync(command.TenantId, command.ScopeId, command.PlayerId, ct).ConfigureAwait(false);
+        var state = await store.LoadAsync(command.TenantId, command.ScopeId, command.PlayerId, ct);
         var result = CoinFlipRules.Flip(state, entropy);
-        await store.SaveAsync(command.TenantId, command.ScopeId, command.PlayerId, result.State, ct).ConfigureAwait(false);
+        await store.SaveAsync(command.TenantId, command.ScopeId, command.PlayerId, result.State, ct);
         return new CoinFlipReply(result.Side.ToString(), result.State.Flips, result.State.Heads, result.State.Tails);
     }
 }

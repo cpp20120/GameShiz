@@ -10,8 +10,8 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
         TimeSpan lease,
         CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
         var rows = await connection.QueryAsync<GameEventOutboxItem>(new CommandDefinition(
             """
             WITH due AS (
@@ -41,9 +41,9 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
                 leaseMs = Math.Max(1, lease.TotalMilliseconds),
             },
             transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
-        await transaction.CommitAsync(ct).ConfigureAwait(false);
-        await RecordDepthAsync(connection, ct).ConfigureAwait(false);
+            cancellationToken: ct));
+        await transaction.CommitAsync(ct);
+        await RecordDepthAsync(connection, ct);
         return rows.ToList();
     }
 
@@ -52,8 +52,8 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
         TimeSpan lease,
         CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
         var rows = await connection.QueryAsync<TenantGameEventOutboxItem>(new CommandDefinition(
             """
             WITH due AS (
@@ -90,9 +90,9 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
                 leaseMs = Math.Max(1, lease.TotalMilliseconds),
             },
             transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
-        await transaction.CommitAsync(ct).ConfigureAwait(false);
-        await RecordDepthAsync(connection, ct).ConfigureAwait(false);
+            cancellationToken: ct));
+        await transaction.CommitAsync(ct);
+        await RecordDepthAsync(connection, ct);
         return rows.ToList();
     }
 
@@ -106,13 +106,13 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
                 (SELECT count(*) FROM game_event_outbox WHERE status IN ('pending', 'sending'))
               + (SELECT count(*) FROM tenant_event_outbox WHERE status IN ('pending', 'sending'))
             """,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         BotFrameworkMetrics.SetOutboxDepth(depth);
     }
 
     public async Task MarkSentAsync(long id, CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE game_event_outbox
@@ -123,12 +123,12 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
             WHERE id = @id
             """,
             new { id },
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     public async Task MarkTenantSentAsync(long id, CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE tenant_event_outbox
@@ -139,13 +139,13 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
             WHERE id = @id
             """,
             new { id },
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     public async Task MarkFailedAsync(long id, string error, int attempts, CancellationToken ct)
     {
         var retrySeconds = Math.Min(300, Math.Pow(2, Math.Min(attempts, 8)));
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE game_event_outbox
@@ -161,13 +161,13 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
                 retrySeconds,
                 error = error.Length <= 4000 ? error : error[..4000],
             },
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     public async Task MarkTenantFailedAsync(long id, string error, int attempts, CancellationToken ct)
     {
         var retrySeconds = Math.Min(300, Math.Pow(2, Math.Min(attempts, 8)));
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE tenant_event_outbox
@@ -183,6 +183,6 @@ internal sealed class PostgresGameEventOutbox(INpgsqlConnectionFactory connectio
                 retrySeconds,
                 error = error.Length <= 4000 ? error : error[..4000],
             },
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 }

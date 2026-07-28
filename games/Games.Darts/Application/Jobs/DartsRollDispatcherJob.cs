@@ -23,7 +23,10 @@ public sealed partial class DartsRollDispatcherJob(
                 await sender.SendAsync(job, stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            LogDispatcherStopped();
+        }
         catch (Exception ex)
         {
             LogDispatcherCrash(ex);
@@ -55,4 +58,7 @@ public sealed partial class DartsRollDispatcherJob(
 
     [LoggerMessage(EventId = 2233, Level = LogLevel.Information, Message = "darts.roll_dispatcher recovered_queued={Count}")]
     private partial void LogRecoveredQueuedRounds(int count);
+
+    [LoggerMessage(EventId = 2234, Level = LogLevel.Debug, Message = "darts.roll_dispatcher stopped")]
+    private partial void LogDispatcherStopped();
 }

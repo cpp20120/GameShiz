@@ -9,8 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Poker.Rest;
 
-public sealed record PokerActionRequest(string Verb, int Amount = 0);
-
 public sealed class PokerRestModule : IRestRouteModule
 {
     public string ModuleId => "poker";
@@ -57,8 +55,7 @@ public sealed class PokerRestModule : IRestRouteModule
         CancellationToken cancellationToken)
     {
         var scopeId = ParseScope(context);
-        var (snapshot, seat) = await service.FindMyTableAsync(context.UserId, scopeId, cancellationToken)
-            .ConfigureAwait(false);
+        var (snapshot, seat) = await service.FindMyTableAsync(context.UserId, scopeId, cancellationToken);
         if (snapshot is null || seat is null)
             throw new RestNotFoundException("The authenticated player is not seated at a table in this scope.");
         return Results.Ok(snapshot);
@@ -72,7 +69,7 @@ public sealed class PokerRestModule : IRestRouteModule
     {
         var operationId = RequireOperationId(context, options, "create");
         var result = await service.CreateTableAsync(
-            context.UserId, context.DisplayName, ParseScope(context), operationId, cancellationToken).ConfigureAwait(false);
+            context.UserId, context.DisplayName, ParseScope(context), operationId, cancellationToken);
         EnsureSuccess(result.Error);
         return Results.Created($"tables/{result.InviteCode}", result);
     }
@@ -86,8 +83,7 @@ public sealed class PokerRestModule : IRestRouteModule
     {
         var operationId = RequireOperationId(context, options, "join");
         var result = await service.JoinTableAsync(
-            context.UserId, context.DisplayName, ParseScope(context), RequireTableId(tableId), operationId, cancellationToken)
-            .ConfigureAwait(false);
+            context.UserId, context.DisplayName, ParseScope(context), RequireTableId(tableId), operationId, cancellationToken);
         EnsureSuccess(result.Error);
         return Results.Ok(result);
     }
@@ -101,7 +97,7 @@ public sealed class PokerRestModule : IRestRouteModule
     {
         var operationId = RequireOperationId(context, options, "start");
         var result = await service.StartHandAsync(
-            context.UserId, ParseScope(context), operationId, cancellationToken).ConfigureAwait(false);
+            context.UserId, ParseScope(context), operationId, cancellationToken);
         EnsureTable(result.Snapshot, tableId);
         EnsureSuccess(result.Error);
         return Results.Ok(result);
@@ -120,7 +116,7 @@ public sealed class PokerRestModule : IRestRouteModule
         var operationId = RequireOperationId(context, options, "action");
         var result = await service.ApplyPlayerActionAsync(
             context.UserId, ParseScope(context), request.Verb.ToLowerInvariant(), request.Amount,
-            operationId, cancellationToken).ConfigureAwait(false);
+            operationId, cancellationToken);
         EnsureTable(result.Snapshot, tableId);
         EnsureSuccess(result.Error);
         return Results.Ok(result);
@@ -135,7 +131,7 @@ public sealed class PokerRestModule : IRestRouteModule
     {
         var operationId = RequireOperationId(context, options, "leave");
         var result = await service.LeaveTableAsync(
-            context.UserId, ParseScope(context), operationId, cancellationToken).ConfigureAwait(false);
+            context.UserId, ParseScope(context), operationId, cancellationToken);
         EnsureTable(result.Snapshot, tableId, allowMissing: result.TableClosed);
         EnsureSuccess(result.Error);
         return Results.Ok(result);
@@ -150,7 +146,11 @@ public sealed class PokerRestModule : IRestRouteModule
     }
 
     private static long ParseScope(RestRequestContext context) =>
-        long.TryParse(context.ScopeId, out var value)
+        long.TryParse(
+                context.ScopeId,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var value)
             ? value
             : throw new RestBadRequestException("scopeId must be a numeric poker scope.");
 
@@ -186,10 +186,4 @@ public sealed class PokerRestModule : IRestRouteModule
             _ => new RestConflictException(detail),
         };
     }
-}
-
-public static class PokerRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddPokerRest(this IServiceCollection services) =>
-        services.AddRestRouteModule<PokerRestModule>();
 }

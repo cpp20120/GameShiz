@@ -43,13 +43,13 @@ public sealed class PlayerProtectionService(INpgsqlConnectionFactory connections
 
     public Task SetCooldownAsync(long userId, DateTimeOffset until, CancellationToken ct)
     {
-        if (until <= DateTimeOffset.UtcNow) throw new ArgumentOutOfRangeException(nameof(until));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(until, DateTimeOffset.UtcNow);
         return UpsertAsync(userId, "cooldown_until = GREATEST(player_protection.cooldown_until, @value)", until, ct);
     }
 
     public Task SetSelfExclusionAsync(long userId, DateTimeOffset until, CancellationToken ct)
     {
-        if (until <= DateTimeOffset.UtcNow) throw new ArgumentOutOfRangeException(nameof(until));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(until, DateTimeOffset.UtcNow);
         return UpsertAsync(userId, "self_excluded_until = GREATEST(player_protection.self_excluded_until, @value)", until, ct);
     }
 

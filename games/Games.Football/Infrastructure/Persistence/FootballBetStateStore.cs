@@ -21,7 +21,7 @@ public sealed class FootballBetStateStore :
             """
             SELECT user_id AS UserId, chat_id AS ChatId, amount AS Amount, created_at AS CreatedAt
             FROM football_bets WHERE user_id = @userId AND chat_id = @chatId FOR UPDATE
-            """, new { userId, chatId }, ct).ConfigureAwait(false);
+            """, new { userId, chatId }, ct);
         return new(row is null ? null : new(
             row.UserId, row.ChatId, row.Amount,
             new DateTimeOffset(DateTime.SpecifyKind(row.CreatedAt, DateTimeKind.Utc))));
@@ -33,7 +33,7 @@ public sealed class FootballBetStateStore :
         {
             await context.ExecuteAsync(
                 "INSERT INTO football_bets (user_id, chat_id, amount, created_at) VALUES (@UserId, @ChatId, @Amount, @CreatedAt)",
-                pending, ct).ConfigureAwait(false);
+                pending, ct);
             await context.ExecuteAsync(
                 """
                 INSERT INTO mini_game_sessions (user_id, chat_id, game_id, expires_at, updated_at)
@@ -45,13 +45,13 @@ public sealed class FootballBetStateStore :
                 {
                     userId, chatId, gameId = MiniGameIds.Football,
                     expiresAt = pending.CreatedAt.AddMilliseconds(BotMiniGameSession.TtlMs),
-                }, ct).ConfigureAwait(false);
+                }, ct);
             return;
         }
-        await context.ExecuteAsync("DELETE FROM football_bets WHERE user_id = @userId AND chat_id = @chatId", new { userId, chatId }, ct).ConfigureAwait(false);
+        await context.ExecuteAsync("DELETE FROM football_bets WHERE user_id = @userId AND chat_id = @chatId", new { userId, chatId }, ct);
         await context.ExecuteAsync(
             "DELETE FROM mini_game_sessions WHERE user_id = @userId AND chat_id = @chatId AND game_id = @gameId",
-            new { userId, chatId, gameId = MiniGameIds.Football }, ct).ConfigureAwait(false);
+            new { userId, chatId, gameId = MiniGameIds.Football }, ct);
     }
 
     private sealed record Row(long UserId, long ChatId, int Amount, DateTime CreatedAt);

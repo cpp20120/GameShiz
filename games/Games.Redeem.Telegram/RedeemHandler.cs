@@ -172,9 +172,9 @@ public sealed partial class RedeemHandler(
             // the entry first, Forget returns false and we silently bow out so
             // the user doesn't see a stray "took too long" after answering.
             if (!timeouts.Forget(codeGuid, cts)) return;
-            try { await bot.DeleteMessage(chatId, messageId); }
+            try { await bot.DeleteMessage(chatId, messageId, cancellationToken: cts.Token); }
             catch (ApiRequestException ex) { LogCaptchaDeleteFailed(chatId, messageId, ex); }
-            try { await bot.SendMessage(chatId, Loc("captcha.timeout")); }
+            try { await bot.SendMessage(chatId, Loc("captcha.timeout"), cancellationToken: cts.Token); }
             catch (ApiRequestException ex) { LogTimeoutMessageFailed(chatId, ex); }
         }
         catch (OperationCanceledException)

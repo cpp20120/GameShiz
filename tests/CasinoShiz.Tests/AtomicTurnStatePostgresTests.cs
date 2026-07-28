@@ -109,7 +109,7 @@ public sealed class AtomicTurnStatePostgresTests(AtomicPostgresFixture database)
         public async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)
         {
             var connection = Create();
-            await connection.OpenAsync(ct).ConfigureAwait(false);
+            await connection.OpenAsync(ct);
             return connection;
         }
     }

@@ -34,7 +34,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
                 FOR UPDATE
                 """,
                 identity,
-                ct).ConfigureAwait(false)
+                ct)
             : await context.QuerySingleOrDefaultAsync<StateRow>(
                 """
                 SELECT state_type AS StoredStateType,
@@ -56,7 +56,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
                     identity.GameId,
                     identity.AggregateId,
                 },
-                ct).ConfigureAwait(false);
+                ct);
         if (row is null)
         {
             var initial = descriptor.CreateInitialState(command);
@@ -119,7 +119,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
                   AND version = @expectedRevision
                 """,
                 args,
-                ct).ConfigureAwait(false)
+                ct)
             : await context.ExecuteAsync(
                 """
                 UPDATE tenant_aggregate_states a
@@ -148,7 +148,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
                     tenantId = tenant.TenantId.Value,
                     scopeId = tenant.ScopeId.Value,
                 },
-                ct).ConfigureAwait(false);
+                ct);
         if (affected == 1)
             return;
 
@@ -163,7 +163,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
                     ON CONFLICT (game_id, aggregate_id) DO NOTHING
                     """,
                     args,
-                    ct).ConfigureAwait(false)
+                    ct)
                 : await context.ExecuteAsync(
                     """
                     INSERT INTO tenant_aggregate_states (
@@ -187,7 +187,7 @@ public sealed class PostgresJsonGameStateStore<TCommand, TState, TResult>(
                         tenantId = tenant.TenantId.Value,
                         scopeId = tenant.ScopeId.Value,
                     },
-                    ct).ConfigureAwait(false);
+                    ct);
             if (affected == 1)
                 return;
         }

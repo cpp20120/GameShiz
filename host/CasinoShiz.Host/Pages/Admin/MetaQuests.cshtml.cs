@@ -16,6 +16,12 @@ public sealed class MetaQuestsModel(
     IAdminEffectExecutor effects) : PageModel
 {
     private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions EditorJson = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
 
     public AdminSession? Actor { get; private set; }
     public bool CanEdit { get; private set; }
@@ -255,22 +261,14 @@ public sealed class MetaQuestsModel(
     private static QuestPoolEditorDocument ReadEditorDocument()
     {
         var raw = JsonQuestCatalog.ReadEffectiveJson();
-        return JsonSerializer.Deserialize<QuestPoolEditorDocument>(raw, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true,
-        }) ?? throw new InvalidOperationException("Quest catalog JSON is empty.");
+        return JsonSerializer.Deserialize<QuestPoolEditorDocument>(raw, EditorJson)
+            ?? throw new InvalidOperationException("Quest catalog JSON is empty.");
     }
 
     private void LoadStructuredEditors(string json)
     {
-        var document = JsonSerializer.Deserialize<QuestPoolEditorDocument>(json, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true,
-        }) ?? new QuestPoolEditorDocument();
+        var document = JsonSerializer.Deserialize<QuestPoolEditorDocument>(json, EditorJson)
+            ?? new QuestPoolEditorDocument();
 
         Slots = document.Slots.ConvertAll(QuestSlotEditor.FromDocument);
         Definitions = document.Definitions.ConvertAll(QuestDefinitionEditor.FromDocument);
@@ -287,7 +285,6 @@ public sealed class MetaQuestsModel(
     }
 
     private static string JoinCsv<T>(IEnumerable<T> values) => string.Join(", ", values);
-    private static string JoinLines(IEnumerable<string> values) => string.Join('\n', values);
 
     private static List<string> SplitCsv(string? value)
     {
@@ -296,19 +293,6 @@ public sealed class MetaQuestsModel(
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .ToList();
     }
-
-    private static List<string> SplitLines(string? value)
-    {
-        return (value ?? "")
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToList();
-    }
-
-    private static List<int> SplitIntCsv(string? value) => SplitCsv(value).ConvertAll(int.Parse);
-    private static List<long> SplitLongCsv(string? value) => SplitCsv(value).ConvertAll(long.Parse);
-    private static List<decimal> SplitDecimalCsv(string? value) =>
-        SplitCsv(value).ConvertAll(x => decimal.Parse(x, System.Globalization.CultureInfo.InvariantCulture));
 
     public sealed class QuestSlotEditor
     {
@@ -359,6 +343,21 @@ public sealed class MetaQuestsModel(
         public long RewardCoins { get; set; }
         public string Titles { get; set; } = "";
         public string Descriptions { get; set; } = "";
+
+        private static string JoinLines(IEnumerable<string> values) => string.Join('\n', values);
+
+        private static List<string> SplitLines(string? value)
+        {
+            return (value ?? "")
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToList();
+        }
+
+        private static List<int> SplitIntCsv(string? value) => SplitCsv(value).ConvertAll(int.Parse);
+        private static List<long> SplitLongCsv(string? value) => SplitCsv(value).ConvertAll(long.Parse);
+        private static List<decimal> SplitDecimalCsv(string? value) =>
+            SplitCsv(value).ConvertAll(x => decimal.Parse(x, System.Globalization.CultureInfo.InvariantCulture));
 
         public static QuestDefinitionEditor FromDocument(QuestDefinitionDocumentEditor definition) => new()
         {

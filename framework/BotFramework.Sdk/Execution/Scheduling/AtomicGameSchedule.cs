@@ -6,13 +6,13 @@ namespace BotFramework.Sdk.Execution;
 
 public static class AtomicGameSchedule
 {
-    public const string CommandDataKey = "atomic-command";
-    public const string TenantIdDataKey = "__botframework-tenant-id";
-    public const string ScopeIdDataKey = "__botframework-scope-id";
-    public const string PlayerIdDataKey = "__botframework-player-id";
-    public const string RequestIdDataKey = "__botframework-request-id";
-    public const string CorrelationIdDataKey = "__botframework-correlation-id";
-    public const string ChannelDataKey = "__botframework-channel";
+    private const string CommandDataKey = "atomic-command";
+    private const string TenantIdDataKey = "__botframework-tenant-id";
+    private const string ScopeIdDataKey = "__botframework-scope-id";
+    private const string PlayerIdDataKey = "__botframework-player-id";
+    private const string RequestIdDataKey = "__botframework-request-id";
+    private const string CorrelationIdDataKey = "__botframework-correlation-id";
+    private const string ChannelDataKey = "__botframework-channel";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

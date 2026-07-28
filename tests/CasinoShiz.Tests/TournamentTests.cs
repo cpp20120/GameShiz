@@ -158,8 +158,8 @@ public sealed class TournamentHandlerTests
 
     private sealed class TournamentServiceStub : ITournamentService
     {
-        public TournamentCreateResult? CreateResult { get; set; }
-        public TournamentJoinResult? JoinResult { get; set; }
+        public TournamentCreateResult CreateResult { get; set; } = new(Created: false, "not configured");
+        public TournamentJoinResult JoinResult { get; set; } = new(Joined: false, "not configured");
         public TournamentInfo? GetResult { get; set; }
         public IReadOnlyList<TournamentInfo> Open { get; set; } = [];
         public IReadOnlyList<TournamentPlayerInfo> Players { get; set; } = [];

@@ -8,7 +8,7 @@ public sealed class PickChainStore(INpgsqlConnectionFactory connections)
 {
     public async Task<PickChainState?> ClaimAsync(Guid id, CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         var row = await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(
             """
             WITH claimed AS (
@@ -24,13 +24,13 @@ public sealed class PickChainStore(INpgsqlConnectionFactory connections)
             FROM claimed
             WHERE expires_at >= now()
             """,
-            new { id }, cancellationToken: ct)).ConfigureAwait(false);
+            new { id }, cancellationToken: ct));
         return row?.ToState();
     }
 
     public async Task RestoreAsync(PickChainState state, CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         await connection.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO pick_chains
@@ -51,7 +51,7 @@ public sealed class PickChainStore(INpgsqlConnectionFactory connections)
                 variantsJson = JsonSerializer.Serialize(state.Variants),
                 backedJson = JsonSerializer.Serialize(state.BackedIndices),
                 state.ExpiresAt,
-            }, cancellationToken: ct)).ConfigureAwait(false);
+            }, cancellationToken: ct));
     }
 
     private sealed record Row(

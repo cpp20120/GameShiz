@@ -23,15 +23,15 @@ internal sealed class PostgresGameExecutionSession : IGameExecutionSession
         INpgsqlConnectionFactory connections,
         CancellationToken ct)
     {
-        var openedConnection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        var openedConnection = await connections.OpenAsync(ct);
         try
         {
-            var openedTransaction = await openedConnection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            var openedTransaction = await openedConnection.BeginTransactionAsync(ct);
             return new PostgresGameExecutionSession(openedConnection, openedTransaction);
         }
         catch
         {
-            await openedConnection.DisposeAsync().ConfigureAwait(false);
+            await openedConnection.DisposeAsync();
             throw;
         }
     }
@@ -52,21 +52,21 @@ internal sealed class PostgresGameExecutionSession : IGameExecutionSession
                 "SELECT pg_advisory_xact_lock(hashtextextended(@lockKey, 0))",
                 new { lockKey },
                 transaction,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
         }
     }
 
     public async Task CommitAsync(CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(completed, this);
-        await transaction.CommitAsync(ct).ConfigureAwait(false);
+        await transaction.CommitAsync(ct);
         completed = true;
     }
 
     public async Task RollbackAsync(CancellationToken ct)
     {
         if (completed) return;
-        await transaction.RollbackAsync(ct).ConfigureAwait(false);
+        await transaction.RollbackAsync(ct);
         completed = true;
     }
 
@@ -78,7 +78,7 @@ internal sealed class PostgresGameExecutionSession : IGameExecutionSession
             {
                 try
                 {
-                    await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    await transaction.RollbackAsync(CancellationToken.None);
                 }
                 catch (InvalidOperationException)
                 {
@@ -92,8 +92,8 @@ internal sealed class PostgresGameExecutionSession : IGameExecutionSession
         }
         finally
         {
-            await transaction.DisposeAsync().ConfigureAwait(false);
-            await connection.DisposeAsync().ConfigureAwait(false);
+            await transaction.DisposeAsync();
+            await connection.DisposeAsync();
             completed = true;
         }
     }

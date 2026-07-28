@@ -6,47 +6,6 @@ using Dapper;
 
 namespace BotFramework.Host.Execution;
 
-public interface IAtomicEffectExecutor
-{
-    Task<TResult> ExecuteAsync<TResult>(
-        AtomicEffectExecutionEnvelope envelope,
-        AtomicEffectPlan<TResult> plan,
-        CancellationToken ct);
-}
-
-public interface IAtomicEffectContext
-{
-    string? OperationId => null;
-    IWalletAtomicExecutionService? Wallet => null;
-    IEconomicsService? Economics => null;
-
-    Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct);
-
-    Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct);
-
-    Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters, CancellationToken ct);
-
-    void SetOutput(string key, object? value);
-}
-
-public interface IAtomicEffectHandler
-{
-    Type EffectType { get; }
-
-    Task ApplyAsync(IAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct);
-}
-
-public abstract class AtomicEffectHandler<TEffect> : IAtomicEffectHandler
-    where TEffect : class, IAtomicEffect
-{
-    public Type EffectType => typeof(TEffect);
-
-    public Task ApplyAsync(IAtomicEffect effect, IAtomicEffectContext context, CancellationToken ct) =>
-        ApplyAsync((TEffect)effect, context, ct);
-
-    protected abstract Task ApplyAsync(TEffect effect, IAtomicEffectContext context, CancellationToken ct);
-}
-
 internal sealed class AtomicEffectExecutor(
     IGameExecutionSessionFactory sessions,
     ICommandInbox inbox,
@@ -55,7 +14,7 @@ internal sealed class AtomicEffectExecutor(
     IEconomicsService economics,
     ITenantContextProvisioner? tenantContextProvisioner = null) : IAtomicEffectExecutor
 {
-    private readonly IReadOnlyDictionary<Type, IAtomicEffectHandler> handlers = handlers
+    private readonly Dictionary<Type, IAtomicEffectHandler> _handlers = handlers
         .GroupBy(static handler => handler.EffectType)
         .ToDictionary(static group => group.Key, static group => group.Single());
 
@@ -69,21 +28,21 @@ internal sealed class AtomicEffectExecutor(
             ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(tenantContext, "sdk"))
             : null;
         if (envelope.TenantContext is { } tenant && tenantContextProvisioner is not null)
-            await tenantContextProvisioner.EnsureAsync(tenant, ct).ConfigureAwait(false);
-        await using var session = await sessions.BeginAsync(ct).ConfigureAwait(false);
+            await tenantContextProvisioner.EnsureAsync(tenant, ct);
+        await using var session = await sessions.BeginAsync(ct);
         var committed = false;
         try
         {
-            await session.AcquireLocksAsync(envelope.LockKeys, ct).ConfigureAwait(false);
+            await session.AcquireLocksAsync(envelope.LockKeys, ct);
             var existing = await inbox.GetOrBeginAsync<TResult>(
                 envelope.CommandId,
                 envelope.GameId,
                 envelope.AggregateId,
                 session,
-                ct).ConfigureAwait(false);
+                ct);
             if (existing.Status == CommandInboxStatus.Completed)
             {
-                await session.CommitAsync(ct).ConfigureAwait(false);
+                await session.CommitAsync(ct);
                 committed = true;
                 return existing.Result!;
             }
@@ -91,23 +50,23 @@ internal sealed class AtomicEffectExecutor(
             var context = new PostgresAtomicEffectContext(session, envelope.CommandId, wallet, economics);
             foreach (var effect in plan.Effects)
             {
-                if (!handlers.TryGetValue(effect.GetType(), out var handler))
+                if (!_handlers.TryGetValue(effect.GetType(), out var handler))
                     throw new InvalidOperationException($"No atomic effect handler is registered for '{effect.GetType().FullName}'.");
-                await handler.ApplyAsync(effect, context, ct).ConfigureAwait(false);
+                await handler.ApplyAsync(effect, context, ct);
             }
 
             var result = plan.ResultFactory is { } factory
                 ? factory(context.Outputs)
                 : plan.Result;
-            await inbox.CompleteAsync(envelope.CommandId, result, session, ct).ConfigureAwait(false);
-            await session.CommitAsync(ct).ConfigureAwait(false);
+            await inbox.CompleteAsync(envelope.CommandId, result, session, ct);
+            await session.CommitAsync(ct);
             committed = true;
             return result;
         }
         catch
         {
             if (!committed)
-                await session.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                await session.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
@@ -122,7 +81,7 @@ internal sealed class AtomicEffectExecutor(
             throw new ArgumentException("Game, command and aggregate identifiers are required.", nameof(envelope));
         if (envelope.LockKeys is null || envelope.LockKeys.Count == 0)
             throw new ArgumentException("At least one stable lock key is required.", nameof(envelope));
-        if (plan.Effects is null || plan.Effects.Any(static effect => effect is null))
+        if (plan.Effects?.Any(static effect => false) != false)
             throw new ArgumentException("Atomic effect plan cannot contain null effects.", nameof(plan));
     }
 
@@ -132,13 +91,13 @@ internal sealed class AtomicEffectExecutor(
         IWalletAtomicExecutionService wallet,
         IEconomicsService economics) : IAtomicEffectContext
     {
-        private readonly Dictionary<string, object?> outputs = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object?> _outputs = new(StringComparer.Ordinal);
 
         public string? OperationId { get; } = operationId;
         public IWalletAtomicExecutionService Wallet { get; } = wallet;
         public IEconomicsService Economics { get; } = economics;
 
-        public IReadOnlyDictionary<string, object?> Outputs => outputs;
+        public IReadOnlyDictionary<string, object?> Outputs => _outputs;
 
         public Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct) =>
             session.Connection.ExecuteAsync(new CommandDefinition(
@@ -146,16 +105,16 @@ internal sealed class AtomicEffectExecutor(
 
         public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct) =>
             await session.Connection.QuerySingleOrDefaultAsync<T>(new CommandDefinition(
-                sql, parameters, session.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+                sql, parameters, session.Transaction, cancellationToken: ct));
 
         public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters, CancellationToken ct) =>
             (await session.Connection.QueryAsync<T>(new CommandDefinition(
-                sql, parameters, session.Transaction, cancellationToken: ct)).ConfigureAwait(false)).AsList();
+                sql, parameters, session.Transaction, cancellationToken: ct))).AsList();
 
         public void SetOutput(string key, object? value)
         {
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Output key is required.", nameof(key));
-            outputs[key] = value;
+            _outputs[key] = value;
         }
     }
 }

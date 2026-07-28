@@ -74,7 +74,7 @@ public sealed class DiceCubeService(
         var canEnterSession = amount > 0 && amount <= cube.MaxBet;
 
         if (canEnterSession && cube.MinSecondsBetweenBets > 0
-            && await GetCooldownLastRollAsync(userId, chatId, ct).ConfigureAwait(false) is { } lastRoll)
+            && await GetCooldownLastRollAsync(userId, chatId, ct) is { } lastRoll)
         {
             var wait = (lastRoll + TimeSpan.FromSeconds(cube.MinSecondsBetweenBets)) - DateTimeOffset.UtcNow;
             cooldownSeconds = wait > TimeSpan.Zero ? Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)) : 0;
@@ -88,16 +88,15 @@ public sealed class DiceCubeService(
                 MiniGameIds.DiceCube,
                 async c =>
                 {
-                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) == null)
+                    if (await bets.FindAsync(userId, chatId, c) == null)
                     {
                         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, c)
-                            .ConfigureAwait(false);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, c);
                     }
                 },
                 ghostHeal,
                 Sessions,
-                ct).ConfigureAwait(false);
+                ct);
             if (!session.Ok) blockingGameId = session.Blocker;
         }
 
@@ -117,13 +116,12 @@ public sealed class DiceCubeService(
             cooldownSeconds,
             blockingGameId);
         var result = await placeBetExecutor
-            .ExecuteAsync(new GameExecutionEnvelope<DiceCubePlaceBetCommand>(command), ct)
-            .ConfigureAwait(false);
+            .ExecuteAsync(new GameExecutionEnvelope<DiceCubePlaceBetCommand>(command), ct);
 
         if (result.Error == CubeBetError.None)
         {
             BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.DiceCube);
-            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.DiceCube, ct).ConfigureAwait(false);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.DiceCube, ct);
         }
         return result;
     }
@@ -165,15 +163,13 @@ public sealed class DiceCubeService(
             operationId,
             cube.RedeemDropChance);
         var result = await rollExecutor
-            .ExecuteAsync(new GameExecutionEnvelope<DiceCubeRollCommand>(command), ct)
-            .ConfigureAwait(false);
+            .ExecuteAsync(new GameExecutionEnvelope<DiceCubeRollCommand>(command), ct);
         if (result.Outcome != CubeRollOutcome.Rolled) return result;
 
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
         if (cube.MinSecondsBetweenBets > 0)
-            await SetCooldownLastRollAsync(userId, chatId, DateTimeOffset.UtcNow, CooldownTtl(cube), ct)
-                .ConfigureAwait(false);
+            await SetCooldownLastRollAsync(userId, chatId, DateTimeOffset.UtcNow, CooldownTtl(cube), ct);
         return result;
     }
 
@@ -207,12 +203,11 @@ public sealed class DiceCubeService(
             .ExecuteAsync(
                 new GameExecutionEnvelope<DiceCubeAbortCommand>(
                     new DiceCubeAbortCommand(userId, displayName, chatId, operationId)),
-                ct)
-            .ConfigureAwait(false);
+                ct);
         if (!result.Aborted) return;
 
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.DiceCube);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.DiceCube, ct);
     }
 
     private async Task<DateTimeOffset?> GetCooldownLastRollAsync(long userId, long chatId, CancellationToken ct)

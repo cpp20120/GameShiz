@@ -80,12 +80,12 @@ public sealed class DebugHandler(
         var gcBytes = GC.GetTotalMemory(forceFullCollection: false);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"chat id: <code>{Enc(chatId)}</code>");
-        sb.AppendLine($"chat type: <code>{Enc(chatType)}</code>");
-        sb.AppendLine($"user id: <code>{Enc(userId)}</code>");
-        sb.AppendLine($"ASPNETCORE_ENVIRONMENT: <code>{Enc(hostEnvironment.EnvironmentName)}</code>");
-        sb.AppendLine($"postgres conn: <code>{(hasPg ? "yes" : "no")}</code>");
-        sb.AppendLine($"proxy: <code>{Enc(proxyMode)}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"chat id: <code>{Enc(chatId)}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"chat type: <code>{Enc(chatType)}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"user id: <code>{Enc(userId)}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"ASPNETCORE_ENVIRONMENT: <code>{Enc(hostEnvironment.EnvironmentName)}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"postgres conn: <code>{(hasPg ? "yes" : "no")}</code>");
+        sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"proxy: <code>{Enc(proxyMode)}</code>");
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"uptime: <code>{uptimeSec}s</code>");
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"cpu (sample 100ms): <code>{cpuPercent:F1}%</code>");
         sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"rss: <code>{workingSetMb:F1} MB</code>");
@@ -95,11 +95,7 @@ public sealed class DebugHandler(
 
     private static bool IsAnyAdmin(BotFrameworkOptions o, long userId)
     {
-        foreach (var id in o.Admins)
-            if (id == userId) return true;
-        foreach (var id in o.ReadOnlyAdmins)
-            if (id == userId) return true;
-        return false;
+        return o.Admins.Contains(userId) || o.ReadOnlyAdmins.Contains(userId);
     }
 
     private static string Enc<T>(T value) => WebUtility.HtmlEncode(value?.ToString() ?? "");

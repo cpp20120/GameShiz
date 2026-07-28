@@ -6,7 +6,7 @@ using BotFramework.Contracts.Tenancy;
 using BotFramework.Telegram.Abstractions.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace BotFramework.Host.Pipeline.Middleware;
+namespace BotFramework.Telegram.Pipeline.Middleware;
 
 public sealed partial class RateLimitMiddleware(
     IRateLimiter limiter,
@@ -56,7 +56,7 @@ public sealed partial class RateLimitMiddleware(
         // rate limiting must still work in that composition mode.
         var provisioner = ctx.Services?.GetService<ITenantContextProvisioner>();
         if (provisioner is not null)
-            await provisioner.EnsureAsync(tenant, ctx.Ct).ConfigureAwait(false);
+            await provisioner.EnsureAsync(tenant, ctx.Ct);
 
         using var metadataScope = RequestMetadataContext.Push(
             RequestMetadata.FromTenantContext(tenant, "telegram"));
@@ -66,7 +66,7 @@ public sealed partial class RateLimitMiddleware(
                 tenant.PlayerId,
                 BotFramework.Contracts.Messaging.BotChannel.Telegram,
                 RouteKey(ctx)),
-            ctx.Ct).ConfigureAwait(false);
+            ctx.Ct);
         ctx.Items["tenant_context"] = tenant;
         ctx.Items["rate_limit_decision"] = decision;
         if (!decision.Allowed)
@@ -81,9 +81,9 @@ public sealed partial class RateLimitMiddleware(
 
     private static string RouteKey(UpdateContext context)
     {
-        if (!string.IsNullOrWhiteSpace(context.Text) && context.Text!.TrimStart().StartsWith('/'))
+        if (!string.IsNullOrWhiteSpace(context.Text) && context.Text.TrimStart().StartsWith('/'))
         {
-            var command = context.Text!.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
+            var command = context.Text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
             command = command[1..].Split('@', 2)[0];
             if (command.Length > 0 && command.All(c => char.IsLetterOrDigit(c) || c is '_' or ':' or '-'))
                 return $"command:{command.ToLowerInvariant()}";
@@ -126,6 +126,7 @@ public sealed partial class RateLimitMiddleware(
                 bucket.Tokens = Math.Min(10, bucket.Tokens + (now - bucket.UpdatedAt).TotalSeconds);
                 bucket.UpdatedAt = now;
                 if (bucket.Tokens < 1)
+                {
                     return ValueTask.FromResult(new RateLimitDecision(
                         false,
                         RateLimitDimension.TenantPlayer,
@@ -134,6 +135,7 @@ public sealed partial class RateLimitMiddleware(
                         TimeSpan.FromSeconds(1 - bucket.Tokens),
                         false,
                         "compatibility-test"));
+                }
 
                 bucket.Tokens -= 1;
                 return ValueTask.FromResult(new RateLimitDecision(

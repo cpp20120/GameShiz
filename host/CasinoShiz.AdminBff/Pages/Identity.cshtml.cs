@@ -1,4 +1,5 @@
 using BotFramework.Contracts.Identity;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -15,7 +16,7 @@ public sealed class IdentityModel(IPlayerDirectory players) : PageModel
         if (string.IsNullOrWhiteSpace(Query)) return Page();
         try
         {
-            Identity = long.TryParse(Query, out var userId)
+            Identity = long.TryParse(Query, CultureInfo.InvariantCulture, out var userId)
                 ? await players.GetAsync(userId, ct)
                 : await players.FindByUsernameAsync(Query, ct);
             if (Identity is null) Error = "Identity not found.";

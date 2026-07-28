@@ -88,6 +88,12 @@ public sealed class DiceCubePlaceBetActionTests
     }
 
     [Fact]
+    public void Decide_RequiresDailyQuotaSnapshot()
+    {
+        Assert.Throws<InvalidOperationException>(() => Decide(includeQuota: false));
+    }
+
+    [Fact]
     public void Decide_SameInputProducesEqualDecision()
     {
         var first = Decide();
@@ -110,7 +116,8 @@ public sealed class DiceCubePlaceBetActionTests
         long quotaLimit = 10,
         DiceCubePendingBet? pending = null,
         int cooldownSeconds = 0,
-        string? blockingGameId = null)
+        string? blockingGameId = null,
+        bool includeQuota = true)
     {
         var command = new DiceCubePlaceBetCommand(
             1,
@@ -129,10 +136,12 @@ public sealed class DiceCubePlaceBetActionTests
                 command,
                 new DiceCubePlaceBetState(pending),
                 new WalletSnapshot(balance),
-                new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
-                {
-                    [DiceCubePlaceBetAction.DailyRollQuota] = new(quotaUsed, quotaLimit),
-                },
+                includeQuota
+                    ? new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+                    {
+                        [DiceCubePlaceBetAction.DailyRollQuota] = new(quotaUsed, quotaLimit),
+                    }
+                    : new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal),
                 new EntropyValue([]),
                 Now));
     }

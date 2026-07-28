@@ -7,8 +7,8 @@ public sealed class SecretHitlerPlayerStore(SecretHitlerDbContext db) : ISecretH
     public Task<SecretHitlerPlayer?> FindByUserAsync(long userId, CancellationToken ct) =>
         db.Players.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == userId, ct);
 
-    public Task<List<SecretHitlerPlayer>> ListByGameAsync(string inviteCode, CancellationToken ct) =>
-        db.Players.AsNoTracking().Where(x => x.InviteCode == inviteCode).ToListAsync(ct);
+    public async Task<IReadOnlyList<SecretHitlerPlayer>> ListByGameAsync(string inviteCode, CancellationToken ct) =>
+        await db.Players.AsNoTracking().Where(x => x.InviteCode == inviteCode).ToListAsync(ct);
 
     public Task<bool> AnyForUserAsync(long userId, CancellationToken ct) =>
         db.Players.AsNoTracking().AnyAsync(x => x.UserId == userId, ct);

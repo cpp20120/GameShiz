@@ -22,7 +22,7 @@ public sealed class PixelBattleDiscordHandler(IPixelBattleService service) : IDi
             case "grid":
                 await DiscordCommand.ReplyResultAsync(context, await service.GetGridAsync(context.CancellationToken), "PixelBattle");
                 return;
-            case "set" when parts.Length >= 4 && int.TryParse(parts[2], out var index):
+            case "set" when parts.Length >= 4 && int.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var index):
                 await DiscordCommand.ReplyResultAsync(context,
                     await service.UpdateAsync(DiscordCommand.UserId(context), index, parts[3], context.CancellationToken),
                     "PixelBattle");
@@ -32,10 +32,4 @@ public sealed class PixelBattleDiscordHandler(IPixelBattleService service) : IDi
                 return;
         }
     }
-}
-
-public static class PixelBattleDiscordModule
-{
-    public static IServiceCollection AddPixelBattleDiscord(this IServiceCollection services) =>
-        services.AddScoped<IDiscordMessageHandler, PixelBattleDiscordHandler>();
 }

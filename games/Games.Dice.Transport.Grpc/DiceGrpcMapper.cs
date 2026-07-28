@@ -38,6 +38,22 @@ internal static class DiceGrpcMapper
         return result;
     }
 
+    public static DicePlayResponse ToContract(this DicePlayGrpcResponse response) => new(
+        response.Status switch
+        {
+            DicePlayStatusGrpc.DicePlayStatusPlayed => DicePlayStatus.Played,
+            DicePlayStatusGrpc.DicePlayStatusForwarded => DicePlayStatus.Forwarded,
+            DicePlayStatusGrpc.DicePlayStatusNotEnoughCoins => DicePlayStatus.NotEnoughCoins,
+            DicePlayStatusGrpc.DicePlayStatusDailyRollLimitExceeded => DicePlayStatus.DailyRollLimitExceeded,
+            _ => throw new InvalidOperationException("Backend returned an unspecified Dice status."),
+        },
+        response.Prize,
+        response.Stake,
+        response.Balance,
+        response.Tax,
+        response.DailyRollsUsed,
+        response.DailyRollLimit);
+
     public static DicePlayGrpcResponse ToGrpc(this DicePlayResponse response) => new()
     {
         Status = response.Status switch
@@ -85,22 +101,6 @@ internal static class DiceGrpcMapper
         IsForwarded = request.IsForwarded,
         Metadata = metadata.ToGrpc(),
     };
-
-    public static DicePlayResponse ToContract(this DicePlayGrpcResponse response) => new(
-        response.Status switch
-        {
-            DicePlayStatusGrpc.DicePlayStatusPlayed => DicePlayStatus.Played,
-            DicePlayStatusGrpc.DicePlayStatusForwarded => DicePlayStatus.Forwarded,
-            DicePlayStatusGrpc.DicePlayStatusNotEnoughCoins => DicePlayStatus.NotEnoughCoins,
-            DicePlayStatusGrpc.DicePlayStatusDailyRollLimitExceeded => DicePlayStatus.DailyRollLimitExceeded,
-            _ => throw new InvalidOperationException("Backend returned an unspecified Dice status."),
-        },
-        response.Prize,
-        response.Stake,
-        response.Balance,
-        response.Tax,
-        response.DailyRollsUsed,
-        response.DailyRollLimit);
 
     private static string? EmptyToNull(string value) => string.IsNullOrEmpty(value) ? null : value;
 

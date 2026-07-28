@@ -49,20 +49,20 @@ public sealed class DebugJobsHandler(
             foreach (var job in snapshots)
             {
                 sb.AppendLine();
-                sb.AppendLine($"<b>{Enc(job.Name)}</b> <code>{Enc(job.Kind)}</code>");
-                sb.AppendLine($"state: <code>{Enc(job.State)}</code>");
-                sb.AppendLine($"heartbeat: <code>{Fmt(job.LastHeartbeatAt)}</code>");
-                sb.AppendLine($"started: <code>{Fmt(job.LastStartedAt)}</code>");
-                sb.AppendLine($"completed: <code>{Fmt(job.LastCompletedAt)}</code>");
-                sb.AppendLine($"failed: <code>{Fmt(job.LastFailedAt)}</code>");
-                sb.AppendLine($"next: <code>{Fmt(job.NextRunAt)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"<b>{Enc(job.Name)}</b> <code>{Enc(job.Kind)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"state: <code>{Enc(job.State)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"heartbeat: <code>{Fmt(job.LastHeartbeatAt)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"started: <code>{Fmt(job.LastStartedAt)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"completed: <code>{Fmt(job.LastCompletedAt)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"failed: <code>{Fmt(job.LastFailedAt)}</code>");
+                sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"next: <code>{Fmt(job.NextRunAt)}</code>");
                 sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"crashes: <code>{job.CrashCount}</code>");
                 if (job.RestartBackoffMs.HasValue)
                     sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"restart backoff: <code>{job.RestartBackoffMs.Value}ms</code>");
                 if (!string.IsNullOrWhiteSpace(job.Note))
-                    sb.AppendLine($"note: <code>{Enc(job.Note)}</code>");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"note: <code>{Enc(job.Note)}</code>");
                 if (!string.IsNullOrWhiteSpace(job.LastError))
-                    sb.AppendLine($"error: <code>{Enc(job.LastError)}</code>");
+                    sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"error: <code>{Enc(job.LastError)}</code>");
             }
         }
 
@@ -76,11 +76,7 @@ public sealed class DebugJobsHandler(
 
     private static bool IsAnyAdmin(BotFrameworkOptions o, long userId)
     {
-        foreach (var id in o.Admins)
-            if (id == userId) return true;
-        foreach (var id in o.ReadOnlyAdmins)
-            if (id == userId) return true;
-        return false;
+        return o.Admins.Contains(userId) || o.ReadOnlyAdmins.Contains(userId);
     }
 
     private static string Fmt(DateTimeOffset? value) =>

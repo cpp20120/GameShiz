@@ -12,10 +12,10 @@ internal sealed class RuntimeConfigurationService(
 {
     public async Task<RuntimeConfigurationSnapshot> GetAsync(CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         var stored = await connection.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
             "SELECT payload::text FROM runtime_tuning WHERE id = 1",
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         var validation = validator.Validate(string.IsNullOrWhiteSpace(stored) ? "{}" : stored);
         return new RuntimeConfigurationSnapshot(
             validation.NormalizedPatchJson,
@@ -50,9 +50,9 @@ internal sealed class RuntimeConfigurationService(
             [
                 new RuntimeConfigurationPatchEffect(validation.NormalizedPatchJson),
             ]),
-            ct).ConfigureAwait(false);
+            ct);
 
-        await tuning.ReloadFromDatabaseAsync(ct).ConfigureAwait(false);
+        await tuning.ReloadFromDatabaseAsync(ct);
         return new(true, validation.NormalizedPatchJson, validation.EffectiveJson, []);
     }
 }

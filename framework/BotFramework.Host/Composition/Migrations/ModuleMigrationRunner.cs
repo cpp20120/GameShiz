@@ -93,7 +93,7 @@ public sealed partial class ModuleMigrationRunner(
         // not own that table, and fresh databases have no legacy hands to
         // backfill, so record the migration without executing that old join.
         var migrations = module.Migrations
-            .Select(migration => migration.Id == "002_atomic_execution_state"
+            .Select(migration => string.Equals(migration.Id, "002_atomic_execution_state", StringComparison.Ordinal)
                 ? new Migration(migration.Id, "SELECT 1;")
                 : migration)
             .ToArray();

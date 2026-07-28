@@ -3,7 +3,7 @@ using Telegram.Bot.Types.Enums;
 using BotFramework.Host.Contracts.Telegram;
 using System.Threading.Channels;
 
-namespace BotFramework.Host.TelegramOutbox;
+namespace BotFramework.Telegram.Outbox;
 
 public sealed partial class TelegramOutboxDispatcherService(
     IServiceScopeFactory scopes,
@@ -42,7 +42,7 @@ public sealed partial class TelegramOutboxDispatcherService(
             {
                 var wakeup = _wakeups.Reader.WaitToReadAsync(stoppingToken).AsTask();
                 await Task.WhenAny(Task.Delay(delay, stoppingToken), wakeup);
-                while (_wakeups.Reader.TryRead(out _)) continue;
+                _ = DrainWakeups();
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
@@ -95,4 +95,12 @@ public sealed partial class TelegramOutboxDispatcherService(
 
     [LoggerMessage(LogLevel.Warning, "telegram_outbox.send_failed id={OutboxId} retry_after_seconds={RetryAfterSeconds}")]
     partial void LogSendFailed(long outboxId, double retryAfterSeconds, Exception ex);
+
+    private int DrainWakeups()
+    {
+        var drained = 0;
+        while (_wakeups.Reader.TryRead(out _))
+            drained++;
+        return drained;
+    }
 }

@@ -48,8 +48,8 @@ public sealed class HorseService(
         var opts = Options;
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
         var bets = balanceScopeIdOnly is { } scope
-            ? await betStore.ListByRaceDateAndScopeAsync(raceDate, scope, ct).ConfigureAwait(false)
-            : await betStore.ListByRaceDateAsync(raceDate, ct).ConfigureAwait(false);
+            ? await betStore.ListByRaceDateAndScopeAsync(raceDate, scope, ct)
+            : await betStore.ListByRaceDateAsync(raceDate, ct);
         var stakes = Enumerable.Range(0, opts.HorseCount).ToDictionary(index => index, _ => 0);
         foreach (var bet in bets) stakes[bet.HorseId] += bet.Amount;
         return new RaceInfo(bets.Count, HorseRules.GetCoefficients(stakes));
@@ -59,9 +59,9 @@ public sealed class HorseService(
     {
         var opts = Options;
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
-        var local = await resultStore.FindAsync(raceDate, viewerBalanceScopeId, ct).ConfigureAwait(false);
+        var local = await resultStore.FindAsync(raceDate, viewerBalanceScopeId, ct);
         if (local is not null) return new(local.Winner, local.FileId);
-        var global = await resultStore.FindAsync(raceDate, 0, ct).ConfigureAwait(false);
+        var global = await resultStore.FindAsync(raceDate, 0, ct);
         return global is null ? new(null, null) : new(global.Winner, global.FileId);
     }
 
@@ -75,13 +75,12 @@ public sealed class HorseService(
         var raceDate = HorseTimeHelper.GetRaceDate(opts.TimezoneOffsetHours);
         var resultScope = kind == HorseRunKind.Global ? 0L : chatScopeId;
         var bets = kind == HorseRunKind.Global
-            ? await betStore.ListByRaceDateAsync(raceDate, ct).ConfigureAwait(false)
-            : await betStore.ListByRaceDateAndScopeAsync(raceDate, chatScopeId, ct).ConfigureAwait(false);
+            ? await betStore.ListByRaceDateAsync(raceDate, ct)
+            : await betStore.ListByRaceDateAndScopeAsync(raceDate, chatScopeId, ct);
         var commandId = $"horse:run:{raceDate}:{kind}:{resultScope}";
         var outcome = await runExecutor.ExecuteAsync(new(new HorseRunCommand(
             callerUserId, kind, chatScopeId, resultScope, raceDate, bets, commandId,
-            opts.HorseCount, opts.MinBetsToRun, opts.Admins.Contains(callerUserId))), ct)
-            .ConfigureAwait(false);
+            opts.HorseCount, opts.MinBetsToRun, opts.Admins.Contains(callerUserId))), ct);
         if (outcome.Error != HorseError.None) return outcome;
 
         var variants = Math.Max(1, opts.RenderVariants);
@@ -89,7 +88,7 @@ public sealed class HorseService(
         var artifact = await renders.GetOrRenderAsync(
             new HorseRaceRenderSpec(opts.HorseCount, outcome.Winner, variant),
             RenderPriority.Interactive,
-            ct).ConfigureAwait(false);
+            ct);
         await renderHistory.RecordAsync(new RenderHistoryEntry(
             "horse",
             resultScope.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -102,11 +101,11 @@ public sealed class HorseService(
                 ["winner"] = outcome.Winner.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["kind"] = kind.ToString(),
                 ["variant"] = variant.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            }), ct).ConfigureAwait(false);
+            }), ct);
         return outcome with { GifBytes = artifact.Content };
     }
 
-    public static Dictionary<int, double> GetKoefs(Dictionary<int, int> stakes) =>
+    public static IReadOnlyDictionary<int, double> GetKoefs(IReadOnlyDictionary<int, int> stakes) =>
         HorseRules.GetCoefficients(stakes);
 
     private static Guid StableGuid(string value)

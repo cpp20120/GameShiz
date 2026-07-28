@@ -5,6 +5,6 @@ public sealed record ActionResult(
     PokerError Error,
     TableSnapshot? Snapshot,
     HandTransition Transition,
-    List<ShowdownEntry>? Showdown,
+    IReadOnlyList<ShowdownEntry>? Showdown,
     string? AutoActorName,
     AutoAction? AutoKind);

@@ -50,11 +50,12 @@ public sealed partial class JsonQuestCatalog : IQuestCatalog
 
     public static string ReadEffectiveJson()
     {
-        foreach (var path in CandidatePaths())
-        {
-            if (File.Exists(path))
-                return File.ReadAllText(path);
-        }
+        var fileContent = CandidatePaths()
+            .Where(File.Exists)
+            .Select(File.ReadAllText)
+            .FirstOrDefault();
+        if (fileContent is not null)
+            return fileContent;
 
         var assembly = typeof(JsonQuestCatalog).Assembly;
         var resourceName = assembly.GetManifestResourceNames()

@@ -8,6 +8,7 @@ public sealed class ClientDeliveredDartsRollQueue : IDartsRollQueue
 {
     public void Enqueue(in DartsRollJob job)
     {
+        _ = job;
     }
 
     public ValueTask<DartsRollJob> ReadAsync(CancellationToken ct) =>

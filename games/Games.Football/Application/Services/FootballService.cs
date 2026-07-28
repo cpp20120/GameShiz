@@ -33,12 +33,12 @@ public sealed class FootballService(
                 userId, chatId, MiniGameIds.Football,
                 async c =>
                 {
-                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) is null)
+                    if (await bets.FindAsync(userId, chatId, c) is null)
                     {
                         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, c).ConfigureAwait(false);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, c);
                     }
-                }, ghostHeal, Sessions, ct).ConfigureAwait(false);
+                }, ghostHeal, Sessions, ct);
             claimed = session.Ok;
             blocker = session.Ok ? null : session.Blocker;
         }
@@ -46,16 +46,16 @@ public sealed class FootballService(
             ? $"football:bet:{chatId}:{sourceMessageId}:{userId}"
             : $"football:bet:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
         var result = await placeExecutor.ExecuteAsync(new(new(
-            userId, displayName, chatId, amount, commandId, options.MaxBet, blocker)), ct).ConfigureAwait(false);
+            userId, displayName, chatId, amount, commandId, options.MaxBet, blocker)), ct);
         if (result.Error == FootballBetError.None)
         {
             BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Football);
-            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Football, ct);
         }
         else if (claimed && result.Error != FootballBetError.AlreadyPending)
         {
             BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct);
         }
         return result;
     }
@@ -70,11 +70,11 @@ public sealed class FootballService(
             ? $"football:throw:{chatId}:{sourceMessageId}:{userId}"
             : $"football:throw:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
         var result = await throwExecutor.ExecuteAsync(new(new(
-            userId, displayName, chatId, face, commandId, Options.RedeemDropChance)), ct).ConfigureAwait(false);
+            userId, displayName, chatId, face, commandId, Options.RedeemDropChance)), ct);
         if (result.Outcome == FootballThrowOutcome.Thrown)
         {
             BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct);
         }
         return result;
     }
@@ -89,9 +89,9 @@ public sealed class FootballService(
         var commandId = sourceMessageId != 0
             ? $"football:abort:{chatId}:{sourceMessageId}:{userId}"
             : $"football:abort:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
-        var result = await abortExecutor.ExecuteAsync(new(new(userId, displayName, chatId, commandId)), ct).ConfigureAwait(false);
+        var result = await abortExecutor.ExecuteAsync(new(new(userId, displayName, chatId, commandId)), ct);
         if (!result.Aborted) return;
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Football);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Football, ct);
     }
 }

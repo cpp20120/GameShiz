@@ -45,10 +45,12 @@ public static class PokerStateRenderer
         return rendered.Count == 0 ? "—" : string.Join(' ', rendered);
     }
 
-    public static string RenderTable(PokerTable table, IList<PokerSeat> seats, long? viewerUserId, ILocalizer localizer)
+    public static string RenderTable(PokerTable table, IReadOnlyList<PokerSeat> seats, long? viewerUserId, ILocalizer localizer)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"🃏 <b>{string.Format(localizer.Get("poker", "state.header"), table.InviteCode)}</b> · {PhaseName(table.Phase, localizer)}");
+        sb.AppendLine(
+            CultureInfo.InvariantCulture,
+            $"🃏 <b>{string.Format(CultureInfo.InvariantCulture, localizer.Get("poker", "state.header"), table.InviteCode)}</b> · {PhaseName(table.Phase, localizer)}");
 
         var community = table.Phase switch
         {
@@ -57,10 +59,10 @@ public static class PokerStateRenderer
             PokerPhase.Turn => RenderCards(table.CommunityCards, 4),
             _ => RenderCards(table.CommunityCards, 5),
         };
-        sb.AppendFormat(localizer.Get("poker", "state.community"), community).AppendLine();
+        sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.community"), community).AppendLine();
         sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.pot_bet"), table.Pot, table.CurrentBet).AppendLine();
         if (table.Status is PokerTableStatus.Seating or PokerTableStatus.HandComplete)
-            sb.AppendLine($"<i>{localizer.Get("poker", "state.waiting_for_start")}</i>");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"<i>{localizer.Get("poker", "state.waiting_for_start")}</i>");
         sb.AppendLine();
 
         var sorted = seats.OrderBy(s => s.Position).ToList();
@@ -78,7 +80,7 @@ public static class PokerStateRenderer
             };
             var bet = s.CurrentBet > 0 ? $" · {string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("poker", "seat.bet"), s.CurrentBet)}" : "";
             var you = viewerUserId.HasValue && s.UserId == viewerUserId.Value ? $" ({localizer.Get("poker", "seat.you")})" : "";
-            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{marker} {WebUtility.HtmlEncode(s.DisplayName)}{you} — {s.Stack}{bet}{status}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"{marker} {WebUtility.HtmlEncode(s.DisplayName)}{you} — {s.Stack}{bet}{status}");
         }
 
         if (!viewerUserId.HasValue) return sb.ToString().TrimEnd();
@@ -103,7 +105,7 @@ public static class PokerStateRenderer
         ILocalizer localizer)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"🃏 <b>{localizer.Get("poker", "showdown.header")}</b>");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"🃏 <b>{localizer.Get("poker", "showdown.header")}</b>");
         sb.AppendFormat(CultureInfo.InvariantCulture, localizer.Get("poker", "state.community"), RenderCards(table.CommunityCards, 5)).AppendLine();
         sb.AppendLine();
 

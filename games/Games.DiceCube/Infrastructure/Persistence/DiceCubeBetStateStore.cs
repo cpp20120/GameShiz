@@ -61,7 +61,7 @@ public sealed class DiceCubeBetStateStore :
             FOR UPDATE
             """,
             new { userId, chatId },
-            ct).ConfigureAwait(false);
+            ct);
         var pending = row is null
             ? null
             : new DiceCubePendingBet(
@@ -90,7 +90,7 @@ public sealed class DiceCubeBetStateStore :
                 VALUES (@UserId, @ChatId, @Amount, @CreatedAt, @Mult4, @Mult5, @Mult6)
                 """,
                 pending,
-                ct).ConfigureAwait(false);
+                ct);
             if (affected != 1)
                 throw new InvalidOperationException("DiceCube pending bet was not inserted.");
 
@@ -109,21 +109,21 @@ public sealed class DiceCubeBetStateStore :
                     gameId = MiniGameIds.DiceCube,
                     expiresAt = pending.CreatedAt.AddMilliseconds(BotMiniGameSession.TtlMs),
                 },
-                ct).ConfigureAwait(false);
+                ct);
             return;
         }
 
         await context.ExecuteAsync(
             "DELETE FROM dicecube_bets WHERE user_id = @userId AND chat_id = @chatId",
             new { userId, chatId },
-            ct).ConfigureAwait(false);
+            ct);
         await context.ExecuteAsync(
             """
             DELETE FROM mini_game_sessions
             WHERE user_id = @userId AND chat_id = @chatId AND game_id = @gameId
             """,
             new { userId, chatId, gameId = MiniGameIds.DiceCube },
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private sealed record PendingBetRow(

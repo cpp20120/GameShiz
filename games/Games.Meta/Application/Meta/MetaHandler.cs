@@ -128,7 +128,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         var xpInLevel = Math.Max(0, player.Xp - profile.CurrentLevelXpFloor);
         var xpForNext = Math.Max(1, profile.NextLevelXp - profile.CurrentLevelXpFloor);
 
-        var text = string.Join("\n", [
+        var text = string.Join("\n",
             "👤 <b>Профиль сезона</b>",
             $"Игрок: <b>{Html(player.DisplayName)}</b>",
             $"Сезон: <b>{Html(profile.Season.Name)}</b>",
@@ -136,8 +136,7 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
             $"Прогресс уровня: <code>{xpInLevel}/{xpForNext}</code>",
             $"Рейтинг: <b>{player.Rating}</b> · Дивизион: <b>{Html(profile.Division)}</b>",
             $"Игры: <b>{player.GamesPlayed}</b> · Победы: <b>{player.Wins}</b> · Поражения: <b>{player.Losses}</b>",
-            $"Оборот: ставка <b>{player.TotalStaked}</b> · выплата <b>{player.TotalPayout}</b>",
-        ]);
+            $"Оборот: ставка <b>{player.TotalStaked}</b> · выплата <b>{player.TotalPayout}</b>");
 
         await ctx.Bot.SendMessage(msg.Chat.Id, text,
             parseMode: ParseMode.Html,
@@ -228,7 +227,13 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         var lines = new List<string> { "📜 <b>Квесты</b>", "Забрать награду: <code>/quest claim &lt;id&gt;</code>", "" };
         foreach (var q in rows)
         {
-            var mark = q is { Claimed: true } ? "💰" : q.Completed ? "✅" : "⬜";
+            string mark;
+            if (q.Claimed)
+                mark = "💰";
+            else if (q.Completed)
+                mark = "✅";
+            else
+                mark = "⬜";
             lines.Add($"{mark} <code>{Html(q.Id)}</code> <b>{Html(q.Title)}</b> [{Html(q.Period)}]");
             lines.Add($"   {Html(q.Description)} — <code>{q.Progress}/{q.Target}</code>, reward: <b>{q.RewardXp} XP</b> + <b>{q.RewardCoins}</b> coins");
         }
@@ -345,13 +350,12 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
             return;
         }
 
-        await SendHtmlAsync(ctx, msg, string.Join("\n", [
+        await SendHtmlAsync(ctx, msg, string.Join("\n",
             $"🏰 <b>[{Html(clan.Tag)}] {Html(clan.Name)}</b>",
             $"Участники: <b>{clan.MemberCount}</b>",
             $"Season XP: <b>{clan.SeasonXp}</b>",
             $"Rating: <b>{clan.SeasonRating}</b>",
-            $"Создан: <code>{FormatDate(clan.CreatedAt)}</code>",
-        ]));
+            $"Создан: <code>{FormatDate(clan.CreatedAt)}</code>"));
     }
 
     private async Task HandleClanMembersAsync(UpdateContext ctx, Message msg, User user, string[] parts)
@@ -388,16 +392,15 @@ public sealed class MetaHandler(IMetaService meta, IQuestService quests, IClanSe
         await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
-    private static Task ReplyClanHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n", [
+    private static Task<Message> ReplyClanHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n",
         "🏰 <b>Кланы</b>",
         "<code>/clan create &lt;TAG&gt; &lt;name&gt;</code>",
         "<code>/clan join &lt;TAG&gt;</code>",
         "<code>/clan info [TAG]</code>",
         "<code>/clan members [TAG]</code>",
-        "<code>/clan top</code>",
-    ]));
+        "<code>/clan top</code>"));
 
-    private static Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task<Message> SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text,
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },

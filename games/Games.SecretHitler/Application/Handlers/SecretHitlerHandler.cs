@@ -140,7 +140,7 @@ public sealed partial class SecretHitlerHandler(
         if (r.Snapshot != null)
         {
             await SendRoleCardsAsync(ctx, r.Snapshot);
-            await BroadcastBoardAsync(ctx, r.Snapshot);
+            await BroadcastLobbyAsync(ctx, r.Snapshot);
         }
     }
 
@@ -166,7 +166,7 @@ public sealed partial class SecretHitlerHandler(
     {
         var r = await service.NominateAsync(userId, chancellorPosition, ctx.Ct);
         if (r.Error != ShError.None) { await SendError(ctx, chatId, r.Error); return; }
-        if (r.Snapshot != null) await BroadcastBoardAsync(ctx, r.Snapshot);
+        if (r.Snapshot != null) await BroadcastLobbyAsync(ctx, r.Snapshot);
     }
 
     private async Task ExecuteVote(UpdateContext ctx, long userId, long chatId, bool ja)
@@ -178,7 +178,7 @@ public sealed partial class SecretHitlerHandler(
         if (r.After != null)
             await BroadcastVoteResolutionAsync(ctx, r.Snapshot, r.After);
 
-        await BroadcastBoardAsync(ctx, r.Snapshot);
+        await BroadcastLobbyAsync(ctx, r.Snapshot);
 
         if (r.Snapshot.Game.Status == ShStatus.Completed)
             await BroadcastEndAsync(ctx, r.Snapshot);
@@ -188,7 +188,7 @@ public sealed partial class SecretHitlerHandler(
     {
         var r = await service.PresidentDiscardAsync(userId, index, ctx.Ct);
         if (r.Error != ShError.None) { await SendError(ctx, chatId, r.Error); return; }
-        if (r.Snapshot != null) await BroadcastBoardAsync(ctx, r.Snapshot);
+        if (r.Snapshot != null) await BroadcastLobbyAsync(ctx, r.Snapshot);
     }
 
     private async Task ExecuteChancellorEnact(UpdateContext ctx, long userId, long chatId, int index)
@@ -201,19 +201,12 @@ public sealed partial class SecretHitlerHandler(
         var enactedMsg = Loc(enactedKey);
         await SendPublicAnnouncementAsync(ctx, r.Snapshot, enactedMsg);
 
-        await BroadcastBoardAsync(ctx, r.Snapshot);
+        await BroadcastLobbyAsync(ctx, r.Snapshot);
         if (r.Snapshot.Game.Status == ShStatus.Completed)
             await BroadcastEndAsync(ctx, r.Snapshot);
     }
 
     private async Task BroadcastLobbyAsync(UpdateContext ctx, ShGameSnapshot snap)
-    {
-        await SendOrEditPublicBoardAsync(ctx, snap);
-        foreach (var p in snap.Players.Where(p => p.ChatId != 0))
-            await SendOrEditPrivateBoardAsync(ctx, snap, p);
-    }
-
-    private async Task BroadcastBoardAsync(UpdateContext ctx, ShGameSnapshot snap)
     {
         await SendOrEditPublicBoardAsync(ctx, snap);
         foreach (var p in snap.Players.Where(p => p.ChatId != 0))

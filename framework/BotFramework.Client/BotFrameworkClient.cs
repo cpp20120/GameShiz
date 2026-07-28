@@ -6,34 +6,6 @@ using BotFramework.Contracts.Tenancy;
 
 namespace BotFramework.Client;
 
-public sealed record BotFrameworkClientOptions(
-    Uri BaseAddress,
-    Func<CancellationToken, ValueTask<string?>>? AccessTokenProvider = null,
-    JsonSerializerOptions? JsonSerializerOptions = null);
-
-public sealed record BotFrameworkTenantContext(
-    TenantId TenantId,
-    ScopeId ScopeId,
-    PlayerId? PlayerId = null);
-
-public sealed record BotFrameworkProblemDetails(
-    string? Type,
-    string? Title,
-    int? Status,
-    string? Detail,
-    string? Instance,
-    string? Code,
-    string? CorrelationId,
-    int? RetryAfterSeconds);
-
-public sealed class BotFrameworkApiException(
-    BotFrameworkProblemDetails problem,
-    HttpStatusCode statusCode)
-    : HttpRequestException(problem.Detail ?? problem.Title, null, statusCode)
-{
-    public BotFrameworkProblemDetails Problem { get; } = problem;
-}
-
 /// <summary>
 /// Small transport client used by generated module clients. The generated
 /// OpenAPI surface can compose this class while keeping auth, tenant context,
@@ -74,7 +46,7 @@ public sealed class BotFrameworkClient(HttpClient httpClient, BotFrameworkClient
 
         if (options.AccessTokenProvider is not null)
         {
-            var token = await options.AccessTokenProvider(cancellationToken).ConfigureAwait(false);
+            var token = await options.AccessTokenProvider(cancellationToken);
             if (!string.IsNullOrWhiteSpace(token))
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
@@ -85,11 +57,11 @@ public sealed class BotFrameworkClient(HttpClient httpClient, BotFrameworkClient
         if (!string.IsNullOrWhiteSpace(idempotencyKey))
             request.Headers.TryAddWithoutValidation("Idempotency-Key", idempotencyKey);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
-            throw await CreateExceptionAsync(response, cancellationToken).ConfigureAwait(false);
+            throw await CreateExceptionAsync(response, cancellationToken);
 
-        return (await response.Content.ReadFromJsonAsync<TResponse>(options.JsonSerializerOptions ?? DefaultJsonOptions, cancellationToken).ConfigureAwait(false))
+        return (await response.Content.ReadFromJsonAsync<TResponse>(options.JsonSerializerOptions ?? DefaultJsonOptions, cancellationToken))
             ?? throw new InvalidOperationException("The BotFramework response body was empty.");
     }
 
@@ -98,7 +70,7 @@ public sealed class BotFrameworkClient(HttpClient httpClient, BotFrameworkClient
         BotFrameworkProblemDetails? problem = null;
         try
         {
-            problem = await response.Content.ReadFromJsonAsync<BotFrameworkProblemDetails>(cancellationToken: ct).ConfigureAwait(false);
+            problem = await response.Content.ReadFromJsonAsync<BotFrameworkProblemDetails>(cancellationToken: ct);
         }
         catch (JsonException)
         {

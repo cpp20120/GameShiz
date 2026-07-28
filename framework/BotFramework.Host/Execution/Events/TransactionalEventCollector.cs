@@ -11,7 +11,7 @@ internal sealed class TransactionalEventCollector(IEventSerializer serializer)
         IReadOnlyList<IDomainEvent> events,
         IGameExecutionSession session,
         CancellationToken ct)
-        => await AppendAsync(commandId, events, session, null, ct).ConfigureAwait(false);
+        => await AppendAsync(commandId, events, session, null, ct);
 
     public async Task AppendAsync(
         string commandId,
@@ -24,7 +24,7 @@ internal sealed class TransactionalEventCollector(IEventSerializer serializer)
 
         if (tenantContext is null)
         {
-            await AppendLegacyAsync(commandId, events, session, ct).ConfigureAwait(false);
+            await AppendLegacyAsync(commandId, events, session, ct);
             return;
         }
 
@@ -71,7 +71,7 @@ internal sealed class TransactionalEventCollector(IEventSerializer serializer)
             tenantSql,
             Parameters(commandId, events, tenantContext),
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     private async Task AppendLegacyAsync(
@@ -118,7 +118,7 @@ internal sealed class TransactionalEventCollector(IEventSerializer serializer)
                 occurredAts = events.Select(domainEvent => domainEvent.OccurredAt).ToArray(),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     private object Parameters(string commandId, IReadOnlyList<IDomainEvent> events, TenantContext tenantContext) =>

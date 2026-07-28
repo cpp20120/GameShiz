@@ -11,9 +11,5 @@ public sealed class LogoutModel : PageModel
         return RedirectToPage("Login");
     }
 
-    public IActionResult OnPost()
-    {
-        HttpContext.Session.ClearAdminSession();
-        return RedirectToPage("Login");
-    }
+    public IActionResult OnPost() => OnGet();
 }

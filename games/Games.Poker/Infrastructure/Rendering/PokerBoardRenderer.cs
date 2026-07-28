@@ -45,7 +45,7 @@ public static class PokerBoardRenderer
     public static string Caption(PokerTable table, ILocalizer localizer)
     {
         var phase = PhaseName(table.Phase, localizer);
-        return $"🃏 <b>{string.Format(localizer.Get("poker", "state.header"), table.InviteCode)}</b> · {phase}\n"
+        return $"🃏 <b>{string.Format(CultureInfo.InvariantCulture, localizer.Get("poker", "state.header"), table.InviteCode)}</b> · {phase}\n"
             + string.Create(CultureInfo.InvariantCulture, $"Банк: <b>{table.Pot}</b> · Ставка: <b>{table.CurrentBet}</b>");
     }
 
@@ -112,7 +112,7 @@ public static class PokerBoardRenderer
         }
     }
 
-    private static void DrawPlayers(SKCanvas canvas, PokerTable table, IList<PokerSeat> seats, SKFont bodyFont, SKFont smallFont)
+    private static void DrawPlayers(SKCanvas canvas, PokerTable table, IReadOnlyList<PokerSeat> seats, SKFont bodyFont, SKFont smallFont)
     {
         var ordered = seats.OrderBy(s => s.Position).ToList();
         if (ordered.Count == 0) return;
@@ -194,7 +194,9 @@ public static class PokerBoardRenderer
 
     private static void DrawCard(SKCanvas canvas, string card, float x, float y, SKFont rankFont)
     {
-        var rank = card.Length > 0 && card[0] == 'T' ? "10" : card.Length > 0 ? card[0].ToString() : "?";
+        var rank = "?";
+        if (card.Length > 0)
+            rank = card[0] == 'T' ? "10" : card[0].ToString();
         var suit = card.Length > 1 ? card[1] : '?';
         var suitColor = suit is 'H' or 'D' ? SKColor.Parse("#dc2626") : SKColor.Parse("#111827");
 
@@ -229,23 +231,25 @@ public static class PokerBoardRenderer
             case 'H':
                 canvas.DrawCircle(cx - (size * 0.45f), cy - (size * 0.25f), size * 0.45f, paint);
                 canvas.DrawCircle(cx + (size * 0.45f), cy - (size * 0.25f), size * 0.45f, paint);
-                using (var path = new SKPath())
+                using (var pathBuilder = new SKPathBuilder())
                 {
-                    path.MoveTo(cx - (size * 0.9f), cy - (size * 0.1f));
-                    path.LineTo(cx + (size * 0.9f), cy - (size * 0.1f));
-                    path.LineTo(cx, cy + (size * 1.05f));
-                    path.Close();
+                    pathBuilder.MoveTo(cx - (size * 0.9f), cy - (size * 0.1f));
+                    pathBuilder.LineTo(cx + (size * 0.9f), cy - (size * 0.1f));
+                    pathBuilder.LineTo(cx, cy + (size * 1.05f));
+                    pathBuilder.Close();
+                    using var path = pathBuilder.Detach();
                     canvas.DrawPath(path, paint);
                 }
                 break;
             case 'D':
-                using (var path = new SKPath())
+                using (var pathBuilder = new SKPathBuilder())
                 {
-                    path.MoveTo(cx, cy - (size * 1.05f));
-                    path.LineTo(cx + (size * 0.8f), cy);
-                    path.LineTo(cx, cy + (size * 1.05f));
-                    path.LineTo(cx - (size * 0.8f), cy);
-                    path.Close();
+                    pathBuilder.MoveTo(cx, cy - (size * 1.05f));
+                    pathBuilder.LineTo(cx + (size * 0.8f), cy);
+                    pathBuilder.LineTo(cx, cy + (size * 1.05f));
+                    pathBuilder.LineTo(cx - (size * 0.8f), cy);
+                    pathBuilder.Close();
+                    using var path = pathBuilder.Detach();
                     canvas.DrawPath(path, paint);
                 }
                 break;
@@ -262,12 +266,13 @@ public static class PokerBoardRenderer
             case 'S':
                 canvas.DrawCircle(cx - (size * 0.42f), cy + (size * 0.18f), size * 0.42f, paint);
                 canvas.DrawCircle(cx + (size * 0.42f), cy + (size * 0.18f), size * 0.42f, paint);
-                using (var path = new SKPath())
+                using (var pathBuilder = new SKPathBuilder())
                 {
-                    path.MoveTo(cx - (size * 0.85f), cy + (size * 0.02f));
-                    path.LineTo(cx + (size * 0.85f), cy + (size * 0.02f));
-                    path.LineTo(cx, cy - (size * 1.05f));
-                    path.Close();
+                    pathBuilder.MoveTo(cx - (size * 0.85f), cy + (size * 0.02f));
+                    pathBuilder.LineTo(cx + (size * 0.85f), cy + (size * 0.02f));
+                    pathBuilder.LineTo(cx, cy - (size * 1.05f));
+                    pathBuilder.Close();
+                    using var path = pathBuilder.Detach();
                     canvas.DrawPath(path, paint);
                 }
                 canvas.DrawRect(new SKRect(

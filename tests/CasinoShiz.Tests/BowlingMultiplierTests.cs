@@ -71,6 +71,12 @@ public sealed class BowlingMultiplierTests
     }
 
     [Fact]
+    public void Roll_RequiresDailyQuotaSnapshotWhenBetExists()
+    {
+        Assert.Throws<InvalidOperationException>(() => Roll(6, 50, 0.5, 0, includeQuota: false));
+    }
+
+    [Fact]
     public void Abort_RefundsStakeRestoresQuotaAndClearsState()
     {
         var decision = new BowlingAbortAction().Decide(Input(
@@ -83,6 +89,20 @@ public sealed class BowlingMultiplierTests
         Assert.Single(decision.Events.OfType<BowlingBetAborted>());
     }
 
+    [Fact]
+    public void Abort_WithoutPendingBetRejectsWithoutEffects()
+    {
+        var state = new BowlingBetState(null);
+        var decision = new BowlingAbortAction().Decide(Input(
+            new BowlingAbortCommand(1, "u", 10, "abort"), state, 70, 1, 10));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.False(decision.Result.Aborted);
+        Assert.Same(state, decision.NewState);
+        Assert.Equal("no_pending_bet", decision.RejectionReason);
+        Assert.Empty(decision.Economy);
+    }
+
     private static GameDecision<BowlingBetState, BowlingBetResult> Place(
         int amount, int balance, int used = 0, int limit = 10) =>
         new BowlingPlaceBetAction().Decide(Input(
@@ -90,18 +110,30 @@ public sealed class BowlingMultiplierTests
             new BowlingBetState(null), balance, used, limit));
 
     private static GameDecision<BowlingBetState, BowlingRollResult> Roll(
-        int face, int amount, double entropy, double dropChance) =>
+        int face,
+        int amount,
+        double entropy,
+        double dropChance,
+        bool includeQuota = true) =>
         new BowlingRollAction().Decide(Input(
             new BowlingRollCommand(1, "u", 10, face, "roll", dropChance),
-            ActiveState(amount), 100, 1, 10, entropy));
+            ActiveState(amount), 100, 1, 10, entropy, includeQuota));
 
     private static GameActionInput<BowlingBetState, TCommand> Input<TCommand>(
-        TCommand command, BowlingBetState state, int balance, int used, int limit, double entropy = 0.5) =>
+        TCommand command,
+        BowlingBetState state,
+        int balance,
+        int used,
+        int limit,
+        double entropy = 0.5,
+        bool includeQuota = true) =>
         new(command, state, new WalletSnapshot(balance),
-            new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
-            {
-                [BowlingPlaceBetAction.DailyRollQuota] = new(used, limit),
-            },
+            includeQuota
+                ? new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+                {
+                    [BowlingPlaceBetAction.DailyRollQuota] = new(used, limit),
+                }
+                : new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal),
             new EntropyValue(new Dictionary<string, double>(StringComparer.Ordinal)
             {
                 [BowlingRollAction.RedeemDropEntropy] = entropy,

@@ -8,8 +8,6 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Transfer.Rest;
 
-public sealed record TransferRestRequest(long ToUserId, string RecipientDisplayName, int Amount);
-
 public sealed class TransferRestModule : IRestRouteModule
 {
     public string ModuleId => "transfer";
@@ -25,12 +23,7 @@ public sealed class TransferRestModule : IRestRouteModule
         RestCommandSupport.RequirePositive(request.Amount, nameof(request.Amount));
         var result = await service.TryTransferAsync(context.UserId, request.ToUserId, RestCommandSupport.ScopeId(context),
             context.DisplayName, request.RecipientDisplayName, request.Amount,
-            RestCommandSupport.SourceId(context, options, "transfer", "send"), ct).ConfigureAwait(false);
+            RestCommandSupport.SourceId(context, options, "transfer", "send"), ct);
         return Results.Ok(result);
     }
-}
-
-public static class TransferRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddTransferRest(this IServiceCollection services) => services.AddRestRouteModule<TransferRestModule>();
 }

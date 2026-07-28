@@ -26,7 +26,7 @@ internal sealed class GameExecutionContext(
             effects,
             session,
             operationId,
-            ct).ConfigureAwait(false);
+            ct);
         return !result.Rejected;
     }
 

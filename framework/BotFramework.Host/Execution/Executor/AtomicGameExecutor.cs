@@ -51,7 +51,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(context, "sdk"))
             : null;
         if (tenantContext is not null && tenantContextProvisioner is not null)
-            await tenantContextProvisioner.EnsureAsync(tenantContext, ct).ConfigureAwait(false);
+            await tenantContextProvisioner.EnsureAsync(tenantContext, ct);
         var commandId = descriptor.CommandId(command);
         var aggregateId = descriptor.AggregateId(command);
         var chatId = descriptor.ChatId(command);
@@ -65,14 +65,13 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
         var committed = false;
         try
         {
-            session = await sessions.BeginAsync(ct).ConfigureAwait(false);
+            session = await sessions.BeginAsync(ct);
             transactionStartedAt = Stopwatch.GetTimestamp();
             observation.LockWaitStarted();
             var lockStartedAt = Stopwatch.GetTimestamp();
             await session.AcquireLocksAsync(
                     BuildLockKeys(command, commandId, aggregateId, wallet, quotas, tenantContext),
-                    ct)
-                .ConfigureAwait(false);
+                    ct);
             observation.Locked(Stopwatch.GetElapsedTime(lockStartedAt));
 
             var existing = await inbox.GetOrBeginAsync<TResult>(
@@ -80,12 +79,12 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 descriptor.GameId,
                 aggregateId,
                 session,
-                ct).ConfigureAwait(false);
+                ct);
             if (existing.Status == CommandInboxStatus.Completed)
             {
                 observation.Duplicate();
                 observation.Committing();
-                await session.CommitAsync(ct).ConfigureAwait(false);
+                await session.CommitAsync(ct);
                 committed = true;
                 observation.Committed();
                 return existing.Result!;
@@ -95,28 +94,28 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 chatId,
                 descriptor.GameId,
                 session,
-                ct).ConfigureAwait(false);
+                ct);
             if (!availabilityState.Enabled)
                 throw new GameUnavailableException(descriptor.GameId, chatId, availabilityState.Reason);
 
             var walletSnapshot = new WalletSnapshot(0);
             if (descriptor.UsesPrimaryWallet)
             {
-                await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct).ConfigureAwait(false);
-                walletSnapshot = await economics.LoadAsync(wallet, session, ct).ConfigureAwait(false);
+                await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct);
+                walletSnapshot = await economics.LoadAsync(wallet, session, ct);
             }
             var executionContext = new GameExecutionContext(session, economics, commandId, tenantContext);
-            var state = await stateStore.LoadAsync(command, executionContext, ct).ConfigureAwait(false);
+            var state = await stateStore.LoadAsync(command, executionContext, ct);
 
             var tenantWallet = tenantContext is not null
                 && tenantWalletReadService is not null
-                ? await tenantWalletReadService.GetAsync(tenantContext, ct).ConfigureAwait(false)
+                ? await tenantWalletReadService.GetAsync(tenantContext, ct)
                 : null;
 
-            var quotaSnapshots = await LoadQuotaSnapshotsAsync(quotas, session, ct).ConfigureAwait(false);
+            var quotaSnapshots = await LoadQuotaSnapshotsAsync(quotas, session, ct);
 
             var entropy = CreateEntropy(descriptor.EntropyNames);
-            await inbox.StoreEntropyAsync(commandId, entropy, session, ct).ConfigureAwait(false);
+            await inbox.StoreEntropyAsync(commandId, entropy, session, ct);
             var input = new GameActionInput<TState, TCommand>(
                 command,
                 state,
@@ -143,10 +142,10 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 effectPlan,
                 executionContext,
                 session,
-                ct).ConfigureAwait(false);
-            await inbox.CompleteAsync(commandId, decision.Result, session, ct).ConfigureAwait(false);
+                ct);
+            await inbox.CompleteAsync(commandId, decision.Result, session, ct);
             observation.Committing();
-            await session.CommitAsync(ct).ConfigureAwait(false);
+            await session.CommitAsync(ct);
             committed = true;
             observation.Committed();
             return decision.Result;
@@ -157,7 +156,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             {
                 try
                 {
-                    await session.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                    await session.RollbackAsync(CancellationToken.None);
                     observation.RolledBack();
                 }
                 catch (Exception rollbackException)
@@ -173,7 +172,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             if (transactionStartedAt != 0)
                 observation.TransactionFinished(Stopwatch.GetElapsedTime(transactionStartedAt));
             if (session is not null)
-                await session.DisposeAsync().ConfigureAwait(false);
+                await session.DisposeAsync();
         }
     }
 
@@ -185,7 +184,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
         var snapshots = new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal);
         foreach (var quota in quotas)
         {
-            var snapshot = await quotaStore.LoadAsync(quota, session, ct).ConfigureAwait(false);
+            var snapshot = await quotaStore.LoadAsync(quota, session, ct);
             if (!snapshots.TryAdd(quota.QuotaId, snapshot))
                 throw new InvalidOperationException($"Duplicate quota id '{quota.QuotaId}'.");
         }

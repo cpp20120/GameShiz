@@ -21,7 +21,7 @@ public sealed partial class BowlingHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
+        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal) && diceMsg is not null)
         {
             if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMsg, out var uid, out var dname))
                 return;
@@ -179,7 +179,7 @@ public sealed partial class BowlingHandler(
 
         try
         {
-            var face = msg.Dice!.Value;
+            var face = msg.Dice.Value;
             var r = await service.RollAsync(userId, displayName, chatId, face, msg.MessageId, ctx.Ct);
 
             if (r.Outcome == BowlingRollOutcome.NoBet)

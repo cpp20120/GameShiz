@@ -5,7 +5,7 @@ namespace Games.SecretHitler.Infrastructure.Persistence;
 public interface ISecretHitlerPlayerStore
 {
     Task<SecretHitlerPlayer?> FindByUserAsync(long userId, CancellationToken ct);
-    Task<List<SecretHitlerPlayer>> ListByGameAsync(string inviteCode, CancellationToken ct);
+    Task<IReadOnlyList<SecretHitlerPlayer>> ListByGameAsync(string inviteCode, CancellationToken ct);
     Task<bool> AnyForUserAsync(long userId, CancellationToken ct);
     Task<int> CountByGameAsync(string inviteCode, CancellationToken ct);
     Task InsertAsync(SecretHitlerPlayer player, CancellationToken ct);

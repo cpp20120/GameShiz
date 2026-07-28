@@ -20,14 +20,14 @@ internal sealed partial class GameScheduleOutboxDispatcher(
         {
             try
             {
-                await DispatchBatchAsync(stoppingToken).ConfigureAwait(false);
+                await DispatchBatchAsync(stoppingToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogPollFailed(logger, exception);
             }
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
+        while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
     internal async Task DispatchBatchAsync(CancellationToken ct)
@@ -39,18 +39,18 @@ internal sealed partial class GameScheduleOutboxDispatcher(
             50,
             TimeSpan.FromMinutes(1),
             ct,
-            ownedGameIds).ConfigureAwait(false);
+            ownedGameIds);
         foreach (var item in batch)
         {
             try
             {
-                await ApplyAsync(item, ct).ConfigureAwait(false);
-                await outbox.MarkSentAsync(item.Id, ct).ConfigureAwait(false);
+                await ApplyAsync(item, ct);
+                await outbox.MarkSentAsync(item.Id, ct);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
-                await outbox.MarkFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
+                await outbox.MarkFailedAsync(item.Id, exception.Message, item.Attempts, ct);
             }
         }
 
@@ -58,18 +58,18 @@ internal sealed partial class GameScheduleOutboxDispatcher(
             50,
             TimeSpan.FromMinutes(1),
             ct,
-            ownedGameIds).ConfigureAwait(false);
+            ownedGameIds);
         foreach (var item in tenantBatch)
         {
             try
             {
-                await ApplyAsync(item, ct).ConfigureAwait(false);
-                await outbox.MarkTenantSentAsync(item.Id, ct).ConfigureAwait(false);
+                await ApplyAsync(item, ct);
+                await outbox.MarkTenantSentAsync(item.Id, ct);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
-                await outbox.MarkTenantFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
+                await outbox.MarkTenantFailedAsync(item.Id, exception.Message, item.Attempts, ct);
             }
         }
     }
@@ -78,7 +78,7 @@ internal sealed partial class GameScheduleOutboxDispatcher(
     {
         if (string.Equals(item.EffectKind, "cancel", StringComparison.Ordinal))
         {
-            await scheduler.UnscheduleAsync(item.ScheduleId, ct).ConfigureAwait(false);
+            await scheduler.UnscheduleAsync(item.ScheduleId, ct);
             return;
         }
 
@@ -98,14 +98,14 @@ internal sealed partial class GameScheduleOutboxDispatcher(
                 ScheduleDescriptor.Once(
                     DateTimeOffset.FromUnixTimeMilliseconds(item.DueAtUnixMilliseconds.Value)),
                 data),
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private async Task ApplyAsync(TenantGameScheduleOutboxItem item, CancellationToken ct)
     {
         if (string.Equals(item.EffectKind, "cancel", StringComparison.Ordinal))
         {
-            await scheduler.UnscheduleAsync(item.ScheduleId, ct).ConfigureAwait(false);
+            await scheduler.UnscheduleAsync(item.ScheduleId, ct);
             return;
         }
 
@@ -125,7 +125,7 @@ internal sealed partial class GameScheduleOutboxDispatcher(
                 ScheduleDescriptor.Once(
                     DateTimeOffset.FromUnixTimeMilliseconds(item.DueAtUnixMilliseconds.Value)),
                 AtomicGameSchedule.AddTenantContext(data, item.Context)),
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     [LoggerMessage(LogLevel.Warning, "game.schedule.outbox.delivery_failed id={OutboxId} attempts={Attempts}")]

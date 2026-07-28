@@ -29,7 +29,7 @@ public static class ShRoleDealer
         return [.. roles];
     }
 
-    public static void DealRoles(List<SecretHitlerPlayer> players)
+    public static void DealRoles(IReadOnlyList<SecretHitlerPlayer> players)
     {
         var ordered = players.OrderBy(p => p.Position).ToList();
         var deck = BuildRoleDeck(ordered.Count);
@@ -37,7 +37,7 @@ public static class ShRoleDealer
             ordered[i].Role = deck[i];
     }
 
-    public static void DealRoles(List<SecretHitlerPlayer> players, IReadOnlyList<double> entropy)
+    public static void DealRoles(IReadOnlyList<SecretHitlerPlayer> players, IReadOnlyList<double> entropy)
     {
         var ordered = players.OrderBy(p => p.Position).ToList();
         var deck = BuildRoleDeckDeterministic(ordered.Count, entropy);
@@ -67,7 +67,7 @@ public static class ShRoleDealer
         return roles;
     }
 
-    private static void Shuffle<T>(IList<T> list, IReadOnlyList<double> entropy)
+    private static void Shuffle<T>(List<T> list, IReadOnlyList<double> entropy)
     {
         if (entropy.Count < list.Count - 1)
             throw new ArgumentException("Not enough entropy values.", nameof(entropy));
@@ -79,7 +79,7 @@ public static class ShRoleDealer
         }
     }
 
-    private static void Shuffle<T>(IList<T> list)
+    private static void Shuffle<T>(List<T> list)
     {
         for (int i = list.Count - 1; i > 0; i--)
         {

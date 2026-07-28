@@ -1,6 +1,6 @@
 using Dapper;
 
-namespace BotFramework.Host.Pipeline.Middleware;
+namespace BotFramework.Telegram.Pipeline.Middleware;
 
 public sealed partial class UpdateDeduplicationMiddleware(
     INpgsqlConnectionFactory connections,

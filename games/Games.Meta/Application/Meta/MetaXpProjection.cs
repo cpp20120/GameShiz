@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Games.Meta.Application.Meta;
 
-public sealed class MetaXpProjection(
+public sealed partial class MetaXpProjection(
     IMetaService meta,
     IRiskService risks,
     IMetaHistoryStore history,
@@ -48,13 +48,7 @@ public sealed class MetaXpProjection(
             },
             ct);
 
-        logger.LogDebug(
-            "Applied meta XP for user {UserId} in chat {ChatId}: xp={Xp}, level={Level}, rating={Rating}",
-            player.UserId,
-            player.ChatId,
-            player.Xp,
-            player.Level,
-            player.Rating);
+        LogXpApplied(player.UserId, player.ChatId, player.Xp, player.Level, player.Rating);
 
         await risks.EvaluateGameCompletedAsync(ev, player, ct);
 
@@ -130,8 +124,7 @@ public sealed class MetaXpProjection(
                     ct);
             }
 
-            logger.LogInformation(
-                "Unlocked achievement {AchievementId} for user {UserId} in chat {ChatId}, season {SeasonId}",
+            LogAchievementUnlocked(
                 achievement.AchievementId,
                 achievement.UserId,
                 achievement.ChatId,
@@ -151,7 +144,16 @@ public sealed class MetaXpProjection(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to publish meta analytics event {EventType}", ev.EventType);
+            LogAnalyticsPublishFailed(ex, ev.EventType);
         }
     }
+
+    [LoggerMessage(EventId = 2703, Level = LogLevel.Debug, Message = "Applied meta XP for user {UserId} in chat {ChatId}: xp={Xp}, level={Level}, rating={Rating}")]
+    private partial void LogXpApplied(long userId, long chatId, long xp, int level, int rating);
+
+    [LoggerMessage(EventId = 2704, Level = LogLevel.Information, Message = "Unlocked achievement {AchievementId} for user {UserId} in chat {ChatId}, season {SeasonId}")]
+    private partial void LogAchievementUnlocked(string achievementId, long userId, long chatId, long seasonId);
+
+    [LoggerMessage(EventId = 2705, Level = LogLevel.Warning, Message = "Failed to publish meta analytics event {EventType}")]
+    private partial void LogAnalyticsPublishFailed(Exception exception, string eventType);
 }

@@ -65,13 +65,7 @@ public sealed class PickAction : IGameAction<PickCommand, PickGameState, PickRes
             PickError.None, command.Amount, balance, payout, payout - command.Amount,
             streakBonus, streakBefore, streakAfter, pickedIndex, won, command.Depth,
             chainGuid, command.Variants, command.BackedIndices);
-        var economy = payout > 0
-            ? new[]
-            {
-                EconomyEffect.Debit(command.Amount, command.Depth == 0 ? "pick.bet" : "pick.chain.bet"),
-                EconomyEffect.Credit(payout, command.Depth == 0 ? "pick.win" : "pick.chain.win"),
-            }
-            : [EconomyEffect.Debit(command.Amount, command.Depth == 0 ? "pick.bet" : "pick.chain.bet")];
+        var economy = CreateEconomyEffects(command, payout);
         var occurredAt = input.UtcNow.ToUnixTimeMilliseconds();
         return new(
             DecisionStatus.Accepted,
@@ -109,6 +103,19 @@ public sealed class PickAction : IGameAction<PickCommand, PickGameState, PickRes
     {
         var gross = (double)command.Amount * command.Variants.Count / Math.Max(1, command.BackedIndices.Count);
         return (int)Math.Max(0, Math.Floor(gross * (1.0 - Math.Clamp(command.HouseEdge, 0.0, 1.0))));
+    }
+
+    private static List<EconomyEffect> CreateEconomyEffects(PickCommand command, int payout)
+    {
+        var betReason = command.Depth == 0 ? "pick.bet" : "pick.chain.bet";
+        var effects = new List<EconomyEffect> { EconomyEffect.Debit(command.Amount, betReason) };
+        if (payout > 0)
+        {
+            var winReason = command.Depth == 0 ? "pick.win" : "pick.chain.win";
+            effects.Add(EconomyEffect.Credit(payout, winReason));
+        }
+
+        return effects;
     }
 
     private static int ComputeStreakBonus(PickCommand command, int streakAfter)

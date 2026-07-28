@@ -249,7 +249,7 @@ public sealed partial class PickDailyLotteryHandler(
             }
             else
             {
-                sb.AppendFormat(Loc("daily.history.row_cancelled"), day);
+                sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, Loc("daily.history.row_cancelled"), day);
                 sb.Append('\n');
             }
         }
@@ -285,7 +285,7 @@ public sealed partial class PickDailyLotteryHandler(
         return $"{schedule.DrawHourLocal:00}:00 (UTC{sign}{hoursOffset})";
     }
 
-    private string StripCommandPrefix(string text)
+    private static string StripCommandPrefix(string text)
     {
         var trimmed = text.TrimStart();
         if (trimmed.Length == 0 || trimmed[0] != '/') return string.Empty;

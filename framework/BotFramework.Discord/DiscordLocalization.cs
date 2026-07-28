@@ -2,7 +2,7 @@ namespace BotFramework.Discord;
 
 public static class DiscordLocalization
 {
-    private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Text =
+    private static readonly Dictionary<string, IReadOnlyDictionary<string, string>> Text =
         new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
         {
             ["ru"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

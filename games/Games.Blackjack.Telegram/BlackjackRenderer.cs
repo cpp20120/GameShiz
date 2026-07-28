@@ -18,7 +18,8 @@ public static class BlackjackRenderer
         {
             string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("blackjack", "render.header"), snap.Bet),
             "",
-            string.Format(localizer.Get("blackjack", "render.dealer"), dealerCards, dealerTotalLabel),
+            string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                localizer.Get("blackjack", "render.dealer"), dealerCards, dealerTotalLabel),
             string.Format(System.Globalization.CultureInfo.InvariantCulture, localizer.Get("blackjack", "render.player"), playerCards, snap.PlayerTotal),
         };
 

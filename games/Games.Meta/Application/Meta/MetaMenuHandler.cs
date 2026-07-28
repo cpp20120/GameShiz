@@ -173,7 +173,7 @@ public sealed partial class MetaMenuHandler(
         var rows = await quests.GetQuestsAsync(message.Chat.Id, user.Id, ctx.Ct);
         var lines = new List<string> { "📜 <b>Квесты</b>" };
         lines.AddRange(rows
-            .Select(quest => new { quest, mark = quest.Claimed ? "💰" : quest is { Completed: true } ? "✅" : "⬜" })
+            .Select(quest => new { quest, mark = QuestMark(quest) })
             .Select(@t =>
                 $"{@t.mark} <b>{Html(@t.quest.Title)}</b> · <code>{@t.quest.Progress}/{@t.quest.Target}</code>\n" +
                 $"   {Html(@t.quest.Description)} · <b>{@t.quest.RewardXp} XP</b> + <b>{@t.quest.RewardCoins}</b> монет"));
@@ -282,7 +282,9 @@ public sealed partial class MetaMenuHandler(
                 cancellationToken: ctx.Ct);
         }
         catch (ApiRequestException ex) when (ex.Message.Contains("message is not modified", StringComparison.Ordinal))
-        { }
+        {
+            _ = ex;
+        }
     }
 
     private static InlineKeyboardMarkup HomeMarkup(long ownerId, bool hasQuestRewards)
@@ -358,7 +360,7 @@ public sealed partial class MetaMenuHandler(
     private static InlineKeyboardButton CopyCommand(string label, string command) =>
         InlineKeyboardButton.WithCopyText(label, new CopyTextButton { Text = command });
 
-    private static string GamesText() => string.Join("\n", [
+    private static string GamesText() => string.Join("\n",
         "🎮 <b>Игры</b>",
         "",
         "<b>Быстрые ставки</b>",
@@ -372,8 +374,16 @@ public sealed partial class MetaMenuHandler(
         "<b>Прочее</b>",
         "🎯 /pick · 🎟 /picklottery · 🖼 /pixelbattle",
         "",
-        "<i>Нажми кнопку, чтобы скопировать команду, затем отправь её.</i>",
-    ]);
+        "<i>Нажми кнопку, чтобы скопировать команду, затем отправь её.</i>");
+
+    private static string QuestMark(PlayerQuestView quest)
+    {
+        if (quest.Claimed)
+            return "💰";
+        if (quest.Completed)
+            return "✅";
+        return "⬜";
+    }
 
     private static (long OwnerId, string Action, string? Argument)? ParseCallback(string? data)
     {

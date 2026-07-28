@@ -1,0 +1,3 @@
+using System.Text.Json;using Games.Horse.Application.Services;using Games.Horse.Domain.Results;using Games.Horse.Transport.Grpc.Wire;using Grpc.Core;
+namespace Games.Horse.Transport.Grpc;
+internal static class HorseWire{static readonly JsonSerializerOptions O=new(JsonSerializerDefaults.Web);public static ContractCall Call<T>(T x)=>new(){PayloadJson=JsonSerializer.Serialize(x,O)};public static ContractReply Reply<T>(T x)=>new(){PayloadJson=JsonSerializer.Serialize(x,O)};public static T Read<T>(this ContractCall x)=>JsonSerializer.Deserialize<T>(x.PayloadJson,O)!;public static T Read<T>(this ContractReply x)=>JsonSerializer.Deserialize<T>(x.PayloadJson,O)!;}

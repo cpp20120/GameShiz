@@ -1,9 +1,7 @@
 using BotFramework.Host.Localization;
 using BotFramework.Host.Analytics;
 using BotFramework.Host.Contracts.Analytics;
-using BotFramework.Host.Pipeline.Middleware;
 using BotFramework.Host.Pipeline.Routing;
-using BotFramework.Host.Runtime.Hosting;
 using BotFramework.Host.Redis.Streams;
 using BotFramework.Host.TelegramOutbox;
 using BotFramework.Telegram.Outbox;
@@ -20,8 +18,10 @@ using BotFramework.Contracts.Tenancy;
 using BotFramework.Telegram.Abstractions.Tenancy;
 using BotFramework.Contracts.RateLimiting;
 using BotFramework.Host.RateLimiting;
+using BotFramework.Telegram.Hosting;
+using BotFramework.Telegram.Pipeline.Middleware;
 
-namespace BotFramework.Host.Composition.Builder;
+namespace BotFramework.Telegram.Composition;
 
 public static class TelegramBffBuilderExtensions
 {

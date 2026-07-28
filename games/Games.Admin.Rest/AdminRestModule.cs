@@ -7,9 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Games.Admin.Rest;
 
-public sealed record AdminPayRequest(long TargetUserId, long BalanceScopeId, int Amount);
-public sealed record AdminRenameRequest(string OldName, string NewName);
-
 public sealed class AdminRestModule : IRestRouteModule
 {
     public string ModuleId => "admin";
@@ -25,13 +22,13 @@ public sealed class AdminRestModule : IRestRouteModule
     }
 
     private static async Task<IResult> SyncAsync(IAdminService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(new { Synced = await service.UserSyncAsync(context.UserId, ct).ConfigureAwait(false) });
+        Results.Ok(new { Synced = await service.UserSyncAsync(context.UserId, ct) });
 
     private static async Task<IResult> UserAsync(long targetUserId, long? balanceScopeId, IAdminService service, RestRequestContext context, CancellationToken ct)
     {
         if (targetUserId <= 0) throw new RestBadRequestException("targetUserId must be positive.");
         var scope = balanceScopeId ?? RestCommandSupport.ScopeId(context);
-        var result = await service.GetUserAsync(targetUserId, scope, ct).ConfigureAwait(false);
+        var result = await service.GetUserAsync(targetUserId, scope, ct);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 
@@ -39,22 +36,17 @@ public sealed class AdminRestModule : IRestRouteModule
     {
         if (request.TargetUserId <= 0 || request.BalanceScopeId == 0) throw new RestBadRequestException("Target user and scope are required.");
         RestCommandSupport.RequirePositive(request.Amount, nameof(request.Amount));
-        var result = await service.PayAsync(context.UserId, request.TargetUserId, request.BalanceScopeId, request.Amount, ct).ConfigureAwait(false);
+        var result = await service.PayAsync(context.UserId, request.TargetUserId, request.BalanceScopeId, request.Amount, ct);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 
     private static async Task<IResult> ClearBetsAsync(IAdminService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.ClearChatBetsAsync(context.UserId, RestCommandSupport.ScopeId(context), ct).ConfigureAwait(false));
+        Results.Ok(await service.ClearChatBetsAsync(context.UserId, RestCommandSupport.ScopeId(context), ct));
 
     private static async Task<IResult> RenameAsync(AdminRenameRequest request, IAdminService service, RestRequestContext context, CancellationToken ct)
     {
         RestCommandSupport.RequireText(request.OldName, nameof(request.OldName));
         RestCommandSupport.RequireText(request.NewName, nameof(request.NewName));
-        return Results.Ok(await service.RenameAsync(context.UserId, request.OldName, request.NewName, ct).ConfigureAwait(false));
+        return Results.Ok(await service.RenameAsync(context.UserId, request.OldName, request.NewName, ct));
     }
-}
-
-public static class AdminRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddAdminRest(this IServiceCollection services) => services.AddRestRouteModule<AdminRestModule>();
 }

@@ -46,8 +46,8 @@ public sealed class TournamentService : ITournamentService
 
     public async Task<IReadOnlyList<TournamentInfo>> GetOpenAsync(long chatId, int limit, CancellationToken ct)
     {
-        var season = await _meta.GetActiveSeasonAsync(ct).ConfigureAwait(false);
-        return await _tournaments.GetOpenAsync(season, chatId, limit, ct).ConfigureAwait(false);
+        var season = await _meta.GetActiveSeasonAsync(ct);
+        return await _tournaments.GetOpenAsync(season, chatId, limit, ct);
     }
 
     public Task<IReadOnlyList<TournamentPlayerInfo>> GetPlayersAsync(long tournamentId, CancellationToken ct) =>

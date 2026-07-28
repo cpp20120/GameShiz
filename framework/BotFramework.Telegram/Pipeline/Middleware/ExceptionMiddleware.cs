@@ -1,7 +1,7 @@
 
 using Telegram.Bot;
 
-namespace BotFramework.Host.Pipeline.Middleware;
+namespace BotFramework.Telegram.Pipeline.Middleware;
 
 public sealed partial class ExceptionMiddleware(
     IAnalyticsService analytics,

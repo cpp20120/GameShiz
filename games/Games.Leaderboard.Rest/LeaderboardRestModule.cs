@@ -27,19 +27,13 @@ public sealed class LeaderboardRestModule : IRestRouteModule
         ILeaderboardClient client,
         CancellationToken cancellationToken)
     {
-        if (!long.TryParse(context.ScopeId, out var scopeId))
+        if (!long.TryParse(context.ScopeId, System.Globalization.CultureInfo.InvariantCulture, out var scopeId))
             throw new RestBadRequestException("scopeId must be a numeric leaderboard scope.");
         var actualLimit = limit ?? 15;
         if (actualLimit is < 1 or > 100)
             throw new RestBadRequestException("limit must be between 1 and 100.");
 
-        var result = await client.GetTopAsync(actualLimit, scopeId, cancellationToken).ConfigureAwait(false);
+        var result = await client.GetTopAsync(actualLimit, scopeId, cancellationToken);
         return Results.Ok(result);
     }
-}
-
-public static class LeaderboardRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddLeaderboardRest(this IServiceCollection services) =>
-        services.AddRestRouteModule<LeaderboardRestModule>();
 }

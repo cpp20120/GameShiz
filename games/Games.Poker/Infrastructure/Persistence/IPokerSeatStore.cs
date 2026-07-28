@@ -17,7 +17,7 @@ public interface IPokerSeatStore
 {
     Task<PokerSeat?> FindByUserAsync(long userId, CancellationToken ct);
     Task<PokerSeat?> FindByUserInTableAsync(long userId, string inviteCode, CancellationToken ct);
-    Task<List<PokerSeat>> ListByTableAsync(string inviteCode, CancellationToken ct);
+    Task<IReadOnlyList<PokerSeat>> ListByTableAsync(string inviteCode, CancellationToken ct);
     Task<int> CountByTableAsync(string inviteCode, long exceptUserId, CancellationToken ct);
     Task<bool> AnyForUserAsync(long userId, CancellationToken ct);
     Task InsertAsync(PokerSeat seat, CancellationToken ct);

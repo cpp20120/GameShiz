@@ -79,6 +79,15 @@ public sealed class FootballServiceTests
     }
 
     [Fact]
+    public void Throw_RequiresDailyQuotaSnapshotWhenBetExists()
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            new FootballThrowAction().Decide(Input(
+                new FootballThrowCommand(1, "u", 10, 5, "throw", 0),
+                ActiveState(25), 100, 1, 10, includeQuota: false)));
+    }
+
+    [Fact]
     public void Abort_RefundsStakeRestoresQuotaAndClearsState()
     {
         var decision = new FootballAbortAction().Decide(Input(
@@ -89,6 +98,20 @@ public sealed class FootballServiceTests
         Assert.Equal([EconomyEffect.Credit(30, "football.send_dice_failed")], decision.Economy);
         Assert.Equal([QuotaEffect.Restore(FootballPlaceBetAction.DailyRollQuota)], decision.Quotas);
         Assert.Single(decision.Events.OfType<FootballBetAborted>());
+    }
+
+    [Fact]
+    public void Abort_WithoutPendingBetRejectsWithoutEffects()
+    {
+        var state = new FootballBetState(null);
+        var decision = new FootballAbortAction().Decide(Input(
+            new FootballAbortCommand(1, "u", 10, "abort"), state, 70, 1, 10));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.False(decision.Result.Aborted);
+        Assert.Same(state, decision.NewState);
+        Assert.Equal("no_pending_bet", decision.RejectionReason);
+        Assert.Empty(decision.Economy);
     }
 
     private static GameDecision<FootballBetState, FootballBetResult> Place(
@@ -104,12 +127,20 @@ public sealed class FootballServiceTests
             ActiveState(amount), 100, 1, 10, entropy));
 
     private static GameActionInput<FootballBetState, TCommand> Input<TCommand>(
-        TCommand command, FootballBetState state, int balance, int used, int limit, double entropy = 0.5) =>
+        TCommand command,
+        FootballBetState state,
+        int balance,
+        int used,
+        int limit,
+        double entropy = 0.5,
+        bool includeQuota = true) =>
         new(command, state, new WalletSnapshot(balance),
-            new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
-            {
-                [FootballPlaceBetAction.DailyRollQuota] = new(used, limit),
-            },
+            includeQuota
+                ? new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+                {
+                    [FootballPlaceBetAction.DailyRollQuota] = new(used, limit),
+                }
+                : new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal),
             new EntropyValue(new Dictionary<string, double>(StringComparer.Ordinal)
             {
                 [FootballThrowAction.RedeemDropEntropy] = entropy,

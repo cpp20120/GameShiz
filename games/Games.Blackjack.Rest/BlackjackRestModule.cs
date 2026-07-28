@@ -8,8 +8,6 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Blackjack.Rest;
 
-public sealed record BlackjackStartRequest(int Bet);
-
 public sealed class BlackjackRestModule : IRestRouteModule
 {
     public string ModuleId => "blackjack";
@@ -26,7 +24,7 @@ public sealed class BlackjackRestModule : IRestRouteModule
 
     private static async Task<IResult> StateAsync(IBlackjackClient client, RestRequestContext context, CancellationToken ct)
     {
-        var state = await client.GetStateAsync(context.UserId, ct).ConfigureAwait(false);
+        var state = await client.GetStateAsync(context.UserId, ct);
         return state.Snapshot is null ? Results.NotFound() : Results.Ok(state);
     }
 
@@ -36,35 +34,30 @@ public sealed class BlackjackRestModule : IRestRouteModule
     {
         RestCommandSupport.RequirePositive(request.Bet, nameof(request.Bet));
         var result = await client.StartAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context), request.Bet,
-            RestCommandSupport.OperationId(context, options, "blackjack", "start"), ct).ConfigureAwait(false);
+            RestCommandSupport.OperationId(context, options, "blackjack", "start"), ct);
         return Results.Ok(result);
     }
 
     private static async Task<IResult> HitAsync(IBlackjackClient client, RestRequestContext context, IOptions<RestFrameworkOptions> options, CancellationToken ct)
     {
         RequireCommandKey(context, options);
-        return Results.Ok(await client.HitAsync(context.UserId, ct).ConfigureAwait(false));
+        return Results.Ok(await client.HitAsync(context.UserId, ct));
     }
 
     private static async Task<IResult> StandAsync(IBlackjackClient client, RestRequestContext context, IOptions<RestFrameworkOptions> options, CancellationToken ct)
     {
         RequireCommandKey(context, options);
-        return Results.Ok(await client.StandAsync(context.UserId, ct).ConfigureAwait(false));
+        return Results.Ok(await client.StandAsync(context.UserId, ct));
     }
 
     private static async Task<IResult> DoubleAsync(IBlackjackClient client, RestRequestContext context, IOptions<RestFrameworkOptions> options, CancellationToken ct)
     {
         RequireCommandKey(context, options);
-        return Results.Ok(await client.DoubleAsync(context.UserId, ct).ConfigureAwait(false));
+        return Results.Ok(await client.DoubleAsync(context.UserId, ct));
     }
 
     private static void RequireCommandKey(RestRequestContext context, IOptions<RestFrameworkOptions> options)
     {
         if (options.Value.RequireIdempotencyKeyForCommands) _ = context.RequireIdempotencyKey();
     }
-}
-
-public static class BlackjackRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddBlackjackRest(this IServiceCollection services) => services.AddRestRouteModule<BlackjackRestModule>();
 }

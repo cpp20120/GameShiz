@@ -45,6 +45,7 @@ public sealed partial class DiscordHostedService(
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            LogStopped(logger);
         }
         finally
         {
@@ -118,7 +119,7 @@ public sealed partial class DiscordHostedService(
 
     private Task OnDiscordLogAsync(LogMessage message)
     {
-        logger.Log(Map(message.Severity), message.Exception, "Discord: {Message}", message.Message);
+        LogDiscordMessage(logger, message.Severity, message.Exception, message.Message);
         return Task.CompletedTask;
     }
 
@@ -130,22 +131,57 @@ public sealed partial class DiscordHostedService(
         return commandText.Length > 0;
     }
 
-    private static LogLevel Map(LogSeverity severity) => severity switch
+    private static void LogDiscordMessage(ILogger logger, LogSeverity severity, Exception? exception, string message)
     {
-        LogSeverity.Critical => LogLevel.Critical,
-        LogSeverity.Error => LogLevel.Error,
-        LogSeverity.Warning => LogLevel.Warning,
-        LogSeverity.Info => LogLevel.Information,
-        LogSeverity.Verbose => LogLevel.Trace,
-        LogSeverity.Debug => LogLevel.Debug,
-        _ => LogLevel.Information,
-    };
+        switch (severity)
+        {
+            case LogSeverity.Critical:
+                LogDiscordCritical(logger, exception, message);
+                break;
+            case LogSeverity.Error:
+                LogDiscordError(logger, exception, message);
+                break;
+            case LogSeverity.Warning:
+                LogDiscordWarning(logger, exception, message);
+                break;
+            case LogSeverity.Verbose:
+                LogDiscordTrace(logger, exception, message);
+                break;
+            case LogSeverity.Debug:
+                LogDiscordDebug(logger, exception, message);
+                break;
+            default:
+                LogDiscordInformation(logger, exception, message);
+                break;
+        }
+    }
+
+    [LoggerMessage(LogLevel.Critical, "Discord: {Message}")]
+    private static partial void LogDiscordCritical(ILogger logger, Exception? exception, string message);
+
+    [LoggerMessage(LogLevel.Error, "Discord: {Message}")]
+    private static partial void LogDiscordError(ILogger logger, Exception? exception, string message);
+
+    [LoggerMessage(LogLevel.Warning, "Discord: {Message}")]
+    private static partial void LogDiscordWarning(ILogger logger, Exception? exception, string message);
+
+    [LoggerMessage(LogLevel.Trace, "Discord: {Message}")]
+    private static partial void LogDiscordTrace(ILogger logger, Exception? exception, string message);
+
+    [LoggerMessage(LogLevel.Debug, "Discord: {Message}")]
+    private static partial void LogDiscordDebug(ILogger logger, Exception? exception, string message);
+
+    [LoggerMessage(LogLevel.Information, "Discord: {Message}")]
+    private static partial void LogDiscordInformation(ILogger logger, Exception? exception, string message);
 
     [LoggerMessage(LogLevel.Information, "Discord backend is disabled")]
     private static partial void LogDisabled(ILogger logger);
 
     [LoggerMessage(LogLevel.Information, "Discord backend started as bot user {BotUserId}")]
     private static partial void LogStarted(ILogger logger, ulong botUserId);
+
+    [LoggerMessage(LogLevel.Debug, "Discord backend stopped")]
+    private static partial void LogStopped(ILogger logger);
 
     [LoggerMessage(LogLevel.Information, "Registered {CommandCount} Discord application commands (guild {GuildId})")]
     private static partial void LogCommandsRegistered(ILogger logger, int commandCount, ulong? guildId);

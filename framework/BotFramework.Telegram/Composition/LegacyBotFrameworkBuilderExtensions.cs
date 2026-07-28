@@ -1,9 +1,9 @@
 using BotFramework.Host.Composition.Builder;
 using BotFramework.Host.Configuration;
-using BotFramework.Host.Pipeline.Middleware;
+using BotFramework.Host.Pipeline;
 using BotFramework.Host.Pipeline.Routing;
 using BotFramework.Host.Redis.Streams;
-using BotFramework.Host.Runtime.Hosting;
+using BotFramework.Host.Runtime;
 using BotFramework.Host.TelegramOutbox;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -13,6 +13,9 @@ using Telegram.Bot;
 using BotFramework.Contracts.Tenancy;
 using BotFramework.Contracts.RateLimiting;
 using BotFramework.Telegram.Abstractions.Tenancy;
+using BotFramework.Telegram.Hosting;
+using BotFramework.Telegram.Outbox;
+using BotFramework.Telegram.Pipeline.Middleware;
 
 namespace BotFramework.Telegram.Composition;
 

@@ -35,7 +35,7 @@ internal sealed class PostgresAtomicEconomics(
                 startingCoins = _startingCoins,
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     public async Task<WalletSnapshot> LoadAsync(
@@ -44,7 +44,7 @@ internal sealed class PostgresAtomicEconomics(
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(session);
-        var row = await LoadRowAsync(wallet, session, ct).ConfigureAwait(false);
+        var row = await LoadRowAsync(wallet, session, ct);
         return new WalletSnapshot(row.Coins);
     }
 
@@ -58,7 +58,7 @@ internal sealed class PostgresAtomicEconomics(
         ArgumentNullException.ThrowIfNull(effects);
         ArgumentNullException.ThrowIfNull(session);
 
-        var row = await LoadRowAsync(wallet, session, ct).ConfigureAwait(false);
+        var row = await LoadRowAsync(wallet, session, ct);
         if (effects.Count == 0)
             return new WalletMutationResult(false, false, new WalletSnapshot(row.Coins));
 
@@ -105,7 +105,7 @@ internal sealed class PostgresAtomicEconomics(
                 version = checked(row.Version + effects.Count),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         const string ledgerSql = """
             INSERT INTO economics_ledger (
@@ -136,7 +136,7 @@ internal sealed class PostgresAtomicEconomics(
                 reasons = ledger.Select(mutation => mutation.Reason).ToArray(),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         return new WalletMutationResult(true, false, new WalletSnapshot(balance));
     }
@@ -158,7 +158,7 @@ internal sealed class PostgresAtomicEconomics(
             sql,
             new { userId = wallet.UserId, balanceScopeId = wallet.BalanceScopeId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         return row ?? throw new InvalidOperationException(
             $"Wallet {wallet.UserId}:{wallet.BalanceScopeId} does not exist.");
     }

@@ -148,7 +148,7 @@ public sealed partial class HorseModel(
             LIMIT 60
             """, cancellationToken: ct));
         Past = rows.ToList();
-        DatesWithGif = gifCache.Dates;
+        DatesWithGif = gifCache.GetDates();
 
         Flash = TempData["Flash"] as string;
         FlashError = TempData["FlashError"] is not null;

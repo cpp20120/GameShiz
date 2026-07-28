@@ -2,10 +2,10 @@ namespace Games.Poker.Domain.Rules;
 
 public static class PokerDomain
 {
-    public static void StartHand(PokerTable table, List<PokerSeat> allSeats)
+    public static void StartHand(PokerTable table, IReadOnlyList<PokerSeat> allSeats)
         => StartHand(table, allSeats, Deck.BuildShuffled(), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
-    public static void StartHand(PokerTable table, List<PokerSeat> allSeats, string shuffledDeck, long now)
+    public static void StartHand(PokerTable table, IReadOnlyList<PokerSeat> allSeats, string shuffledDeck, long now)
     {
         var playable = allSeats.Where(s => s.Stack > 0).OrderBy(s => s.Position).ToList();
 
@@ -130,11 +130,11 @@ public static class PokerDomain
                 break;
             }
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(action), action.Kind, "Unsupported poker action.");
         }
     }
 
-    public static Transition ResolveAfterAction(PokerTable table, List<PokerSeat> seats)
+    public static Transition ResolveAfterAction(PokerTable table, IReadOnlyList<PokerSeat> seats)
     {
         foreach (var s in seats.Where(s => s.Status == PokerSeatStatus.Seated && s.CurrentBet < table.CurrentBet))
         {
@@ -196,7 +196,7 @@ public static class PokerDomain
         if (seat.Stack == 0) seat.Status = PokerSeatStatus.AllIn;
     }
 
-    private static int NextActiveSeat(int currentPosition, IList<PokerSeat> seats)
+    private static int NextActiveSeat(int currentPosition, IReadOnlyList<PokerSeat> seats)
     {
         if (seats.Count == 0) return -1;
         var sorted = seats.OrderBy(s => s.Position).ToList();
@@ -213,7 +213,7 @@ public static class PokerDomain
         return -1;
     }
 
-    private static int FirstActiveSeatFrom(int startPosition, IList<PokerSeat> seats)
+    private static int FirstActiveSeatFrom(int startPosition, IReadOnlyList<PokerSeat> seats)
     {
         if (seats.Count == 0) return -1;
         var sorted = seats.OrderBy(s => s.Position).ToList();
@@ -230,7 +230,7 @@ public static class PokerDomain
         return -1;
     }
 
-    private static bool IsBettingRoundComplete(PokerTable table, IList<PokerSeat> seats)
+    private static bool IsBettingRoundComplete(PokerTable table, IReadOnlyList<PokerSeat> seats)
     {
         var active = seats.Where(s => s.Status == PokerSeatStatus.Seated).ToList();
         if (active.Count <= 1) return true;
@@ -243,7 +243,7 @@ public static class PokerDomain
         return true;
     }
 
-    private static void ResetBettingRound(IList<PokerSeat> seats)
+    private static void ResetBettingRound(IReadOnlyList<PokerSeat> seats)
     {
         foreach (var s in seats)
         {
@@ -253,7 +253,7 @@ public static class PokerDomain
         }
     }
 
-    private static void AdvanceToNextPhase(PokerTable table, IList<PokerSeat> seats)
+    private static void AdvanceToNextPhase(PokerTable table, IReadOnlyList<PokerSeat> seats)
     {
         var deck = table.DeckState;
         var community = Deck.Parse(table.CommunityCards).ToList();
@@ -297,7 +297,7 @@ public static class PokerDomain
         }
     }
 
-    private static List<ShowdownEntry> Settle(PokerTable table, List<PokerSeat> seats, PokerSeat? awardSingle)
+    private static List<ShowdownEntry> Settle(PokerTable table, IReadOnlyList<PokerSeat> seats, PokerSeat? awardSingle)
     {
         var results = new List<ShowdownEntry>();
 
@@ -347,12 +347,12 @@ public static class PokerDomain
                 var share = potSlice / winners.Count;
                 var remainder = potSlice - (share * winners.Count);
 
-                foreach (var winner in winners)
+                foreach (var winner in winners.Select(winner => winner.seat))
                 {
                     var won = share + (remainder > 0 ? 1 : 0);
                     if (remainder > 0) remainder--;
-                    winner.seat.Stack += won;
-                    wonByUser[winner.seat.UserId] += won;
+                    winner.Stack += won;
+                    wonByUser[winner.UserId] += won;
                     awarded += won;
                 }
 
@@ -366,12 +366,12 @@ public static class PokerDomain
                 var remainderPot = table.Pot - awarded;
                 var share = remainderPot / winners.Count;
                 var remainder = remainderPot - (share * winners.Count);
-                foreach (var winner in winners)
+                foreach (var winner in winners.Select(winner => winner.seat))
                 {
                     var won = share + (remainder > 0 ? 1 : 0);
                     if (remainder > 0) remainder--;
-                    winner.seat.Stack += won;
-                    wonByUser[winner.seat.UserId] += won;
+                    winner.Stack += won;
+                    wonByUser[winner.UserId] += won;
                 }
             }
 

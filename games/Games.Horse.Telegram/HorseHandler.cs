@@ -109,12 +109,7 @@ public sealed partial class HorseHandler(
             || sub.Equals("all", StringComparison.OrdinalIgnoreCase);
         HorseRunKind kind;
         long scopeForRun;
-        if (global)
-        {
-            kind = HorseRunKind.Global;
-            scopeForRun = 0;
-        }
-        else if (msg.Chat.Type is ChatType.Group or ChatType.Supergroup)
+        if (!global && msg.Chat.Type is ChatType.Group or ChatType.Supergroup)
         {
             kind = HorseRunKind.ThisChat;
             scopeForRun = chatId;

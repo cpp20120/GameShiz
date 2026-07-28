@@ -10,16 +10,16 @@ namespace BotFramework.Rendering;
 
 internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IHostedService, IDisposable
 {
-    private readonly IServiceScopeFactory scopes;
-    private readonly IRenderArtifactStore store;
-    private readonly RenderingOptions options;
-    private readonly TimeProvider timeProvider;
-    private readonly ILogger<TplRenderWorker> logger;
-    private readonly ConcurrentDictionary<string, Lazy<Task<RenderedArtifact>>> inFlight = new(StringComparer.Ordinal);
-    private readonly CancellationTokenSource stopping = new();
-    private readonly SemaphoreSlim renderSlots;
-    private readonly ActionBlock<RenderWorkItem> interactive;
-    private readonly ActionBlock<RenderWorkItem> background;
+    private readonly IServiceScopeFactory _scopes;
+    private readonly IRenderArtifactStore _store;
+    private readonly RenderingOptions _options;
+    private readonly TimeProvider _timeProvider;
+    private readonly ILogger<TplRenderWorker> _logger;
+    private readonly ConcurrentDictionary<string, Lazy<Task<RenderedArtifact>>> _inFlight = new(StringComparer.Ordinal);
+    private readonly CancellationTokenSource _stopping = new();
+    private readonly SemaphoreSlim _renderSlots;
+    private readonly ActionBlock<RenderWorkItem> _interactive;
+    private readonly ActionBlock<RenderWorkItem> _background;
 
     public TplRenderWorker(
         IServiceScopeFactory scopes,
@@ -28,32 +28,32 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         TimeProvider timeProvider,
         ILogger<TplRenderWorker> logger)
     {
-        this.scopes = scopes;
-        this.store = store;
-        this.options = options.Value;
-        this.timeProvider = timeProvider;
-        this.logger = logger;
-        renderSlots = new SemaphoreSlim(this.options.EffectiveParallelism);
+        _scopes = scopes;
+        _store = store;
+        _options = options.Value;
+        _timeProvider = timeProvider;
+        _logger = logger;
+        _renderSlots = new SemaphoreSlim(_options.EffectiveParallelism);
 
-        interactive = CreateBlock(Math.Max(1, this.options.QueueCapacity / 2));
-        background = CreateBlock(Math.Max(1, this.options.QueueCapacity));
+        _interactive = CreateBlock(Math.Max(1, _options.QueueCapacity / 2));
+        _background = CreateBlock(Math.Max(1, _options.QueueCapacity));
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        LogStarted(options.QueueCapacity, options.EffectiveParallelism);
+        LogStarted(_options.QueueCapacity, _options.EffectiveParallelism);
         return Task.CompletedTask;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        await stopping.CancelAsync().ConfigureAwait(false);
-        interactive.Complete();
-        background.Complete();
+        await _stopping.CancelAsync();
+        _interactive.Complete();
+        _background.Complete();
         try
         {
-            await Task.WhenAll(interactive.Completion, background.Completion)
-                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            await Task.WhenAll(_interactive.Completion, _background.Completion)
+                .WaitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -63,8 +63,8 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
 
     public void Dispose()
     {
-        renderSlots.Dispose();
-        stopping.Dispose();
+        _renderSlots.Dispose();
+        _stopping.Dispose();
     }
 
     public async ValueTask<RenderedArtifact> GetOrRenderAsync<TSpec>(
@@ -77,15 +77,15 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         var candidate = new Lazy<Task<RenderedArtifact>>(
             () => EnqueueCoreAsync(spec, key, priority),
             LazyThreadSafetyMode.ExecutionAndPublication);
-        var actual = inFlight.GetOrAdd(key.Value, candidate);
+        var actual = _inFlight.GetOrAdd(key.Value, candidate);
         try
         {
-            return await actual.Value.WaitAsync(ct).ConfigureAwait(false);
+            return await actual.Value.WaitAsync(ct);
         }
         finally
         {
             if (actual.IsValueCreated && actual.Value.IsCompleted)
-                inFlight.TryRemove(new KeyValuePair<string, Lazy<Task<RenderedArtifact>>>(key.Value, actual));
+                _inFlight.TryRemove(new KeyValuePair<string, Lazy<Task<RenderedArtifact>>>(key.Value, actual));
         }
     }
 
@@ -100,7 +100,7 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         {
             try
             {
-                await store.RecordHistoryAsync(entry, ct).ConfigureAwait(false);
+                await _store.RecordHistoryAsync(entry, ct);
                 return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -111,7 +111,7 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
             {
                 RenderTelemetry.StoreFailed(entry.GameId, "history");
                 LogHistoryRetry(entry.GameId, entry.AggregateId, attempt, ex);
-                await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), timeProvider, ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), _timeProvider, ct);
             }
             catch (Exception ex)
             {
@@ -128,11 +128,11 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         string aggregateId,
         int take = 50,
         CancellationToken ct = default) =>
-        store.ListHistoryAsync(gameId, aggregateId, take, ct);
+        _store.ListHistoryAsync(gameId, aggregateId, take, ct);
 
     private RenderKey Describe<TSpec>(TSpec spec)
     {
-        using var scope = scopes.CreateScope();
+        using var scope = _scopes.CreateScope();
         return scope.ServiceProvider.GetRequiredService<IRenderJob<TSpec>>().Describe(spec);
     }
 
@@ -141,7 +141,7 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         RenderKey key,
         RenderPriority priority)
     {
-        var cached = await FindCachedAsync(key).ConfigureAwait(false);
+        var cached = await FindCachedAsync(key);
         if (cached is not null)
         {
             RenderTelemetry.Hit(key.RendererId);
@@ -154,15 +154,18 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
             key,
             async ct =>
             {
-                await using var scope = scopes.CreateAsyncScope();
+                await using var scope = _scopes.CreateAsyncScope();
                 var job = scope.ServiceProvider.GetRequiredService<IRenderJob<TSpec>>();
-                var output = await job.RenderAsync(spec, ct).ConfigureAwait(false);
-                if (output.Content.LongLength > options.MaxArtifactBytes)
+                var output = await job.RenderAsync(spec, ct);
+                if (output.Content.LongLength > _options.MaxArtifactBytes)
+                {
                     throw new InvalidOperationException(
-                        $"Renderer '{key.RendererId}' produced {output.Content.LongLength} bytes; limit is {options.MaxArtifactBytes}.");
+                        $"Renderer '{key.RendererId}' produced {output.Content.LongLength} bytes; limit is {_options.MaxArtifactBytes}.");
+                }
+
                 try
                 {
-                    return await store.PutAsync(key, output, ct).ConfigureAwait(false);
+                    return await _store.PutAsync(key, output, ct);
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -178,17 +181,17 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
                         key,
                         output.Content,
                         output.FileName ?? $"render.{key.Extension.TrimStart('.')}",
-                        timeProvider.GetUtcNow(),
+                        _timeProvider.GetUtcNow(),
                         key.ObjectName,
                         CacheHit: false);
                 }
             },
             completion);
-        var block = priority == RenderPriority.Interactive ? interactive : background;
+        var block = priority == RenderPriority.Interactive ? _interactive : _background;
         RenderTelemetry.Enqueued(key.RendererId);
-        if (!await block.SendAsync(item, stopping.Token).ConfigureAwait(false))
+        if (!await block.SendAsync(item, _stopping.Token))
             throw new InvalidOperationException("The render queue is no longer accepting work.");
-        return await completion.Task.ConfigureAwait(false);
+        return await completion.Task;
     }
 
     private ActionBlock<RenderWorkItem> CreateBlock(int capacity) => new(
@@ -196,25 +199,25 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         new ExecutionDataflowBlockOptions
         {
             BoundedCapacity = capacity,
-            CancellationToken = stopping.Token,
+            CancellationToken = _stopping.Token,
             EnsureOrdered = false,
-            MaxDegreeOfParallelism = options.EffectiveParallelism,
+            MaxDegreeOfParallelism = _options.EffectiveParallelism,
         });
 
     private async Task ExecuteAsync(RenderWorkItem item)
     {
         RenderTelemetry.Dequeued(item.Key.RendererId);
-        var started = timeProvider.GetTimestamp();
+        var started = _timeProvider.GetTimestamp();
         var slotAcquired = false;
         try
         {
-            await renderSlots.WaitAsync(stopping.Token).ConfigureAwait(false);
+            await _renderSlots.WaitAsync(_stopping.Token);
             slotAcquired = true;
-            var artifact = await item.Execute(stopping.Token).ConfigureAwait(false);
+            var artifact = await item.Execute(_stopping.Token);
             item.Completion.TrySetResult(artifact);
-            RenderTelemetry.Completed(item.Key.RendererId, timeProvider.GetElapsedTime(started));
+            RenderTelemetry.Completed(item.Key.RendererId, _timeProvider.GetElapsedTime(started));
         }
-        catch (OperationCanceledException ex) when (stopping.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (_stopping.IsCancellationRequested)
         {
             item.Completion.TrySetCanceled(ex.CancellationToken);
         }
@@ -227,7 +230,7 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
         finally
         {
             if (slotAcquired)
-                renderSlots.Release();
+                _renderSlots.Release();
         }
     }
 
@@ -235,9 +238,9 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
     {
         try
         {
-            return await store.FindAsync(key, stopping.Token).ConfigureAwait(false);
+            return await _store.FindAsync(key, _stopping.Token);
         }
-        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
         {
             throw;
         }

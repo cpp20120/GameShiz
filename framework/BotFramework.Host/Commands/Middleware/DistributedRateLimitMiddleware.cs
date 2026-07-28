@@ -19,14 +19,14 @@ public sealed class DistributedRateLimitMiddleware(
     {
         if (requestState.LeaseGranted)
         {
-            await next().ConfigureAwait(false);
+            await next();
             return;
         }
 
         var current = tenantContext.Current;
         if (current is null || current.PlayerId is not { } player)
         {
-            await next().ConfigureAwait(false);
+            await next();
             return;
         }
 
@@ -36,13 +36,13 @@ public sealed class DistributedRateLimitMiddleware(
                 player,
                 current.Channel,
                 $"command:{ctx.Command.ModuleId}:{ctx.Command.GetType().Name}"),
-            ctx.Cancellation).ConfigureAwait(false);
+            ctx.Cancellation);
         ctx.Items["rate_limit_decision"] = decision;
 
         if (!decision.Allowed)
             throw new RateLimitedException(new RateLimitKey(0, ctx.Command.GetType().Name));
 
         requestState.LeaseGranted = true;
-        await next().ConfigureAwait(false);
+        await next();
     }
 }

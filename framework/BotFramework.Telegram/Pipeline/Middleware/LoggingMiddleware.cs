@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace BotFramework.Host.Pipeline.Middleware;
+namespace BotFramework.Telegram.Pipeline.Middleware;
 
 public sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> logger) : IUpdateMiddleware
 {
@@ -28,21 +28,40 @@ public sealed partial class LoggingMiddleware(ILogger<LoggingMiddleware> logger)
         });
 
         var started = Stopwatch.GetTimestamp();
-        LogUpdateIn(kind, ctx.UserId, Truncate(ctx.Text), Truncate(ctx.CallbackData));
+        if (logger.IsEnabled(LogLevel.Debug))
+        {
+            var text = Truncate(ctx.Text);
+            var callbackData = Truncate(ctx.CallbackData);
+            LogUpdateIn(kind, ctx.UserId, text, callbackData);
+        }
 
         try
         {
             await next(ctx);
-            LogUpdateOut(kind, ctx.UserId, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, failed: false);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                var elapsedMilliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                LogUpdateOut(kind, ctx.UserId, elapsedMilliseconds, failed: false);
+            }
         }
         catch
         {
-            LogUpdateOut(kind, ctx.UserId, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, failed: true);
+            if (logger.IsEnabled(LogLevel.Information))
+            {
+                var elapsedMilliseconds = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                LogUpdateOut(kind, ctx.UserId, elapsedMilliseconds, failed: true);
+            }
             throw;
         }
     }
 
-    private static string? Truncate(string? s) => s == null ? null : s.Length <= 80 ? s : s[..80] + "…";
+    private static string? Truncate(string? s)
+    {
+        if (s is null || s.Length <= 80)
+            return s;
+
+        return s[..80] + "…";
+    }
 
     [LoggerMessage(EventId = 1001, Level = LogLevel.Debug,
         Message = "update.in kind={Kind} user={UserId} text={Text} cb={Cb}")]

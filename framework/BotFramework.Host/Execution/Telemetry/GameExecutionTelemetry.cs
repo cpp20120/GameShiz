@@ -28,7 +28,7 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
     private static readonly Histogram<double> GameExecutionOutboxLag = Metrics.CreateHistogram<double>(
         "game.outbox.delivery.lag", "s");
     private static readonly Histogram<double> OutboxLag = BotFrameworkMetrics.OutboxLag;
-    private readonly ILogger logger = logger;
+    private readonly ILogger _logger = logger;
 
     public Observation Start(string gameId, string commandId, string aggregateId)
     {
@@ -39,7 +39,7 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
 
         Received.Add(1, new KeyValuePair<string, object?>("module", gameId));
         Active.Add(1, new KeyValuePair<string, object?>("module", gameId));
-        LogReceived(logger, gameId, commandId, aggregateId);
+        LogReceived(_logger, gameId, commandId, aggregateId);
         AddStage(activity, "game.command.received");
         return new Observation(this, gameId, commandId, activity);
     }
@@ -54,49 +54,38 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
     private static void AddStage(Activity? activity, string name, ActivityTagsCollection? tags = null) =>
         activity?.AddEvent(new ActivityEvent(name, tags: tags));
 
-    internal sealed class Observation : IDisposable
+    internal sealed class Observation(
+        GameExecutionTelemetry owner,
+        string gameId,
+        string commandId,
+        Activity? activity)
+        : IDisposable
     {
-        private readonly GameExecutionTelemetry owner;
-        private readonly string gameId;
-        private readonly string commandId;
-        private readonly Activity? activity;
-        private readonly long startedAt = Stopwatch.GetTimestamp();
-        private string outcome = "failed";
-        private bool disposed;
-
-        public Observation(
-            GameExecutionTelemetry owner,
-            string gameId,
-            string commandId,
-            Activity? activity)
-        {
-            this.owner = owner;
-            this.gameId = gameId;
-            this.commandId = commandId;
-            this.activity = activity;
-        }
+        private readonly long _startedAt = Stopwatch.GetTimestamp();
+        private string _outcome = "failed";
+        private bool _disposed;
 
         public void LockWaitStarted() =>
-            Stage("game.command.lock_wait", () => LogLockWait(owner.logger, gameId, commandId));
+            Stage("game.command.lock_wait", () => LogLockWait(owner._logger, gameId, commandId));
 
         public void Locked(TimeSpan elapsed)
         {
             LockWait.Record(elapsed.TotalSeconds, new KeyValuePair<string, object?>("module", gameId));
-            Stage("game.command.locked", () => LogLocked(owner.logger, gameId, commandId, elapsed.TotalMilliseconds));
+            Stage("game.command.locked", () => LogLocked(owner._logger, gameId, commandId, elapsed.TotalMilliseconds));
         }
 
         public void Duplicate()
         {
-            outcome = "duplicate";
+            _outcome = "duplicate";
             Duplicates.Add(1, new KeyValuePair<string, object?>("module", gameId));
-            Stage("game.command.duplicate", () => LogDuplicate(owner.logger, gameId, commandId));
+            Stage("game.command.duplicate", () => LogDuplicate(owner._logger, gameId, commandId));
         }
 
         public void Decided(DecisionStatus status, string? rejectionReason)
         {
-            outcome = status == DecisionStatus.Accepted ? "accepted" : "rejected";
-            activity?.SetTag("game.decision.status", outcome);
-            Stage("game.command.decided", () => LogDecided(owner.logger, gameId, commandId, outcome));
+            _outcome = status == DecisionStatus.Accepted ? "accepted" : "rejected";
+            activity?.SetTag("game.decision.status", _outcome);
+            Stage("game.command.decided", () => LogDecided(owner._logger, gameId, commandId, _outcome));
             if (status != DecisionStatus.Rejected) return;
 
             var reason = string.IsNullOrWhiteSpace(rejectionReason) ? "unspecified" : rejectionReason;
@@ -104,26 +93,26 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
                 new KeyValuePair<string, object?>("module", gameId),
                 new KeyValuePair<string, object?>("reason", reason));
             activity?.SetTag("game.rejection.reason", reason);
-            Stage("game.command.rejected", () => LogRejected(owner.logger, gameId, commandId, reason));
+            Stage("game.command.rejected", () => LogRejected(owner._logger, gameId, commandId, reason));
         }
 
         public void Committing() =>
-            Stage("game.command.committing", () => LogCommitting(owner.logger, gameId, commandId));
+            Stage("game.command.committing", () => LogCommitting(owner._logger, gameId, commandId));
 
         public void Committed()
         {
-            Stage("game.command.committed", () => LogCommitted(owner.logger, gameId, commandId));
+            Stage("game.command.committed", () => LogCommitted(owner._logger, gameId, commandId));
             activity?.SetStatus(ActivityStatusCode.Ok);
         }
 
         public void Failed(Exception exception)
         {
-            outcome = "failed";
+            _outcome = "failed";
             Failures.Add(1,
                 new KeyValuePair<string, object?>("module", gameId));
             activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
             activity?.SetTag("error.type", exception.GetType().FullName);
-            Stage("game.command.failed", () => LogFailed(owner.logger, exception, gameId, commandId));
+            Stage("game.command.failed", () => LogFailed(owner._logger, exception, gameId, commandId));
         }
 
         public void RolledBack() =>
@@ -133,16 +122,16 @@ internal sealed partial class GameExecutionTelemetry(ILogger<GameExecutionTeleme
             TransactionDuration.Record(
                 elapsed.TotalSeconds,
                 new KeyValuePair<string, object?>("module", gameId),
-                new KeyValuePair<string, object?>("outcome", outcome));
+                new KeyValuePair<string, object?>("outcome", _outcome));
 
         public void Dispose()
         {
-            if (disposed) return;
-            disposed = true;
+            if (_disposed) return;
+            _disposed = true;
             ExecutionDuration.Record(
-                Stopwatch.GetElapsedTime(startedAt).TotalSeconds,
+                Stopwatch.GetElapsedTime(_startedAt).TotalSeconds,
                 new KeyValuePair<string, object?>("module", gameId),
-                new KeyValuePair<string, object?>("outcome", outcome));
+                new KeyValuePair<string, object?>("outcome", _outcome));
             Active.Add(-1, new KeyValuePair<string, object?>("module", gameId));
             activity?.Dispose();
         }

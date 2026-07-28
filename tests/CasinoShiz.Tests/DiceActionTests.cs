@@ -61,6 +61,33 @@ public sealed class DiceActionTests
     }
 
     [Fact]
+    public void Decide_RejectsForwardedMessageWithoutEffects()
+    {
+        var decision = Decide(isForwarded: true);
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(DiceOutcome.Forwarded, decision.Result.Outcome);
+        Assert.Equal("forwarded", decision.RejectionReason);
+        Assert.Empty(decision.Economy);
+        Assert.Empty(decision.Quotas);
+        Assert.Empty(decision.Events);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(65)]
+    public void Decide_InvalidTelegramValueThrows(int diceValue)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Decide(diceValue));
+    }
+
+    [Fact]
+    public void Decide_RequiresDailyQuotaSnapshot()
+    {
+        Assert.Throws<InvalidOperationException>(() => Decide(includeQuota: false));
+    }
+
+    [Fact]
     public void Decide_ZeroQuotaLimitMeansUnlimited()
     {
         var decision = Decide(quotaLimit: 0);
@@ -117,15 +144,19 @@ public sealed class DiceActionTests
         long quotaUsed = 0,
         long quotaLimit = 10,
         double entropy = 0.5,
-        double redeemDropChance = 0) =>
+        double redeemDropChance = 0,
+        bool isForwarded = false,
+        bool includeQuota = true) =>
         new DiceAction().Decide(new GameActionInput<NoGameState, DiceCommand>(
-            new DiceCommand(1, "player", diceValue, 100, diceValue, false, 7, redeemDropChance),
+            new DiceCommand(1, "player", diceValue, 100, diceValue, isForwarded, 7, redeemDropChance),
             default,
             new WalletSnapshot(balance),
-            new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
-            {
-                [DiceAction.DailyRollQuota] = new(quotaUsed, quotaLimit),
-            },
+            includeQuota
+                ? new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+                {
+                    [DiceAction.DailyRollQuota] = new(quotaUsed, quotaLimit),
+                }
+                : new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal),
             new EntropyValue([KeyValuePair.Create(DiceAction.RedeemDropEntropy, entropy)]),
             Now));
 }

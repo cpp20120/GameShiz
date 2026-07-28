@@ -97,7 +97,7 @@ public sealed partial class DiceHandler(
     {
         if (msg.Dice is not { Value: > 0 }) return;
 
-        var dice = msg.Dice!;
+        var dice = msg.Dice;
         var chatId = msg.Chat.Id;
         var reply = new ReplyParameters { MessageId = msg.MessageId };
 

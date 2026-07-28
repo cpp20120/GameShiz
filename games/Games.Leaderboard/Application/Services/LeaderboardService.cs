@@ -26,15 +26,17 @@ public sealed class LeaderboardService(
 
                 var places = new List<LeaderboardPlace>();
                 var lastBalance = active[0].Coins + 1;
+                var usersAtPlace = new List<LeaderboardUser>();
                 for (var i = 0; i < active.Count && (places.Count < limit || limit == 0); i++)
                 {
                     var user = active[i];
                     if (user.Coins < lastBalance)
                     {
                         lastBalance = user.Coins;
-                        places.Add(new LeaderboardPlace(places.Count + 1, []));
+                        usersAtPlace = [];
+                        places.Add(new LeaderboardPlace(places.Count + 1, usersAtPlace));
                     }
-                    places[^1].Users.Add(user);
+                    usersAtPlace.Add(user);
                 }
 
                 var shown = places.Sum(p => p.Users.Count);
@@ -72,14 +74,16 @@ public sealed class LeaderboardService(
 
                 var places = new List<GlobalLeaderboardPlace>();
                 var lastBalance = users[0].TotalCoins + 1;
+                var usersAtPlace = new List<GlobalLeaderboardUser>();
                 foreach (var user in users)
                 {
                     if (user.TotalCoins < lastBalance)
                     {
                         lastBalance = user.TotalCoins;
-                        places.Add(new GlobalLeaderboardPlace(places.Count + 1, []));
+                        usersAtPlace = [];
+                        places.Add(new GlobalLeaderboardPlace(places.Count + 1, usersAtPlace));
                     }
-                    places[^1].Users.Add(user);
+                    usersAtPlace.Add(user);
                 }
 
                 return new GlobalLeaderboard(places, limit > 0 && totalUsers > users.Count, totalUsers);
@@ -178,14 +182,16 @@ public sealed class LeaderboardService(
         if (sortedDesc.Count == 0) return places;
 
         var lastBalance = sortedDesc[0].Coins + 1;
+        var usersAtPlace = new List<LeaderboardUser>();
         foreach (var user in sortedDesc)
         {
             if (user.Coins < lastBalance)
             {
                 lastBalance = user.Coins;
-                places.Add(new LeaderboardPlace(places.Count + 1, []));
+                usersAtPlace = [];
+                places.Add(new LeaderboardPlace(places.Count + 1, usersAtPlace));
             }
-            places[^1].Users.Add(user);
+            usersAtPlace.Add(user);
         }
         return places;
     }

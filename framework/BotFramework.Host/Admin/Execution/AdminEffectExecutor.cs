@@ -7,55 +7,12 @@ using Npgsql;
 
 namespace BotFramework.Host.Admin.Execution;
 
-public interface IAdminEffectExecutor
-{
-    Task<TResult> ExecuteAsync<TResult>(
-        AdminExecutionEnvelope envelope,
-        AdminEffectPlan<TResult> plan,
-        CancellationToken ct);
-}
-
-public interface IAdminExecutionContext
-{
-    IWalletAtomicExecutionService? Wallet => null;
-    TenantContext? TenantContext => null;
-
-    AdminActor Actor { get; }
-
-    string Action { get; }
-
-    Task<int> ExecuteAsync(string sql, object? parameters, CancellationToken ct);
-
-    Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct);
-
-    Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters, CancellationToken ct);
-
-    void SetOutput(string key, object? value);
-}
-
-public interface IAdminEffectHandler
-{
-    Type EffectType { get; }
-    Task ApplyAsync(IAdminEffect effect, IAdminExecutionContext context, CancellationToken ct);
-}
-
-public abstract class AdminEffectHandler<TEffect> : IAdminEffectHandler
-    where TEffect : class, IAdminEffect
-{
-    public Type EffectType => typeof(TEffect);
-
-    public Task ApplyAsync(IAdminEffect effect, IAdminExecutionContext context, CancellationToken ct) =>
-        ApplyAsync((TEffect)effect, context, ct);
-
-    protected abstract Task ApplyAsync(TEffect effect, IAdminExecutionContext context, CancellationToken ct);
-}
-
 internal sealed class AdminEffectExecutor(
     INpgsqlConnectionFactory connections,
     IEnumerable<IAdminEffectHandler> handlers,
     IWalletAtomicExecutionService wallet) : IAdminEffectExecutor
 {
-    private readonly IReadOnlyDictionary<Type, IAdminEffectHandler> handlers = handlers
+    private readonly Dictionary<Type, IAdminEffectHandler> _handlers = handlers
         .GroupBy(static handler => handler.EffectType)
         .ToDictionary(static group => group.Key, static group => group.Single());
 
@@ -67,8 +24,8 @@ internal sealed class AdminEffectExecutor(
         if (string.IsNullOrWhiteSpace(envelope.Action))
             throw new ArgumentException("Admin audit action is required.", nameof(envelope));
 
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
         var context = new PostgresAdminExecutionContext(
             connection,
             transaction,
@@ -81,10 +38,10 @@ internal sealed class AdminEffectExecutor(
         {
             foreach (var effect in plan.Effects)
             {
-                if (!handlers.TryGetValue(effect.GetType(), out var handler))
+                if (!_handlers.TryGetValue(effect.GetType(), out var handler))
                     throw new InvalidOperationException($"No admin effect handler is registered for '{effect.GetType().FullName}'.");
 
-                await handler.ApplyAsync(effect, context, ct).ConfigureAwait(false);
+                await handler.ApplyAsync(effect, context, ct);
             }
 
             await context.ExecuteAsync(
@@ -107,16 +64,16 @@ internal sealed class AdminEffectExecutor(
                     tenantId = envelope.TenantContext?.TenantId.Value,
                     scopeId = envelope.TenantContext?.ScopeId.Value,
                 },
-                ct).ConfigureAwait(false);
+                ct);
 
-            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            await transaction.CommitAsync(ct);
             return plan.ResultFactory is { } resultFactory
                 ? resultFactory(context.Outputs)
                 : plan.Result;
         }
         catch
         {
-            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            await transaction.RollbackAsync(CancellationToken.None);
             throw;
         }
     }
@@ -129,9 +86,9 @@ internal sealed class AdminEffectExecutor(
         IWalletAtomicExecutionService wallet,
         TenantContext? tenantContext) : IAdminExecutionContext
     {
-        private readonly Dictionary<string, object?> outputs = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, object?> _outputs = new(StringComparer.Ordinal);
 
-        public IReadOnlyDictionary<string, object?> Outputs => outputs;
+        public IReadOnlyDictionary<string, object?> Outputs => _outputs;
 
         public AdminActor Actor => actor;
 
@@ -143,15 +100,15 @@ internal sealed class AdminEffectExecutor(
             connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct));
 
         public async Task<T?> QuerySingleOrDefaultAsync<T>(string sql, object? parameters, CancellationToken ct) =>
-            await connection.QuerySingleOrDefaultAsync<T>(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct)).ConfigureAwait(false);
+            await connection.QuerySingleOrDefaultAsync<T>(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct));
 
         public async Task<IReadOnlyList<T>> QueryAsync<T>(string sql, object? parameters, CancellationToken ct) =>
-            (await connection.QueryAsync<T>(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct)).ConfigureAwait(false)).AsList();
+            (await connection.QueryAsync<T>(new CommandDefinition(sql, parameters, transaction, cancellationToken: ct))).AsList();
 
         public void SetOutput(string key, object? value)
         {
             if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("Output key is required.", nameof(key));
-            outputs[key] = value;
+            _outputs[key] = value;
         }
     }
 }

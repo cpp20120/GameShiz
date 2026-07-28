@@ -82,7 +82,7 @@ public static class RuntimeTuningPayloadSanitizer
 
     private static JsonObject SanitizeSection(
         JsonObject source,
-        IReadOnlySet<string> allowedKeys)
+        HashSet<string> allowedKeys)
     {
         ArgumentNullException.ThrowIfNull(allowedKeys);
         return new JsonObject(

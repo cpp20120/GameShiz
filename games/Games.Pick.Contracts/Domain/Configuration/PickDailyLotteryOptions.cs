@@ -11,7 +11,7 @@ public sealed class PickDailyLotteryOptions
     public int TicketPrice { get; init; } = 50;
 
     /// <summary>Hard cap on tickets per user per day. 0 = unlimited.</summary>
-    public int MaxTicketsPerUserPerDay { get; init; } = 0;
+    public int MaxTicketsPerUserPerDay { get; init; }
 
     /// <summary>Hard cap on tickets bought in one single command. Throttles spam.</summary>
     public int MaxTicketsPerBuyCommand { get; init; } = 100;
@@ -29,7 +29,7 @@ public sealed class PickDailyLotteryOptions
     /// If non-zero, override the day-boundary offset. Otherwise we read it
     /// from <c>TelegramDiceDailyLimit:TimezoneOffsetHours</c> at runtime.
     /// </summary>
-    public int TimezoneOffsetHoursOverride { get; init; } = 0;
+    public int TimezoneOffsetHoursOverride { get; init; }
 
     /// <summary>
     /// Local hour-of-day at which the cycle closes and the sweeper draws.

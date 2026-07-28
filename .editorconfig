@@ -1,8 +1,8 @@
 root = true
 
 [*.cs]
-# Server-side code does not need explicit ConfigureAwait on every await.
-# ConfigureAwait(true) is the default, and ConfigureAwait(false) would add large churn here.
+# Server-side code does not need explicit await continuation configuration.
+# The default context behavior is intentional here.
 dotnet_diagnostic.MA0004.severity = none
 
 # Keep methods reasonably compact without forcing noisy splits around admin handlers.
@@ -21,6 +21,34 @@ dotnet_diagnostic.CA1852.severity = none
 [host/**/Pages/**/*.cshtml.cs]
 # Razor page model files follow Razor's page naming convention, not the contained model type name.
 dotnet_diagnostic.MA0048.severity = none
+
+[host/CasinoShiz.AdminBff/Pages/*.cshtml.cs]
+# Razor page model files follow Razor's page naming convention, not the contained model type name.
+dotnet_diagnostic.MA0048.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/MetaQuests.cshtml.cs]
+# Razor binding and the JSON editor document intentionally use mutable List<T> collections.
+dotnet_diagnostic.MA0016.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/EventsModel.cs]
+# This page handler keeps one cohesive data-loading transaction for the admin screen.
+dotnet_diagnostic.MA0051.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/ChallengesModel.cs]
+# This page handler keeps one cohesive data-loading transaction for the admin screen.
+dotnet_diagnostic.MA0051.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/IndexModel.cs]
+# This page handler keeps one cohesive data-loading transaction for the admin screen.
+dotnet_diagnostic.MA0051.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/MetaTournamentModel.cs]
+# This page handler keeps one cohesive data-loading transaction for the admin screen.
+dotnet_diagnostic.MA0051.severity = none
+
+[host/CasinoShiz.Host/Pages/Admin/Settings.cshtml.cs]
+# This page handler validates and persists one complete settings section atomically.
+dotnet_diagnostic.MA0051.severity = none
 
 [host/CasinoShiz.Host/Pages/Admin/MetaSeasonsModel.cs]
 # These helpers are called through the Razor Model instance from the .cshtml page.
@@ -53,6 +81,315 @@ dotnet_diagnostic.CA1716.severity = none
 [framework/BotFramework.Host/Contracts/Localization/ILocalizer.cs]
 # Public localization API intentionally exposes Get/GetPlural-style lookup methods.
 dotnet_diagnostic.CA1716.severity = none
+
+[framework/BotFramework.Contracts/Messaging/IIntegrationEventHandler.cs]
+# Event handler is the established public integration-pipeline contract name.
+dotnet_diagnostic.CA1711.severity = none
+
+[framework/BotFramework.Contracts/Economics/IWalletAnalyticsService.cs]
+# Date range parameters intentionally use the conventional from/to API vocabulary.
+dotnet_diagnostic.CA1716.severity = none
+
+[framework/BotFramework.Rendering/IRenderQueue.cs]
+# Queue is the established name of this public rendering boundary.
+dotnet_diagnostic.CA1711.severity = none
+
+[framework/BotFramework.Sdk/Commands/ICommand.TResult.cs]
+# TResult is intentionally carried by the marker type so the command bus can resolve its response handler.
+dotnet_diagnostic.S2326.severity = none
+
+[framework/BotFramework.Sdk/Snapshots/ISnapshotStore.TAggregate.cs]
+# TAggregate is intentionally carried by the marker type for DI's open generic store boundary.
+dotnet_diagnostic.S2326.severity = none
+
+[framework/BotFramework.Telegram.Abstractions/Pipeline/UpdateDelegate.cs]
+# Delegate is the established public middleware pipeline name.
+dotnet_diagnostic.CA1711.severity = none
+
+[framework/BotFramework.Telegram.Abstractions/Pipeline/IUpdateMiddleware.cs]
+# next is the conventional middleware continuation parameter name.
+dotnet_diagnostic.CA1716.severity = none
+
+[framework/BotFramework.Host/Economics/Options/TelegramDiceDailyLimitOptions.cs]
+# Configuration binding requires a concrete mutable dictionary for per-game options.
+dotnet_diagnostic.MA0016.severity = none
+
+[framework/BotFramework.Host/Analytics/Reports/ClickHouseAnalyticsQueryService.cs]
+# ClickHouse table/column identifiers cannot be parameters; all interpolated identifiers are validated or whitelisted.
+dotnet_diagnostic.S2077.severity = none
+
+[framework/BotFramework.Host/Analytics/ClickHouse/ClickHouseAnalyticsService.cs]
+# ClickHouse database/table identifiers cannot be parameters; values are configuration-controlled and validated.
+dotnet_diagnostic.S2077.severity = none
+
+[framework/BotFramework.Host/Economics/Services/PlayerProtectionService.cs]
+# The update clause is selected from a fixed internal allowlist of SQL fragments, never user input.
+dotnet_diagnostic.S2077.severity = none
+
+[framework/BotFramework.Host/Economics/Services/EconomySimulationService.cs]
+# Simulation randomness must remain seedable and deterministic; cryptographic randomness is inappropriate here.
+dotnet_diagnostic.S2245.severity = none
+
+[games/Games.Admin.Transport.Grpc/AdminGrpcProxy.cs]
+# DispatchProxy requires this controlled reflection call to invoke the contract's generic Task result.
+dotnet_diagnostic.S3011.severity = none
+# The generic proxy intentionally exposes a static factory to preserve the transport API used by boundary tests and callers.
+dotnet_diagnostic.CA1000.severity = none
+
+[games/Games.Meta.Transport.Grpc/MetaGrpcProxy.cs]
+# DispatchProxy requires this controlled reflection call to invoke the contract's generic Task result.
+dotnet_diagnostic.S3011.severity = none
+# The generic proxy intentionally exposes a static factory to preserve the transport API used by boundary tests and callers.
+dotnet_diagnostic.CA1000.severity = none
+
+[services/CasinoShiz.Wallet.Transport.Grpc/WalletGrpcProxy.cs]
+# DispatchProxy requires this controlled reflection call to invoke the contract's generic Task result.
+dotnet_diagnostic.S3011.severity = none
+# DispatchProxy generates a runtime subtype, so the proxy must remain non-sealed.
+dotnet_diagnostic.CA1852.severity = none
+
+[services/CasinoShiz.Operations.Transport.Grpc/OperationsGrpcProxy.cs]
+# DispatchProxy requires this controlled reflection call to invoke the contract's generic Task result.
+dotnet_diagnostic.S3011.severity = none
+
+[games/Games.Basketball.Telegram/BasketballHandler.cs]
+# This handler keeps the bet/Telegram-dice compensation flow together so the idempotent rollback path is visible.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Blackjack.Discord/BlackjackDiscordInteractionHandler.cs]
+# The interaction handler intentionally keeps modal, slash-command, and component routing in one stateful flow.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Blackjack.Transport.Grpc/BlackjackGrpcEndpoint.cs]
+# The RPC method name is generated by the public Blackjack contract and cannot be renamed at the implementation site.
+dotnet_diagnostic.CA1720.severity = none
+
+[games/Games.Blackjack/Application/Execution/Actions/BlackjackStartAction.cs]
+# Starting a blackjack round is one transactional state transition with validation, debit, and initial deal.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Bowling.Telegram/BowlingHandler.cs]
+# This handler keeps the bet/Telegram-dice compensation flow together so the idempotent rollback path is visible.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Horse.Rendering/Generators/GifEncoder.cs]
+# GIF palette, quantization and LZW encoding form one low-level serialization algorithm.
+dotnet_diagnostic.MA0051.severity = none
+# This public method is the rendering boundary and intentionally accepts jagged frame data.
+dotnet_diagnostic.S2368.severity = none
+
+[games/Games.Horse.Rendering/Generators/HorseRaceRenderer.cs]
+# This public method is the rendering boundary and intentionally accepts jagged race data.
+dotnet_diagnostic.MA0051.severity = none
+dotnet_diagnostic.S2368.severity = none
+
+[games/Games.Darts/Infrastructure/Queues/*.cs]
+# Queue is the established name of the in-process and client-delivered darts transport boundary.
+dotnet_diagnostic.CA1711.severity = none
+
+[games/Games.Darts/Application/Execution/DartsQuickThrowAction.cs]
+# The quick-throw decision keeps validation, economy, quota and event effects atomic.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.DiceCube.Telegram/DiceCubeHandler.cs]
+# DiceCube keeps bet placement, bot-roll delivery and compensation in one idempotent flow.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Football.Telegram/FootballHandler.cs]
+# Football keeps bet placement, bot-roll delivery and compensation in one idempotent flow.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Leaderboard.Telegram/LeaderboardTelegramModule.cs]
+# The module publishes one locale bundle so all help text and placeholders stay consistent.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Leaderboard/Infrastructure/Modules/LeaderboardModule.cs]
+# The module owns the complete leaderboard locale catalogue and its formatting placeholders.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Application/Meta/MetaMenuHandler.cs]
+# The callback dispatcher keeps all menu actions and their single error boundary together.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Application/Meta/MetaXpProjection.cs]
+# XP, streak, achievement and analytics projection is one ordered domain-event transaction.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Application/Effects/QuestClaimAtomicEffectHandler.cs]
+# Quest claiming keeps validation, idempotency, wallet mutation and history in one atomic effect.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Infrastructure/History/MetaReconstructionStore.cs]
+# Reconstruction deliberately keeps the database snapshot and replay transaction together.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Infrastructure/Persistence/MetaStore.cs]
+# Meta persistence methods keep their SQL transaction boundaries cohesive.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Infrastructure/Catalog/JsonQuestCatalog.Selection.cs]
+# Candidate selection keeps deterministic rotation and fallback rules in one algorithm.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Meta/Application/Tournaments/TournamentCommandExecutor.cs]
+# Refund compensation is intentionally sequential so wallet operations retain deterministic ordering.
+dotnet_diagnostic.S3267.severity = none
+
+[games/Games.Pick.Telegram/PickTelegramModule.cs]
+# The module owns the complete pick and lottery locale catalogue.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Pick.Telegram/PickHandler.cs]
+# Pick reveal parsing and animation keep one user-visible round flow together.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Pick/Application/Execution/PickAction.cs]
+# Pick validation, outcome, economy and event effects form one atomic game decision.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Pick/Infrastructure/Modules/PickModule.cs]
+# The module owns the complete pick and lottery locale catalogue.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Pick/Infrastructure/Persistence/PickChainOfferEffectHandler.cs]
+# Chain offers are restored sequentially to preserve deterministic insertion ordering.
+dotnet_diagnostic.S3267.severity = none
+
+[games/Games.Poker/Domain/Rules/PokerDomain.cs]
+# Poker settlement is one atomic pot/side-pot algorithm; the mutation loops are intentional.
+dotnet_diagnostic.MA0051.severity = none
+dotnet_diagnostic.S3267.severity = none
+
+[games/Games.Poker.Discord/PokerDiscordInteractionHandler.cs]
+# Discord slash, modal and component routing share one interaction boundary.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Poker/Infrastructure/Rendering/PokerBoardRenderer.cs]
+# Low-level suit geometry intentionally stays in one renderer primitive.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Poker/Application/Execution/PokerExecutionState.cs]
+# The execution state owns a mutable seat collection because actions add and remove players.
+dotnet_diagnostic.MA0016.severity = none
+
+[games/Games.Poker/Infrastructure/Modules/PokerModule.cs]
+# The module owns the complete poker locale catalogue.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.SecretHitler/Domain/Rules/ShPolicyDeck.cs]
+# Parse returns a mutable working deck because draw and discard operations remove/add policies.
+dotnet_diagnostic.MA0016.severity = none
+
+[games/Games.SecretHitler.Telegram/SecretHitlerTelegramModule.cs]
+# The module owns the complete Secret Hitler locale catalogue.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.SecretHitler/Application/Execution/SecretHitlerExecutionState.cs]
+# Actions mutate the player list while executing join/leave transitions.
+dotnet_diagnostic.MA0016.severity = none
+
+[games/Games.SecretHitler/Application/Execution/SecretHitlerExecutionRules.cs]
+# Settlement appends payout records to the caller-owned accumulator atomically.
+dotnet_diagnostic.MA0016.severity = none
+
+[games/Games.SecretHitler/Infrastructure/Modules/SecretHitlerModule.cs]
+# The module owns the complete Secret Hitler locale catalogue.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Transfer.Telegram/TransferHandler.cs]
+# Transfer validation, target resolution and idempotent mutation stay in one user-command boundary.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Darts.Telegram/DartsHandler.cs]
+# Darts command, bot-dice and delayed-edit paths share one idempotent update boundary.
+dotnet_diagnostic.MA0051.severity = none
+
+[games/Games.Dice/Application/Execution/DiceAction.cs]
+# Dice outcome, economy and event effects form one atomic game decision.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Economics/PostgresTenantWalletReadService.cs]
+# Dapper materializes this private DTO through its init properties.
+dotnet_diagnostic.S3459.severity = none
+dotnet_diagnostic.S1144.severity = none
+
+[framework/BotFramework.Host/RateLimiting/PostgresRateLimitPolicyProvider.cs]
+# The private policy DTO is populated by JSON/Dapper materialization.
+dotnet_diagnostic.S3459.severity = none
+dotnet_diagnostic.S1144.severity = none
+
+[framework/BotFramework.Host/Execution/Executor/IAtomicGameExecutor.cs]
+# TState is retained in the generic executor boundary for state-store composition.
+dotnet_diagnostic.S2326.severity = none
+
+[framework/BotFramework.Host/Admin/Effects/LedgerRevertAdminEffectHandler.cs]
+# The handler keeps the complete ledger-revert transaction together.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Admin/Effects/WalletSetAdminEffectHandler.cs]
+# The handler keeps the complete wallet-set transaction together.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Admin/Effects/WalletAdjustmentAdminEffectHandler.cs]
+# The handler keeps idempotency, locking, mutation and ledger append atomic.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Tenancy/PostgresTenantContextProvisioner.cs]
+# Tenant provisioning is one atomic database workflow.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Economics/Services/DailyBonusService.cs]
+# Daily-bonus calculation and mutation form one cohesive business transaction.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Execution/Economics/PostgresAtomicEconomics.cs]
+# The PostgreSQL wallet mutation must retain one transaction boundary.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Economics/Services/WalletAtomicExecutionService.cs]
+# Atomic wallet execution keeps protection, idempotency and ledger writes together.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Economics/Services/EconomicsService.cs]
+# Legacy economics mutation is intentionally kept as one transaction boundary.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Execution/State/PostgresJsonGameStateStore.cs]
+# State load/save conflict handling is intentionally one persistence operation.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Composition/Builder/BotFrameworkBuilderExtensions.cs]
+# Framework composition is intentionally registered in one ordered pipeline.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Execution/Executor/AtomicGameExecutor.cs]
+# Game execution preserves one transaction and rollback boundary.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Execution/Scheduling/TransactionalScheduleCollector.cs]
+# Schedule collection and transactional outbox write are one operation.
+dotnet_diagnostic.MA0051.severity = none
+
+[framework/BotFramework.Host/Composition/Migrations/FrameworkMigrations.cs]
+# Migration collections are exposed as stable framework migration properties.
+dotnet_diagnostic.S2365.severity = none
+
+[framework/BotFramework.Discord/DiscordLocalization.cs]
+# Localization tables are immutable through the public API while retaining concrete dictionaries internally.
+dotnet_diagnostic.CA1859.severity = none
+
+[framework/BotFramework.Sdk.Testing/Fakes/FakeEconomicsService.cs]
+# Test fakes intentionally expose mutable lists so assertions can inspect recorded operations.
+dotnet_diagnostic.MA0016.severity = none
+
+[framework/BotFramework.Rest/Rest*Exception.cs]
+# REST exception constructors intentionally expose compact transport-specific detail/code overloads.
+dotnet_diagnostic.RCS1194.severity = none
+
+[framework/BotFramework.Client/BotFrameworkApiException.cs]
+# The client exception preserves a typed RFC 7807 problem payload in addition to standard constructors.
+dotnet_diagnostic.RCS1194.severity = none
+dotnet_diagnostic.S3604.severity = none
 
 [games/Games.Challenges/Infrastructure/Persistence/IChallengeStore.cs]
 # Status transitions use expected/next terminology throughout the challenge store.

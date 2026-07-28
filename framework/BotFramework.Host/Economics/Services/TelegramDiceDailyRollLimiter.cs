@@ -21,8 +21,8 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         var today = TodayInOffset(o.TimezoneOffsetHours);
 
-        await using var conn = await connections.OpenAsync(ct).ConfigureAwait(false);
-        await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using var conn = await connections.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         await conn.ExecuteAsync(
             new CommandDefinition(
@@ -39,7 +39,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue) },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
         var row = await conn.QuerySingleAsync<DiceRollRow>(
             new CommandDefinition(
@@ -54,13 +54,13 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
         var count = row.RollsOn == today ? row.RollCount : 0;
 
         if (count >= max)
         {
-            await tx.CommitAsync(ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct);
             return new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.LimitExceeded, count, max);
         }
 
@@ -78,9 +78,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue), newCount },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
-        await tx.CommitAsync(ct).ConfigureAwait(false);
+        await tx.CommitAsync(ct);
         return new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, newCount, max);
     }
 
@@ -97,7 +97,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         var today = TodayInOffset(o.TimezoneOffsetHours);
 
-        await using var conn = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var conn = await connections.OpenAsync(ct);
         var row = await conn.QuerySingleOrDefaultAsync<DiceRollRow?>(
             new CommandDefinition(
                 """
@@ -109,7 +109,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND game_id = @gameId
                 """,
                 new { userId, balanceScopeId, gameId },
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
         var count = row?.RollsOn == today ? row.RollCount : 0;
         return new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.Allowed, count, max);
@@ -125,8 +125,8 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         var today = TodayInOffset(o.TimezoneOffsetHours);
 
-        await using var conn = await connections.OpenAsync(ct).ConfigureAwait(false);
-        await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using var conn = await connections.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         await conn.ExecuteAsync(
             new CommandDefinition(
@@ -143,7 +143,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue) },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
         var row = await conn.QuerySingleAsync<DiceRollRow>(
             new CommandDefinition(
@@ -158,7 +158,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
         var count = row.RollsOn == today ? row.RollCount : 0;
         var newCount = count - 1;
@@ -176,9 +176,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue), newCount },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
-        await tx.CommitAsync(ct).ConfigureAwait(false);
+        await tx.CommitAsync(ct);
     }
 
     public async Task TryRefundRollAsync(long userId, long balanceScopeId, string gameId, CancellationToken ct)
@@ -191,8 +191,8 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         var today = TodayInOffset(o.TimezoneOffsetHours);
 
-        await using var conn = await connections.OpenAsync(ct).ConfigureAwait(false);
-        await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+        await using var conn = await connections.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
         var row = await conn.QuerySingleOrDefaultAsync<DiceRollRow?>(
                 new CommandDefinition(
@@ -207,11 +207,11 @@ internal sealed class TelegramDiceDailyRollLimiter(
                     """,
                     new { userId, balanceScopeId, gameId },
                     transaction: tx,
-                    cancellationToken: ct)).ConfigureAwait(false);
+                    cancellationToken: ct));
 
         if (row is null || row.RollsOn != today || row.RollCount <= 0)
         {
-            await tx.CommitAsync(ct).ConfigureAwait(false);
+            await tx.CommitAsync(ct);
             return;
         }
 
@@ -229,9 +229,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 """,
                 new { userId, balanceScopeId, gameId, newCount },
                 transaction: tx,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
 
-        await tx.CommitAsync(ct).ConfigureAwait(false);
+        await tx.CommitAsync(ct);
     }
 
     private static DateOnly TodayInOffset(int hoursEastOfUtc)

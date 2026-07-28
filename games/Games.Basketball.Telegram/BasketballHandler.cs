@@ -24,7 +24,7 @@ public sealed partial class BasketballHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
+        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal) && diceMsg is not null)
         {
             if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMsg, out var uid, out var dname))
                 return;
@@ -192,7 +192,7 @@ public sealed partial class BasketballHandler(
 
         try
         {
-            var face = msg.Dice!.Value;
+            var face = msg.Dice.Value;
             var r = await service.ThrowAsync(userId, displayName, chatId, face, msg.MessageId, ctx.Ct);
 
             if (r.Outcome == BasketballThrowOutcome.NoBet)

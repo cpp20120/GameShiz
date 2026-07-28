@@ -11,7 +11,7 @@ public sealed class BlackjackStateReader(INpgsqlConnectionFactory connections) :
 
     public async Task<BlackjackGameState?> LoadAsync(long userId, CancellationToken ct)
     {
-        await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(ct);
         var json = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(
             """
             SELECT state::text
@@ -19,7 +19,7 @@ public sealed class BlackjackStateReader(INpgsqlConnectionFactory connections) :
             WHERE game_id = 'blackjack' AND aggregate_id = @aggregateId
             """,
             new { aggregateId = userId.ToString(CultureInfo.InvariantCulture) },
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         return json is null
             ? null
             : JsonSerializer.Deserialize<BlackjackGameState>(json, JsonOptions)

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading.Channels;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
@@ -122,37 +123,39 @@ public static class PixelBattleEndpointExtensions
         using var timer = new PeriodicTimer(options.Value.FullUpdateInterval);
         var reader = subscription.Reader;
 
-        var updateTask = reader.WaitToReadAsync(ct).AsTask();
-        var timerTask = timer.WaitForNextTickAsync(ct).AsTask();
+        var updateTask = WaitToReadAsync(reader, ct);
+        var timerTask = WaitForNextTickAsync(timer, ct);
 
-        try
+        while (!ct.IsCancellationRequested)
         {
-            while (!ct.IsCancellationRequested)
+            var completed = await Task.WhenAny(updateTask, timerTask);
+            if (completed == updateTask)
             {
-                var completed = await Task.WhenAny(updateTask, timerTask);
-                if (completed == updateTask)
-                {
-                    if (!await updateTask)
-                        break;
-
-                    while (reader.TryRead(out var update))
-                        await WriteUpdatesAsync(context, [update], ct);
-
-                    updateTask = reader.WaitToReadAsync(ct).AsTask();
-                    continue;
-                }
-
-                if (!await timerTask)
+                if (!await updateTask)
                     break;
 
-                await WriteFullGridAsync(context, service, ct);
-                timerTask = timer.WaitForNextTickAsync(ct).AsTask();
+                while (reader.TryRead(out var update))
+                    await WriteUpdatesAsync(context, [update], ct);
+
+                updateTask = WaitToReadAsync(reader, ct);
+                continue;
             }
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
+
+            if (!await timerTask)
+                break;
+
+            await WriteFullGridAsync(context, service, ct);
+            timerTask = WaitForNextTickAsync(timer, ct);
         }
     }
+
+    private static async Task<bool> WaitToReadAsync(
+        ChannelReader<PixelBattleUpdate> reader,
+        CancellationToken ct) => await reader.WaitToReadAsync(ct);
+
+    private static async Task<bool> WaitForNextTickAsync(
+        PeriodicTimer timer,
+        CancellationToken ct) => await timer.WaitForNextTickAsync(ct);
 
     private static async Task WriteFullGridAsync(HttpContext context, IPixelBattleService service, CancellationToken ct)
     {

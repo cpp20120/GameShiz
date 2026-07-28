@@ -180,7 +180,7 @@ public sealed class DebugEventsHandler(
     private static bool IsAnyAdmin(BotFrameworkOptions options, long userId) =>
         options.Admins.Contains(userId) || options.ReadOnlyAdmins.Contains(userId);
 
-    private static Task ReplyAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task<Message> ReplyAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(
             msg.Chat.Id,
             text,

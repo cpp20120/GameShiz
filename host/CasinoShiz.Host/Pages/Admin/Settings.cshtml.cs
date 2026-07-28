@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace CasinoShiz.Host.Pages.Admin;
 
-public sealed class SettingsModel(
+public sealed partial class SettingsModel(
     INpgsqlConnectionFactory connections,
     IRuntimeTuningAccessor tuning,
     IRuntimeConfigurationService runtimeConfiguration,
@@ -82,7 +82,7 @@ public sealed class SettingsModel(
         LoadAllStructuredSettings();
         await LoadRedeemDropStatsAsync(ct);
         CanEdit = true;
-        logger.LogInformation("runtime_tuning updated by admin {UserId}", actor.UserId);
+        LogRuntimeTuningUpdated(actor.UserId);
         return Page();
     }
 
@@ -700,4 +700,7 @@ public sealed class SettingsModel(
         int Active,
         int Redeemed,
         long LastIssuedAt);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "runtime_tuning updated by admin {UserId}")]
+    private partial void LogRuntimeTuningUpdated(long userId);
 }

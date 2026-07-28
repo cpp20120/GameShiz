@@ -34,5 +34,5 @@ public sealed class HorseOptions
     /// <summary>Local wall-clock minute (0–59).</summary>
     public int AutoRunLocalMinute { get; init; }
 
-    public List<long> Admins { get; init; } = [];
+    public IReadOnlyList<long> Admins { get; init; } = [];
 }

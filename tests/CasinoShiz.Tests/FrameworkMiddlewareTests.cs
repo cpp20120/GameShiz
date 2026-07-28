@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Xunit;
-using LoggingMiddleware = BotFramework.Host.Pipeline.Middleware.LoggingMiddleware;
-using RateLimitMiddleware = BotFramework.Host.Pipeline.Middleware.RateLimitMiddleware;
+using LoggingMiddleware = BotFramework.Telegram.Pipeline.Middleware.LoggingMiddleware;
+using RateLimitMiddleware = BotFramework.Telegram.Pipeline.Middleware.RateLimitMiddleware;
 
 namespace CasinoShiz.Tests;
 

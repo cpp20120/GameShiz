@@ -46,7 +46,7 @@ public sealed class TransferService(
             $"peer:{chatId}:{sourceMessageId}:{fromUserId}:{toUserId}");
         return await executor.ExecuteAsync(new(new TransferCommand(
             fromUserId, toUserId, chatId, senderDisplayName, recipientDisplayName,
-            netToRecipient, fee, total, commandId)), ct).ConfigureAwait(false);
+            netToRecipient, fee, total, commandId)), ct);
     }
 
     private static TransferAttemptResult Fail(TransferError error, int net) =>

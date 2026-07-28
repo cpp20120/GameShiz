@@ -15,9 +15,9 @@ public static class AdminGrpcExtensions
     public static IServiceCollection AddAdminGrpcClients(this IServiceCollection services, Uri address)
     {
         services.AddResilientGrpcClient<AdminApi.AdminApiClient>(address);
-        services.AddScoped(provider => AdminGrpcProxy<IAdminService>.Create(provider.GetRequiredService<AdminApi.AdminApiClient>()));
-        services.AddScoped(provider => AdminGrpcProxy<IChatsStore>.Create(provider.GetRequiredService<AdminApi.AdminApiClient>()));
-        services.AddScoped(provider => AdminGrpcProxy<IAnalyticsQueryService>.Create(provider.GetRequiredService<AdminApi.AdminApiClient>()));
+        services.AddScoped(provider => AdminGrpcProxyFactory.Create<IAdminService>(provider.GetRequiredService<AdminApi.AdminApiClient>()));
+        services.AddScoped(provider => AdminGrpcProxyFactory.Create<IChatsStore>(provider.GetRequiredService<AdminApi.AdminApiClient>()));
+        services.AddScoped(provider => AdminGrpcProxyFactory.Create<IAnalyticsQueryService>(provider.GetRequiredService<AdminApi.AdminApiClient>()));
         return services;
     }
 

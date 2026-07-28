@@ -1,7 +1,5 @@
 namespace Games.Pick.Application.Services;
 
-public sealed record PickDailySchedule(int OffsetHours, int DrawHourLocal);
-
 public interface IPickClient
 {
     Task<PickResult> PickAsync(long userId, string displayName, long chatId, int amount,

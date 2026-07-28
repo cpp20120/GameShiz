@@ -13,10 +13,12 @@ public sealed partial class DomainEventSubscriptionDispatcher
 
     public async Task DispatchAsync(IDomainEvent domainEvent, CancellationToken ct)
     {
-        foreach (var subscription in _subscriptions.Where(subscription => Matches(subscription.Pattern, domainEvent.EventType)))
+        foreach (var subscriber in _subscriptions
+                     .Where(subscription => Matches(subscription.Pattern, domainEvent.EventType))
+                     .Select(subscription => subscription.Subscriber))
         {
-            try { await subscription.Subscriber.HandleAsync(domainEvent, ct); }
-            catch (Exception exception) { LogSubscriberFailed(exception, domainEvent.EventType, subscription.Subscriber.GetType().Name); }
+            try { await subscriber.HandleAsync(domainEvent, ct); }
+            catch (Exception exception) { LogSubscriberFailed(exception, domainEvent.EventType, subscriber.GetType().Name); }
         }
     }
 
@@ -30,8 +32,10 @@ public sealed partial class DomainEventSubscriptionDispatcher
         var patternAction = pattern[(patternDot + 1)..];
         var eventModule = eventType[..eventDot];
         var eventAction = eventType[(eventDot + 1)..];
-        return (patternModule == "*" || string.Equals(patternModule, eventModule, StringComparison.Ordinal))
-            && (patternAction == "*" || string.Equals(patternAction, eventAction, StringComparison.Ordinal));
+        return (string.Equals(patternModule, "*", StringComparison.Ordinal)
+                || string.Equals(patternModule, eventModule, StringComparison.Ordinal))
+            && (string.Equals(patternAction, "*", StringComparison.Ordinal)
+                || string.Equals(patternAction, eventAction, StringComparison.Ordinal));
     }
 
     [LoggerMessage(LogLevel.Error, "event_bus.subscriber_failed event={EventType} subscriber={Subscriber}")]

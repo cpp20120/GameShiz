@@ -37,14 +37,13 @@ public sealed class DartsService(
                 userId, chatId, MiniGameIds.Darts,
                 async innerCt =>
                 {
-                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, innerCt).ConfigureAwait(false) == 0)
+                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, innerCt) == 0)
                     {
                         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, innerCt)
-                            .ConfigureAwait(false);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, innerCt);
                     }
                 },
-                ghostHeal, Sessions, ct).ConfigureAwait(false);
+                ghostHeal, Sessions, ct);
             sessionClaimed = session.Ok;
             if (!session.Ok) blocker = session.Blocker;
         }
@@ -54,19 +53,19 @@ public sealed class DartsService(
         var roundId = StablePositiveInt64(commandId);
         var result = await placeBetExecutor.ExecuteAsync(
             new(new DartsPlaceBetCommand(userId, displayName, chatId, amount, replyToMessageId,
-                roundId, commandId, options.MaxBet, blocker)), ct).ConfigureAwait(false);
+                roundId, commandId, options.MaxBet, blocker)), ct);
 
         if (result.Error == DartsBetError.None)
         {
             BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Darts);
-            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Darts, ct).ConfigureAwait(false);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Darts, ct);
             rollQueue.Enqueue(new DartsRollJob(
                 result.RoundId, chatId, userId, displayName, replyToMessageId));
         }
         else if (sessionClaimed)
         {
             BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct).ConfigureAwait(false);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct);
         }
 
         return result;
@@ -78,11 +77,10 @@ public sealed class DartsService(
     {
         var result = await resolveExecutor.ExecuteAsync(
             new(new DartsResolveRoundCommand(roundId, userId, displayName, chatId, botDiceMessageId,
-                face, $"darts:throw:{roundId}:{botDiceMessageId}", Options.RedeemDropChance)), ct)
-            .ConfigureAwait(false);
+                face, $"darts:throw:{roundId}:{botDiceMessageId}", Options.RedeemDropChance)), ct);
         if (result.Outcome == DartsThrowOutcome.Thrown
-            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct).ConfigureAwait(false) == 0)
-            await ClearSessionAsync(userId, chatId, ct).ConfigureAwait(false);
+            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct) == 0)
+            await ClearSessionAsync(userId, chatId, ct);
         return result;
     }
 
@@ -92,10 +90,10 @@ public sealed class DartsService(
         var result = await abortExecutor.ExecuteAsync(
             new(new DartsAbortRoundCommand(roundId, userId,
                 string.Create(CultureInfo.InvariantCulture, $"User ID: {userId}"), chatId,
-                $"darts:abort:{roundId}")), ct).ConfigureAwait(false);
+                $"darts:abort:{roundId}")), ct);
         if (result.Aborted
-            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct).ConfigureAwait(false) == 0)
-            await ClearSessionAsync(userId, chatId, ct).ConfigureAwait(false);
+            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct) == 0)
+            await ClearSessionAsync(userId, chatId, ct);
     }
 
     public async Task<DartsThrowResult> QuickThrowAsync(
@@ -111,23 +109,22 @@ public sealed class DartsService(
                 userId, chatId, MiniGameIds.Darts,
                 async innerCt =>
                 {
-                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, innerCt).ConfigureAwait(false) == 0)
+                    if (await rounds.CountActiveByUserChatAsync(userId, chatId, innerCt) == 0)
                     {
                         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, innerCt)
-                            .ConfigureAwait(false);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, innerCt);
                     }
-                }, ghostHeal, Sessions, ct).ConfigureAwait(false);
+                }, ghostHeal, Sessions, ct);
             sessionClaimed = session.Ok;
             if (!session.Ok) blocker = session.Blocker;
         }
 
         var result = await quickThrowExecutor.ExecuteAsync(
             new(new DartsQuickThrowCommand(userId, displayName, chatId, diceMessageId, face, amount,
-                options.MaxBet, options.RedeemDropChance, blocker)), ct).ConfigureAwait(false);
+                options.MaxBet, options.RedeemDropChance, blocker)), ct);
         if ((result.Outcome == DartsThrowOutcome.Thrown || sessionClaimed)
-            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct).ConfigureAwait(false) == 0)
-            await ClearSessionAsync(userId, chatId, ct).ConfigureAwait(false);
+            && await rounds.CountActiveByUserChatAsync(userId, chatId, ct) == 0)
+            await ClearSessionAsync(userId, chatId, ct);
         return result;
     }
 
@@ -135,7 +132,7 @@ public sealed class DartsService(
     {
         BotMiniGameRollGate.Clear(MiniGameIds.Darts, userId, chatId);
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Darts);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Darts, ct);
     }
 
     private static long StablePositiveInt64(string value)

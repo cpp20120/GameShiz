@@ -47,16 +47,15 @@ public sealed class BasketballService(
                 MiniGameIds.Basketball,
                 async c =>
                 {
-                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) is null)
+                    if (await bets.FindAsync(userId, chatId, c) is null)
                     {
                         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Basketball);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, c)
-                            .ConfigureAwait(false);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, c);
                     }
                 },
                 ghostHeal,
                 Sessions,
-                ct).ConfigureAwait(false);
+                ct);
             sessionClaimed = session.Ok;
             if (!session.Ok) blockingGameId = session.Blocker;
         }
@@ -73,17 +72,17 @@ public sealed class BasketballService(
                 commandId,
                 options.MaxBet,
                 blockingGameId)),
-            ct).ConfigureAwait(false);
+            ct);
 
         if (result.Error == BasketballBetError.None)
         {
             BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Basketball);
-            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Basketball, ct).ConfigureAwait(false);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Basketball, ct);
         }
         else if (sessionClaimed && result.Error != BasketballBetError.AlreadyPending)
         {
             BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Basketball);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct).ConfigureAwait(false);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct);
         }
 
         return result;
@@ -116,11 +115,11 @@ public sealed class BasketballService(
                 face,
                 commandId,
                 Options.RedeemDropChance)),
-            ct).ConfigureAwait(false);
+            ct);
         if (result.Outcome != BasketballThrowOutcome.Thrown) return result;
 
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Basketball);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct);
         return result;
     }
 
@@ -151,10 +150,10 @@ public sealed class BasketballService(
                 displayName,
                 chatId,
                 commandId)),
-            ct).ConfigureAwait(false);
+            ct);
         if (!result.Aborted) return;
 
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Basketball);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Basketball, ct);
     }
 }

@@ -76,6 +76,20 @@ public sealed class DartsServiceTests
     }
 
     [Fact]
+    public void Abort_WithoutQueuedRoundRejectsWithoutEffects()
+    {
+        var state = new DartsQueuedState(null, 0);
+        var command = new DartsAbortRoundCommand(7, 1, "u", 10, "abort");
+        var decision = new DartsAbortRoundAction().Decide(Input(command, state, 50));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.False(decision.Result.Aborted);
+        Assert.Same(state, decision.NewState);
+        Assert.Equal("no_queued_round", decision.RejectionReason);
+        Assert.Empty(decision.Economy);
+    }
+
+    [Fact]
     public void Bullseye_MatchesDiceCubeDefaultMultiplier() =>
         Assert.Equal(DiceCubeService.BuildMultipliers(new DiceCubeOptions())[6], DartsRules.Multiplier(6));
 

@@ -4,7 +4,7 @@ public sealed record RaceOutcome(
     HorseError Error,
     int Winner,
     byte[] GifBytes,
-    List<RaceTransaction> Transactions,
-    List<RacerSummary> Participants,
-    List<long> BetScopeIds,
+    IReadOnlyList<RaceTransaction> Transactions,
+    IReadOnlyList<RacerSummary> Participants,
+    IReadOnlyList<long> BetScopeIds,
     string RaceDate = "");

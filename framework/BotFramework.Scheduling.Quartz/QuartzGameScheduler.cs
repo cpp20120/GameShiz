@@ -1,59 +1,9 @@
 using System.Globalization;
 using BotFramework.Scheduling.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Quartz;
 using Quartz.Impl.Matchers;
 
 namespace BotFramework.Scheduling.Quartz;
-
-public static class QuartzSchedulingExtensions
-{
-    public static IServiceCollection AddQuartzGameScheduling(
-        this IServiceCollection services,
-        string connectionString,
-        string schedulerName = "CasinoShiz")
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        ArgumentException.ThrowIfNullOrWhiteSpace(schedulerName);
-        schedulerName = NormalizeSchedulerName(schedulerName);
-        services.AddQuartz(options =>
-        {
-            // Quartz uses sched_name as the logical scheduler partition in
-            // the shared AdoJobStore tables. Replicas of one game use the
-            // same name and cluster; different game services get different
-            // names and cannot acquire each other's triggers.
-            options.SchedulerName = schedulerName;
-            options.SchedulerId = "AUTO";
-            options.UsePersistentStore(store =>
-            {
-                store.UseProperties = true;
-                store.UsePostgres(connectionString);
-                store.UseClustering();
-                store.UseSystemTextJsonSerializer();
-            });
-        });
-        services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
-        services.AddSingleton<QuartzGameScheduler>();
-        services.AddSingleton<IGameScheduler>(sp => sp.GetRequiredService<QuartzGameScheduler>());
-        services.AddSingleton<IGameSchedulerStatusReader>(sp => sp.GetRequiredService<QuartzGameScheduler>());
-        return services;
-    }
-
-    private static string NormalizeSchedulerName(string value)
-    {
-        var normalized = new string(value
-            .Where(character => char.IsLetterOrDigit(character) || character is '-' or '_')
-            .ToArray());
-        return string.IsNullOrWhiteSpace(normalized) ? "CasinoShiz" : normalized;
-    }
-
-    public static IServiceCollection AddQuartzRecurringCommandBootstrapper(this IServiceCollection services)
-    {
-        services.AddHostedService<QuartzRecurringCommandBootstrapper>();
-        return services;
-    }
-}
 
 internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameScheduler, IGameSchedulerStatusReader
 {
@@ -94,7 +44,9 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
         var triggerKey = new TriggerKey(command.ScheduleId, "games");
         var trigger = triggerBuilder.Build();
         if (await scheduler.CheckExists(triggerKey, ct))
+        {
             await scheduler.RescheduleJob(triggerKey, trigger, ct);
+        }
         else
         {
             try
@@ -172,81 +124,4 @@ internal sealed class QuartzGameScheduler(ISchedulerFactory schedulers) : IGameS
             _ => schedule.WithMisfireHandlingInstructionFireNow(),
         };
     }
-}
-
-internal sealed class QuartzRecurringCommandBootstrapper(
-    IServiceScopeFactory scopes,
-    IGameScheduler scheduler) : IHostedService
-{
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        var commands = scope.ServiceProvider.GetServices<IRecurringScheduledCommand>();
-        foreach (var command in commands)
-        {
-            await scheduler.ScheduleAsync(new GameScheduleCommand(
-                ScheduleId: command.Key,
-                JobKey: command.Key,
-                Schedule: command.Schedule), cancellationToken);
-        }
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-}
-
-internal static class ScheduledCommandQuartzJobRunner
-{
-    public static async Task ExecuteAsync(IServiceScopeFactory scopes, IJobExecutionContext context)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        var key = context.MergedJobDataMap.GetString("command-key")
-            ?? throw new InvalidOperationException("Scheduled command key is missing.");
-        var command = scope.ServiceProvider.GetServices<IScheduledCommand>()
-            .SingleOrDefault(candidate => string.Equals(candidate.Key, key, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"Scheduled command '{key}' is not registered.");
-        var data = context.MergedJobDataMap.Keys
-            .Where(item => !string.Equals(item, "command-key", StringComparison.Ordinal))
-            .ToDictionary(item => item, item => context.MergedJobDataMap.GetString(item) ?? "", StringComparer.Ordinal);
-
-        var maxAttempts = Math.Max(1, ParseInt(context.MergedJobDataMap, "max-attempts", 1));
-        var retryBackoffMs = Math.Max(0, ParseLong(context.MergedJobDataMap, "retry-backoff-ms", 0));
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
-        {
-            try
-            {
-                await command.ExecuteAsync(data, context.CancellationToken);
-                return;
-            }
-            catch when (attempt < maxAttempts)
-            {
-                if (retryBackoffMs > 0)
-                    await Task.Delay(TimeSpan.FromMilliseconds(retryBackoffMs * attempt), context.CancellationToken);
-            }
-        }
-
-        throw new InvalidOperationException("Scheduled command execution exhausted its retry policy.");
-    }
-
-    private static int ParseInt(JobDataMap data, string key, int fallback) =>
-        int.TryParse(data.GetString(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : fallback;
-
-    private static long ParseLong(JobDataMap data, string key, long fallback) =>
-        long.TryParse(data.GetString(key), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? value
-            : fallback;
-}
-
-[DisallowConcurrentExecution]
-internal sealed class ScheduledCommandQuartzJob(IServiceScopeFactory scopes) : IJob
-{
-    public Task Execute(IJobExecutionContext context) =>
-        ScheduledCommandQuartzJobRunner.ExecuteAsync(scopes, context);
-}
-
-internal sealed class ConcurrentScheduledCommandQuartzJob(IServiceScopeFactory scopes) : IJob
-{
-    public Task Execute(IJobExecutionContext context) =>
-        ScheduledCommandQuartzJobRunner.ExecuteAsync(scopes, context);
 }

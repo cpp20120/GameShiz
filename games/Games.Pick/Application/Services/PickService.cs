@@ -74,7 +74,7 @@ public sealed partial class PickService(
             userId, displayName, chatId, amount, variants, backedIndices, depth, applyStreak,
             commandId, opts.MinVariants, opts.MaxVariants, opts.MaxBet, opts.HouseEdge,
             opts.StreakBonusPerWin, opts.StreakCap, opts.ChainMaxDepth, opts.ChainTtlSeconds);
-        var result = await executor.ExecuteAsync(new(command), ct).ConfigureAwait(false);
+        var result = await executor.ExecuteAsync(new(command), ct);
         if (result.Error == PickError.None)
         {
             LogRoll(

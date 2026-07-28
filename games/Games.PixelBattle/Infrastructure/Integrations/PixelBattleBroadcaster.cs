@@ -31,11 +31,11 @@ public sealed class PixelBattleBroadcaster
             subscribers = [.. _subscribers];
         }
 
-        foreach (var subscriber in subscribers)
-        {
-            if (!subscriber.Writer.TryWrite(update))
-                Unsubscribe(subscriber);
-        }
+        var staleSubscribers = subscribers
+            .Where(subscriber => !subscriber.Writer.TryWrite(update))
+            .ToArray();
+        foreach (var subscriber in staleSubscribers)
+            Unsubscribe(subscriber);
     }
 
     private void Unsubscribe(Channel<PixelBattleUpdate> channel)
@@ -48,4 +48,3 @@ public sealed class PixelBattleBroadcaster
         channel.Writer.TryComplete();
     }
 }
-

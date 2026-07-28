@@ -44,7 +44,7 @@ public sealed class CoinFlipWorkflowTests
             CancellationToken ct)
         {
             Options = options;
-            return await execute().ConfigureAwait(false);
+            return await execute();
         }
     }
 }

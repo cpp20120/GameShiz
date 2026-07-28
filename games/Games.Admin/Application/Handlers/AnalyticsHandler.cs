@@ -23,7 +23,7 @@ using Telegram.Bot.Types.Enums;
 namespace Games.Admin.Application.Handlers;
 
 [Command("/analytics")]
-public sealed class AnalyticsHandler(
+public sealed partial class AnalyticsHandler(
     IAnalyticsQueryService analytics,
     ILocalizer localizer,
     IOptions<BotFrameworkOptions> botOptions,
@@ -78,7 +78,7 @@ public sealed class AnalyticsHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "analytics command failed user={UserId}", userId);
+            LogAnalyticsCommandFailed(logger, ex, userId);
             var text = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("query_failed"), HtmlEnc(ex.Message));
             await ctx.Bot.SendMessage(msg.Chat.Id, text,
                 parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
@@ -89,7 +89,7 @@ public sealed class AnalyticsHandler(
         await SendChunkedAsync(ctx, msg.Chat.Id, rendered, reply);
     }
 
-    private (int topN, int timelineDays) ParseArgs(string text)
+    private static (int topN, int timelineDays) ParseArgs(string text)
     {
         const int defaultTop = 5;
         const int defaultDays = 14;
@@ -196,7 +196,10 @@ public sealed class AnalyticsHandler(
         }
     }
 
-    private string HtmlEnc(string s) => WebUtility.HtmlEncode(s ?? "");
+    private static string HtmlEnc(string? s) => WebUtility.HtmlEncode(s ?? "");
+
+    [LoggerMessage(LogLevel.Error, "analytics command failed user={UserId}")]
+    private static partial void LogAnalyticsCommandFailed(ILogger logger, Exception exception, long userId);
 
     private string Loc(string key) => localizer.Get("admin", $"analytics.{key}");
 }

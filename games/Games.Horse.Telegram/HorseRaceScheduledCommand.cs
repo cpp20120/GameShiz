@@ -36,7 +36,7 @@ public sealed partial class HorseRaceScheduledCommand(
 
     public async Task ExecuteAsync(IReadOnlyDictionary<string, string> data, CancellationToken ct)
     {
-        await tuning.ReloadFromDatabaseAsync(ct).ConfigureAwait(false);
+        await tuning.ReloadFromDatabaseAsync(ct);
         var options = tuning.GetSection<HorseOptions>(HorseOptions.SectionName);
         if (!options.AutoRunEnabled || options.Admins.Count == 0)
             return;
@@ -51,18 +51,17 @@ public sealed partial class HorseRaceScheduledCommand(
 
         // A Quartz misfire/restart can leave more than one invocation around
         // the target minute. The global result is the durable idempotency gate.
-        if ((await horse.GetTodayResultAsync(0, ct).ConfigureAwait(false)).Winner is not null)
+        if ((await horse.GetTodayResultAsync(0, ct)).Winner is not null)
             return;
 
-        var outcome = await horse.RunRaceAsync(options.Admins[0], HorseRunKind.Global, 0, ct)
-            .ConfigureAwait(false);
+        var outcome = await horse.RunRaceAsync(options.Admins[0], HorseRunKind.Global, 0, ct);
         if (outcome.Error != HorseError.None)
         {
             LogSkipped(raceDate, outcome.Error);
             return;
         }
 
-        await notifier.SendResultGifsAsync(outcome, raceDate, ct).ConfigureAwait(false);
+        await notifier.SendResultGifsAsync(outcome, raceDate, ct);
         notifier.ScheduleWinnerAnnouncements(outcome);
         LogCompleted(raceDate, outcome.Winner + 1);
     }

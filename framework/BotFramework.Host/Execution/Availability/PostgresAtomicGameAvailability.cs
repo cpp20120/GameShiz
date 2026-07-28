@@ -25,7 +25,7 @@ internal sealed class PostgresAtomicGameAvailability(IConfiguration configuratio
             sql,
             new { chatId, gameId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         return row is null
             ? new GameAvailability(

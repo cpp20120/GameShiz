@@ -32,7 +32,7 @@ public sealed class QuestService(
                 outputs => outputs.TryGetValue("updates", out var value)
                     ? (IReadOnlyList<QuestProgressUpdate>)value!
                     : []),
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     public async Task<IReadOnlyList<PlayerQuestView>> GetQuestsAsync(long chatId, long userId, CancellationToken ct)
@@ -66,6 +66,6 @@ public sealed class QuestService(
                 outputs => outputs.TryGetValue("result", out var value)
                     ? (QuestClaimResult?)value
                     : null),
-            ct).ConfigureAwait(false);
+            ct);
     }
 }

@@ -14,8 +14,8 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
         ArgumentNullException.ThrowIfNull(session);
         if (quota.Limit <= 0) return new QuotaSnapshot(0, 0);
 
-        await EnsureRowAsync(quota, session, ct).ConfigureAwait(false);
-        var row = await LoadRowAsync(quota, session, ct).ConfigureAwait(false);
+        await EnsureRowAsync(quota, session, ct);
+        var row = await LoadRowAsync(quota, session, ct);
         var used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
         return new QuotaSnapshot(used, quota.Limit);
     }
@@ -37,8 +37,8 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
             return new QuotaSnapshot(0, 0);
         }
 
-        await EnsureRowAsync(quota, session, ct).ConfigureAwait(false);
-        var row = await LoadRowAsync(quota, session, ct).ConfigureAwait(false);
+        await EnsureRowAsync(quota, session, ct);
+        var row = await LoadRowAsync(quota, session, ct);
         long used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
 
         foreach (var effect in effects)
@@ -82,7 +82,7 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
                 used = checked((int)used),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         return new QuotaSnapshot(used, quota.Limit);
     }
@@ -112,7 +112,7 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
                 onDate = quota.OnDate.ToDateTime(TimeOnly.MinValue),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     private static async Task<QuotaRow> LoadRowAsync(
@@ -138,7 +138,7 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
                 gameId = quota.GameId,
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     private sealed record QuotaRow(DateOnly? RollsOn, int RollCount);

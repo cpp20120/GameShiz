@@ -16,7 +16,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
         IReadOnlyList<ScheduleEffect> effects,
         IGameExecutionSession session,
         CancellationToken ct)
-        => await AppendAsync(commandId, gameId, aggregateId, effects, session, null, ct).ConfigureAwait(false);
+        => await AppendAsync(commandId, gameId, aggregateId, effects, session, null, ct);
 
     public async Task AppendAsync(
         string commandId,
@@ -113,7 +113,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
                     playerId = tenantContext.PlayerId?.Value,
                 },
                 session.Transaction,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
             return;
         }
 
@@ -163,7 +163,7 @@ internal sealed class TransactionalScheduleCollector : ITransactionalScheduleCol
                     JsonOptions)).ToArray(),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
     }
 
     private static string ScopeScheduleId(string gameId, string aggregateId, string scheduleId) =>

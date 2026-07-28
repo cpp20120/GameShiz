@@ -408,15 +408,4 @@ public sealed class MetaSeasonsModel(
             cancellationToken: ct));
     }
 
-    private static async Task<int> NextSeasonNumberAsync(
-        System.Data.Common.DbConnection conn,
-        System.Data.Common.DbTransaction tx,
-        CancellationToken ct)
-    {
-        const string sql = "SELECT count(*)::int + 1 FROM meta_seasons";
-        return await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-            sql,
-            transaction: tx,
-            cancellationToken: ct));
-    }
 }

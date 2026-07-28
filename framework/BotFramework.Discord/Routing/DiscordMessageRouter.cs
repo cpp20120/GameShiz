@@ -27,7 +27,7 @@ public sealed partial class DiscordMessageRouter(
         using var tenantScope = tenantContext.Push(resolvedTenant);
         var provisioner = context.Services.GetService<ITenantContextProvisioner>();
         if (provisioner is not null)
-            await provisioner.EnsureAsync(resolvedTenant, context.CancellationToken).ConfigureAwait(false);
+            await provisioner.EnsureAsync(resolvedTenant, context.CancellationToken);
         using var metadataScope = RequestMetadataContext.Push(
             RequestMetadata.FromTenantContext(resolvedTenant, "discord"));
         var decision = await rateLimiter.CheckAsync(
@@ -36,7 +36,7 @@ public sealed partial class DiscordMessageRouter(
                 resolvedTenant.PlayerId,
                 BotChannel.Discord,
                 "message-command"),
-            context.CancellationToken).ConfigureAwait(false);
+            context.CancellationToken);
         if (!decision.Allowed)
         {
             var seconds = Math.Max(1, (int)Math.Ceiling(decision.RetryAfter.TotalSeconds));

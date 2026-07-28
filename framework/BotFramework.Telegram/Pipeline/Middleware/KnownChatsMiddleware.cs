@@ -3,7 +3,7 @@ using BotFramework.Contracts.Identity;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
-namespace BotFramework.Host.Pipeline.Middleware;
+namespace BotFramework.Telegram.Pipeline.Middleware;
 
 public sealed partial class KnownChatsMiddleware(
     INpgsqlConnectionFactory connections,
@@ -73,13 +73,17 @@ public sealed partial class KnownChatsMiddleware(
         }
     }
 
-    private static string? BuildTitle(Chat chat) =>
-        chat.Type == ChatType.Private
-            ? (string.IsNullOrWhiteSpace(chat.FirstName) && string.IsNullOrWhiteSpace(chat.LastName)
-                ? null
-                : string.Join(' ', new[] { chat.FirstName, chat.LastName }
-                    .Where(s => !string.IsNullOrWhiteSpace(s))))
-            : chat.Title ?? chat.Username;
+    private static string? BuildTitle(Chat chat)
+    {
+        if (chat.Type != ChatType.Private)
+            return chat.Title ?? chat.Username;
+
+        if (string.IsNullOrWhiteSpace(chat.FirstName) && string.IsNullOrWhiteSpace(chat.LastName))
+            return null;
+
+        return string.Join(' ', new[] { chat.FirstName, chat.LastName }
+            .Where(s => !string.IsNullOrWhiteSpace(s)));
+    }
 
     private static Chat? GetChat(Update u) =>
         u.Message?.Chat

@@ -32,6 +32,21 @@ public sealed class BlackjackActionTests
     }
 
     [Fact]
+    public void Start_ActiveHandRejectsWithoutMutationEffects()
+    {
+        var state = ActiveState(["5S", "5H"], "2S 3S");
+        var command = new BlackjackStartCommand(1, "player", 10, 10, "start-2", 1, 100, 60_000);
+        var decision = new BlackjackStartAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(BlackjackError.HandInProgress, decision.Result.Error);
+        Assert.Equal("hand_in_progress", decision.RejectionReason);
+        Assert.Equal(state, decision.NewState);
+        Assert.Empty(decision.Economy);
+        Assert.Empty(decision.Schedules);
+    }
+
+    [Fact]
     public void Start_SameEntropyProducesBitwiseSameDecision()
     {
         var first = Start(entropyValue: 0.37);
@@ -104,6 +119,59 @@ public sealed class BlackjackActionTests
         Assert.Equal(DecisionStatus.Accepted, decision.Status);
         Assert.Equal(TurnGameStatus.Completed, decision.NewState.Status);
         Assert.Equal(ScheduleEffectKind.Cancel, Assert.Single(decision.Schedules).Kind);
+    }
+
+    [Fact]
+    public void SetMessage_UpdatesActiveHandAndEmitsMessageEvent()
+    {
+        var state = ActiveState(["5S", "5H"], "2S 3S");
+        var command = new BlackjackSetMessageCommand(1, "player", 10, "hand-1", 42, "message");
+
+        var decision = new BlackjackSetMessageAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(42, decision.NewState.Hand!.StateMessageId);
+        Assert.Equal(42, decision.Result.StateMessageId);
+        Assert.Equal(5, decision.NewState.Revision);
+        Assert.IsType<BlackjackStateMessageSet>(Assert.Single(decision.Events));
+        Assert.Equal(20, state.Hand!.StateMessageId);
+    }
+
+    [Fact]
+    public void SetMessage_RejectsStaleHand()
+    {
+        var state = ActiveState(["5S", "5H"], "2S 3S");
+        var command = new BlackjackSetMessageCommand(1, "player", 10, "other-hand", 42, "message");
+
+        var decision = new BlackjackSetMessageAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(BlackjackError.NoActiveHand, decision.Result.Error);
+        Assert.Equal("hand_not_active", decision.RejectionReason);
+        Assert.Same(state, decision.NewState);
+    }
+
+    [Fact]
+    public void Timeout_RejectsWhenHandIsNotActive()
+    {
+        var state = new BlackjackGameState(0, TurnGameStatus.Completed, 1, null, "player", null);
+        var command = new BlackjackTimeoutCommand(1, "player", 10, "hand-1", "timeout");
+
+        var decision = new BlackjackTimeoutAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(BlackjackError.NoActiveHand, decision.Result.Error);
+        Assert.Equal("hand_not_active", decision.RejectionReason);
+    }
+
+    [Fact]
+    public void Timeout_RejectsBeforeDeadline()
+    {
+        var state = ActiveState(["TS", "8H"], "2S 3S");
+        var command = new BlackjackTimeoutCommand(1, "player", 10, "hand-1", "timeout");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            new BlackjackTimeoutAction().Decide(Input(command, state, utcNow: Now)));
     }
 
     private static GameDecision<BlackjackGameState, BlackjackResult> Start(

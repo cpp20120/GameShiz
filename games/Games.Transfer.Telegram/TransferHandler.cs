@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -114,15 +113,9 @@ public sealed partial class TransferHandler(
         return int.TryParse(parts[^1], System.Globalization.CultureInfo.InvariantCulture, out net) && net > 0;
     }
 
-    /// <summary>Telegram and clients may use NBSP / other Unicode space; <see cref="Regex.Split(string, string)"/> misses those.</summary>
-    /// <exception cref="ArgumentException"></exception>
-    /// <exception cref="ArgumentNullException"></exception>
-    /// <exception cref="ArgumentOutOfRangeException"></exception>
-    /// <exception cref="RegexMatchTimeoutException"></exception>
+    /// <summary>Split command arguments on Unicode whitespace.</summary>
     private static string[] SplitArgs(string text) =>
-        MyRegex().Split(text.Trim())
-            .Where(static s => s.Length > 0)
-            .ToArray();
+        text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
     private async Task<(long userId, string display)?> TryResolveTargetAsync(Message msg, CancellationToken ct)
     {
         foreach (var e in msg.Entities ?? [])
@@ -226,6 +219,4 @@ public sealed partial class TransferHandler(
         u.Username is { Length: > 0 } name ? $"@{name}" : u.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {u.Id}");
 
     private string Loc(string key) => localizer.Get("transfer", key);
-    [GeneratedRegex(@"\s+", RegexOptions.None)]
-    private static partial Regex MyRegex();
 }

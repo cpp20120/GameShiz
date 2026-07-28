@@ -4,5 +4,5 @@ internal sealed class PostgresGameExecutionSessionFactory(INpgsqlConnectionFacto
     : IGameExecutionSessionFactory
 {
     public async Task<IGameExecutionSession> BeginAsync(CancellationToken ct) =>
-        await PostgresGameExecutionSession.BeginAsync(connections, ct).ConfigureAwait(false);
+        await PostgresGameExecutionSession.BeginAsync(connections, ct);
 }

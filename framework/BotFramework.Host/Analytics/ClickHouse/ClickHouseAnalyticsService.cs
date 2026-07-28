@@ -362,10 +362,11 @@ public sealed partial class ClickHouseAnalyticsService(
     {
         if (_connection is null || events.Count == 0) return;
 
+        IReadOnlyCollection<string> columnNames = ["event_id", "event_type", "module", "project", "user_id", "params", "payload", "created_at", "stream_id", "stream_version", "aggregate_type", "schema_version", "correlation_id", "causation_id", "is_replay", "occurred_at"];
         using var bulk = new ClickHouseBulkCopy(_connection)
         {
             DestinationTableName = destination,
-            ColumnNames = ["event_id", "event_type", "module", "project", "user_id", "params", "payload", "created_at", "stream_id", "stream_version", "aggregate_type", "schema_version", "correlation_id", "causation_id", "is_replay", "occurred_at"],
+            ColumnNames = columnNames,
             BatchSize = Math.Max(_options.BufferSize, 100),
         };
         await bulk.InitAsync();

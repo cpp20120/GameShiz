@@ -262,11 +262,19 @@ public sealed class TournamentStore(INpgsqlConnectionFactory connections) : ITou
         var nextRound = round + 1;
         var nextIndex = (matchIndex + 1) / 2;
         var firstSlot = matchIndex % 2 == 1;
-        var slotSql = firstSlot
-            ? "player1_user_id = @userId, player1_display_name = @displayName"
-            : "player2_user_id = @userId, player2_display_name = @displayName";
+        var updateSql = firstSlot
+            ? """
+              UPDATE meta_tournament_matches
+              SET player1_user_id = @userId, player1_display_name = @displayName, updated_at = now()
+              WHERE tournament_id = @tournamentId AND round = @nextRound AND match_index = @nextIndex
+              """
+            : """
+              UPDATE meta_tournament_matches
+              SET player2_user_id = @userId, player2_display_name = @displayName, updated_at = now()
+              WHERE tournament_id = @tournamentId AND round = @nextRound AND match_index = @nextIndex
+              """;
         await conn.ExecuteAsync(new CommandDefinition(
-            $"UPDATE meta_tournament_matches SET {slotSql}, updated_at = now() WHERE tournament_id = @tournamentId AND round = @nextRound AND match_index = @nextIndex",
+            updateSql,
             new { tournamentId, nextRound, nextIndex, userId, displayName }, transaction: tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             """

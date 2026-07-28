@@ -85,12 +85,14 @@ public static class GifEncoder
         for (var r = 0; r < 6; r++)
         {
             for (var g = 0; g < 6; g++)
-        for (var b = 0; b < 6; b++)
-        {
-            palette[idx++] = (byte)(r * 51);
-            palette[idx++] = (byte)(g * 51);
-            palette[idx++] = (byte)(b * 51);
-        }
+            {
+                for (var b = 0; b < 6; b++)
+                {
+                    palette[idx++] = (byte)(r * 51);
+                    palette[idx++] = (byte)(g * 51);
+                    palette[idx++] = (byte)(b * 51);
+                }
+            }
         }
 
         for (var i = 216; i < 256; i++)
@@ -109,13 +111,13 @@ public static class GifEncoder
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
-        {
-            var color = bitmap.GetPixel(x, y);
-            var ri = Math.Min(5, color.Red / 43);
-            var gi = Math.Min(5, color.Green / 43);
-            var bi = Math.Min(5, color.Blue / 43);
-            pixels[(y * width) + x] = (byte)((ri * 36) + (gi * 6) + bi);
-        }
+            {
+                var color = bitmap.GetPixel(x, y);
+                var ri = Math.Min(5, color.Red / 43);
+                var gi = Math.Min(5, color.Green / 43);
+                var bi = Math.Min(5, color.Blue / 43);
+                pixels[(y * width) + x] = (byte)((ri * 36) + (gi * 6) + bi);
+            }
         }
 
         return pixels;

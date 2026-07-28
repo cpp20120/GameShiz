@@ -23,7 +23,7 @@ internal sealed class LocalWalletAtomicExecutionService(IEconomicsService econom
         string operationId,
         CancellationToken ct)
     {
-        var balance = await economics.GetBalanceAsync(userId, balanceScopeId, ct).ConfigureAwait(false);
+        var balance = await economics.GetBalanceAsync(userId, balanceScopeId, ct);
         var applied = false;
         for (var index = 0; index < effects.Count; index++)
         {
@@ -33,12 +33,12 @@ internal sealed class LocalWalletAtomicExecutionService(IEconomicsService econom
             if (effect.Kind == WalletBatchEffectKind.Debit)
             {
                 result = await economics.TryDebitOnceAsync(
-                    userId, balanceScopeId, effect.Amount, effect.Reason, operation, ct).ConfigureAwait(false);
+                    userId, balanceScopeId, effect.Amount, effect.Reason, operation, ct);
             }
             else
             {
                 result = await economics.CreditOnceAsync(
-                    userId, balanceScopeId, effect.Amount, effect.Reason, operation, ct).ConfigureAwait(false);
+                    userId, balanceScopeId, effect.Amount, effect.Reason, operation, ct);
             }
 
             balance = result.NewBalance;

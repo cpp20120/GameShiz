@@ -35,7 +35,7 @@ public sealed class MyStatsHandler(
             _ => Usage,
         };
 
-        analytics.Track("responsible_gaming", "settings_viewed", new Dictionary<string, object?>
+        analytics.Track("responsible_gaming", "settings_viewed", new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["user_id"] = userId,
             ["chat_id"] = msg.Chat.Id,

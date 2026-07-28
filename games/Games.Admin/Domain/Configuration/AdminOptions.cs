@@ -4,5 +4,5 @@ public sealed class AdminOptions
 {
     public const string SectionName = "Games:admin";
 
-    public List<long> Admins { get; init; } = [];
+    public IReadOnlyList<long> Admins { get; init; } = [];
 }

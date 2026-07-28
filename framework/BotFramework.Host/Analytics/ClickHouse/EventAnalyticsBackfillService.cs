@@ -21,7 +21,9 @@ internal sealed partial class EventAnalyticsBackfillService(
         {
             try
             {
-                while (await ProcessBatchAsync(stoppingToken)) { }
+                var hasMore = true;
+                while (hasMore)
+                    hasMore = await ProcessBatchAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

@@ -8,11 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Games.SecretHitler.Rest;
 
-public sealed record SecretHitlerCreateRequest(long? PlayerChatId);
-public sealed record SecretHitlerJoinRequest(string Code, long? PlayerChatId);
-public sealed record SecretHitlerValueRequest(int Value);
-public sealed record SecretHitlerVoteRequest(ShVote Vote);
-
 public sealed class SecretHitlerRestModule : IRestRouteModule
 {
     public string ModuleId => "secrethitler";
@@ -33,40 +28,35 @@ public sealed class SecretHitlerRestModule : IRestRouteModule
 
     private static async Task<IResult> FindAsync(ISecretHitlerService service, RestRequestContext context, CancellationToken ct)
     {
-        var result = await service.FindMyGameAsync(context.UserId, ct).ConfigureAwait(false);
+        var result = await service.FindMyGameAsync(context.UserId, ct);
         return result.Snapshot is null ? Results.NotFound() : Results.Ok(result);
     }
 
     private static async Task<IResult> CreateAsync(SecretHitlerCreateRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
         Results.Ok(await service.CreateGameAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context),
-            request.PlayerChatId ?? RestCommandSupport.ScopeId(context), ct).ConfigureAwait(false));
+            request.PlayerChatId ?? RestCommandSupport.ScopeId(context), ct));
 
     private static async Task<IResult> JoinAsync(SecretHitlerJoinRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct)
     {
         RestCommandSupport.RequireText(request.Code, nameof(request.Code), 64);
-        return Results.Ok(await service.JoinGameAsync(context.UserId, context.DisplayName, request.PlayerChatId ?? RestCommandSupport.ScopeId(context), request.Code, ct).ConfigureAwait(false));
+        return Results.Ok(await service.JoinGameAsync(context.UserId, context.DisplayName, request.PlayerChatId ?? RestCommandSupport.ScopeId(context), request.Code, ct));
     }
 
     private static async Task<IResult> StartAsync(ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.StartGameAsync(context.UserId, ct).ConfigureAwait(false));
+        Results.Ok(await service.StartGameAsync(context.UserId, ct));
 
     private static async Task<IResult> NominateAsync(SecretHitlerValueRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.NominateAsync(context.UserId, request.Value, ct).ConfigureAwait(false));
+        Results.Ok(await service.NominateAsync(context.UserId, request.Value, ct));
 
     private static async Task<IResult> VoteAsync(SecretHitlerVoteRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.VoteAsync(context.UserId, request.Vote, ct).ConfigureAwait(false));
+        Results.Ok(await service.VoteAsync(context.UserId, request.Vote, ct));
 
     private static async Task<IResult> DiscardAsync(SecretHitlerValueRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.PresidentDiscardAsync(context.UserId, request.Value, ct).ConfigureAwait(false));
+        Results.Ok(await service.PresidentDiscardAsync(context.UserId, request.Value, ct));
 
     private static async Task<IResult> EnactAsync(SecretHitlerValueRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.ChancellorEnactAsync(context.UserId, request.Value, ct).ConfigureAwait(false));
+        Results.Ok(await service.ChancellorEnactAsync(context.UserId, request.Value, ct));
 
     private static async Task<IResult> LeaveAsync(ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.LeaveAsync(context.UserId, ct).ConfigureAwait(false));
-}
-
-public static class SecretHitlerRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddSecretHitlerRest(this IServiceCollection services) => services.AddRestRouteModule<SecretHitlerRestModule>();
+        Results.Ok(await service.LeaveAsync(context.UserId, ct));
 }

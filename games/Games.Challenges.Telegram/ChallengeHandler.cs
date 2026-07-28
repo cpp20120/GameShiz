@@ -269,7 +269,7 @@ public sealed partial class ChallengeHandler(
         }
     }
 
-    private bool TryParseCommand(
+    private static bool TryParseCommand(
         Message msg,
         string[] args,
         out ChallengeUser? target,
@@ -345,8 +345,8 @@ public sealed partial class ChallengeHandler(
         var challenge = result.Challenge!;
         if (result.IsTie)
         {
-            return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.tie"), Challenge.ChallengerRollLabel(result.ChallengerRoll),
-                challenge.TargetRollLabel(result.TargetRoll),
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("result.tie"), ChallengeResultExtensions.ChallengerRollLabel(result.ChallengerRoll),
+                ChallengeResultExtensions.TargetRollLabel(result.TargetRoll),
                 challenge.Amount);
         }
 
@@ -425,12 +425,23 @@ public sealed partial class ChallengeHandler(
         return ([.. cards], BlackjackHandValue.Compute(cards), BlackjackHandValue.IsNaturalBlackjack(cards));
     }
 
-    private int BlackjackScore(int total, bool natural) =>
-        total > 21 ? 0 : natural ? 22 : total;
-
-    private string FormatBlackjackLine(string[] cards, int total, bool natural)
+    private static int BlackjackScore(int total, bool natural)
     {
-        var suffix = total > 21 ? " bust" : natural ? " blackjack" : "";
+        if (total > 21)
+            return 0;
+
+        return natural ? 22 : total;
+    }
+
+    private static string FormatBlackjackLine(string[] cards, int total, bool natural)
+    {
+        string suffix;
+        if (total > 21)
+            suffix = " bust";
+        else if (natural)
+            suffix = " blackjack";
+        else
+            suffix = "";
         return string.Create(CultureInfo.InvariantCulture, $"{Html(string.Join(' ', cards.Select(FormatCard)))} = <b>{total}</b>{suffix}");
     }
 
@@ -451,13 +462,13 @@ public sealed partial class ChallengeHandler(
         return rank + suit;
     }
 
-    private string DisplayName(User user) =>
+    private static string DisplayName(User user) =>
         user.Username ?? user.FirstName ?? string.Create(CultureInfo.InvariantCulture, $"User ID: {user.Id}");
 
-    private string Mention(long userId, string displayName) =>
+    private static string Mention(long userId, string displayName) =>
         $"<a href=\"tg://user?id={userId}\">{Html(displayName)}</a>";
 
-    private string Html(string value) => WebUtility.HtmlEncode(value);
+    private static string Html(string value) => WebUtility.HtmlEncode(value);
 
     private string Loc(string key) => localizer.Get("challenges", key);
 

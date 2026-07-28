@@ -93,11 +93,7 @@ public sealed class DebugEsSmokeHandler(
 
     private static bool IsAnyAdmin(BotFrameworkOptions o, long userId)
     {
-        foreach (var id in o.Admins)
-            if (id == userId) return true;
-        foreach (var id in o.ReadOnlyAdmins)
-            if (id == userId) return true;
-        return false;
+        return o.Admins.Contains(userId) || o.ReadOnlyAdmins.Contains(userId);
     }
 
     private static string Enc<T>(T value) => WebUtility.HtmlEncode(value?.ToString() ?? "");

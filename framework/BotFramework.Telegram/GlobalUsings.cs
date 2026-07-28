@@ -15,7 +15,7 @@ global using BotFramework.Host.Localization;
 global using BotFramework.Host.Persistence.Connections;
 global using BotFramework.Host.Pipeline.Routing;
 global using BotFramework.Host.Redis.Streams;
-global using BotFramework.Host.Runtime.Hosting;
+global using BotFramework.Host.Runtime;
 global using BotFramework.Host.Security.Captcha;
 global using BotFramework.Host.TelegramOutbox;
 global using BotFramework.Sdk.Health;

@@ -32,12 +32,12 @@ public sealed class RecoveryModel(IOperationsAdminService operations) : PageMode
     }
 
     public async Task<IActionResult> OnPostRetryEventAsync(long id, CancellationToken ct) =>
-        await MutateAsync(() => operations.RetryEventAsync(id, HttpContext.Session.ActorId(), HttpContext.Session.ActorName(), ct), ct);
+        await MutateAsync(() => operations.RetryEventAsync(id, HttpContext.Session.ActorId(), HttpContext.Session.ActorName(), ct));
 
     public async Task<IActionResult> OnPostRescheduleOutboxAsync(long id, CancellationToken ct) =>
-        await MutateAsync(() => operations.RescheduleOutboxAsync(id, HttpContext.Session.ActorId(), HttpContext.Session.ActorName(), ct), ct);
+        await MutateAsync(() => operations.RescheduleOutboxAsync(id, HttpContext.Session.ActorId(), HttpContext.Session.ActorName(), ct));
 
-    private async Task<IActionResult> MutateAsync(Func<Task<OperationMutationResult>> action, CancellationToken ct)
+    private async Task<IActionResult> MutateAsync(Func<Task<OperationMutationResult>> action)
     {
         if (!HttpContext.Session.IsAuthenticated()) return RedirectToPage("/Login");
         if (!HttpContext.Session.IsSuperAdmin()) return Forbid();

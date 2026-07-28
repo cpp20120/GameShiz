@@ -19,7 +19,7 @@ namespace BotFramework.Host.RateLimiting;
 /// entries; the monotonically increasing database version is included in the
 /// decision metadata so all replicas expose the same effective policy version.
 /// </summary>
-public sealed class PostgresRateLimitPolicyProvider(
+public sealed partial class PostgresRateLimitPolicyProvider(
     INpgsqlConnectionFactory connections,
     ILogger<PostgresRateLimitPolicyProvider> logger,
     IConnectionMultiplexer? redis = null)
@@ -47,13 +47,13 @@ public sealed class PostgresRateLimitPolicyProvider(
             return Apply(local.Payload, request, deployment);
         }
 
-        var payload = await TryLoadCachedAsync(tenantKey, cancellationToken).ConfigureAwait(false);
+        var payload = await TryLoadCachedAsync(tenantKey, cancellationToken);
         if (payload is null)
         {
             BotFrameworkMetrics.RateLimitPolicyCacheMisses.Add(1, CacheLabels("miss"));
-            payload = await LoadFromPostgresAsync(request.TenantId, cancellationToken).ConfigureAwait(false);
+            payload = await LoadFromPostgresAsync(request.TenantId, cancellationToken);
             if (payload is not null)
-                await TryStoreCachedAsync(tenantKey, payload, cancellationToken).ConfigureAwait(false);
+                await TryStoreCachedAsync(tenantKey, payload, cancellationToken);
         }
         else
         {
@@ -74,13 +74,13 @@ public sealed class PostgresRateLimitPolicyProvider(
         ArgumentNullException.ThrowIfNull(policy);
         Validate(policy);
 
-        await using var connection = await connections.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         var tenantKey = await connection.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
             "SELECT tenant_key FROM tenants WHERE tenant_id = @tenantId",
             new { tenantId = policy.TenantId.Value },
             transaction,
-            cancellationToken: cancellationToken)).ConfigureAwait(false);
+            cancellationToken: cancellationToken));
         if (tenantKey is null)
             throw new InvalidOperationException($"Tenant '{policy.TenantId}' is not provisioned.");
 
@@ -106,9 +106,9 @@ public sealed class PostgresRateLimitPolicyProvider(
                 refill = policy.Policy.RefillPerSecond,
             },
             transaction,
-            cancellationToken: cancellationToken)).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-        await InvalidateAsync(policy.TenantId, cancellationToken).ConfigureAwait(false);
+            cancellationToken: cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
+        await InvalidateAsync(policy.TenantId, cancellationToken);
     }
 
     public async Task RemoveAsync(
@@ -122,7 +122,7 @@ public sealed class PostgresRateLimitPolicyProvider(
             throw new ArgumentException("Tenant id is required.", nameof(tenantId));
         ValidateRoute(routeKey);
 
-        await using var connection = await connections.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(cancellationToken);
         await connection.ExecuteAsync(new CommandDefinition(
             """
             DELETE FROM rate_limit_policy_overrides o
@@ -140,8 +140,8 @@ public sealed class PostgresRateLimitPolicyProvider(
                 routeKey = routeKey ?? string.Empty,
                 dimension = dimension.ToString().ToLowerInvariant(),
             },
-            cancellationToken: cancellationToken)).ConfigureAwait(false);
-        await InvalidateAsync(tenantId, cancellationToken).ConfigureAwait(false);
+            cancellationToken: cancellationToken));
+        await InvalidateAsync(tenantId, cancellationToken);
     }
 
     public async Task InvalidateAsync(TenantId tenantId, CancellationToken cancellationToken = default)
@@ -149,16 +149,16 @@ public sealed class PostgresRateLimitPolicyProvider(
         var key = CacheKey(tenantId);
         localCache.TryRemove(key, out _);
         if (redis is not null)
-            await redis.GetDatabase().KeyDeleteAsync(RedisKey(key)).ConfigureAwait(false);
+            await redis.GetDatabase().KeyDeleteAsync(RedisKey(key));
         BotFrameworkMetrics.RateLimitPolicyCacheInvalidations.Add(1, CacheLabels("write"));
-        await Task.CompletedTask.ConfigureAwait(false);
+        await Task.CompletedTask;
     }
 
     private async Task<PolicyPayload?> LoadFromPostgresAsync(TenantId tenantId, CancellationToken ct)
     {
         try
         {
-            await using var connection = await connections.OpenAsync(ct).ConfigureAwait(false);
+            await using var connection = await connections.OpenAsync(ct);
             var rows = (await connection.QueryAsync<PolicyRow>(new CommandDefinition(
                 """
                 SELECT o.channel AS Channel,
@@ -179,41 +179,43 @@ public sealed class PostgresRateLimitPolicyProvider(
         }
         catch (Npgsql.NpgsqlException exception)
         {
-            logger.LogWarning(exception, "Unable to load rate-limit overrides for tenant {TenantId}; deployment defaults remain active.", tenantId.Value);
+            LogOverridesLoadFailed(logger, exception, tenantId.Value);
             return null;
         }
     }
 
     private async Task<PolicyPayload?> TryLoadCachedAsync(string tenantKey, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (redis is null)
             return null;
 
         try
         {
-            var value = await redis.GetDatabase().StringGetAsync(RedisKey(tenantKey)).ConfigureAwait(false);
+            var value = await redis.GetDatabase().StringGetAsync(RedisKey(tenantKey));
             return value.HasValue ? JsonSerializer.Deserialize<PolicyPayload>(value.ToString(), JsonOptions) : null;
         }
         catch (Exception exception) when (exception is RedisException or IOException or JsonException or NotSupportedException)
         {
-            logger.LogWarning(exception, "Unable to read rate-limit policy cache; PostgreSQL will be queried.");
+            LogCacheReadFailed(logger, exception);
             return null;
         }
     }
 
     private async Task TryStoreCachedAsync(string tenantKey, PolicyPayload payload, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (redis is null)
             return;
 
         try
         {
             var serialized = JsonSerializer.Serialize(payload, JsonOptions);
-            await redis.GetDatabase().StringSetAsync(RedisKey(tenantKey), serialized, RedisCacheTtl).ConfigureAwait(false);
+            await redis.GetDatabase().StringSetAsync(RedisKey(tenantKey), serialized, RedisCacheTtl);
         }
         catch (Exception exception) when (exception is RedisException or IOException)
         {
-            logger.LogWarning(exception, "Unable to write rate-limit policy cache; continuing without Redis policy cache.");
+            LogCacheWriteFailed(logger, exception);
         }
     }
 
@@ -290,6 +292,15 @@ public sealed class PostgresRateLimitPolicyProvider(
 
     private static KeyValuePair<string, object?>[] CacheLabels(string result) =>
         [new("result", result)];
+
+    [LoggerMessage(LogLevel.Warning, "Unable to load rate-limit overrides for tenant {TenantId}; deployment defaults remain active.")]
+    private static partial void LogOverridesLoadFailed(ILogger logger, Exception exception, string tenantId);
+
+    [LoggerMessage(LogLevel.Warning, "Unable to read rate-limit policy cache; PostgreSQL will be queried.")]
+    private static partial void LogCacheReadFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(LogLevel.Warning, "Unable to write rate-limit policy cache; continuing without Redis policy cache.")]
+    private static partial void LogCacheWriteFailed(ILogger logger, Exception exception);
 
     private sealed record CacheEntry(PolicyPayload Payload, DateTimeOffset ExpiresAt);
 

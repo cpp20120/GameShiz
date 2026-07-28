@@ -29,7 +29,7 @@ public sealed class CoinFlipRestModule : IRestRouteModule
         var reply = await service.ExecuteAsync(
             new CoinFlipCommand(context.Tenant, context.Scope, context.Player, operationId),
             Random.Shared.Next(),
-            ct).ConfigureAwait(false);
+            ct);
         return Results.Ok(reply);
     }
 }

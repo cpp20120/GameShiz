@@ -64,12 +64,3 @@ public static class NativeDiceGrpcExtensions
         return endpoints;
     }
 }
-
-public static class NativeDiceGrpcClientNames
-{
-    public const string DiceCube = "native-dice-dicecube";
-    public const string Darts = "native-dice-darts";
-    public const string Football = "native-dice-football";
-    public const string Basketball = "native-dice-basketball";
-    public const string Bowling = "native-dice-bowling";
-}

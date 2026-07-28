@@ -41,6 +41,6 @@ public sealed class AdminAuditReader(INpgsqlConnectionFactory connections) : IAd
                 until,
             },
             cancellationToken: ct));
-        return rows.ToList();
+        return [.. rows];
     }
 }

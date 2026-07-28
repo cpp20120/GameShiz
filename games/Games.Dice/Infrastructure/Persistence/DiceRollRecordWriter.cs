@@ -16,6 +16,6 @@ public sealed class DiceRollRecordWriter : GameRecordWriter<DiceRollRecord>
             VALUES (gen_random_uuid(), @UserId, @DiceValue, @Prize, @Loss, @RolledAt)
             """,
             record,
-            ct).ConfigureAwait(false);
+            ct);
     }
 }

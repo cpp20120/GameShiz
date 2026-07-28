@@ -22,7 +22,7 @@ public sealed class BowlingBetStateStore :
             SELECT user_id AS UserId, chat_id AS ChatId, amount AS Amount, created_at AS CreatedAt
             FROM bowling_bets WHERE user_id = @userId AND chat_id = @chatId FOR UPDATE
             """,
-            new { userId, chatId }, ct).ConfigureAwait(false);
+            new { userId, chatId }, ct);
         return new(row is null ? null : new(
             row.UserId, row.ChatId, row.Amount,
             new DateTimeOffset(DateTime.SpecifyKind(row.CreatedAt, DateTimeKind.Utc))));
@@ -34,14 +34,14 @@ public sealed class BowlingBetStateStore :
         {
             await context.ExecuteAsync(
                 "INSERT INTO bowling_bets (user_id, chat_id, amount, created_at) VALUES (@UserId, @ChatId, @Amount, @CreatedAt)",
-                pending, ct).ConfigureAwait(false);
-            await SaveSession(userId, chatId, pending.CreatedAt, context, ct).ConfigureAwait(false);
+                pending, ct);
+            await SaveSession(userId, chatId, pending.CreatedAt, context, ct);
             return;
         }
-        await context.ExecuteAsync("DELETE FROM bowling_bets WHERE user_id = @userId AND chat_id = @chatId", new { userId, chatId }, ct).ConfigureAwait(false);
+        await context.ExecuteAsync("DELETE FROM bowling_bets WHERE user_id = @userId AND chat_id = @chatId", new { userId, chatId }, ct);
         await context.ExecuteAsync(
             "DELETE FROM mini_game_sessions WHERE user_id = @userId AND chat_id = @chatId AND game_id = @gameId",
-            new { userId, chatId, gameId = MiniGameIds.Bowling }, ct).ConfigureAwait(false);
+            new { userId, chatId, gameId = MiniGameIds.Bowling }, ct);
     }
 
     private static Task<int> SaveSession(long userId, long chatId, DateTimeOffset createdAt, IGameExecutionContext context, CancellationToken ct) =>

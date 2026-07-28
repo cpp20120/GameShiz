@@ -81,7 +81,7 @@ public static class ShPolicyDeck
         return deck;
     }
 
-    private static void Shuffle<T>(IList<T> list, IReadOnlyList<double> entropy)
+    private static void Shuffle<T>(List<T> list, IReadOnlyList<double> entropy)
     {
         if (entropy.Count < list.Count - 1)
             throw new ArgumentException("Not enough entropy values.", nameof(entropy));

@@ -17,14 +17,7 @@ public sealed class ChatsStore(INpgsqlConnectionFactory connections, IWalletRead
     public async Task<IReadOnlyList<KnownChatRow>> ListChatsAsync(
         string? typeFilter, int limit, CancellationToken ct)
     {
-        // We can't use `WHERE chat_type = ANY(@types)` directly via Dapper for
-        // an empty/null filter — splitting at the SQL level keeps the planner
-        // happy with the partial index on chat_type for typed queries and
-        // dodges that branch entirely for "show everything".
-        var typeClause = typeFilter is null ? "" : "WHERE kc.chat_type = ANY(@types)";
-        var limitClause = limit > 0 ? "LIMIT @limit" : "";
-
-        var sql = $"""
+        const string sql = """
             SELECT kc.chat_id        AS ChatId,
                    kc.chat_type      AS ChatType,
                    kc.title          AS Title,
@@ -34,14 +27,14 @@ public sealed class ChatsStore(INpgsqlConnectionFactory connections, IWalletRead
                    0 AS UserCount,
                    0::BIGINT AS TotalCoins
             FROM known_chats kc
-            {typeClause}
+            WHERE (@typeFilter IS NULL OR kc.chat_type = ANY(@types))
             ORDER BY kc.last_seen_at DESC
-            {limitClause}
+            LIMIT NULLIF(@limit, 0)
             """;
 
         await using var conn = await connections.OpenAsync(ct);
         var rows = await conn.QueryAsync<KnownChatRow>(new CommandDefinition(
-            sql, new { types = ResolveTypes(typeFilter), limit }, cancellationToken: ct));
+            sql, new { typeFilter, types = ResolveTypes(typeFilter), limit }, cancellationToken: ct));
         var aggregates = (await wallets.ListAsync(ct))
             .GroupBy(x => x.BalanceScopeId)
             .ToDictionary(x => x.Key, x => (Count: x.Count(), Coins: x.Sum(a => (long)a.Coins)));
@@ -52,12 +45,15 @@ public sealed class ChatsStore(INpgsqlConnectionFactory connections, IWalletRead
 
     public async Task<int> CountChatsAsync(string? typeFilter, CancellationToken ct)
     {
-        var typeClause = typeFilter is null ? "" : "WHERE chat_type = ANY(@types)";
-        var sql = $"SELECT count(*)::INT FROM known_chats {typeClause}";
+        const string sql = """
+            SELECT count(*)::INT
+            FROM known_chats
+            WHERE (@typeFilter IS NULL OR chat_type = ANY(@types))
+            """;
 
         await using var conn = await connections.OpenAsync(ct);
         return await conn.ExecuteScalarAsync<int>(new CommandDefinition(
-            sql, new { types = ResolveTypes(typeFilter) }, cancellationToken: ct));
+            sql, new { typeFilter, types = ResolveTypes(typeFilter) }, cancellationToken: ct));
     }
 
     private static string[] ResolveTypes(string? typeFilter) => typeFilter switch

@@ -30,7 +30,7 @@ using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace BotFramework.Host.Composition.Builder;
+namespace BotFramework.Telegram.Composition;
 
 public static class BotFrameworkApplicationExtensions
 {

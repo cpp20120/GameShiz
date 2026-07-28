@@ -9,42 +9,42 @@ namespace BotFramework.Host.Execution;
 /// </summary>
 internal sealed class RemoteAtomicEconomics(
     IEconomicsService economics,
-    IWalletAtomicExecutionService wallet) : IAtomicEconomics
+    IWalletAtomicExecutionService walletService) : IAtomicEconomics
 {
     public Task EnsureAsync(
-        WalletIdentity walletIdentity,
+        WalletIdentity wallet,
         string displayName,
         IGameExecutionSession session,
         CancellationToken ct) =>
-        economics.EnsureUserAsync(walletIdentity.UserId, walletIdentity.BalanceScopeId, displayName, ct);
+        economics.EnsureUserAsync(wallet.UserId, wallet.BalanceScopeId, displayName, ct);
 
     public async Task<WalletSnapshot> LoadAsync(
-        WalletIdentity walletIdentity,
+        WalletIdentity wallet,
         IGameExecutionSession session,
         CancellationToken ct)
-        => new((long)await economics.GetBalanceAsync(walletIdentity.UserId, walletIdentity.BalanceScopeId, ct));
+        => new((long)await economics.GetBalanceAsync(wallet.UserId, wallet.BalanceScopeId, ct));
 
     public async Task<WalletMutationResult> ApplyAsync(
-        WalletIdentity walletIdentity,
+        WalletIdentity wallet,
         IReadOnlyList<EconomyEffect> effects,
         IGameExecutionSession session,
         string operationId,
         CancellationToken ct)
     {
-        var result = await wallet.ApplyBatchAsync(
-            walletIdentity.UserId,
-            walletIdentity.BalanceScopeId,
+        var result = await walletService.ApplyBatchAsync(
+            wallet.UserId,
+            wallet.BalanceScopeId,
             effects.Select(effect => new WalletBatchEffect(
                 effect.Kind switch
                 {
                     EconomyEffectKind.Debit => WalletBatchEffectKind.Debit,
                     EconomyEffectKind.Credit => WalletBatchEffectKind.Credit,
-                    _ => throw new ArgumentOutOfRangeException(nameof(effects), effect.Kind, "Unknown economy effect kind."),
+                    _ => throw new ArgumentOutOfRangeException(nameof(effect), effect.Kind, "Unknown economy effect kind."),
                 },
                 checked((int)effect.Amount),
                 effect.Reason)).ToArray(),
             operationId,
-            ct).ConfigureAwait(false);
+            ct);
         return new WalletMutationResult(result.Applied, result.Rejected, new WalletSnapshot(result.NewBalance));
     }
 }

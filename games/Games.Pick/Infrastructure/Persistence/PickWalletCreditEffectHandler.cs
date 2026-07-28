@@ -21,7 +21,7 @@ public sealed class PickWalletCreditEffectHandler : GameEffectHandler<PickWallet
                 group.Key.ChatId,
                 walletEffects,
                 $"{context.OperationId ?? $"pick:{Guid.NewGuid():N}"}:wallet-credit:{group.Key.UserId}:{group.Key.ChatId}",
-                ct).ConfigureAwait(false);
+                ct);
             if (!result)
                 throw new InvalidOperationException($"Wallet {group.Key.UserId}:{group.Key.ChatId} rejected a Pick credit.");
         }

@@ -109,8 +109,13 @@ public sealed class PostgresDiscordOutboxStore(INpgsqlConnectionFactory connecti
     private static string? NullIfWhiteSpace(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
 
-    private static string? Truncate(string? value, int maxLength) =>
-        value is null ? null : value.Length <= maxLength ? value : value[..maxLength];
+    private static string? Truncate(string? value, int maxLength)
+    {
+        if (value is null || value.Length <= maxLength)
+            return value;
+
+        return value[..maxLength];
+    }
 
     private sealed record DbRow(
         long Id,

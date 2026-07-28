@@ -30,23 +30,23 @@ public sealed partial class DiceCubeHandler(
     public async Task HandleAsync(UpdateContext ctx)
     {
         var diceMsg = ctx.MessageOrEdited;
-        if (string.Equals(diceMsg?.Dice?.Emoji, DiceEmoji, StringComparison.Ordinal))
+        if (diceMsg is { Dice: { Emoji: DiceEmoji } } diceMessage)
         {
-            if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMsg, out var uid, out var dname))
+            if (!BotMiniGameDiceOwner.TryResolveDicePlayer(diceMessage, out var uid, out var dname))
                 return;
-            if (diceMsg.From is { IsBot: false }
-                && (BotMiniGameRollGate.ShouldIgnoreUserThrow(RollGateId, uid, diceMsg.Chat.Id)
-                    || await RollGates.ShouldIgnoreUserThrowAsync(RollGateId, uid, diceMsg.Chat.Id, ctx.Ct)))
+            if (diceMessage.From is { IsBot: false }
+                && (BotMiniGameRollGate.ShouldIgnoreUserThrow(RollGateId, uid, diceMessage.Chat.Id)
+                    || await RollGates.ShouldIgnoreUserThrowAsync(RollGateId, uid, diceMessage.Chat.Id, ctx.Ct)))
             {
-                await ctx.Bot.SendMessage(diceMsg.Chat.Id, Loc("roll.wait_bot"),
+                await ctx.Bot.SendMessage(diceMessage.Chat.Id, Loc("roll.wait_bot"),
                     parseMode: ParseMode.Html,
-                    replyParameters: new ReplyParameters { MessageId = diceMsg.MessageId },
+                    replyParameters: new ReplyParameters { MessageId = diceMessage.MessageId },
                     cancellationToken: ctx.Ct);
                 return;
             }
 
-            var diceReply = new ReplyParameters { MessageId = diceMsg.MessageId };
-            await HandleRollAsync(ctx, diceMsg, uid, dname, diceMsg.Chat.Id, diceReply);
+            var diceReply = new ReplyParameters { MessageId = diceMessage.MessageId };
+            await HandleRollAsync(ctx, diceMessage, uid, dname, diceMessage.Chat.Id, diceReply);
             return;
         }
 
@@ -192,7 +192,7 @@ public sealed partial class DiceCubeHandler(
 
         try
         {
-            var face = msg.Dice!.Value;
+            var face = msg.Dice.Value;
             var r = await service.RollAsync(userId, displayName, chatId, face, msg.MessageId, ctx.Ct);
 
             if (r.Outcome == CubeRollOutcome.NoBet)

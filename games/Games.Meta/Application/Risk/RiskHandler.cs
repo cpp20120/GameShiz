@@ -30,12 +30,11 @@ public sealed class RiskHandler(IRiskService risks) : IUpdateHandler
             return;
         }
 
-        await SendHtmlAsync(ctx, msg, string.Join("\n", [
+        await SendHtmlAsync(ctx, msg, string.Join("\n",
             "🛡 <b>Risk control</b>",
             "<code>/risk</code> или <code>/risk list</code>",
             "<code>/risk resolve &lt;id&gt;</code>",
-            "<code>/risk ignore &lt;id&gt;</code>",
-        ]));
+            "<code>/risk ignore &lt;id&gt;</code>"));
     }
 
     private async Task HandleListAsync(UpdateContext ctx, Message msg)
@@ -57,7 +56,7 @@ public sealed class RiskHandler(IRiskService risks) : IUpdateHandler
         await SendHtmlAsync(ctx, msg, string.Join('\n', lines));
     }
 
-    private static Task SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
+    private static Task<Message> SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text,
             parseMode: ParseMode.Html,
             replyParameters: new ReplyParameters { MessageId = msg.MessageId },

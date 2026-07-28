@@ -4,7 +4,7 @@ namespace BotFramework.Sdk.Execution;
 
 public sealed class EntropyValue
 {
-    private readonly ReadOnlyDictionary<string, double> values;
+    private readonly ReadOnlyDictionary<string, double> _values;
 
     public EntropyValue(IEnumerable<KeyValuePair<string, double>> values)
     {
@@ -21,14 +21,14 @@ public sealed class EntropyValue
                 throw new ArgumentException($"Duplicate entropy name '{name}'.", nameof(values));
         }
 
-        this.values = new ReadOnlyDictionary<string, double>(copy);
+        this._values = new ReadOnlyDictionary<string, double>(copy);
     }
 
     public static EntropyValue Empty { get; } = new([]);
 
-    public IReadOnlyDictionary<string, double> Values => values;
+    public IReadOnlyDictionary<string, double> Values => _values;
 
-    public double GetDouble(string name) => values.TryGetValue(name, out var value)
+    public double GetDouble(string name) => _values.TryGetValue(name, out var value)
         ? value
         : throw new KeyNotFoundException($"Entropy value '{name}' was not supplied.");
 }

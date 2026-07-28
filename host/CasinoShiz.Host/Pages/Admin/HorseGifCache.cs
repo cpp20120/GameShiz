@@ -32,15 +32,14 @@ public sealed class HorseGifCache
             return _byDate.GetValueOrDefault(raceDate)?.Gif;
     }
 
-    public IReadOnlyList<string> Dates
+    public IReadOnlyList<string> GetDates()
     {
-        get
+        lock (_gate)
         {
-            lock (_gate)
-                return _byDate
-                    .OrderByDescending(static pair => pair.Value.CreatedAt)
-                    .Select(static pair => pair.Key)
-                    .ToArray();
+            return _byDate
+                .OrderByDescending(static pair => pair.Value.CreatedAt)
+                .Select(static pair => pair.Key)
+                .ToArray();
         }
     }
 

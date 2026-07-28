@@ -20,7 +20,7 @@ public sealed partial class RedeemService(
         var gameId = string.IsNullOrWhiteSpace(freeSpinGameId)
             ? redeemOptions.FreeSpinGameId : freeSpinGameId;
         var result = await issueExecutor.ExecuteAsync(new(new RedeemIssueCommand(
-            code, userId, gameId, $"redeem:issue:{code:N}")), ct).ConfigureAwait(false);
+            code, userId, gameId, $"redeem:issue:{code:N}")), ct);
         LogIssued(userId, result);
         return result;
     }
@@ -30,7 +30,7 @@ public sealed partial class RedeemService(
     {
         if (string.IsNullOrEmpty(codeText) || !Guid.TryParse(codeText, out var codeGuid))
             return new(RedeemError.InvalidCode);
-        var code = await store.FindAsync(codeGuid, ct).ConfigureAwait(false);
+        var code = await store.FindAsync(codeGuid, ct);
         if (code?.Active != true) return new(RedeemError.AlreadyRedeemed);
         if (code.IssuedBy == userId) return new(RedeemError.SelfRedeem);
         return new(RedeemError.None, codeGuid,
@@ -40,11 +40,11 @@ public sealed partial class RedeemService(
     public async Task<CompleteRedeemResult> CompleteRedeemAsync(
         long userId, long balanceScopeId, Guid codeGuid, CancellationToken ct)
     {
-        var code = await store.FindAsync(codeGuid, ct).ConfigureAwait(false);
+        var code = await store.FindAsync(codeGuid, ct);
         if (code?.Active != true) return new(RedeemError.AlreadyRedeemed);
         var result = await completeExecutor.ExecuteAsync(new(new RedeemCompleteCommand(
             codeGuid, userId, balanceScopeId, code.FreeSpinGameId,
-            $"redeem:complete:{codeGuid:N}:{userId}")), ct).ConfigureAwait(false);
+            $"redeem:complete:{codeGuid:N}:{userId}")), ct);
         if (result.Error == RedeemError.None)
             LogRedeemed(userId, codeGuid, result.FreeSpinGameId);
         return result;

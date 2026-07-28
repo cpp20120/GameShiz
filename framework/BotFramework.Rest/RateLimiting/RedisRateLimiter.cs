@@ -14,7 +14,11 @@ namespace BotFramework.Rest.RateLimiting;
 /// local buckets keep the service available during a Redis outage and are
 /// bounded to avoid turning an outage into unbounded memory growth.
 /// </summary>
-public sealed class RedisRateLimiter : IRateLimiter, IDisposable
+public sealed partial class RedisRateLimiter(
+    IOptions<RateLimitOptions> options,
+    ILogger<RedisRateLimiter> logger,
+    IRateLimitPolicyProvider? policyProvider = null)
+    : IRateLimiter, IDisposable
 {
     private const string TokenBucketScript = """
         local now = tonumber(ARGV[1])
@@ -51,25 +55,14 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
         return { 1, 0, 0, decisions[1] - 1 }
         """;
 
-    private readonly RateLimitOptions _options;
-    private readonly IRateLimitPolicyProvider _policyProvider;
-    private readonly ILogger<RedisRateLimiter> _logger;
+    private readonly RateLimitOptions _options = options.Value;
+    private readonly IRateLimitPolicyProvider _policyProvider = policyProvider ?? new DefaultRateLimitPolicyProvider();
     private readonly ConcurrentDictionary<string, LocalBucket> _local = new(StringComparer.Ordinal);
-    private readonly object _localGate = new();
-    private readonly object _redisGate = new();
+    private readonly Lock _localGate = new();
+    private readonly Lock _redisGate = new();
     private ConnectionMultiplexer? _redis;
     private long _nextRedisAttemptTicks;
     private long _lastRedisWarningTicks;
-
-    public RedisRateLimiter(
-        IOptions<RateLimitOptions> options,
-        ILogger<RedisRateLimiter> logger,
-        IRateLimitPolicyProvider? policyProvider = null)
-    {
-        _options = options.Value;
-        _logger = logger;
-        _policyProvider = policyProvider ?? new DefaultRateLimitPolicyProvider();
-    }
 
     public async ValueTask<RateLimitDecision> CheckAsync(RateLimitRequest request, CancellationToken cancellationToken = default)
     {
@@ -78,7 +71,7 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
         var policies = await _policyProvider.ResolveAsync(
             request,
             _options.Deployment(request.Channel),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
         var buckets = BuildBuckets(request, policies);
 
         if (!_options.Enabled)
@@ -88,11 +81,11 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
         }
 
         var redis = GetRedis();
-        if (redis is not null && redis.IsConnected)
+        if (redis?.IsConnected == true)
         {
             try
             {
-                var decision = await CheckRedisAsync(redis.GetDatabase(), buckets, policies.Version, cancellationToken).ConfigureAwait(false);
+                var decision = await CheckRedisAsync(redis.GetDatabase(), buckets, policies.Version, cancellationToken);
                 BotFrameworkMetrics.SetRateLimitFallback(false);
                 RecordDecision(request, decision);
                 return decision;
@@ -109,7 +102,7 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
         return fallbackDecision;
     }
 
-    private async Task<RateLimitDecision> CheckRedisAsync(
+    private static async Task<RateLimitDecision> CheckRedisAsync(
         IDatabase database,
         IReadOnlyList<Bucket> buckets,
         string policyVersion,
@@ -117,17 +110,19 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         var keys = buckets.Select(bucket => (RedisKey)bucket.Key).ToArray();
-        var args = new List<RedisValue> { DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), buckets.Count };
-        foreach (var configuredBucket in buckets)
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var args = new List<RedisValue>(2 + (buckets.Count * 2))
         {
-            args.Add(configuredBucket.Policy.Capacity);
-            args.Add(configuredBucket.Policy.RefillPerSecond);
-        }
+            timestamp,
+            buckets.Count,
+        };
+        args.AddRange(buckets.SelectMany(b => new RedisValue[] { b.Policy.Capacity, b.Policy.RefillPerSecond }));
 
-        var result = (RedisResult[])(await database.ScriptEvaluateAsync(
+        var result = (RedisResult[]?)(await database.ScriptEvaluateAsync(
             TokenBucketScript,
             keys,
-            args.ToArray()).ConfigureAwait(false))!;
+            [.. args]))
+            ?? throw new InvalidOperationException("Redis rate-limit script returned no result.");
         var allowed = ParseInt(result[0]) == 1;
         var deniedIndex = Math.Max(0, ParseInt(result[2]) - 1);
         var bucket = buckets[deniedIndex];
@@ -160,13 +155,11 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
                 var state = _local.GetOrAdd(bucket.Key, _ => new LocalBucket(bucket.Policy.Capacity, now));
                 state.Refill(bucket.Policy, now);
                 states[i] = new LocalBucketState(state, bucket.Policy);
-                if (denied < 0 && state.Tokens < 1)
-                {
-                    denied = i;
-                    retry = bucket.Policy.RefillPerSecond <= 0
-                        ? TimeSpan.MaxValue
-                        : TimeSpan.FromSeconds((1 - state.Tokens) / bucket.Policy.RefillPerSecond);
-                }
+                if (denied >= 0 || !(state.Tokens < 1)) continue;
+                denied = i;
+                retry = bucket.Policy.RefillPerSecond <= 0
+                    ? TimeSpan.MaxValue
+                    : TimeSpan.FromSeconds((1 - state.Tokens) / bucket.Policy.RefillPerSecond);
             }
 
             if (denied >= 0)
@@ -202,8 +195,8 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
         if (userRoute is not null)
             buckets.Add(new(userRoute, RateLimitDimension.TenantPlayerRoute, policies.PlayerRoute));
         if (request.Channel == BotFramework.Contracts.Messaging.BotChannel.Rest && !string.IsNullOrWhiteSpace(request.IpAddress))
-            buckets.Add(new(Key("tenant-ip", request.TenantId.Value, request.IpAddress!), RateLimitDimension.TenantIp, policies.Ip));
-        return buckets;
+            buckets.Add(new(Key("tenant-ip", request.TenantId.Value, request.IpAddress), RateLimitDimension.TenantIp, policies.Ip));
+        return [.. buckets];
     }
 
     private string Key(string dimension, params string[] values)
@@ -215,19 +208,13 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
     private ConnectionMultiplexer? GetRedis()
     {
         var current = Volatile.Read(ref _redis);
-        if (current is not null && current.IsConnected)
-            return current;
-
-        if (DateTime.UtcNow.Ticks < Volatile.Read(ref _nextRedisAttemptTicks))
+        if (current?.IsConnected == true || DateTime.UtcNow.Ticks < Volatile.Read(ref _nextRedisAttemptTicks))
             return current;
 
         lock (_redisGate)
         {
             current = _redis;
-            if (current is not null && current.IsConnected)
-                return current;
-
-            if (DateTime.UtcNow.Ticks < _nextRedisAttemptTicks)
+            if (current is not null && current.IsConnected || DateTime.UtcNow.Ticks < _nextRedisAttemptTicks)
                 return current;
 
             _nextRedisAttemptTicks = DateTime.UtcNow.AddSeconds(5).Ticks;
@@ -257,7 +244,7 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
         if (now - Interlocked.Read(ref _lastRedisWarningTicks) < TimeSpan.TicksPerMinute)
             return;
         Interlocked.Exchange(ref _lastRedisWarningTicks, now);
-        _logger.LogWarning(exception, "BotFramework distributed rate limiter is using bounded local fallback.");
+        LogRedisFallback(logger, exception);
     }
 
     private void RemoveExpiredLocalBuckets()
@@ -279,8 +266,7 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
             return;
 
         var oldest = _local.MinBy(pair => pair.Value.UpdatedAt);
-        if (oldest.Key is not null)
-            _local.TryRemove(oldest.Key, out _);
+        _local.TryRemove(oldest.Key, out _);
     }
 
     private static RateLimitDecision Allowed(RateLimitPolicy policy, bool isFallback, string policyVersion) =>
@@ -300,8 +286,14 @@ public sealed class RedisRateLimiter : IRateLimiter, IDisposable
             throw new ArgumentException("Route keys must be stable module/command identifiers, not raw URLs.", nameof(routeKey));
     }
 
-    private static int ParseInt(RedisResult value) => int.TryParse(value.ToString(), out var result) ? result : 0;
+    private static int ParseInt(RedisResult value) =>
+        int.TryParse(value.ToString(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var result)
+            ? result
+            : 0;
     private static double ParseDouble(RedisResult value) => double.TryParse(value.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var result) ? result : 0;
+
+    [LoggerMessage(LogLevel.Warning, "BotFramework distributed rate limiter is using bounded local fallback.")]
+    private static partial void LogRedisFallback(ILogger logger, Exception exception);
 
     private sealed record Bucket(string Key, RateLimitDimension Dimension, RateLimitPolicy Policy);
     private sealed record LocalBucketState(LocalBucket State, RateLimitPolicy Policy);

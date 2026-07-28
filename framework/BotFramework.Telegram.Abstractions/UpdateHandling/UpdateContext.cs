@@ -42,7 +42,7 @@ public sealed class UpdateContext(
     /// <summary>
     /// Per-request bag for middleware to pass data down the chain.
     /// </summary>
-    public Dictionary<string, object> Items { get; } = new(StringComparer.Ordinal);
+    public IDictionary<string, object> Items { get; } = new Dictionary<string, object>(StringComparer.Ordinal);
 
     public long UserId =>
         Update.Message?.From?.Id

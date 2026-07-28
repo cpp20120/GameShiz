@@ -17,8 +17,7 @@ public sealed partial class HorseLegacyScheduleCleanup(
     {
         try
         {
-            await scheduler.UnscheduleAsync(HorseRaceScheduledCommand.CommandKey, cancellationToken)
-                .ConfigureAwait(false);
+            await scheduler.UnscheduleAsync(HorseRaceScheduledCommand.CommandKey, cancellationToken);
             LogRemoved();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

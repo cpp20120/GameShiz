@@ -6,18 +6,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace BotFramework.Host.Configuration.Validation;
 
-internal interface IRegisteredConfigurationSection
-{
-    string SectionPath { get; }
-    Type OptionsType { get; }
-    ConfigurationSectionValidation Validate(JsonNode? patch);
-    JsonNode Effective(JsonNode? patch);
-}
-
-internal sealed record ConfigurationSectionValidation(
-    JsonNode? Effective,
-    IReadOnlyList<ConfigurationValidationIssue> Issues);
-
 internal sealed class RegisteredConfigurationSection<TOptions>(
     string sectionPath,
     IConfiguration configuration,

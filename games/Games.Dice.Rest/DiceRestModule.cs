@@ -9,8 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Dice.Rest;
 
-public sealed record DiceRollRequest(int SlotValue);
-
 public sealed class DiceRestModule : IRestRouteModule
 {
     public string ModuleId => "dice";
@@ -45,7 +43,7 @@ public sealed class DiceRestModule : IRestRouteModule
             idempotencyKey = context.RequireIdempotencyKey();
         idempotencyKey ??= context.RequestId;
 
-        if (!long.TryParse(context.ScopeId, out var scopeId))
+        if (!long.TryParse(context.ScopeId, System.Globalization.CultureInfo.InvariantCulture, out var scopeId))
             throw new RestBadRequestException("scopeId must be a numeric balance scope.");
 
         var response = await client.PlayAsync(
@@ -64,14 +62,8 @@ public sealed class DiceRestModule : IRestRouteModule
                 context.ScopeId,
                 "en",
                 context.Baggage),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken);
 
         return Results.Ok(response);
     }
-}
-
-public static class DiceRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddDiceRest(this IServiceCollection services) =>
-        services.AddRestRouteModule<DiceRestModule>();
 }

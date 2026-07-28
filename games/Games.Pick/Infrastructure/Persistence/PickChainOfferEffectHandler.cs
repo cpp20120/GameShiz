@@ -34,7 +34,7 @@ public sealed class PickChainOfferEffectHandler : GameEffectHandler<PickChainOff
                     variantsJson = JsonSerializer.Serialize(chain.Variants),
                     backedJson = JsonSerializer.Serialize(chain.BackedIndices),
                     chain.ExpiresAt,
-                }, ct).ConfigureAwait(false);
+                }, ct);
         }
     }
 }

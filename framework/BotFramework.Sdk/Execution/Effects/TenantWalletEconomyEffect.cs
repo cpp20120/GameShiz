@@ -38,9 +38,6 @@ public sealed record TenantWalletEconomyEffect(
             throw new InvalidOperationException("A player is required for a wallet effect.");
         if (amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(amount), amount, "Effect amount must be positive.");
-        if (string.IsNullOrWhiteSpace(reason))
-            throw new ArgumentException("Effect reason is required.", nameof(reason));
-
-        return new(context.TenantId, context.ScopeId, player, kind, amount, reason);
+        return string.IsNullOrWhiteSpace(reason) ? throw new ArgumentException("Effect reason is required.", nameof(reason)) : new(context.TenantId, context.ScopeId, player, kind, amount, reason);
     }
 }

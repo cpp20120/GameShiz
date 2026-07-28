@@ -30,12 +30,12 @@ public sealed class BowlingService(
                 userId, chatId, MiniGameIds.Bowling,
                 async c =>
                 {
-                    if (await bets.FindAsync(userId, chatId, c).ConfigureAwait(false) is null)
+                    if (await bets.FindAsync(userId, chatId, c) is null)
                     {
                         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, c).ConfigureAwait(false);
+                        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, c);
                     }
-                }, ghostHeal, Sessions, ct).ConfigureAwait(false);
+                }, ghostHeal, Sessions, ct);
             claimed = session.Ok;
             blocker = session.Ok ? null : session.Blocker;
         }
@@ -43,16 +43,16 @@ public sealed class BowlingService(
             ? $"bowling:bet:{chatId}:{sourceMessageId}:{userId}"
             : $"bowling:bet:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
         var result = await placeExecutor.ExecuteAsync(new(new(
-            userId, displayName, chatId, amount, commandId, options.MaxBet, blocker)), ct).ConfigureAwait(false);
+            userId, displayName, chatId, amount, commandId, options.MaxBet, blocker)), ct);
         if (result.Error == BowlingBetError.None)
         {
             BotMiniGameSession.RegisterPlacedBet(userId, chatId, MiniGameIds.Bowling);
-            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
+            await Sessions.RegisterPlacedBetAsync(userId, chatId, MiniGameIds.Bowling, ct);
         }
         else if (claimed && result.Error != BowlingBetError.AlreadyPending)
         {
             BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct);
         }
         return result;
     }
@@ -67,11 +67,11 @@ public sealed class BowlingService(
             ? $"bowling:roll:{chatId}:{sourceMessageId}:{userId}"
             : $"bowling:roll:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
         var result = await rollExecutor.ExecuteAsync(new(new(
-            userId, displayName, chatId, face, commandId, Options.RedeemDropChance)), ct).ConfigureAwait(false);
+            userId, displayName, chatId, face, commandId, Options.RedeemDropChance)), ct);
         if (result.Outcome == BowlingRollOutcome.Rolled)
         {
             BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
+            await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct);
         }
         return result;
     }
@@ -86,9 +86,9 @@ public sealed class BowlingService(
         var commandId = sourceMessageId != 0
             ? $"bowling:abort:{chatId}:{sourceMessageId}:{userId}"
             : $"bowling:abort:legacy:{chatId}:{userId}:{Guid.NewGuid():N}";
-        var result = await abortExecutor.ExecuteAsync(new(new(userId, displayName, chatId, commandId)), ct).ConfigureAwait(false);
+        var result = await abortExecutor.ExecuteAsync(new(new(userId, displayName, chatId, commandId)), ct);
         if (!result.Aborted) return;
         BotMiniGameSession.ClearCompletedRound(userId, chatId, MiniGameIds.Bowling);
-        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct).ConfigureAwait(false);
+        await Sessions.ClearCompletedRoundAsync(userId, chatId, MiniGameIds.Bowling, ct);
     }
 }

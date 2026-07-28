@@ -18,7 +18,7 @@ public sealed class PostgresRandomOutcomeGenerator(
         FairnessEntropySource entropySource = FairnessEntropySource.Server, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(gameId) || string.IsNullOrWhiteSpace(canonicalInput))
-            throw new ArgumentException("Game ID and canonical input are required.");
+            throw new ArgumentException("Game ID and canonical input are required.", nameof(gameId));
 
         var seed = RandomNumberGenerator.GetBytes(32);
         var seedText = Convert.ToBase64String(seed);
@@ -50,8 +50,7 @@ public sealed class PostgresRandomOutcomeGenerator(
     public async Task<FairnessResult> RevealAsync(long commitmentId, string canonicalInput,
         int exclusiveUpperBound, CancellationToken ct = default)
     {
-        if (exclusiveUpperBound <= 0)
-            throw new ArgumentOutOfRangeException(nameof(exclusiveUpperBound));
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(exclusiveUpperBound, 0);
         const string selectSql = """
             SELECT id AS "Id", game_id AS "GameId", algorithm_version AS "AlgorithmVersion",
                    commitment AS "Commitment", canonical_input_hash AS "CanonicalInputHash",

@@ -102,7 +102,7 @@ public sealed class OperationsAdminService(IEventDispatchFailureStore failures, 
             request.Players,
             request.Rounds,
             request.Seed,
-            Rules = request.Rules,
+            request.Rules,
         }, ct);
         return report;
     }

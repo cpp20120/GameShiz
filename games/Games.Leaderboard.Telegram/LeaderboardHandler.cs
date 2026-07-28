@@ -14,7 +14,7 @@ namespace Games.Leaderboard.Application.Handlers;
 [Command("/balance")]
 [Command("/daily")]
 [Command("/help")]
-public sealed class LeaderboardHandler(
+public sealed partial class LeaderboardHandler(
     ILeaderboardClient service,
     ILocalizer localizer,
     IConfiguration configuration,
@@ -40,7 +40,7 @@ public sealed class LeaderboardHandler(
             await HandleDailyAsync(ctx, msg);
     }
 
-    private Task HandleHelpAsync(UpdateContext ctx, Message msg)
+    private Task<Message> HandleHelpAsync(UpdateContext ctx, Message msg)
     {
         var diceDef = ReadPositiveInt(configuration, "Games:dicecube:DefaultBet", 10);
         var dartsDef = ReadPositiveInt(configuration, "Games:darts:DefaultBet", 10);
@@ -214,7 +214,7 @@ public sealed class LeaderboardHandler(
                 {
                     sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"{place.Place}.");
                     foreach (var u in place.Users)
-                        sb.AppendLine($"  - {FormatUser(u, isFirst)}");
+                        sb.AppendLine(CultureInfo.InvariantCulture, $"  - {FormatUser(u, isFirst)}");
                 }
             }
             sb.AppendLine();
@@ -264,10 +264,13 @@ public sealed class LeaderboardHandler(
 
     private string FormatChatHeader(ChatLeaderboard chat)
     {
-        var rawTitle = !string.IsNullOrWhiteSpace(chat.Title)
-            ? chat.Title!
-            : (chat.ChatType.Equals("private", StringComparison.OrdinalIgnoreCase)
-                ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.private_label"), chat.ChatId) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.unknown_label"), chat.ChatId));
+        string rawTitle;
+        if (chat.Title is { } chatTitle && !string.IsNullOrWhiteSpace(chatTitle))
+            rawTitle = chatTitle;
+        else if (chat.ChatType.Equals("private", StringComparison.OrdinalIgnoreCase))
+            rawTitle = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.private_label"), chat.ChatId);
+        else
+            rawTitle = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.unknown_label"), chat.ChatId);
         var title = WebUtility.HtmlEncode(rawTitle);
         var typeBadge = WebUtility.HtmlEncode(chat.ChatType);
         return string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("topall.split.chat_header"), title, typeBadge, chat.ChatId);
@@ -303,7 +306,7 @@ public sealed class LeaderboardHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "daily command failed user={UserId} scope={Scope}", userId, msg.Chat.Id);
+            LogDailyFailed(ex, userId, msg.Chat.Id);
             await ctx.Bot.SendMessage(msg.Chat.Id, Loc("daily.failed"),
                 parseMode: ParseMode.Html,
                 replyParameters: new ReplyParameters { MessageId = msg.MessageId },
@@ -334,7 +337,7 @@ public sealed class LeaderboardHandler(
         return $"{crown}{safeName} - {user.Coins}";
     }
 
-    private string FormatGlobalUser(GlobalLeaderboardUser user, bool isFirstPlace)
+    private static string FormatGlobalUser(GlobalLeaderboardUser user, bool isFirstPlace)
     {
         var crown = isFirstPlace ? "👑 " : "";
         var safeName = WebUtility.HtmlEncode(user.DisplayName ?? "Unknown").Replace("@", "@\u200B", StringComparison.Ordinal);
@@ -344,4 +347,7 @@ public sealed class LeaderboardHandler(
     }
 
     private string Loc(string key) => localizer.Get("leaderboard", key);
+
+    [LoggerMessage(EventId = 2651, Level = LogLevel.Error, Message = "daily command failed user={UserId} scope={Scope}")]
+    private partial void LogDailyFailed(Exception exception, long userId, long scope);
 }

@@ -10,7 +10,7 @@ public sealed class PickGameStateStore : IGameStateStore<PickCommand, PickGameSt
     {
         var streak = await context.QuerySingleOrDefaultAsync<int?>(
             "SELECT streak FROM pick_streaks WHERE user_id = @UserId AND chat_id = @ChatId FOR UPDATE",
-            command, ct).ConfigureAwait(false);
+            command, ct);
         return new(streak ?? 0);
     }
 

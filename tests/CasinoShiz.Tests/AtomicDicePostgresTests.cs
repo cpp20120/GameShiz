@@ -208,7 +208,7 @@ public sealed class AtomicDicePostgresTests(AtomicPostgresFixture database) : IA
         public async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)
         {
             var connection = Create();
-            await connection.OpenAsync(ct).ConfigureAwait(false);
+            await connection.OpenAsync(ct);
             return connection;
         }
     }
@@ -246,8 +246,8 @@ public sealed class AtomicDicePostgresTests(AtomicPostgresFixture database) : IA
             if (Interlocked.Increment(ref entered) == 2) bothEntered.TrySetResult();
             try
             {
-                await bothEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
-                await WriteRecordAsync(record, context, ct).ConfigureAwait(false);
+                await bothEntered.Task.WaitAsync(TimeSpan.FromSeconds(5), ct);
+                await WriteRecordAsync(record, context, ct);
             }
             finally
             {
@@ -264,7 +264,7 @@ public sealed class AtomicDicePostgresTests(AtomicPostgresFixture database) : IA
         protected override async Task WriteAsync(DiceRollRecord record, IGameExecutionContext context, CancellationToken ct)
         {
             entered.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
         }
     }
 

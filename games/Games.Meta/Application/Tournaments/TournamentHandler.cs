@@ -56,11 +56,15 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             return;
         }
         var result = await tournaments.CreateAsync(msg.Chat.Id, user.Id, parts[2], entryFee, maxPlayers, ctx.Ct);
-        await SendHtmlAsync(ctx, msg, result.Pending
-            ? $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>"
-            : result.Tournament is null
-            ? $"❌ {Html(result.Message)}"
-            : string.Create(CultureInfo.InvariantCulture, $"🏆 {Html(result.Message)} ID <code>{result.Tournament.Id}</code> · game <b>{Html(result.Tournament.GameKey)}</b> · fee <b>{result.Tournament.EntryFee}</b> · players <code>0/{result.Tournament.MaxPlayers}</code>"));
+        string response;
+        if (result.Pending)
+            response = $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>";
+        else if (result.Tournament is null)
+            response = $"❌ {Html(result.Message)}";
+        else
+            response = string.Create(CultureInfo.InvariantCulture, $"🏆 {Html(result.Message)} ID <code>{result.Tournament.Id}</code> · game <b>{Html(result.Tournament.GameKey)}</b> · fee <b>{result.Tournament.EntryFee}</b> · players <code>0/{result.Tournament.MaxPlayers}</code>");
+
+        await SendHtmlAsync(ctx, msg, response);
     }
 
     private async Task HandleJoinAsync(UpdateContext ctx, Message msg, User user, string[] parts)
@@ -71,11 +75,15 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             return;
         }
         var result = await tournaments.JoinAsync(tournamentId, user.Id, msg.Chat.Id, DisplayName(user), ctx.Ct);
-        await SendHtmlAsync(ctx, msg, result.Pending
-            ? $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>"
-            : result.Tournament is null
-            ? $"❌ {Html(result.Message)}"
-            : $"✅ {Html(result.Message)} Турнир <code>{result.Tournament.Id}</code>: <code>{result.Tournament.PlayerCount}/{result.Tournament.MaxPlayers}</code>, prize <b>{result.Tournament.PrizePool}</b>");
+        string response;
+        if (result.Pending)
+            response = $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>";
+        else if (result.Tournament is null)
+            response = $"❌ {Html(result.Message)}";
+        else
+            response = $"✅ {Html(result.Message)} Турнир <code>{result.Tournament.Id}</code>: <code>{result.Tournament.PlayerCount}/{result.Tournament.MaxPlayers}</code>, prize <b>{result.Tournament.PrizePool}</b>";
+
+        await SendHtmlAsync(ctx, msg, response);
     }
 
     private async Task HandleStatusAsync(UpdateContext ctx, Message msg, string[] parts)
@@ -145,13 +153,17 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             return;
         }
         var result = await tournaments.ReportMatchAsync(matchId, user.Id, victorUserId, ctx.Ct);
-        await SendHtmlAsync(ctx, msg, result.Pending
-            ? $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>"
-            : !result.Updated
-            ? $"❌ {Html(result.Message)}"
-            : result.Finished
-                ? $"🏆 {Html(result.Message)} Победитель: <b>{Html(result.Victor?.DisplayName ?? victorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture))}</b>."
-                : $"✅ {Html(result.Message)} Матч <code>{matchId}</code> закрыт.");
+        string response;
+        if (result.Pending)
+            response = $"⏳ {Html(result.Message)} Command <code>{Html(result.CommandId ?? "")}</code>";
+        else if (!result.Updated)
+            response = $"❌ {Html(result.Message)}";
+        else if (result.Finished)
+            response = $"🏆 {Html(result.Message)} Победитель: <b>{Html(result.Victor?.DisplayName ?? victorUserId.ToString(System.Globalization.CultureInfo.InvariantCulture))}</b>.";
+        else
+            response = $"✅ {Html(result.Message)} Матч <code>{matchId}</code> закрыт.";
+
+        await SendHtmlAsync(ctx, msg, response);
     }
 
     private async Task HandleListAsync(UpdateContext ctx, Message msg)
@@ -208,7 +220,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
             : $"🧾 Турнир <code>{tournamentId}</code> отменён. Refund выдан участникам: <b>{players.Count}</b>.");
     }
 
-    private static string FormatTournament(TournamentInfo t) => string.Join("\n", [
+    private static string FormatTournament(TournamentInfo t) => string.Join("\n",
         $"🏆 <b>Турнир #{t.Id}</b>",
         $"Игра: <b>{Html(t.GameKey)}</b>",
         $"Тип: <code>{Html(t.Type)}</code>",
@@ -216,10 +228,9 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         $"Entry fee: <b>{t.EntryFee}</b>",
         $"Игроки: <code>{t.PlayerCount}/{t.MaxPlayers}</code>",
         $"Prize pool: <b>{t.PrizePool}</b>",
-        $"Создан: <code>{t.CreatedAt:yyyy-MM-dd HH:mm 'UTC'}</code>",
-    ]);
+        $"Создан: <code>{t.CreatedAt:yyyy-MM-dd HH:mm 'UTC'}</code>");
 
-    private static Task ReplyHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n", [
+    private static Task<Message> ReplyHelpAsync(UpdateContext ctx, Message msg) => SendHtmlAsync(ctx, msg, string.Join("\n",
         "🏆 <b>Турниры</b>",
         "<code>/tournament create &lt;game&gt; &lt;entryFee&gt; &lt;maxPlayers&gt;</code>",
         "<code>/tournament join &lt;id&gt;</code>",
@@ -230,8 +241,7 @@ public sealed class TournamentHandler(ITournamentService tournaments) : IUpdateH
         "<code>/tournament bracket &lt;id&gt;</code>",
         "<code>/tournament report &lt;matchId&gt; &lt;victorUserId&gt;</code>",
         "<code>/tournament finish &lt;id&gt; &lt;winnerUserId&gt;</code>",
-        "<code>/tournament cancel &lt;id&gt;</code>",
-    ]));
+        "<code>/tournament cancel &lt;id&gt;</code>"));
 
     private static Task<Message> SendHtmlAsync(UpdateContext ctx, Message msg, string text) =>
         ctx.Bot.SendMessage(msg.Chat.Id, text, parseMode: ParseMode.Html,

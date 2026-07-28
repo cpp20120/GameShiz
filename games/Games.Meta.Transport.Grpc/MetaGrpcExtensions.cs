@@ -17,11 +17,11 @@ public static class MetaGrpcExtensions
     public static IServiceCollection AddMetaGrpcClients(this IServiceCollection services, Uri address)
     {
         services.AddResilientGrpcClient<MetaApi.MetaApiClient>(address);
-        services.AddScoped(provider => MetaGrpcProxy<IMetaService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
-        services.AddScoped(provider => MetaGrpcProxy<IQuestService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
-        services.AddScoped(provider => MetaGrpcProxy<IClanService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
-        services.AddScoped(provider => MetaGrpcProxy<ITournamentService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
-        services.AddScoped(provider => MetaGrpcProxy<IRiskService>.Create(provider.GetRequiredService<MetaApi.MetaApiClient>()));
+        services.AddScoped(provider => MetaGrpcProxyFactory.Create<IMetaService>(provider.GetRequiredService<MetaApi.MetaApiClient>()));
+        services.AddScoped(provider => MetaGrpcProxyFactory.Create<IQuestService>(provider.GetRequiredService<MetaApi.MetaApiClient>()));
+        services.AddScoped(provider => MetaGrpcProxyFactory.Create<IClanService>(provider.GetRequiredService<MetaApi.MetaApiClient>()));
+        services.AddScoped(provider => MetaGrpcProxyFactory.Create<ITournamentService>(provider.GetRequiredService<MetaApi.MetaApiClient>()));
+        services.AddScoped(provider => MetaGrpcProxyFactory.Create<IRiskService>(provider.GetRequiredService<MetaApi.MetaApiClient>()));
         return services;
     }
 

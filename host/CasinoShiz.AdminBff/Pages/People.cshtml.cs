@@ -38,7 +38,8 @@ public sealed class PeopleModel(IWalletReadService wallets, IChatsStore chats) :
                         group.Sum(x => (long)x.Coins), latest.UpdatedAt, scopes);
                 })
                 .Where(row => query.Length == 0
-                    || row.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture) == query
+                    || string.Equals(row.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), query,
+                        StringComparison.Ordinal)
                     || row.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || row.Scopes.Any(scope => scope.Label.Contains(query, StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(x => x.LastActive)
@@ -58,7 +59,3 @@ public sealed class PeopleModel(IWalletReadService wallets, IChatsStore chats) :
         return string.IsNullOrWhiteSpace(name) ? $"{chat.ChatType} {chat.ChatId}" : $"{name} · {chat.ChatType}";
     }
 }
-
-public sealed record AdminPersonRow(long UserId, string DisplayName, int WalletCount, long TotalCoins,
-    DateTimeOffset LastActive, IReadOnlyList<AdminPersonScope> Scopes);
-public sealed record AdminPersonScope(long ScopeId, string Label, int Coins, DateTimeOffset LastActive);

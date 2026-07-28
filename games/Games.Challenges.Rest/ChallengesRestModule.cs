@@ -10,8 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Games.Challenges.Rest;
 
-public sealed record ChallengeCreateRequest(long TargetUserId, string TargetDisplayName, int Amount, ChallengeGame Game);
-
 public sealed class ChallengesRestModule : IRestRouteModule
 {
     public string ModuleId => "challenges";
@@ -32,12 +30,12 @@ public sealed class ChallengesRestModule : IRestRouteModule
         RestCommandSupport.RequirePositive(request.Amount, nameof(request.Amount));
         return Results.Ok(await service.CreateAsync(context.UserId, context.DisplayName,
             new ChallengeUser(request.TargetUserId, request.TargetDisplayName), RestCommandSupport.ScopeId(context), request.Amount, request.Game, ct)
-            .ConfigureAwait(false));
+            );
     }
 
     private static async Task<IResult> AcceptAsync(Guid challengeId, IChallengeService service, RestRequestContext context, CancellationToken ct)
     {
-        var accepted = await service.BeginAcceptAsync(challengeId, context.UserId, ct).ConfigureAwait(false);
+        var accepted = await service.BeginAcceptAsync(challengeId, context.UserId, ct);
         if (accepted.Error != ChallengeAcceptError.None || accepted.Challenge is null)
             return Results.Ok(accepted);
         try
@@ -53,20 +51,15 @@ public sealed class ChallengesRestModule : IRestRouteModule
             };
             var challengerRoll = RandomNumberGenerator.GetInt32(1, maxFace + 1);
             var targetRoll = RandomNumberGenerator.GetInt32(1, maxFace + 1);
-            return Results.Ok(await service.CompleteAcceptedAsync(accepted.Challenge, challengerRoll, targetRoll, ct).ConfigureAwait(false));
+            return Results.Ok(await service.CompleteAcceptedAsync(accepted.Challenge, challengerRoll, targetRoll, ct));
         }
         catch
         {
-            await service.FailAcceptedAsync(accepted.Challenge, CancellationToken.None).ConfigureAwait(false);
+            await service.FailAcceptedAsync(accepted.Challenge, CancellationToken.None);
             throw;
         }
     }
 
     private static async Task<IResult> DeclineAsync(Guid challengeId, IChallengeService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.DeclineAsync(challengeId, context.UserId, ct).ConfigureAwait(false));
-}
-
-public static class ChallengesRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddChallengesRest(this IServiceCollection services) => services.AddRestRouteModule<ChallengesRestModule>();
+        Results.Ok(await service.DeclineAsync(challengeId, context.UserId, ct));
 }

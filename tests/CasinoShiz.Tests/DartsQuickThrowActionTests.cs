@@ -58,6 +58,25 @@ public sealed class DartsQuickThrowActionTests
     }
 
     [Fact]
+    public void Decide_BlockingGameRejectsBeforeQuotaLookup()
+    {
+        var decision = Decide(blockingGameId: "basketball");
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(DartsThrowOutcome.BetBusyOtherGame, decision.Result.Outcome);
+        Assert.Equal("basketball", decision.Result.BlockingGameId);
+        Assert.Equal("busy_other_game", decision.RejectionReason);
+        Assert.Empty(decision.Economy);
+        Assert.Empty(decision.Quotas);
+    }
+
+    [Fact]
+    public void Decide_RequiresDailyQuotaSnapshot()
+    {
+        Assert.Throws<InvalidOperationException>(() => Decide(includeQuota: false));
+    }
+
+    [Fact]
     public void Decide_RedeemDropUsesFrameworkEntropy()
     {
         var decision = Decide(redeemChance: 0.1, entropy: 0.01);
@@ -73,16 +92,20 @@ public sealed class DartsQuickThrowActionTests
         long quotaUsed = 0,
         long quotaLimit = 10,
         double redeemChance = 0,
-        double entropy = 0.5) =>
+        double entropy = 0.5,
+        string? blockingGameId = null,
+        bool includeQuota = true) =>
         new DartsQuickThrowAction().Decide(
             new GameActionInput<NoGameState, DartsQuickThrowCommand>(
-                new DartsQuickThrowCommand(1, "player", 100, 10, face, amount, maxBet, redeemChance, null),
+                new DartsQuickThrowCommand(1, "player", 100, 10, face, amount, maxBet, redeemChance, blockingGameId),
                 default,
                 new WalletSnapshot(balance),
-                new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
-                {
-                    [DartsQuickThrowAction.DailyRollQuota] = new(quotaUsed, quotaLimit),
-                },
+                includeQuota
+                    ? new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal)
+                    {
+                        [DartsQuickThrowAction.DailyRollQuota] = new(quotaUsed, quotaLimit),
+                    }
+                    : new Dictionary<string, QuotaSnapshot>(StringComparer.Ordinal),
                 new EntropyValue([KeyValuePair.Create(DartsQuickThrowAction.RedeemDropEntropy, entropy)]),
                 Now));
 }

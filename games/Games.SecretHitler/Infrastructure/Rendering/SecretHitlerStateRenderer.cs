@@ -6,7 +6,7 @@ namespace Games.SecretHitler.Infrastructure.Rendering;
 
 public static class SecretHitlerStateRenderer
 {
-    public static string RenderBoard(SecretHitlerGame game, List<SecretHitlerPlayer> players, ILocalizer localizer)
+    public static string RenderBoard(SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players, ILocalizer localizer)
     {
         var libTrack = RenderTrack(game.LiberalPolicies, ShTransitions.LiberalWinThreshold, "🟦", "▫️");
         var facTrack = RenderTrack(game.FascistPolicies, ShTransitions.FascistWinThreshold, "🟥", "▫️");
@@ -23,13 +23,13 @@ public static class SecretHitlerStateRenderer
             string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.header"), game.InviteCode, game.Pot),
             string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.liberals"), libTrack, game.LiberalPolicies, ShTransitions.LiberalWinThreshold),
             string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(localizer, "board.fascists"), facTrack, game.FascistPolicies, ShTransitions.FascistWinThreshold),
-            string.Format(Loc(localizer, "board.election_tracker"), electionTrack),
+            string.Format(CultureInfo.InvariantCulture, Loc(localizer, "board.election_tracker"), electionTrack),
             "",
-            string.Format(Loc(localizer, "board.phase"), phaseLabel),
-            string.Format(Loc(localizer, "board.president"), presidentName),
+            string.Format(CultureInfo.InvariantCulture, Loc(localizer, "board.phase"), phaseLabel),
+            string.Format(CultureInfo.InvariantCulture, Loc(localizer, "board.president"), presidentName),
         };
         if (game.Phase is ShPhase.Election or ShPhase.LegislativePresident or ShPhase.LegislativeChancellor)
-            lines.Add(string.Format(Loc(localizer, "board.chancellor"), chancellorName));
+            lines.Add(string.Format(CultureInfo.InvariantCulture, Loc(localizer, "board.chancellor"), chancellorName));
 
         if (game.Phase == ShPhase.Election)
         {
@@ -49,21 +49,19 @@ public static class SecretHitlerStateRenderer
             lines.Add("");
             lines.Add(Loc(localizer, "board.players"));
             lines.AddRange(from p in players.OrderBy(p => p.Position)
-                let marker = p.Position == game.CurrentPresidentPosition ? "👑"
-                    : p.Position == game.NominatedChancellorPosition ? "🎩"
-                    : p.IsAlive ? "•" : "💀"
+                let marker = MarkerFor(game, p)
                 select string.Create(CultureInfo.InvariantCulture, $"  {marker} <b>{p.DisplayName}</b> <span class=\"muted\">(#{p.Position})</span>"));
         }
 
         return string.Join('\n', lines);
     }
 
-    public static string RenderRoleCard(SecretHitlerPlayer me, List<SecretHitlerPlayer> players, int playerCount, ILocalizer localizer)
+    public static string RenderRoleCard(SecretHitlerPlayer me, IReadOnlyList<SecretHitlerPlayer> players, int playerCount, ILocalizer localizer)
     {
         var roleName = RoleLabel(me.Role, localizer);
         var lines = new List<string>
         {
-            string.Format(Loc(localizer, "role.your_role"), roleName),
+            string.Format(CultureInfo.InvariantCulture, Loc(localizer, "role.your_role"), roleName),
         };
 
         switch (me.Role)
@@ -87,7 +85,7 @@ public static class SecretHitlerStateRenderer
         return string.Join('\n', lines);
     }
 
-    public static InlineKeyboardMarkup? BuildBoardMarkup(SecretHitlerGame game, SecretHitlerPlayer viewer, List<SecretHitlerPlayer> players, ILocalizer localizer)
+    public static InlineKeyboardMarkup? BuildBoardMarkup(SecretHitlerGame game, SecretHitlerPlayer viewer, IReadOnlyList<SecretHitlerPlayer> players, ILocalizer localizer)
     {
         if (game.Phase == ShPhase.Nomination && viewer.Position == game.CurrentPresidentPosition)
         {
@@ -132,7 +130,7 @@ public static class SecretHitlerStateRenderer
     }
 
     public static InlineKeyboardMarkup? BuildPublicMarkup(
-        SecretHitlerGame game, List<SecretHitlerPlayer> players, ILocalizer localizer)
+        SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players, ILocalizer localizer)
     {
         if (game.Status == ShStatus.Lobby)
         {
@@ -158,7 +156,7 @@ public static class SecretHitlerStateRenderer
     }
 
     private static List<SecretHitlerPlayer> EligibleChancellors(
-        SecretHitlerGame game, SecretHitlerPlayer president, List<SecretHitlerPlayer> players)
+        SecretHitlerGame game, SecretHitlerPlayer president, IReadOnlyList<SecretHitlerPlayer> players)
     {
         var alive = players.Where(p => p.IsAlive && p.Position != president.Position).ToList();
         var aliveCount = players.Count(p => p.IsAlive);
@@ -190,7 +188,7 @@ public static class SecretHitlerStateRenderer
         _ => "?",
     };
 
-    public static string RenderEndSummary(SecretHitlerGame game, List<SecretHitlerPlayer> players, ILocalizer localizer)
+    public static string RenderEndSummary(SecretHitlerGame game, IReadOnlyList<SecretHitlerPlayer> players, ILocalizer localizer)
     {
         var winnerTeam = game.Winner switch
         {
@@ -214,7 +212,7 @@ public static class SecretHitlerStateRenderer
         return $"{winnerTeam}\n<i>{reason}</i>\n\n{Loc(localizer, "end.roles_header")}\n{reveal}";
     }
 
-    public static string RenderVoteReveal(List<SecretHitlerPlayer> players, ILocalizer localizer)
+    public static string RenderVoteReveal(IReadOnlyList<SecretHitlerPlayer> players, ILocalizer localizer)
     {
         var lines = new List<string> { Loc(localizer, "vote.reveal_header") };
         foreach (var p in players.Where(p => p.IsAlive).OrderBy(p => p.Position))
@@ -237,7 +235,14 @@ public static class SecretHitlerStateRenderer
         return sb.ToString();
     }
 
-    private static string? NameByPosition(List<SecretHitlerPlayer> players, int position) =>
+    private static string MarkerFor(SecretHitlerGame game, SecretHitlerPlayer player)
+    {
+        if (player.Position == game.CurrentPresidentPosition) return "👑";
+        if (player.Position == game.NominatedChancellorPosition) return "🎩";
+        return player.IsAlive ? "•" : "💀";
+    }
+
+    private static string? NameByPosition(IReadOnlyList<SecretHitlerPlayer> players, int position) =>
         players.FirstOrDefault(p => p.Position == position)?.DisplayName;
 
     private static string Loc(ILocalizer localizer, string key) => localizer.Get("sh", key);

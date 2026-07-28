@@ -29,10 +29,10 @@ public sealed partial class RuntimeTuningAccessor(
     public async Task ReloadFromDatabaseAsync(CancellationToken ct)
     {
         JsonObject? nextPatch = null;
-        await using var conn = await connections.OpenAsync(ct).ConfigureAwait(false);
+        await using var conn = await connections.OpenAsync(ct);
         var row = await conn.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
             "SELECT payload::text FROM runtime_tuning WHERE id = 1",
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         if (!string.IsNullOrWhiteSpace(row))
         {
@@ -91,7 +91,7 @@ public sealed partial class RuntimeTuningAccessor(
     }
 
     public async Task StartAsync(CancellationToken cancellationToken) =>
-        await ReloadFromDatabaseAsync(cancellationToken).ConfigureAwait(false);
+        await ReloadFromDatabaseAsync(cancellationToken);
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

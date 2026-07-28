@@ -9,8 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Horse.Rest;
 
-public sealed record HorseBetRequest(int HorseId, int Amount);
-
 public sealed class HorseRestModule : IRestRouteModule
 {
     public string ModuleId => "horse";
@@ -24,10 +22,10 @@ public sealed class HorseRestModule : IRestRouteModule
     }
 
     private static async Task<IResult> InfoAsync(IHorseService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.GetTodayInfoAsync(RestCommandSupport.ScopeId(context), ct).ConfigureAwait(false));
+        Results.Ok(await service.GetTodayInfoAsync(RestCommandSupport.ScopeId(context), ct));
 
     private static async Task<IResult> ResultAsync(IHorseService service, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await service.GetTodayResultAsync(RestCommandSupport.ScopeId(context), ct).ConfigureAwait(false));
+        Results.Ok(await service.GetTodayResultAsync(RestCommandSupport.ScopeId(context), ct));
 
     private static async Task<IResult> BetAsync(HorseBetRequest request, IHorseService service, RestRequestContext context,
         IOptions<RestFrameworkOptions> options, CancellationToken ct)
@@ -35,12 +33,7 @@ public sealed class HorseRestModule : IRestRouteModule
         RestCommandSupport.RequirePositive(request.HorseId, nameof(request.HorseId));
         RestCommandSupport.RequirePositive(request.Amount, nameof(request.Amount));
         var result = await service.PlaceBetAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context), request.HorseId,
-            request.Amount, RestCommandSupport.SourceId(context, options, "horse", "bet"), ct).ConfigureAwait(false);
+            request.Amount, RestCommandSupport.SourceId(context, options, "horse", "bet"), ct);
         return Results.Ok(result);
     }
-}
-
-public static class HorseRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddHorseRest(this IServiceCollection services) => services.AddRestRouteModule<HorseRestModule>();
 }

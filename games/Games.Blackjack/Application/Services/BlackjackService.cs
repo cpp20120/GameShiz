@@ -49,10 +49,10 @@ public sealed class BlackjackService(
         long userId,
         CancellationToken ct)
     {
-        var state = await states.LoadAsync(userId, ct).ConfigureAwait(false);
+        var state = await states.LoadAsync(userId, ct);
         if (state?.Status != TurnGameStatus.Active || state.Hand is not { } hand)
             return (null, null);
-        var wallet = await wallets.GetAsync(userId, hand.ChatId, ct).ConfigureAwait(false);
+        var wallet = await wallets.GetAsync(userId, hand.ChatId, ct);
         return (
             BlackjackDecisionRules.BuildSnapshot(hand, wallet?.Coins ?? 0, revealed: false),
             hand.StateMessageId);
@@ -60,7 +60,7 @@ public sealed class BlackjackService(
 
     public async Task SetStateMessageIdAsync(long userId, int messageId, CancellationToken ct)
     {
-        var state = await states.LoadAsync(userId, ct).ConfigureAwait(false);
+        var state = await states.LoadAsync(userId, ct);
         if (state?.Status != TurnGameStatus.Active || state.Hand is not { } hand)
             return;
         var commandId = string.Create(
@@ -75,7 +75,7 @@ public sealed class BlackjackService(
                     hand.HandId,
                     messageId,
                     commandId)),
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private async Task<BlackjackResult> ExecuteTurnAsync(
@@ -83,7 +83,7 @@ public sealed class BlackjackService(
         BlackjackTurnKind kind,
         CancellationToken ct)
     {
-        var state = await states.LoadAsync(userId, ct).ConfigureAwait(false);
+        var state = await states.LoadAsync(userId, ct);
         if (state?.Status != TurnGameStatus.Active || state.Hand is not { } hand)
             return new BlackjackResult(BlackjackError.NoActiveHand, null);
         var commandId = string.Create(
@@ -98,6 +98,6 @@ public sealed class BlackjackService(
                     kind,
                     state.Revision,
                     commandId)),
-            ct).ConfigureAwait(false);
+            ct);
     }
 }

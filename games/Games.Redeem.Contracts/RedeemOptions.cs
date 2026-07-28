@@ -9,5 +9,5 @@ public sealed class RedeemOptions
     public int CaptchaItems { get; init; } = 6;
     public int CaptchaTimeoutMs { get; init; } = 15_000;
     public int MaxCodegenCount { get; init; } = 20;
-    public List<long> Admins { get; init; } = [];
+    public IReadOnlyList<long> Admins { get; init; } = [];
 }

@@ -16,6 +16,7 @@ public sealed class AdminHandler(
     IOptions<AdminOptions> options) : IUpdateHandler
 {
     private readonly AdminOptions _opts = options.Value;
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public async Task HandleAsync(UpdateContext ctx)
     {
@@ -56,6 +57,13 @@ public sealed class AdminHandler(
             return;
         }
 
+        await HandleAuthorizedAsync(ctx, msg, userId, action, parts[1..]);
+    }
+
+    private async Task HandleAuthorizedAsync(
+        UpdateContext ctx, Message msg, long userId, string action, string[] args)
+    {
+        var reply = new ReplyParameters { MessageId = msg.MessageId };
         switch (action)
         {
             case "usersync":
@@ -73,17 +81,17 @@ public sealed class AdminHandler(
                 }
                 var targetId = msg.ReplyToMessage.From?.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown";
                 await ctx.Bot.SendMessage(msg.Chat.Id,
-                    string.Format(Loc("userinfo.result"), targetId),
+                    string.Format(CultureInfo.InvariantCulture, Loc("userinfo.result"), targetId),
                     parseMode: ParseMode.Html, replyParameters: reply, cancellationToken: ctx.Ct);
                 service.ReportUserInfo(userId, targetId);
                 break;
 
             case "pay":
-                await HandlePayAsync(ctx, msg, userId, parts[1..]);
+                await HandlePayAsync(ctx, msg, userId, args);
                 break;
 
             case "getUser":
-                await HandleGetUserAsync(ctx, msg, parts[1..]);
+                await HandleGetUserAsync(ctx, msg, args);
                 break;
 
             case "clearbets":
@@ -133,7 +141,7 @@ public sealed class AdminHandler(
 
         var r = await service.GetUserAsync(forUserId, msg.Chat.Id, ctx.Ct);
         var json = r != null
-            ? JsonSerializer.Serialize(r, new JsonSerializerOptions { WriteIndented = true })
+            ? JsonSerializer.Serialize(r, JsonOptions)
             : "null";
         await ctx.Bot.SendMessage(msg.Chat.Id, json, replyParameters: reply, cancellationToken: ctx.Ct);
     }
@@ -175,9 +183,9 @@ public sealed class AdminHandler(
         var r = await service.RenameAsync(userId, parts[1], parts[2], ctx.Ct);
         var text = r.Op switch
         {
-            RenameOp.Cleared => string.Format(Loc("rename.cleared"), r.OldName),
-            RenameOp.NoChange => string.Format(Loc("rename.nochange"), r.OldName),
-            _ => string.Format(Loc("rename.set"), r.OldName, r.NewName),
+            RenameOp.Cleared => string.Format(CultureInfo.InvariantCulture, Loc("rename.cleared"), r.OldName),
+            RenameOp.NoChange => string.Format(CultureInfo.InvariantCulture, Loc("rename.nochange"), r.OldName),
+            _ => string.Format(CultureInfo.InvariantCulture, Loc("rename.set"), r.OldName, r.NewName),
         };
         await ctx.Bot.SendMessage(msg.Chat.Id, text, cancellationToken: ctx.Ct);
     }
@@ -190,7 +198,7 @@ public sealed class AdminHandler(
 
     private static readonly System.Diagnostics.Process Process = System.Diagnostics.Process.GetCurrentProcess();
 
-    private async Task HandleDebugAsync(UpdateContext ctx, Message msg)
+    private static async Task HandleDebugAsync(UpdateContext ctx, Message msg)
     {
         var chatId = msg.Chat.Id;
         var chatType = msg.Chat.Type.ToString();

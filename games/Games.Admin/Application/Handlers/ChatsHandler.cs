@@ -72,7 +72,7 @@ public sealed class ChatsHandler(
         await SendChunkedAsync(ctx, msg.Chat.Id, rendered, reply);
     }
 
-    private (string? typeFilter, bool full) ParseArgs(string text)
+    private static (string? typeFilter, bool full) ParseArgs(string text)
     {
         var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         string? typeFilter = null;
@@ -138,10 +138,13 @@ public sealed class ChatsHandler(
 
     private string FormatRow(KnownChatRow row, DateTime nowUtc)
     {
-        var title = !string.IsNullOrWhiteSpace(row.Title)
-            ? row.Title!
-            : row.ChatType.Equals("private", StringComparison.OrdinalIgnoreCase)
-                ? string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.private_label"), row.ChatId) : string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.unknown_label"), row.ChatId);
+        string title;
+        if (!string.IsNullOrWhiteSpace(row.Title))
+            title = row.Title;
+        else if (row.ChatType.Equals("private", StringComparison.OrdinalIgnoreCase))
+            title = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.private_label"), row.ChatId);
+        else
+            title = string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("chats.unknown_label"), row.ChatId);
 
         var titleHtml = HtmlEnc(title);
         var usernameHtml = string.IsNullOrWhiteSpace(row.Username)
@@ -208,7 +211,7 @@ public sealed class ChatsHandler(
         }
     }
 
-    private string HtmlEnc(string? s) => WebUtility.HtmlEncode(s ?? "");
+    private static string HtmlEnc(string? s) => WebUtility.HtmlEncode(s ?? "");
 
     private string Loc(string key) => localizer.Get("admin", key);
 }

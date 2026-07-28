@@ -58,7 +58,7 @@ public sealed class BasketballBetStateStore :
             FOR UPDATE
             """,
             new { userId, chatId },
-            ct).ConfigureAwait(false);
+            ct);
         return new BasketballBetState(row is null
             ? null
             : new BasketballPendingBet(
@@ -83,7 +83,7 @@ public sealed class BasketballBetStateStore :
                 VALUES (@UserId, @ChatId, @Amount, @CreatedAt)
                 """,
                 pending,
-                ct).ConfigureAwait(false);
+                ct);
             if (affected != 1)
                 throw new InvalidOperationException("Basketball pending bet was not inserted.");
 
@@ -102,21 +102,21 @@ public sealed class BasketballBetStateStore :
                     gameId = MiniGameIds.Basketball,
                     expiresAt = pending.CreatedAt.AddMilliseconds(BotMiniGameSession.TtlMs),
                 },
-                ct).ConfigureAwait(false);
+                ct);
             return;
         }
 
         await context.ExecuteAsync(
             "DELETE FROM basketball_bets WHERE user_id = @userId AND chat_id = @chatId",
             new { userId, chatId },
-            ct).ConfigureAwait(false);
+            ct);
         await context.ExecuteAsync(
             """
             DELETE FROM mini_game_sessions
             WHERE user_id = @userId AND chat_id = @chatId AND game_id = @gameId
             """,
             new { userId, chatId, gameId = MiniGameIds.Basketball },
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private sealed record PendingBetRow(long UserId, long ChatId, int Amount, DateTime CreatedAt);

@@ -1155,9 +1155,9 @@ internal sealed class FrameworkMigrations : IModuleMigrations
     public IReadOnlyList<Migration> WalletMigrations =>
         Migrations
             .Where(migration => (WalletOwnedIds.Contains(migration.Id)
-                || migration.Id == "010_runtime_tuning")
-                && migration.Id != "009_users_telegram_dice_daily"
-                && migration.Id != "017_responsible_gaming_and_ops_reports")
+                || string.Equals(migration.Id, "010_runtime_tuning", StringComparison.Ordinal))
+                && !string.Equals(migration.Id, "009_users_telegram_dice_daily", StringComparison.Ordinal)
+                && !string.Equals(migration.Id, "017_responsible_gaming_and_ops_reports", StringComparison.Ordinal))
             .Append(new Migration("027_wallet_player_protection", """
                 CREATE TABLE IF NOT EXISTS player_protection (
                     telegram_user_id    BIGINT       PRIMARY KEY,
@@ -1170,7 +1170,7 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 CREATE INDEX IF NOT EXISTS ix_player_protection_active
                     ON player_protection (cooldown_until, self_excluded_until);
                 """))
-            .Append(Migrations.Single(migration => migration.Id == "028_tenant_registry"))
-            .Append(Migrations.Single(migration => migration.Id == "029_tenant_owned_coordination"))
+            .Append(Migrations.Single(migration => string.Equals(migration.Id, "028_tenant_registry", StringComparison.Ordinal)))
+            .Append(Migrations.Single(migration => string.Equals(migration.Id, "029_tenant_owned_coordination", StringComparison.Ordinal)))
             .ToArray();
 }

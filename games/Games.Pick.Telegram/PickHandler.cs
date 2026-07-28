@@ -172,8 +172,7 @@ public sealed partial class PickHandler(
         await PresentResultAsync(
             ctx, chatId, reply, preflight,
             isChainHop: false,
-            editMessageId: editMessageId,
-            displayName: displayName);
+            editMessageId: editMessageId);
     }
 
     private async Task RunChainHopAsync(UpdateContext ctx, PickChainState state, int? offerMessageId)
@@ -190,8 +189,7 @@ public sealed partial class PickHandler(
         await PresentResultAsync(
             ctx, state.ChatId, reply, result,
             isChainHop: true,
-            editMessageId: offerMessageId,
-            displayName: state.DisplayName);
+            editMessageId: offerMessageId);
     }
 
     private async Task PresentResultAsync(
@@ -200,8 +198,7 @@ public sealed partial class PickHandler(
         ReplyParameters? reply,
         PickResult result,
         bool isChainHop,
-        int? editMessageId,
-        string displayName)
+        int? editMessageId)
     {
         // Step 1: suspense reveal (optional, best-effort — failure falls through
         // to a plain final-result post).
@@ -219,7 +216,7 @@ public sealed partial class PickHandler(
         }
 
         // Step 2: final result post (with chain button when applicable).
-        var finalText = BuildFinalText(result, displayName, isChainHop);
+        var finalText = BuildFinalText(result, isChainHop);
         var markup = BuildChainMarkupOrNull(result);
 
         if (editMessageId is { } mid)
@@ -340,7 +337,13 @@ public sealed partial class PickHandler(
         for (var i = 0; i < result.Variants.Count; i++)
         {
             var variant = WebUtility.HtmlEncode(result.Variants[i]);
-            var marker = alive[i] ? (i == eliminatedThisFrame ? "💥" : "❓") : "❌";
+            string marker;
+            if (!alive[i])
+                marker = "❌";
+            else if (i == eliminatedThisFrame)
+                marker = "💥";
+            else
+                marker = "❓";
             var backedTag = result.BackedIndices.Contains(i) ? " <i>(твой)</i>" : "";
             string row;
             if (alive[i])
@@ -364,7 +367,7 @@ public sealed partial class PickHandler(
 
     // ── final result text ─────────────────────────────────────────────────────
 
-    private string BuildFinalText(PickResult result, string displayName, bool isChainHop)
+    private string BuildFinalText(PickResult result, bool isChainHop)
     {
         var picked = WebUtility.HtmlEncode(result.Variants[result.PickedIndex]);
         var n = result.Variants.Count;
@@ -377,7 +380,7 @@ public sealed partial class PickHandler(
         {
             var lines = new List<string>(8);
             var headerKey = isChainHop ? "ok.win.chain_header" : "ok.win.header";
-            lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(headerKey), picked, result.ChainDepth + (isChainHop ? 0 : 0)));
+            lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc(headerKey), picked, result.ChainDepth));
             lines.Add(string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("ok.win.payout"), result.Bet, n, k, result.Payout, result.Net));
 
             if (result.StreakBonus > 0)
@@ -586,7 +589,7 @@ public sealed partial class PickHandler(
         return true;
     }
 
-    private bool TryResolveChoice(string token, List<string> variants, out int index)
+    private static bool TryResolveChoice(string token, List<string> variants, out int index)
     {
         index = -1;
         if (string.IsNullOrWhiteSpace(token)) return false;

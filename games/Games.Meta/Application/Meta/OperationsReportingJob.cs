@@ -94,7 +94,7 @@ public sealed partial class OperationsReportingJob(
 
         await EnqueueForAdminsAsync(text, $"weekly-summary:{periodKey}", ct);
         await MarkSentAsync("weekly_admin_summary", periodKey, ct);
-        analytics.Track("meta_analytics", "weekly_admin_summary", new Dictionary<string, object?>
+        analytics.Track("meta_analytics", "weekly_admin_summary", new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["period"] = periodKey,
             ["active_users"] = row.ActiveUsers,
@@ -133,7 +133,7 @@ public sealed partial class OperationsReportingJob(
         var text = "🚨 <b>Economy anomaly</b>\n\n" + string.Join("\n", issues.Select(x => "• " + x));
         await EnqueueForAdminsAsync(text, $"economy-alert:{hourKey}:{signature}", ct);
         await MarkSentAsync(checkpoint, hourKey, ct);
-        analytics.Track("meta_analytics", "economy_anomaly_alert", new Dictionary<string, object?>
+        analytics.Track("meta_analytics", "economy_anomaly_alert", new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["negative_wallets"] = health.NegativeWallets,
             ["mismatched_wallets"] = health.MismatchedWallets,

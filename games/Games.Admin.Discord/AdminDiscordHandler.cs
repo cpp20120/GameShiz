@@ -1,3 +1,4 @@
+using System.Globalization;
 using BotFramework.Discord;
 using BotFramework.Discord.Commands;
 using BotFramework.Discord.Routing;
@@ -34,22 +35,23 @@ public sealed class AdminDiscordHandler(IAdminService service, IOptions<DiscordO
             case "sync":
                 await DiscordCommand.ReplyAsync(context, $"Синхронизировано пользователей: {await service.UserSyncAsync(callerId, context.CancellationToken)}");
                 return;
-            case "user" when parts.Length >= 3 && long.TryParse(parts[2], out var userId):
+            case "user" when parts.Length >= 3 && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var userId):
             {
-                var scopeId = parts.Length >= 4 && long.TryParse(parts[3], out var parsedScope)
+                var scopeId = parts.Length >= 4 && long.TryParse(parts[3], CultureInfo.InvariantCulture, out var parsedScope)
                     ? parsedScope : DiscordCommand.ScopeId(context);
                 await DiscordCommand.ReplyResultAsync(context,
                     await service.GetUserAsync(userId, scopeId, context.CancellationToken), "Admin user");
                 return;
             }
-            case "pay" when parts.Length >= 5 && long.TryParse(parts[2], out var targetId)
-                && long.TryParse(parts[3], out var balanceScopeId) && int.TryParse(parts[4], out var amount):
+            case "pay" when parts.Length >= 5 && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var targetId)
+                && long.TryParse(parts[3], CultureInfo.InvariantCulture, out var balanceScopeId)
+                && int.TryParse(parts[4], CultureInfo.InvariantCulture, out var amount):
                 await DiscordCommand.ReplyResultAsync(context,
                     await service.PayAsync(callerId, targetId, balanceScopeId, amount, context.CancellationToken), "Admin pay");
                 return;
             case "clearbets":
             {
-                var chatId = parts.Length >= 3 && long.TryParse(parts[2], out var parsedChat)
+                var chatId = parts.Length >= 3 && long.TryParse(parts[2], CultureInfo.InvariantCulture, out var parsedChat)
                     ? parsedChat : DiscordCommand.ScopeId(context);
                 await DiscordCommand.ReplyResultAsync(context,
                     await service.ClearChatBetsAsync(callerId, chatId, context.CancellationToken), "Admin clear bets");
@@ -74,10 +76,4 @@ public sealed class AdminDiscordHandler(IAdminService service, IOptions<DiscordO
 
     private static Task Usage(DiscordMessageContext context) => DiscordCommand.ReplyAsync(context,
         "`admin sync` | `admin user <id> [scope]` | `admin pay <id> <scope> <amount>` | `admin clearbets [scope]` | `admin rename <old> <new>`");
-}
-
-public static class AdminDiscordModule
-{
-    public static IServiceCollection AddAdminDiscord(this IServiceCollection services) =>
-        services.AddScoped<IDiscordMessageHandler, AdminDiscordHandler>();
 }

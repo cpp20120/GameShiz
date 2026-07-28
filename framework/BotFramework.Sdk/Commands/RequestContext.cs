@@ -29,30 +29,3 @@ public sealed record RequestContext(
     /// <summary>Canonical tenant boundary for SDK 0.9 modules.</summary>
     public TenantContext? TenantContext { get; init; }
 }
-
-public static class RequestContextFactory
-{
-    public static RequestContext FromTenantContext(
-        TenantContext tenantContext,
-        string cultureCode,
-        string traceId,
-        IReadOnlyDictionary<string, string>? tags = null) =>
-        new(
-            tenantContext.PlayerId?.Value is { } player
-                && long.TryParse(player, out var legacyPlayer)
-                ? legacyPlayer
-                : 0,
-            cultureCode,
-            traceId,
-            tags ?? new Dictionary<string, string>(StringComparer.Ordinal))
-        {
-            TenantContext = tenantContext,
-        };
-}
-
-public static class RequestContextTenantExtensions
-{
-    public static TenantContext RequireTenantContext(this RequestContext context) =>
-        context.TenantContext ?? throw new InvalidOperationException(
-            "Tenant context is unavailable for this command request.");
-}

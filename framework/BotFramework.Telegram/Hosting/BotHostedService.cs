@@ -20,7 +20,7 @@ using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using TgBotCommand = Telegram.Bot.Types.BotCommand;
 
-namespace BotFramework.Host.Runtime.Hosting;
+namespace BotFramework.Telegram.Hosting;
 
 public sealed partial class BotHostedService(
     IServiceProvider serviceProvider,

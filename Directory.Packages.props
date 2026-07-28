@@ -3,12 +3,12 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="Dapper" Version="2.1.79" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FsCheck.Xunit" Version="3.2.0" />
     <PackageVersion Include="DotNetCore.CAP" Version="10.0.1" />
     <PackageVersion Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
     <PackageVersion Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
@@ -48,7 +48,7 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="4.15.0" />
     <PackageVersion Include="SkiaSharp" Version="4.148.0" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.148.0" />
-    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.27.0.140913" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.30.0.144632" />
     <PackageVersion Include="StackExchange.Redis" Version="3.0.7" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />

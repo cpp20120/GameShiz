@@ -85,6 +85,215 @@ public sealed class PokerServiceTests
         Assert.True(decision.Result.TableClosed);
     }
 
+    [Fact]
+    public void CreateDecision_RejectsExistingTableWithoutMutation()
+    {
+        var state = State();
+        var command = new PokerCreateCommand(1, "alice", 10, "create", 100, 1, 2, []);
+
+        var decision = new PokerCreateAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.TableAlreadyExists, decision.Result.Error);
+        Assert.Same(state, decision.NewState);
+        Assert.Null(decision.CustomEffects);
+    }
+
+    [Fact]
+    public void CreateDecision_RejectsWhenBalanceIsInsufficient()
+    {
+        var state = new PokerExecutionState(null, [], 99);
+        var command = new PokerCreateCommand(1, "alice", 10, "create", 100, 1, 2, []);
+
+        var decision = new PokerCreateAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.NotEnoughCoins, decision.Result.Error);
+        Assert.Same(state, decision.NewState);
+    }
+
+    [Fact]
+    public void JoinDecision_RejectsWrongChatAndDoesNotMutateState()
+    {
+        var state = State();
+        var command = new PokerJoinCommand("ABCDE", 2, "bob", 99, "join", 100, 6, []);
+
+        var decision = new PokerJoinAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.TableNotFound, decision.Result.Error);
+        Assert.Single(state.Seats);
+    }
+
+    [Fact]
+    public void JoinDecision_RejectsWhenHandIsActive()
+    {
+        var state = State();
+        state.Table!.Status = PokerTableStatus.HandActive;
+        var command = new PokerJoinCommand("ABCDE", 2, "bob", 10, "join", 100, 6, []);
+
+        var decision = new PokerJoinAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.HandInProgress, decision.Result.Error);
+    }
+
+    [Fact]
+    public void JoinDecision_RejectsDuplicatePlayerBeforeBalanceAndCapacityChecks()
+    {
+        var state = State();
+        var command = new PokerJoinCommand("ABCDE", 1, "alice", 10, "join", 1000, 1, []);
+
+        var decision = new PokerJoinAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.AlreadySeated, decision.Result.Error);
+    }
+
+    [Fact]
+    public void JoinDecision_RejectsInsufficientBalance()
+    {
+        var state = State();
+        var command = new PokerJoinCommand("ABCDE", 2, "bob", 10, "join", 501, 6, []);
+
+        var decision = new PokerJoinAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.NotEnoughCoins, decision.Result.Error);
+    }
+
+    [Fact]
+    public void JoinDecision_RejectsFullTable()
+    {
+        var state = State();
+        var command = new PokerJoinCommand("ABCDE", 2, "bob", 10, "join", 100, 1, []);
+
+        var decision = new PokerJoinAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(PokerError.TableFull, decision.Result.Error);
+    }
+
+    [Fact]
+    public void StartDecision_RejectsNonHostAndTooFewPlayers()
+    {
+        var state = State();
+        state.Seats.Add(Seat(2, 1));
+        var nonHost = new PokerStartCommand("ABCDE", 2, "bob", 10, "start", []);
+
+        var nonHostDecision = new PokerStartAction().Decide(Input(nonHost, state));
+
+        Assert.Equal(PokerError.NotHost, nonHostDecision.Result.Error);
+
+        state.Seats.RemoveAt(1);
+        var host = new PokerStartCommand("ABCDE", 1, "alice", 10, "start", []);
+        var tooFewDecision = new PokerStartAction().Decide(Input(host, state));
+
+        Assert.Equal(PokerError.NeedTwo, tooFewDecision.Result.Error);
+    }
+
+    [Fact]
+    public void PlayerTurn_RejectsUnknownVerbAndCannotCheck()
+    {
+        var state = State();
+        state.Seats.Add(Seat(2, 1));
+        state.Table!.Status = PokerTableStatus.HandActive;
+        state.Table.CurrentSeat = 0;
+        state.Table.CurrentBet = 2;
+
+        var unknown = new PokerPlayerTurnCommand("ABCDE", 1, "alice", 10, "turn", "wat", 0, []);
+        var unknownDecision = new PokerPlayerTurnAction().Decide(Input(unknown, state));
+        Assert.Equal(PokerError.InvalidAction, unknownDecision.Result.Error);
+
+        var cannotCheck = unknown with { Verb = "check" };
+        var cannotCheckDecision = new PokerPlayerTurnAction().Decide(Input(cannotCheck, state));
+        Assert.Equal(PokerError.CannotCheck, cannotCheckDecision.Result.Error);
+    }
+
+    [Theory]
+    [InlineData(1, PokerError.RaiseTooSmall)]
+    [InlineData(101, PokerError.RaiseTooLarge)]
+    public void PlayerTurn_MapsRaiseValidationErrors(int amount, PokerError expected)
+    {
+        var state = State();
+        state.Seats.Add(Seat(2, 1));
+        state.Table!.Status = PokerTableStatus.HandActive;
+        state.Table.CurrentSeat = 0;
+        state.Table.CurrentBet = 2;
+        var command = new PokerPlayerTurnCommand("ABCDE", 1, "alice", 10, "turn", "raise", amount, []);
+
+        var decision = new PokerPlayerTurnAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(expected, decision.Result.Error);
+        Assert.Same(state, decision.NewState);
+    }
+
+    [Fact]
+    public void AutoTurn_ChecksWhenNoCallIsNeeded()
+    {
+        var state = State();
+        state.Seats.Add(Seat(2, 1));
+        state.Table!.Status = PokerTableStatus.HandActive;
+        state.Table.CurrentSeat = 0;
+        state.Table.CurrentBet = 0;
+
+        var command = new PokerAutoTurnCommand("ABCDE", 0, "system", 10, "timeout", []);
+        var decision = new PokerAutoTurnAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(AutoAction.Check, decision.Result.AutoKind);
+        Assert.Equal("p1", decision.Result.AutoActorName);
+    }
+
+    [Fact]
+    public void LeaveDecision_DuringHandFoldsPlayerAndResolvesWinner()
+    {
+        var state = State();
+        state.Seats.Add(Seat(2, 1));
+        state.Table!.Status = PokerTableStatus.HandActive;
+        state.Table.Pot = 20;
+        var command = new PokerLeaveCommand("ABCDE", 1, "alice", 10, "leave", []);
+
+        var decision = new PokerLeaveAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.DoesNotContain(decision.NewState.Seats, seat => seat.UserId == 1);
+        Assert.Contains(decision.CustomEffects!, effect =>
+            effect is WalletEconomyEffect { UserId: 1, Amount: 100, Kind: EconomyEffectKind.Credit });
+        Assert.Contains(decision.CustomEffects!, effect =>
+            effect is WalletEconomyEffect { UserId: 2, Amount: 20, Reason: "poker.win" });
+        Assert.Contains(decision.Events, @event =>
+            @event is PokerHandEnded { Reason: "last_standing" });
+    }
+
+    [Fact]
+    public void SetMessageDecision_UpdatesTableMessageOnClonedState()
+    {
+        var state = State();
+        var command = new PokerSetMessageCommand("ABCDE", 1, "alice", 10, "message", 42, []);
+
+        var decision = new PokerSetMessageAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.True(decision.Result);
+        Assert.Equal(42, decision.NewState.Table!.StateMessageId);
+        Assert.Null(state.Table!.StateMessageId);
+    }
+
+    [Fact]
+    public void SetMessageDecision_RejectsMissingTable()
+    {
+        var state = new PokerExecutionState(null, [], 0);
+        var command = new PokerSetMessageCommand("ABCDE", 1, "alice", 10, "message", 42, []);
+
+        var decision = new PokerSetMessageAction().Decide(Input(command, state));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.False(decision.Result);
+        Assert.Equal("no_table", decision.RejectionReason);
+    }
+
     private static PokerExecutionState State() => new(
         new PokerTable
         {

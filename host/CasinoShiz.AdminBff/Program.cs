@@ -1,5 +1,6 @@
 using CasinoShiz.Identity.Transport.Grpc;
 using CasinoShiz.AdminBff.Pages;
+using CasinoShiz.AdminBff;
 using CasinoShiz.Wallet.Transport.Grpc;
 using Games.Admin.Transport.Grpc;
 using CasinoShiz.Operations.Transport.Grpc;
@@ -23,7 +24,7 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromHours(8);
 });
 
-var backend = new Uri(builder.Configuration["Services:Backend:Address"] ?? "http://localhost:5081");
+var backend = new Uri(builder.Configuration["Services:Backend:Address"]!, UriKind.Absolute);
 var backendGrpc = new Uri(builder.Configuration["Services:Backend:GrpcAddress"] ?? backend.ToString());
 var wallet = new Uri(builder.Configuration["Services:Wallet:Address"] ?? backend.ToString());
 var identity = new Uri(builder.Configuration["Services:Identity:Address"] ?? backend.ToString());
@@ -141,10 +142,3 @@ app.MapGet("/api/aggregation/admin", async (
 });
 app.MapServiceDefaults();
 await app.RunAsync();
-
-internal sealed record PlayerAggregateResponse(PlayerIdentity? Identity, WalletAccount? Wallet);
-internal sealed record AdminAggregateResponse(
-    IReadOnlyList<OperationFailure> Failures,
-    IReadOnlyList<OperationOutbox> Outbox,
-    IReadOnlyList<OperationJob> Jobs,
-    WalletHealth WalletHealth);

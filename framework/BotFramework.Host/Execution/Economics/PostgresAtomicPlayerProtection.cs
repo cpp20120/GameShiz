@@ -21,7 +21,7 @@ internal sealed class PostgresAtomicPlayerProtection(TimeProvider timeProvider) 
             "SELECT pg_advisory_xact_lock(@userId)",
             new { userId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         const string sql = """
             SELECT p.daily_stake_limit AS DailyLimit,
@@ -44,7 +44,7 @@ internal sealed class PostgresAtomicPlayerProtection(TimeProvider timeProvider) 
             sql,
             new { userId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         if (protection is null) return;
 
         var utcNow = timeProvider.GetUtcNow();

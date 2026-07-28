@@ -38,48 +38,48 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        await container.StartAsync().ConfigureAwait(false);
+        await container.StartAsync();
         await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
+        await connection.OpenAsync();
 
         foreach (var migration in new FrameworkMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new DiceMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new DiceCubeMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new BlackjackMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new BasketballMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new BowlingMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new FootballMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new PickMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new DartsMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new HorseMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new PokerMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new ChallengeMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new RedeemMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new SecretHitlerMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new PixelBattleMigrations().Migrations)
-            await connection.ExecuteAsync(migration.Sql).ConfigureAwait(false);
+            await connection.ExecuteAsync(migration.Sql);
     }
 
-    public async Task DisposeAsync() => await container.DisposeAsync().ConfigureAwait(false);
+    public async Task DisposeAsync() => await container.DisposeAsync();
 
     public async Task ResetAsync()
     {
         await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
+        await connection.OpenAsync();
         await connection.ExecuteAsync("""
             TRUNCATE TABLE
                 tenant_event_outbox,
@@ -121,17 +121,16 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
                 tenant_wallets,
                 blackjack_hands
             RESTART IDENTITY CASCADE
-            """).ConfigureAwait(false);
+            """);
         await connection.ExecuteAsync(
-            "UPDATE runtime_tuning SET payload = '{}'::jsonb, updated_at = now() WHERE id = 1")
-            .ConfigureAwait(false);
+            "UPDATE runtime_tuning SET payload = '{}'::jsonb, updated_at = now() WHERE id = 1");
     }
 
     public async Task<T> ScalarAsync<T>(string sql, object? parameters = null)
     {
         await using var connection = new NpgsqlConnection(ConnectionString);
-        await connection.OpenAsync().ConfigureAwait(false);
-        var result = await connection.ExecuteScalarAsync<T>(sql, parameters).ConfigureAwait(false);
+        await connection.OpenAsync();
+        var result = await connection.ExecuteScalarAsync<T>(sql, parameters);
         return result is null ? throw new InvalidOperationException("Scalar query returned null.") : result;
     }
 }

@@ -9,10 +9,6 @@ using Microsoft.Extensions.Options;
 
 namespace Games.Pick.Rest;
 
-public sealed record PickRequest(int Amount, IReadOnlyList<string> Variants, IReadOnlyList<int> BackedIndices);
-public sealed record PickLotteryOpenRequest(int Stake);
-public sealed record PickDailyBuyRequest(int Count);
-
 public sealed class PickRestModule : IRestRouteModule
 {
     public string ModuleId => "pick";
@@ -38,7 +34,7 @@ public sealed class PickRestModule : IRestRouteModule
     {
         ValidatePick(request);
         return Results.Ok(await client.PickAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context), request.Amount,
-            request.Variants, request.BackedIndices, RestCommandSupport.SourceId(context, options, "pick", "play"), ct).ConfigureAwait(false));
+            request.Variants, request.BackedIndices, RestCommandSupport.SourceId(context, options, "pick", "play"), ct));
     }
 
     private static async Task<IResult> OpenLotteryAsync(PickLotteryOpenRequest request, IPickClient client, RestRequestContext context,
@@ -46,33 +42,33 @@ public sealed class PickRestModule : IRestRouteModule
     {
         RestCommandSupport.RequirePositive(request.Stake, nameof(request.Stake));
         return Results.Ok(await client.OpenLotteryAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context), request.Stake,
-            RestCommandSupport.SourceId(context, options, "pick", "lottery-open"), ct).ConfigureAwait(false));
+            RestCommandSupport.SourceId(context, options, "pick", "lottery-open"), ct));
     }
 
     private static async Task<IResult> JoinLotteryAsync(IPickClient client, RestRequestContext context, IOptions<RestFrameworkOptions> options, CancellationToken ct) =>
         Results.Ok(await client.JoinLotteryAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context),
-            RestCommandSupport.SourceId(context, options, "pick", "lottery-join"), ct).ConfigureAwait(false));
+            RestCommandSupport.SourceId(context, options, "pick", "lottery-join"), ct));
 
     private static async Task<IResult> LotteryInfoAsync(IPickClient client, RestRequestContext context, CancellationToken ct)
     {
-        var result = await client.LotteryInfoAsync(RestCommandSupport.ScopeId(context), ct).ConfigureAwait(false);
+        var result = await client.LotteryInfoAsync(RestCommandSupport.ScopeId(context), ct);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 
     private static async Task<IResult> CancelLotteryAsync(IPickClient client, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await client.CancelLotteryAsync(context.UserId, RestCommandSupport.ScopeId(context), ct).ConfigureAwait(false));
+        Results.Ok(await client.CancelLotteryAsync(context.UserId, RestCommandSupport.ScopeId(context), ct));
 
     private static async Task<IResult> BuyDailyAsync(PickDailyBuyRequest request, IPickClient client, RestRequestContext context,
         IOptions<RestFrameworkOptions> options, CancellationToken ct)
     {
         RestCommandSupport.RequirePositive(request.Count, nameof(request.Count));
         return Results.Ok(await client.BuyDailyAsync(context.UserId, context.DisplayName, RestCommandSupport.ScopeId(context), request.Count,
-            RestCommandSupport.SourceId(context, options, "pick", "daily-buy"), ct).ConfigureAwait(false));
+            RestCommandSupport.SourceId(context, options, "pick", "daily-buy"), ct));
     }
 
     private static async Task<IResult> DailyInfoAsync(IPickClient client, RestRequestContext context, CancellationToken ct)
     {
-        var result = await client.DailyInfoAsync(RestCommandSupport.ScopeId(context), context.UserId, ct).ConfigureAwait(false);
+        var result = await client.DailyInfoAsync(RestCommandSupport.ScopeId(context), context.UserId, ct);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 
@@ -80,22 +76,22 @@ public sealed class PickRestModule : IRestRouteModule
     {
         var actualLimit = limit ?? 30;
         if (actualLimit is < 1 or > 100) throw new RestBadRequestException("limit must be between 1 and 100.");
-        return Results.Ok(await client.DailyHistoryAsync(RestCommandSupport.ScopeId(context), actualLimit, ct).ConfigureAwait(false));
+        return Results.Ok(await client.DailyHistoryAsync(RestCommandSupport.ScopeId(context), actualLimit, ct));
     }
 
     private static async Task<IResult> DailyScheduleAsync(IPickClient client, CancellationToken ct) =>
-        Results.Ok(await client.GetDailyScheduleAsync(ct).ConfigureAwait(false));
+        Results.Ok(await client.GetDailyScheduleAsync(ct));
 
     private static async Task<IResult> ContinueChainAsync(PickChainState chain, IPickClient client, RestRequestContext context, CancellationToken ct)
     {
         if (chain.UserId != context.UserId || chain.ChatId != RestCommandSupport.ScopeId(context))
             throw new RestForbiddenException("The chain does not belong to the current player and scope.");
-        return Results.Ok(await client.ContinueChainAsync(chain, ct).ConfigureAwait(false));
+        return Results.Ok(await client.ContinueChainAsync(chain, ct));
     }
 
     private static async Task<IResult> ClaimChainAsync(Guid chainId, IPickClient client, RestRequestContext context, CancellationToken ct)
     {
-        var result = await client.ClaimChainAsync(chainId, ct).ConfigureAwait(false);
+        var result = await client.ClaimChainAsync(chainId, ct);
         return result is null || result.UserId != context.UserId ? Results.NotFound() : Results.Ok(result);
     }
 
@@ -109,9 +105,4 @@ public sealed class PickRestModule : IRestRouteModule
         if (request.BackedIndices is null || request.BackedIndices.Count == 0 || request.BackedIndices.Any(x => x < 0 || x >= request.Variants.Count))
             throw new RestBadRequestException("BackedIndices must point to existing variants.");
     }
-}
-
-public static class PickRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddPickRest(this IServiceCollection services) => services.AddRestRouteModule<PickRestModule>();
 }

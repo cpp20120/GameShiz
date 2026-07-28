@@ -1,0 +1,7 @@
+using System.Text.Json;
+using Games.Blackjack.Contracts;
+using Games.Blackjack.Domain.Results;
+using Games.Blackjack.Transport.Grpc.Wire;
+using Grpc.Core;
+namespace Games.Blackjack.Transport.Grpc;
+internal sealed record UserCall(long UserId,int MessageId=0);

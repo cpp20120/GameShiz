@@ -2,6 +2,7 @@ using BotFramework.Host.Composition.Builder;
 using BotFramework.Host.Configuration.RuntimeTuning;
 using BotFramework.Host.Persistence.Connections;
 using BotFramework.Scheduling.Quartz;
+using BotFramework.Telegram.Composition;
 using Games.Dice.Telegram;
 using Games.Dice.Transport.Grpc;
 using Games.NativeDice.Transport.Grpc;

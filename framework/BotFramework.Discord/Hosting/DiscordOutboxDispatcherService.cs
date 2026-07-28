@@ -81,10 +81,10 @@ public sealed partial class DiscordOutboxDispatcherService(
         DiscordOutboxRow row,
         CancellationToken ct)
     {
-        if (client.GetChannel((ulong)row.ChannelId) is IMessageChannel channel)
+        if (await client.GetChannelAsync((ulong)row.ChannelId) is IMessageChannel channel)
             return channel;
 
-        if (row.UserId == 0 || client.GetUser((ulong)row.UserId) is not { } user)
+        if (row.UserId == 0 || await client.GetUserAsync((ulong)row.UserId) is not { } user)
             return null;
 
         return await user.CreateDMChannelAsync(new RequestOptions { CancelToken = ct });

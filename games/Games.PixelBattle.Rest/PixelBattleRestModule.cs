@@ -8,8 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Games.PixelBattle.Rest;
 
-public sealed record PixelUpdateRequest(int Index, string Color);
-
 public sealed class PixelBattleRestModule : IRestRouteModule
 {
     public string ModuleId => "pixelbattle";
@@ -22,17 +20,12 @@ public sealed class PixelBattleRestModule : IRestRouteModule
     }
 
     private static async Task<IResult> GridAsync(IPixelBattleService service, CancellationToken ct) =>
-        Results.Ok(await service.GetGridAsync(ct).ConfigureAwait(false));
+        Results.Ok(await service.GetGridAsync(ct));
 
     private static async Task<IResult> UpdateAsync(PixelUpdateRequest request, IPixelBattleService service, RestRequestContext context, CancellationToken ct)
     {
         if (!PixelBattleConstants.IsValidIndex(request.Index) || !PixelBattleConstants.IsValidColor(request.Color))
             throw new RestBadRequestException("The pixel index or color is invalid.");
-        return Results.Ok(await service.UpdateAsync(context.UserId, request.Index, request.Color, ct).ConfigureAwait(false));
+        return Results.Ok(await service.UpdateAsync(context.UserId, request.Index, request.Color, ct));
     }
-}
-
-public static class PixelBattleRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddPixelBattleRest(this IServiceCollection services) => services.AddRestRouteModule<PixelBattleRestModule>();
 }

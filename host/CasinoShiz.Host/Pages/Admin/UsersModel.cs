@@ -115,7 +115,7 @@ public sealed class UsersModel(
                     operationId,
                     AllowNegative: true)],
                 outputs => (int)outputs["balance"]!),
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private async Task<int> ApplyAdminSetAsync(
@@ -143,7 +143,7 @@ public sealed class UsersModel(
                     operationId,
                     AllowNegative: true)],
                 outputs => (int)outputs["balance"]!),
-            ct).ConfigureAwait(false);
+            ct);
     }
 
     private static bool IsValidOperationId(string? operationId) =>

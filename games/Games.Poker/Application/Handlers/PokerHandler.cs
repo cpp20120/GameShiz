@@ -271,7 +271,7 @@ public sealed partial class PokerHandler(
         if (r is { AutoActorName: not null, AutoKind: not null })
         {
             var key = r.AutoKind == AutoAction.Fold ? "auto.fold" : "auto.check";
-            var msg = string.Format(Loc(key), r.AutoActorName);
+            var msg = string.Format(CultureInfo.InvariantCulture, Loc(key), r.AutoActorName);
             try { await bot.SendMessage(r.Snapshot.Table.ChatId, msg, cancellationToken: ct); }
             catch (ApiRequestException ex) { LogPokerAutoActionNotifyFailed(r.Snapshot.Table.ChatId, ex); }
         }
@@ -323,10 +323,10 @@ public sealed partial class PokerHandler(
         await AnswerCallbackAsync(ctx, cbq, text, showAlert: true);
     }
 
-    private Task BroadcastAsync(UpdateContext ctx, TableSnapshot snapshot, List<ShowdownEntry>? showdown = null) =>
+    private Task BroadcastAsync(UpdateContext ctx, TableSnapshot snapshot, IReadOnlyList<ShowdownEntry>? showdown = null) =>
         BroadcastUsingBotAsync(ctx.Bot, snapshot, ctx.Ct, showdown);
 
-    private async Task BroadcastUsingBotAsync(ITelegramBotClient bot, TableSnapshot snapshot, CancellationToken ct, List<ShowdownEntry>? showdown = null)
+    private async Task BroadcastUsingBotAsync(ITelegramBotClient bot, TableSnapshot snapshot, CancellationToken ct, IReadOnlyList<ShowdownEntry>? showdown = null)
     {
         if (showdown != null)
         {

@@ -23,7 +23,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
         ArgumentNullException.ThrowIfNull(session);
 
         if (CurrentTenantContext() is { } tenant)
-            return await GetOrBeginTenantAsync<TResult>(commandId, gameId, aggregateId, tenant, session, ct).ConfigureAwait(false);
+            return await GetOrBeginTenantAsync<TResult>(commandId, gameId, aggregateId, tenant, session, ct);
 
         const string insertSql = """
             INSERT INTO game_command_idempotency (
@@ -39,7 +39,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
             insertSql,
             new { commandId, gameId, aggregateId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         const string selectSql = """
             SELECT status AS Status,
@@ -55,7 +55,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
             selectSql,
             new { commandId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         if (inserted == 1)
             return new CommandInboxResult<TResult>(CommandInboxStatus.New, default);
@@ -95,7 +95,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
 
         if (CurrentTenantContext() is { } tenant)
         {
-            await CompleteTenantAsync(commandId, result, tenant, session, ct).ConfigureAwait(false);
+            await CompleteTenantAsync(commandId, result, tenant, session, ct);
             return;
         }
 
@@ -115,7 +115,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
             sql,
             new { commandId, resultType, resultJson },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         if (affected != 1)
             throw new InvalidOperationException($"Pending command '{commandId}' was not found.");
@@ -153,7 +153,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
                     scopeId = tenant.ScopeId.Value,
                 },
                 session.Transaction,
-                cancellationToken: ct)).ConfigureAwait(false);
+                cancellationToken: ct));
             return;
         }
 
@@ -167,7 +167,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
             """,
             new { commandId, entropyJson },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         if (affected != 1)
             throw new InvalidOperationException($"Pending command '{commandId}' was not found.");
     }
@@ -222,7 +222,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
                 aggregateId,
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         var row = await session.Connection.QuerySingleAsync<TenantInboxRow>(new CommandDefinition(
             """
@@ -242,7 +242,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
             """,
             new { tenantId = tenant.TenantId.Value, scopeId = tenant.ScopeId.Value, commandId },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
 
         if (inserted == 1)
             return new CommandInboxResult<TResult>(CommandInboxStatus.New, default);
@@ -296,7 +296,7 @@ internal sealed class PostgresCommandInbox : ICommandInbox
                 resultJson = JsonSerializer.Serialize(result, JsonOptions),
             },
             session.Transaction,
-            cancellationToken: ct)).ConfigureAwait(false);
+            cancellationToken: ct));
         if (affected != 1)
             throw new InvalidOperationException($"Pending tenant command '{commandId}' was not found.");
     }

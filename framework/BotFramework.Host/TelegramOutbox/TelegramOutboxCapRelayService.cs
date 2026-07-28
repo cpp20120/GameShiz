@@ -50,7 +50,7 @@ public sealed partial class TelegramOutboxCapRelayService(
             {
                 var wakeup = _wakeups.Reader.WaitToReadAsync(stoppingToken).AsTask();
                 await Task.WhenAny(Task.Delay(relayed == 0 ? EmptyDelay : PollDelay, stoppingToken), wakeup);
-                while (_wakeups.Reader.TryRead(out _)) { }
+                _ = DrainWakeups();
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -61,4 +61,12 @@ public sealed partial class TelegramOutboxCapRelayService(
 
     [LoggerMessage(LogLevel.Warning, "telegram_outbox.cap_relay_failed")]
     private partial void LogRelayFailed(Exception exception);
+
+    private int DrainWakeups()
+    {
+        var drained = 0;
+        while (_wakeups.Reader.TryRead(out _))
+            drained++;
+        return drained;
+    }
 }

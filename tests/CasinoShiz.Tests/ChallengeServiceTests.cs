@@ -1,5 +1,6 @@
 using BotFramework.Sdk.Execution;
 using Games.Challenges.Application.Execution;
+using Games.Challenges.Domain.Events;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -80,6 +81,70 @@ public sealed class ChallengeServiceTests
 
         Assert.True(decision.Result.IsTie);
         Assert.Equal(2, decision.CustomEffects!.Count);
+    }
+
+    [Fact]
+    public void DeclineDecision_TargetDeclinesPendingChallengeAndEmitsStatusEvent()
+    {
+        var challenge = Challenge(status: ChallengeStatus.Pending);
+        var command = new ChallengeDeclineCommand(challenge.Id, 2, "bob", 10, "decline", []);
+
+        var decision = new ChallengeDeclineAction().Decide(Input(command, new(challenge, false, 100, 100)));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.Equal(ChallengeStatus.Declined, decision.NewState.Challenge!.Status);
+        var status = Assert.IsType<ChallengeStatusChanged>(Assert.Single(decision.Events));
+        Assert.Equal("declined", status.Status);
+        Assert.Null(decision.CustomEffects);
+    }
+
+    [Theory]
+    [InlineData(0, ChallengeAcceptError.NotFound)]
+    [InlineData(1, ChallengeAcceptError.NotTarget)]
+    [InlineData(2, ChallengeAcceptError.AlreadyResolved)]
+    public void DeclineDecision_RejectsInvalidDecline(int stateKind, ChallengeAcceptError expected)
+    {
+        var challenge = stateKind == 0 ? null : Challenge(
+            stateKind == 2 ? ChallengeStatus.Accepted : ChallengeStatus.Pending);
+        var actorId = stateKind == 1 ? 99 : 2;
+        var command = new ChallengeDeclineCommand(Guid.NewGuid(), actorId, "actor", 10, "decline", []);
+
+        var decision = new ChallengeDeclineAction().Decide(Input(command, new(challenge, false, 100, 100)));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.Equal(expected, decision.Result);
+    }
+
+    [Fact]
+    public void FailDecision_RefundsBothPlayersAndEmitsStatusEvent()
+    {
+        var challenge = Challenge(status: ChallengeStatus.Accepted, amount: 40);
+        var command = new ChallengeFailCommand(challenge.Id, 0, "system", 10, "fail", []);
+
+        var decision = new ChallengeFailAction().Decide(Input(command, new(challenge, false, 0, 0)));
+
+        Assert.Equal(DecisionStatus.Accepted, decision.Status);
+        Assert.True(decision.Result);
+        Assert.Equal(ChallengeStatus.Failed, decision.NewState.Challenge!.Status);
+        Assert.Equal(2, decision.CustomEffects!.Count);
+        Assert.All(decision.CustomEffects, effect =>
+            Assert.Equal(40, Assert.IsType<WalletEconomyEffect>(effect).Amount));
+        Assert.Equal("failed", Assert.IsType<ChallengeStatusChanged>(Assert.Single(decision.Events)).Status);
+    }
+
+    [Theory]
+    [InlineData(ChallengeStatus.Pending)]
+    [InlineData(ChallengeStatus.Completed)]
+    public void FailDecision_RequiresAcceptedChallenge(ChallengeStatus status)
+    {
+        var challenge = Challenge(status);
+        var command = new ChallengeFailCommand(challenge.Id, 0, "system", 10, "fail", []);
+
+        var decision = new ChallengeFailAction().Decide(Input(command, new(challenge, false, 0, 0)));
+
+        Assert.Equal(DecisionStatus.Rejected, decision.Status);
+        Assert.False(decision.Result);
+        Assert.Null(decision.CustomEffects);
     }
 
     private static GameActionInput<ChallengeExecutionState, ChallengeCreateCommand> CreateInput(

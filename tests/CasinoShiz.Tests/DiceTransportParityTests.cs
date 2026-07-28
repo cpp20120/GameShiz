@@ -95,7 +95,7 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
 
         var app = builder.Build();
         app.MapDiceGrpcTransport();
-        await app.StartAsync().ConfigureAwait(false);
+        await app.StartAsync();
         var addresses = app.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()?.Addresses;
         var address = addresses?.SingleOrDefault()
@@ -186,7 +186,7 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
         public async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)
         {
             var connection = Create();
-            await connection.OpenAsync(ct).ConfigureAwait(false);
+            await connection.OpenAsync(ct);
             return connection;
         }
     }
@@ -208,8 +208,8 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
 
         public async ValueTask DisposeAsync()
         {
-            await application.StopAsync().ConfigureAwait(false);
-            await application.DisposeAsync().ConfigureAwait(false);
+            await application.StopAsync();
+            await application.DisposeAsync();
         }
     }
 }

@@ -3,7 +3,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using BotFramework.Host.Analytics;
 
-namespace BotFramework.Host.Pipeline.Middleware;
+namespace BotFramework.Telegram.Pipeline.Middleware;
+
 
 public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUpdateMiddleware
 {

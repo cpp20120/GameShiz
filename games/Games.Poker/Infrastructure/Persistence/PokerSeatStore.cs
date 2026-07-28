@@ -40,7 +40,7 @@ public sealed class PokerSeatStore(INpgsqlConnectionFactory connections) : IPoke
         return row?.ToEntity();
     }
 
-    public async Task<List<PokerSeat>> ListByTableAsync(string inviteCode, CancellationToken ct)
+    public async Task<IReadOnlyList<PokerSeat>> ListByTableAsync(string inviteCode, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
         var rows = await conn.QueryAsync<SeatRow>(new CommandDefinition(

@@ -1,3 +1,3 @@
 namespace Games.Leaderboard.Domain.Models;
 
-public sealed record Leaderboard(List<LeaderboardPlace> Places, bool Truncated);
+public sealed record Leaderboard(IReadOnlyList<LeaderboardPlace> Places, bool Truncated);

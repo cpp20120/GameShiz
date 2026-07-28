@@ -7,11 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Games.Redeem.Rest;
 
-public sealed record RedeemBeginRequest(string Code);
-public sealed record RedeemVerifyRequest(Guid CodeGuid, int ChosenId);
-public sealed record RedeemCompleteRequest(Guid CodeGuid);
-public sealed record RedeemIssueRequest(string? FreeSpinGameId);
-
 public sealed class RedeemRestModule : IRestRouteModule
 {
     public string ModuleId => "redeem";
@@ -28,20 +23,15 @@ public sealed class RedeemRestModule : IRestRouteModule
     private static async Task<IResult> BeginAsync(RedeemBeginRequest request, IRedeemClient client, RestRequestContext context, CancellationToken ct)
     {
         RestCommandSupport.RequireText(request.Code, nameof(request.Code), 256);
-        return Results.Ok(await client.BeginAsync(context.UserId, RestCommandSupport.ScopeId(context), context.DisplayName, request.Code, ct).ConfigureAwait(false));
+        return Results.Ok(await client.BeginAsync(context.UserId, RestCommandSupport.ScopeId(context), context.DisplayName, request.Code, ct));
     }
 
     private static async Task<IResult> VerifyAsync(RedeemVerifyRequest request, IRedeemClient client, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await client.VerifyCaptchaAsync(context.UserId, request.CodeGuid, request.ChosenId, ct).ConfigureAwait(false));
+        Results.Ok(await client.VerifyCaptchaAsync(context.UserId, request.CodeGuid, request.ChosenId, ct));
 
     private static async Task<IResult> CompleteAsync(RedeemCompleteRequest request, IRedeemClient client, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await client.CompleteAsync(context.UserId, RestCommandSupport.ScopeId(context), request.CodeGuid, ct).ConfigureAwait(false));
+        Results.Ok(await client.CompleteAsync(context.UserId, RestCommandSupport.ScopeId(context), request.CodeGuid, ct));
 
     private static async Task<IResult> IssueAsync(RedeemIssueRequest request, IRedeemClient client, RestRequestContext context, CancellationToken ct) =>
-        Results.Ok(await client.IssueAdminCodeAsync(context.UserId, request.FreeSpinGameId, ct).ConfigureAwait(false));
-}
-
-public static class RedeemRestServiceCollectionExtensions
-{
-    public static IServiceCollection AddRedeemRest(this IServiceCollection services) => services.AddRestRouteModule<RedeemRestModule>();
+        Results.Ok(await client.IssueAdminCodeAsync(context.UserId, request.FreeSpinGameId, ct));
 }

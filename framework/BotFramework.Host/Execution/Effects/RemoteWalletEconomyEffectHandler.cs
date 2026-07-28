@@ -23,12 +23,12 @@ internal sealed class RemoteWalletEconomyEffectHandler(
                     {
                         EconomyEffectKind.Debit => WalletBatchEffectKind.Debit,
                         EconomyEffectKind.Credit => WalletBatchEffectKind.Credit,
-                        _ => throw new ArgumentOutOfRangeException(nameof(effects), effect.Kind, "Unknown wallet effect kind."),
+                        _ => throw new ArgumentOutOfRangeException(nameof(effect), effect.Kind, "Unknown wallet effect kind."),
                     },
                     checked((int)effect.Amount),
                     effect.Reason)).ToArray(),
                 $"{operationPrefix}:wallet-effect:{groupIndex++}",
-                ct).ConfigureAwait(false);
+                ct);
             if (result.Rejected)
                 throw new InvalidOperationException(
                     $"Wallet {group.Key.UserId}:{group.Key.BalanceScopeId} rejected an economy effect.");

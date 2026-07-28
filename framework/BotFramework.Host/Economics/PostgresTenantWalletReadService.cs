@@ -20,7 +20,7 @@ public sealed class PostgresTenantWalletReadService(INpgsqlConnectionFactory con
         if (context.PlayerId is not { } player)
             return null;
 
-        await using var connection = await connections.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connections.OpenAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<WalletRow>(new CommandDefinition(
             """
             SELECT w.coins AS Balance,
@@ -40,7 +40,7 @@ public sealed class PostgresTenantWalletReadService(INpgsqlConnectionFactory con
                 scopeId = context.ScopeId.Value,
                 playerId = player.Value,
             },
-            cancellationToken: cancellationToken)).ConfigureAwait(false);
+            cancellationToken: cancellationToken));
 
         return row is null
             ? null

@@ -63,31 +63,33 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
                 plan,
                 executionContext,
                 session,
-                ct).ConfigureAwait(false);
+                ct);
         }
 
         foreach (var (record, writer) in plan.Records)
-            await writer.WriteAsync(record, executionContext, ct).ConfigureAwait(false);
+            await writer.WriteAsync(record, executionContext, ct);
 
         foreach (var (handler, effects) in plan.Custom)
-            await handler.ApplyAsync(effects, executionContext, ct).ConfigureAwait(false);
+            await handler.ApplyAsync(effects, executionContext, ct);
 
         await eventCollector.AppendAsync(
             commandId,
             plan.Effects.Events,
             session,
             executionContext.TenantContext,
-            ct).ConfigureAwait(false);
+            ct);
         if (plan.Effects.Schedules.Count != 0)
         {
-            await scheduleCollector!.AppendAsync(
+            var collector = scheduleCollector
+                ?? throw new InvalidOperationException("Schedule collector is required for scheduled effects.");
+            await collector.AppendAsync(
                 commandId,
                 gameId,
                 aggregateId,
                 plan.Effects.Schedules,
                 session,
                 executionContext.TenantContext,
-                ct).ConfigureAwait(false);
+                ct);
         }
     }
 
@@ -105,13 +107,13 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
     {
         if (plan.Effects.Economy.Count != 0)
         {
-            await playerProtection.EnforceAsync(wallet.UserId, plan.Effects.Economy, session, ct).ConfigureAwait(false);
+            await playerProtection.EnforceAsync(wallet.UserId, plan.Effects.Economy, session, ct);
             var walletMutation = await economics.ApplyAsync(
                 wallet,
                 plan.Effects.Economy,
                 session,
                 $"{commandId}:primary-wallet",
-                ct).ConfigureAwait(false);
+                ct);
             if (walletMutation.Rejected)
                 throw new InvalidOperationException("A decision accepted an economy mutation that the locked wallet rejected.");
         }
@@ -119,10 +121,10 @@ internal sealed class TransactionalGameEffectPipeline<TCommand, TState, TResult>
         foreach (var quota in quotas)
         {
             var effects = plan.QuotaEffects.GetValueOrDefault(quota.QuotaId, []);
-            await quotaStore.ApplyAsync(quota, effects, session, ct).ConfigureAwait(false);
+            await quotaStore.ApplyAsync(quota, effects, session, ct);
         }
 
-        await SaveStateAsync(command, currentState, decision.NewState, executionContext, ct).ConfigureAwait(false);
+        await SaveStateAsync(command, currentState, decision.NewState, executionContext, ct);
     }
 
     private Task SaveStateAsync(

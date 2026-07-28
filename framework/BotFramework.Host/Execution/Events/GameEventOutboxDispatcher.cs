@@ -18,19 +18,19 @@ internal sealed partial class GameEventOutboxDispatcher(
         {
             try
             {
-                await DispatchBatchAsync(stoppingToken).ConfigureAwait(false);
+                await DispatchBatchAsync(stoppingToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogPollFailed(logger, exception);
             }
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false));
+        while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
     private async Task DispatchBatchAsync(CancellationToken ct)
     {
-        var batch = await outbox.ClaimAsync(50, TimeSpan.FromMinutes(1), ct).ConfigureAwait(false);
+        var batch = await outbox.ClaimAsync(50, TimeSpan.FromMinutes(1), ct);
         foreach (var item in batch)
         {
             try
@@ -38,18 +38,18 @@ internal sealed partial class GameEventOutboxDispatcher(
                 var type = Type.GetType(item.TypeName, throwOnError: true)!;
                 var domainEvent = JsonSerializer.Deserialize(item.Payload, type, JsonOptions) as IDomainEvent
                     ?? throw new InvalidOperationException($"Outbox payload is not an {nameof(IDomainEvent)}.");
-                await events.PublishAsync(domainEvent, ct).ConfigureAwait(false);
-                await outbox.MarkSentAsync(item.Id, ct).ConfigureAwait(false);
+                await events.PublishAsync(domainEvent, ct);
+                await outbox.MarkSentAsync(item.Id, ct);
                 GameExecutionTelemetry.RecordOutboxLag(item.CreatedAt, timeProvider.GetUtcNow());
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
-                await outbox.MarkFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
+                await outbox.MarkFailedAsync(item.Id, exception.Message, item.Attempts, ct);
             }
         }
 
-        var tenantBatch = await outbox.ClaimTenantAsync(50, TimeSpan.FromMinutes(1), ct).ConfigureAwait(false);
+        var tenantBatch = await outbox.ClaimTenantAsync(50, TimeSpan.FromMinutes(1), ct);
         foreach (var item in tenantBatch)
         {
             try
@@ -59,14 +59,14 @@ internal sealed partial class GameEventOutboxDispatcher(
                     ?? throw new InvalidOperationException($"Tenant outbox payload is not an {nameof(IDomainEvent)}.");
                 using var metadataScope = RequestMetadataContext.Push(
                     RequestMetadata.FromTenantContext(item.Context, "tenant-event-outbox"));
-                await events.PublishAsync(domainEvent, ct).ConfigureAwait(false);
-                await outbox.MarkTenantSentAsync(item.Id, ct).ConfigureAwait(false);
+                await events.PublishAsync(domainEvent, ct);
+                await outbox.MarkTenantSentAsync(item.Id, ct);
                 GameExecutionTelemetry.RecordOutboxLag(item.CreatedAt, timeProvider.GetUtcNow());
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 LogDeliveryFailed(logger, exception, item.Id, item.Attempts);
-                await outbox.MarkTenantFailedAsync(item.Id, exception.Message, item.Attempts, ct).ConfigureAwait(false);
+                await outbox.MarkTenantFailedAsync(item.Id, exception.Message, item.Attempts, ct);
             }
         }
     }

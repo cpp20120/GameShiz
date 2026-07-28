@@ -4,5 +4,5 @@ public sealed record ChatLeaderboard(
     long ChatId,
     string? Title,
     string ChatType,
-    List<LeaderboardPlace> Places,
+    IReadOnlyList<LeaderboardPlace> Places,
     bool Truncated);

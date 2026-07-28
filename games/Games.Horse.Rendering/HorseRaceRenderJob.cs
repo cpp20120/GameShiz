@@ -5,8 +5,6 @@ using Games.Horse.Infrastructure.Rendering.Generators;
 
 namespace Games.Horse.Rendering;
 
-public sealed record HorseRaceRenderSpec(int HorseCount, int Winner, int Variant);
-
 public sealed class HorseRaceRenderJob : IRenderJob<HorseRaceRenderSpec>
 {
     public const string RendererId = "horse-race";
@@ -24,11 +22,14 @@ public sealed class HorseRaceRenderJob : IRenderJob<HorseRaceRenderSpec>
     {
         Validate(spec);
         ct.ThrowIfCancellationRequested();
-        var speeds = CreateSpeeds(spec);
-        var (frames, height, width) = HorseRaceRenderer.DrawHorses(speeds);
-        ct.ThrowIfCancellationRequested();
-        var gif = GifEncoder.RenderFramesToGif(frames, width, height);
-        return ValueTask.FromResult(RenderOutput.FromBytes(gif, "horses.gif"));
+        return new(Task.Run(() =>
+        {
+            var speeds = CreateSpeeds(spec);
+            var (frames, height, width) = HorseRaceRenderer.DrawHorses(speeds);
+            ct.ThrowIfCancellationRequested();
+            var gif = GifEncoder.RenderFramesToGif(frames, width, height);
+            return RenderOutput.FromBytes(gif, "horses.gif");
+        }, ct));
     }
 
     public static int EstimateFrameCount(HorseRaceRenderSpec spec) =>
@@ -42,9 +43,14 @@ public sealed class HorseRaceRenderJob : IRenderJob<HorseRaceRenderSpec>
 
     private static void Validate(HorseRaceRenderSpec spec)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(spec.HorseCount, 2);
-        ArgumentOutOfRangeException.ThrowIfNegative(spec.Winner);
-        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(spec.Winner, spec.HorseCount);
-        ArgumentOutOfRangeException.ThrowIfNegative(spec.Variant);
+        ValidateValues(spec.HorseCount, spec.Winner, spec.Variant);
+    }
+
+    private static void ValidateValues(int horseCount, int winner, int variant)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(horseCount, 2);
+        ArgumentOutOfRangeException.ThrowIfNegative(winner);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(winner, horseCount);
+        ArgumentOutOfRangeException.ThrowIfNegative(variant);
     }
 }
