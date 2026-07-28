@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace BotFramework.Rest;
 
-internal sealed class RestExceptionHandler(IProblemDetailsService problemDetails) : IExceptionHandler
+internal sealed partial class RestExceptionHandler(
+    IProblemDetailsService problemDetails,
+    ILogger<RestExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -15,6 +18,8 @@ internal sealed class RestExceptionHandler(IProblemDetailsService problemDetails
             return false;
 
         var (status, title, detail, code, retryAfter) = RestExceptionMapping.Map(exception);
+        if (status >= StatusCodes.Status500InternalServerError)
+            LogUnhandledServerError(logger, exception);
         httpContext.Response.StatusCode = status;
         var retryAfterSeconds = retryAfter is { } retryValue
             ? Math.Max(1, (int)Math.Ceiling(retryValue.TotalSeconds))
@@ -39,4 +44,8 @@ internal sealed class RestExceptionHandler(IProblemDetailsService problemDetails
         });
         return true;
     }
+
+    [LoggerMessage(EventId = 8000, Level = LogLevel.Error,
+        Message = "REST request failed with an unhandled server error.")]
+    private static partial void LogUnhandledServerError(ILogger logger, Exception exception);
 }

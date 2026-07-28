@@ -12,12 +12,33 @@ namespace Games.Meta.Application.Tournaments;
 /// local AtomicEffect commits separately, and a rejected local transition is
 /// compensated. The null-wallet path preserves the old monolith test seam.
 /// </summary>
-public sealed class TournamentCommandExecutor(
-    IMetaService meta,
-    ITournamentStore tournaments,
-    IAtomicEffectExecutor effects,
-    IWalletAtomicExecutionService? workflowWallet = null)
+public sealed class TournamentCommandExecutor
 {
+    private readonly IMetaService meta;
+    private readonly ITournamentStore tournaments;
+    private readonly IAtomicEffectExecutor effects;
+    private readonly IWalletAtomicExecutionService? workflowWallet;
+
+    public TournamentCommandExecutor(
+        IMetaService meta,
+        ITournamentStore tournaments,
+        IAtomicEffectExecutor effects,
+        IWalletAtomicExecutionService? workflowWallet)
+    {
+        this.meta = meta;
+        this.tournaments = tournaments;
+        this.effects = effects;
+        this.workflowWallet = workflowWallet;
+    }
+
+    public TournamentCommandExecutor(
+        IMetaService meta,
+        ITournamentStore tournaments,
+        IAtomicEffectExecutor effects)
+        : this(meta, tournaments, effects, null)
+    {
+    }
+
     public async Task<TournamentCreateResult> CreateAsync(
         long chatId,
         long userId,

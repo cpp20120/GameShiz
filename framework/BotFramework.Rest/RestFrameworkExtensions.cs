@@ -84,6 +84,7 @@ public static class RestFrameworkExtensions
     public static IApplicationBuilder UseRestFramework(this IApplicationBuilder app)
     {
         app.UseExceptionHandler();
+        app.UseRouting();
         app.UseStatusCodePages(async statusCodeContext =>
         {
             var response = statusCodeContext.HttpContext.Response;

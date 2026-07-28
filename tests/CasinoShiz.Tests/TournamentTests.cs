@@ -279,7 +279,7 @@ public sealed class TournamentServiceTests
         var store = new TournamentStoreStub();
         var economics = new FakeEconomicsService();
         var history = new RecordingHistoryStore();
-        var service = new TournamentService(meta, store, new TournamentAtomicEffectExecutor(meta, store, economics, history));
+        var service = TournamentService.CreateDirect(meta, store, new TournamentAtomicEffectExecutor(meta, store, economics, history));
         var season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}");
         meta.Season = season;
 
@@ -332,7 +332,7 @@ public sealed class TournamentServiceTests
         var store = new TournamentStoreStub();
         var economics = new FakeEconomicsService();
         var history = new RecordingHistoryStore();
-        var service = new TournamentService(meta, store, new TournamentAtomicEffectExecutor(meta, store, economics, history));
+        var service = TournamentService.CreateDirect(meta, store, new TournamentAtomicEffectExecutor(meta, store, economics, history));
         var season = new MetaSeason(7, "Season 7", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddDays(14), "active", "{}");
         meta.Season = season;
 

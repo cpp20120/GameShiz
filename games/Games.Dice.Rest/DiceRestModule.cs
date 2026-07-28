@@ -54,14 +54,7 @@ public sealed class DiceRestModule : IRestRouteModule
                 scopeId,
                 RestIdempotency.ToStableSourceId(idempotencyKey).ToString(System.Globalization.CultureInfo.InvariantCulture),
                 false),
-            new RequestMetadata(
-                context.RequestId,
-                context.CorrelationId,
-                "rest",
-                context.Subject,
-                context.ScopeId,
-                "en",
-                context.Baggage),
+            RequestMetadata.FromTenantContext(context.TenantContext, "rest", "en", context.Baggage),
             cancellationToken);
 
         return Results.Ok(response);

@@ -98,8 +98,8 @@ public sealed class PokerRestModule : IRestRouteModule
         var operationId = RequireOperationId(context, options, "start");
         var result = await service.StartHandAsync(
             context.UserId, ParseScope(context), operationId, cancellationToken);
-        EnsureTable(result.Snapshot, tableId);
         EnsureSuccess(result.Error);
+        EnsureTable(result.Snapshot, tableId);
         return Results.Ok(result);
     }
 
@@ -117,8 +117,8 @@ public sealed class PokerRestModule : IRestRouteModule
         var result = await service.ApplyPlayerActionAsync(
             context.UserId, ParseScope(context), request.Verb.ToLowerInvariant(), request.Amount,
             operationId, cancellationToken);
-        EnsureTable(result.Snapshot, tableId);
         EnsureSuccess(result.Error);
+        EnsureTable(result.Snapshot, tableId);
         return Results.Ok(result);
     }
 
@@ -132,8 +132,8 @@ public sealed class PokerRestModule : IRestRouteModule
         var operationId = RequireOperationId(context, options, "leave");
         var result = await service.LeaveTableAsync(
             context.UserId, ParseScope(context), operationId, cancellationToken);
-        EnsureTable(result.Snapshot, tableId, allowMissing: result.TableClosed);
         EnsureSuccess(result.Error);
+        EnsureTable(result.Snapshot, tableId, allowMissing: result.TableClosed);
         return Results.Ok(result);
     }
 

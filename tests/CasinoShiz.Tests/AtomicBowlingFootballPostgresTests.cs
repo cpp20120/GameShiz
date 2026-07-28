@@ -52,6 +52,22 @@ public sealed class AtomicBowlingFootballPostgresTests(AtomicPostgresFixture dat
     }
 
     [Fact]
+    public async Task ConcurrentBowlingPlaces_SerializeAndDebitOnlyTheWinningPendingBet()
+    {
+        var executor = CreateExecutor(
+            new BowlingPlaceDescriptor(), new BowlingPlaceBetAction(), new BowlingBetStateStore());
+        var results = await Task.WhenAll(
+            executor.ExecuteAsync(new(new(42, "bowler", 84, 50, "bowling-race-a", 100, null)), CancellationToken.None),
+            executor.ExecuteAsync(new(new(42, "bowler", 84, 50, "bowling-race-b", 100, null)), CancellationToken.None));
+
+        Assert.Contains(results, result => result.Error == BowlingBetError.None);
+        Assert.Contains(results, result => result.Error == BowlingBetError.AlreadyPending);
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM bowling_bets"));
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM economics_ledger"));
+        Assert.Equal(1, await Scalar<int>("SELECT roll_count FROM telegram_dice_daily_rolls"));
+    }
+
+    [Fact]
     public async Task Football_PlaceAndThrowCommitWalletQuotaStateInboxAndEventsAtomically()
     {
         var place = CreateExecutor(
@@ -76,6 +92,22 @@ public sealed class AtomicBowlingFootballPostgresTests(AtomicPostgresFixture dat
         Assert.Equal(2, await Scalar<int>("SELECT count(*) FROM economics_ledger"));
         Assert.Equal(2, await Scalar<int>("SELECT count(*) FROM game_command_idempotency"));
         Assert.Equal(3, await Scalar<int>("SELECT count(*) FROM game_event_outbox"));
+    }
+
+    [Fact]
+    public async Task ConcurrentFootballPlaces_SerializeAndDebitOnlyTheWinningPendingBet()
+    {
+        var executor = CreateExecutor(
+            new FootballPlaceDescriptor(), new FootballPlaceBetAction(), new FootballBetStateStore());
+        var results = await Task.WhenAll(
+            executor.ExecuteAsync(new(new(42, "player", 84, 50, "football-race-a", 100, null)), CancellationToken.None),
+            executor.ExecuteAsync(new(new(42, "player", 84, 50, "football-race-b", 100, null)), CancellationToken.None));
+
+        Assert.Contains(results, result => result.Error == FootballBetError.None);
+        Assert.Contains(results, result => result.Error == FootballBetError.AlreadyPending);
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM football_bets"));
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM economics_ledger"));
+        Assert.Equal(1, await Scalar<int>("SELECT roll_count FROM telegram_dice_daily_rolls"));
     }
 
     private IAtomicGameExecutor<TCommand, TState, TResult> CreateExecutor<TCommand, TState, TResult>(

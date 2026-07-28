@@ -1,4 +1,5 @@
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 
 namespace BotFramework.Host.Workflows;
@@ -7,6 +8,7 @@ namespace BotFramework.Host.Workflows;
 /// Generic durable saga state for all workflow types. Domain-specific state
 /// remains in the module; this state only tracks the operator-visible flow.
 /// </summary>
+[WolverineIgnore]
 public sealed class DurableWorkflowSaga : Saga
 {
     [SagaIdentity]

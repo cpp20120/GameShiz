@@ -25,6 +25,8 @@ public static class DurableWorkflowBuilderExtensions
         var connectionString = builder.Configuration.GetConnectionString("Postgres")
             ?? throw new InvalidOperationException("ConnectionStrings:Postgres is required for durable workflows.");
         var schema = builder.Configuration["DurableWorkflow:Schema"] ?? "durable_workflow";
+        var configuredDurabilityMode = builder.Configuration["DurableWorkflow:Mode"];
+        var autoCreateMessageStore = builder.Configuration.GetValue<bool>("DurableWorkflow:AutoCreate");
 
         builder.Services.AddSingleton<IDurableWorkflowStepStore, PostgresDurableWorkflowStepStore>();
         builder.Services.AddScoped<IDurableWorkflowDispatcher, DurableWorkflowDispatcher>();
@@ -33,7 +35,11 @@ public static class DurableWorkflowBuilderExtensions
 
         builder.Host.UseWolverine(opts =>
         {
-            opts.PersistMessagesWithPostgresql(connectionString, schema);
+            var persistence = opts.PersistMessagesWithPostgresql(connectionString, schema);
+            if (autoCreateMessageStore)
+                persistence.OverrideAutoCreateResources(JasperFx.AutoCreate.CreateOrUpdate);
+            if (Enum.TryParse<DurabilityMode>(configuredDurabilityMode, ignoreCase: true, out var durabilityMode))
+                opts.Durability.Mode = durabilityMode;
             opts.Policies.UseDurableLocalQueues();
             opts.Policies.OnException<Exception>().ScheduleRetryIndefinitely(
                 TimeSpan.FromSeconds(5),
@@ -42,7 +48,12 @@ public static class DurableWorkflowBuilderExtensions
             opts.MessagePartitioning.UseInferredMessageGrouping();
             opts.Discovery.IncludeAssembly(typeof(DurableWorkflowStepHandler).Assembly);
             foreach (var assembly in handlerAssemblies.Where(static assembly => assembly is not null).Distinct())
+            {
                 opts.Discovery.IncludeAssembly(assembly);
+                foreach (var type in assembly.GetExportedTypes()
+                             .Where(static type => type.Name.EndsWith("CommandExecutor", StringComparison.Ordinal)))
+                    opts.CodeGeneration.AlwaysUseServiceLocationFor(type);
+            }
         });
 
         return builder;

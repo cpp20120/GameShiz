@@ -55,9 +55,9 @@ internal sealed partial class TplRenderWorker : IRenderQueue, IRenderHistory, IH
             await Task.WhenAll(_interactive.Completion, _background.Completion)
                 .WaitAsync(cancellationToken);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _stopping.IsCancellationRequested)
         {
-            // The host shutdown deadline owns cancellation here.
+            // Queue cancellation is expected during normal shutdown.
         }
     }
 

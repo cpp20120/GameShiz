@@ -53,8 +53,7 @@ public sealed class PostgresDurableWorkflowStepStore(INpgsqlConnectionFactory co
     }
 
     private const string SelectSql = """
-        SELECT id AS Id,
-               workflow_id AS WorkflowId,
+        SELECT workflow_id AS WorkflowId,
                command_id AS CommandId,
                command_type AS CommandType,
                operation AS Operation,
@@ -66,7 +65,8 @@ public sealed class PostgresDurableWorkflowStepStore(INpgsqlConnectionFactory co
                payload::text AS PayloadJson,
                result::text AS ResultJson,
                error AS Error,
-               occurred_at AS OccurredAt
+               occurred_at AS OccurredAt,
+               id AS Id
         FROM durable_workflow_steps
         """;
 }

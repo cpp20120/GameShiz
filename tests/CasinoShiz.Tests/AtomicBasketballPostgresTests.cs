@@ -61,6 +61,21 @@ public sealed class AtomicBasketballPostgresTests(AtomicPostgresFixture database
     }
 
     [Fact]
+    public async Task ConcurrentPlaceBets_SerializeAndDebitOnlyTheWinningPendingBet()
+    {
+        var executor = CreatePlaceExecutor();
+        var results = await Task.WhenAll(
+            executor.ExecuteAsync(new(Place("basketball-race-a")), CancellationToken.None),
+            executor.ExecuteAsync(new(Place("basketball-race-b")), CancellationToken.None));
+
+        Assert.Contains(results, result => result.Error == BasketballBetError.None);
+        Assert.Contains(results, result => result.Error == BasketballBetError.AlreadyPending);
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM basketball_bets"));
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM economics_ledger"));
+        Assert.Equal(1, await Scalar<int>("SELECT roll_count FROM telegram_dice_daily_rolls"));
+    }
+
+    [Fact]
     public async Task Throw_CommitsPayoutStateAndSessionDeletionInboxAndEventsTogether()
     {
         await CreatePlaceExecutor().ExecuteAsync(

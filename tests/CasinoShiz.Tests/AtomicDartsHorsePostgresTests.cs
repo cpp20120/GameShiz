@@ -56,6 +56,23 @@ public sealed class AtomicDartsHorsePostgresTests(AtomicPostgresFixture database
     }
 
     [Fact]
+    public async Task ConcurrentDartsPlaces_SerializeAndPreserveBothQueuedRounds()
+    {
+        var executor = Executor(
+            new DartsDescriptor<DartsPlaceBetCommand, DartsBetResult>(command => command.CommandId,
+                command => command.UserId, command => command.ChatId, command => command.DisplayName),
+            new DartsPlaceBetAction(), new DartsPlaceBetStateStore());
+        var results = await Task.WhenAll(
+            executor.ExecuteAsync(new(new DartsPlaceBetCommand(42, "dart", 84, 20, 100, 8, "darts-race-a", 100, null)), CancellationToken.None),
+            executor.ExecuteAsync(new(new DartsPlaceBetCommand(42, "dart", 84, 20, 100, 9, "darts-race-b", 100, null)), CancellationToken.None));
+
+        Assert.All(results, result => Assert.Equal(DartsBetError.None, result.Error));
+        Assert.Equal(2, await Scalar<int>("SELECT count(*) FROM darts_rounds"));
+        Assert.Equal(2, await Scalar<int>("SELECT count(*) FROM economics_ledger"));
+        Assert.Equal(2, await Scalar<int>("SELECT roll_count FROM telegram_dice_daily_rolls"));
+    }
+
+    [Fact]
     public async Task Horse_MultiWalletRacePayoutAndResultsCommitExactlyOnce()
     {
         var betDescriptor = new HorsePlaceBetDescriptor();

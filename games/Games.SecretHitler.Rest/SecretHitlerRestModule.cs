@@ -29,7 +29,9 @@ public sealed class SecretHitlerRestModule : IRestRouteModule
     private static async Task<IResult> FindAsync(ISecretHitlerService service, RestRequestContext context, CancellationToken ct)
     {
         var result = await service.FindMyGameAsync(context.UserId, ct);
-        return result.Snapshot is null ? Results.NotFound() : Results.Ok(result);
+        return result.Snapshot is null
+            ? Results.NotFound()
+            : Results.Ok(new { result.Snapshot, result.Me });
     }
 
     private static async Task<IResult> CreateAsync(SecretHitlerCreateRequest request, ISecretHitlerService service, RestRequestContext context, CancellationToken ct) =>

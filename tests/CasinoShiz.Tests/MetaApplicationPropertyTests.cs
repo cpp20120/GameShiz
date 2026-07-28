@@ -392,12 +392,10 @@ public sealed class MetaApplicationPropertyTests
     {
         var id = 1L + rawId.Get % 100_000;
         var steps = new CapturingWorkflowStepExecutor();
-        var handler = new TournamentWorkflowHandler(
-            new TournamentCommandExecutor(
-                new ApplicationMetaStub(Season()),
-                new CapturingTournamentStore(),
-                new CapturingEffectExecutor()),
-            steps);
+        var executor = new TournamentCommandExecutor(
+            new ApplicationMetaStub(Season()),
+            new CapturingTournamentStore(),
+            new CapturingEffectExecutor());
 
         var commands = new IDurableWorkflowCommand[]
         {
@@ -409,12 +407,12 @@ public sealed class MetaApplicationPropertyTests
             new TournamentCancelWorkflowCommand("cancel-command", $"workflow:cancel:{id}", id, id + 1),
         };
 
-        await handler.Handle((TournamentCreateWorkflowCommand)commands[0], CancellationToken.None);
-        await handler.Handle((TournamentJoinWorkflowCommand)commands[1], CancellationToken.None);
-        await handler.Handle((TournamentStartWorkflowCommand)commands[2], CancellationToken.None);
-        await handler.Handle((TournamentReportWorkflowCommand)commands[3], CancellationToken.None);
-        await handler.Handle((TournamentFinishWorkflowCommand)commands[4], CancellationToken.None);
-        await handler.Handle((TournamentCancelWorkflowCommand)commands[5], CancellationToken.None);
+        await TournamentWorkflowHandler.Handle((TournamentCreateWorkflowCommand)commands[0], executor, steps, CancellationToken.None);
+        await TournamentJoinWorkflowHandler.Handle((TournamentJoinWorkflowCommand)commands[1], executor, steps, CancellationToken.None);
+        await TournamentStartWorkflowHandler.Handle((TournamentStartWorkflowCommand)commands[2], executor, steps, CancellationToken.None);
+        await TournamentReportWorkflowHandler.Handle((TournamentReportWorkflowCommand)commands[3], executor, steps, CancellationToken.None);
+        await TournamentFinishWorkflowHandler.Handle((TournamentFinishWorkflowCommand)commands[4], executor, steps, CancellationToken.None);
+        await TournamentCancelWorkflowHandler.Handle((TournamentCancelWorkflowCommand)commands[5], executor, steps, CancellationToken.None);
 
         var expectedOperations = new[] { "create", "join", "start", "report", "finish", "cancel" };
         var expectedCommandIds = new[] { "create-command", "join-command", "start-command", "report-command", "finish-command", "cancel-command" };

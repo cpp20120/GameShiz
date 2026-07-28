@@ -1,6 +1,4 @@
 using BotFramework.Host.Execution;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Games.Meta.Application.Tournaments;
 
 public sealed class TournamentService : ITournamentService
@@ -9,7 +7,6 @@ public sealed class TournamentService : ITournamentService
     private readonly ITournamentStore _tournaments;
     private readonly ITournamentWorkflow _workflow;
 
-    [ActivatorUtilitiesConstructor]
     public TournamentService(IMetaService meta, ITournamentStore tournaments, ITournamentWorkflow workflow)
     {
         _meta = meta;
@@ -17,12 +14,16 @@ public sealed class TournamentService : ITournamentService
         _workflow = workflow;
     }
 
-    // Keeps the existing unit-test and module-level construction seam intact.
-    // Production composition selects the durable-workflow constructor above.
-    public TournamentService(IMetaService meta, ITournamentStore tournaments, IAtomicEffectExecutor effects)
+    // Keeps the direct atomic workflow available to focused application tests.
+    private TournamentService(IMetaService meta, ITournamentStore tournaments, IAtomicEffectExecutor effects)
         : this(meta, tournaments, new DirectTournamentWorkflow(new TournamentCommandExecutor(meta, tournaments, effects)))
     {
     }
+
+    public static TournamentService CreateDirect(
+        IMetaService meta,
+        ITournamentStore tournaments,
+        IAtomicEffectExecutor effects) => new(meta, tournaments, effects);
 
     public Task<TournamentCreateResult> CreateAsync(
         long chatId,
