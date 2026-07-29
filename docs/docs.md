@@ -16,6 +16,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Multi-player table games | `/poker` · `/blackjack` · `/sh` (Secret Hitler) | Layered split (Domain / Application / Infrastructure) |
 | Race | `/horse` (`bet` / `info` / `result`) · admin `/horserun` | SkiaSharp GIF renderer + scheduled daily auto-run |
 | Casino-style pick games | `/pick` · `/picklottery` + `/pickjoin` · `/dailylottery` | Random outcome with configurable house edge, double-or-nothing chain, streak bonus, multi-user pools |
+| Non-betting fun commands | `/roll` · `/choose` · `/ben` | Random forecasts, choice selection, and weighted Talking Ben GIFs |
 | PvP | `/challenge` | 1v1 stake duel layered on top of every other game |
 | Webapp | `/pixelbattle` | Telegram WebApp shared pixel canvas |
 | Economy | `/balance` · `/daily` · `/transfer` · `/redeem` · `/top` · `/mystats` | Per-chat wallets, daily bonus drip, peer transfer with fee, player statistics and global protection controls |
@@ -35,7 +36,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Analytics | ClickHouse 24.x via `ClickHouse.Client` 7.x (buffered, degrades gracefully) |
 | Dashboards | Grafana 11 with auto-provisioned ClickHouse + Prometheus datasources |
 | Graphics | SkiaSharp 3.x (horse race GIF renderer, offloaded to thread pool) |
-| Tests | xUnit, 1,425 tests covering domain, application, infrastructure, adapters, boundaries and framework; PostgreSQL integration tests use Testcontainers |
+| Tests | xUnit, 1,462 tests covering domain, application, infrastructure, adapters, boundaries and framework; PostgreSQL integration tests use Testcontainers |
 | Deploy | Docker Compose (bot + postgres + redis + clickhouse + prometheus + grafana) / Helm chart |
 
 ## Layout
@@ -1446,6 +1447,7 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 | `blackjack:MinBet`, `MaxBet`, `HandTimeoutMs` | |
 | `sh:BuyIn` | Secret Hitler buy-in |
 | `pick:*` | See below |
+| `fun:*` | `BenPrimary:0..1` and `BenRare:0..2`; each value is a Telegram `file_id`, HTTPS URL, or application-relative local GIF path |
 | `challenges:*` | See below |
 | `transfer:*` | `FeePercent`, `MinFeeCoins`, `MinNetCoins`, `MaxNetCoins` |
 | `pixelbattle:*` | See below |
@@ -1467,6 +1469,8 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 | `PendingTtlMinutes` | `10` | Pending expiry, clamped to 1..60 minutes |
 
 `Games:pick` — see "Pick / Pick lottery / Daily lottery" sections above for the full key list (`DefaultBet`, `MaxBet`, `HouseEdge`, `StreakBonusPerWin`, `StreakCap`, `ChainMaxDepth`, `ChainTtlSeconds`, `RevealAnimation`, `RevealStepDelayMs`, `RevealMaxTotalMs`, plus nested `Lottery` and `Daily` blocks).
+
+`Games:fun` provides the non-betting `/roll`, `/choose`, and `/ben` commands. `/choose` accepts 2–50 comma- or newline-separated options, each up to 50 characters. `/ben` requires all five sources: `BenPrimary:0`, `BenPrimary:1`, `BenRare:0`, `BenRare:1`, and `BenRare:2`; their fixed selection weights are 47%, 47%, 2%, 2%, and 2%. Sources can be Telegram `file_id:<id>` values, HTTPS URLs, or paths relative to the application directory. Empty sources intentionally make `/ben` report that the command is not configured.
 
 `Games:pixelbattle`:
 
@@ -1747,7 +1751,7 @@ All ordinary game debits pass the protection check inside the same PostgreSQL tr
 
 ## Testing
 
-1,425 xUnit tests under `tests/CasinoShiz.Tests/`. The suite combines in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.) with PostgreSQL integration tests provisioned by `Testcontainers.PostgreSql`; CI therefore requires Docker, but no manually managed external database. Boundary tests also enforce that contract/backend assemblies do not acquire Telegram or gRPC dependencies. `DailyBonusMath` unit-tests the bonus coin formula.
+1,462 xUnit tests under `tests/CasinoShiz.Tests/`. The suite combines in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.) with PostgreSQL integration tests provisioned by `Testcontainers.PostgreSql`; CI therefore requires Docker, but no manually managed external database. Boundary tests also enforce that contract/backend assemblies do not acquire Telegram or gRPC dependencies. `DailyBonusMath` unit-tests the bonus coin formula.
 
 ```bash
 dotnet test
@@ -1777,6 +1781,9 @@ All UI in Russian. Command names are ASCII.
 | `/blackjack <bet>` | Start a hand; inline keyboard drives hit / stand / double |
 | `/sh create / join / start / nominate <user> / vote yes\|no / leave` | Secret Hitler (5–10 players) |
 | `/pick <variants…>` and variants (see `/pick help`) | Pick game with explicit choice / parlay / streak / ×2 chain |
+| `/roll [question]` | Random percentage; with a question, returns a forecast with a reduced fraction |
+| `/choose <a, b or lines>` | Non-betting random choice: 2–50 options, max 50 characters each |
+| `/ben` | Sends one of five configured Talking Ben GIFs (47% / 47% / 2% / 2% / 2%) |
 | `/picklottery <stake>`, `/pickjoin`, `/picklottery info / cancel / help` | 5-min lottery in this chat |
 | `/dailylottery [buy] [N]`, `/dailylottery history / help` | Daily lottery in this chat (draw at the configured local hour) |
 | `/challenge @user <amount> <game>` | 1v1 PvP stake challenge |

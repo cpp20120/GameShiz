@@ -1,6 +1,6 @@
 # CasinoShiz: casino bot mathematical model
 
-Snapshot date: 2026-06-22.
+
 
 This document describes the current code model, not the desired balance. Main sources:
 `games/Games.*/Application/Services/*`, `games/Games.*/Domain/Configuration/*`,

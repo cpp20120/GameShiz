@@ -33,6 +33,7 @@
     <ProjectReference Include="..\..\games\Games.Leaderboard.Transport.Grpc\Games.Leaderboard.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.PixelBattle.Telegram\Games.PixelBattle.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Telegram\Games.Pick.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Fun.Telegram\Games.Fun.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Transport.Grpc\Games.Pick.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Telegram\Games.Blackjack.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Transport.Grpc\Games.Blackjack.Transport.Grpc.csproj" />
@@ -48,6 +49,7 @@
     <ProjectReference Include="..\..\games\Games.Poker.Transport.Grpc\Games.Poker.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.SecretHitler.Telegram\Games.SecretHitler.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.SecretHitler.Transport.Grpc\Games.SecretHitler.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Telegram\ChatAdministration.Telegram.csproj" />
   </ItemGroup>
 
 </Project>

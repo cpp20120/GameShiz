@@ -35,6 +35,7 @@ var proxiedAdminPaths = new[]
     "/admin/challenges",
     "/admin/events",
     "/admin/groups",
+    "/admin/chat-administration",
     "/admin/history",
     "/admin/horse",
     "/admin/horse/image",

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ChatAdministration.Telegram</RootNamespace>
+    <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Telegram.Bot" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ChatAdministration.Application\ChatAdministration.Application.csproj" />
+    <ProjectReference Include="..\..\..\framework\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\..\..\framework\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

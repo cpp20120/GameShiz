@@ -58,6 +58,8 @@
     <Project Path="games\Games.Transfer\Games.Transfer.csproj" />
     <Project Path="games\Games.PixelBattle\Games.PixelBattle.csproj" />
     <Project Path="games\Games.Pick\Games.Pick.csproj" />
+    <Project Path="games\Games.Fun\Games.Fun.csproj" />
+    <Project Path="games\Games.Fun.Telegram\Games.Fun.Telegram.csproj" />
     <Project Path="games\Games.Meta\Games.Meta.csproj" />
     <Project Path="games/Games.Meta.Contracts/Games.Meta.Contracts.csproj" />
     <Project Path="games/Games.Meta.Telegram/Games.Meta.Telegram.csproj" />
@@ -107,6 +109,11 @@
     <Project Path="host\CasinoShiz.Backend\CasinoShiz.Backend.csproj" />
     <Project Path="host\CasinoShiz.Host\CasinoShiz.Host.csproj" />
     <Project Path="host\CasinoShiz.TelegramBff\CasinoShiz.TelegramBff.csproj" />
+  </Folder>
+  <Folder Name="/modules/ChatAdministration/">
+    <Project Path="modules\ChatAdministration\ChatAdministration.Domain\ChatAdministration.Domain.csproj" />
+    <Project Path="modules\ChatAdministration\ChatAdministration.Application\ChatAdministration.Application.csproj" />
+    <Project Path="modules\ChatAdministration\ChatAdministration.Telegram\ChatAdministration.Telegram.csproj" />
   </Folder>
   <Folder Name="/services/">
     <Project Path="services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />

@@ -1,4 +1,5 @@
 using BotFramework.Host.Composition.Migrations;
+using ChatAdministration.Telegram.Infrastructure;
 using Dapper;
 using Games.Dice.Infrastructure.Migrations;
 using Games.DiceCube.Infrastructure.Migrations;
@@ -72,6 +73,8 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
             await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new PixelBattleMigrations().Migrations)
             await connection.ExecuteAsync(migration.Sql);
+        foreach (var migration in new ChatAdministrationMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql);
     }
 
     public async Task DisposeAsync() => await container.DisposeAsync();
@@ -82,6 +85,20 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
         await connection.OpenAsync();
         await connection.ExecuteAsync("""
             TRUNCATE TABLE
+                processed_update_inbox,
+                chat_admin_settings_callbacks,
+                chat_admin_audit_events,
+                chat_admin_effect_outbox,
+                chat_admin_domain_events,
+                chat_admin_case_history,
+                chat_admin_appeals,
+                chat_admin_cases,
+                chat_admin_message_index,
+                chat_admin_verifications,
+                chat_admin_warnings,
+                chat_admin_members,
+                chat_admin_commands,
+                chat_admin_chats,
                 tenant_event_outbox,
                 tenant_schedule_outbox,
                 tenant_aggregate_states,

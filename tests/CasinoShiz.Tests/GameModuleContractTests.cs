@@ -21,6 +21,7 @@ public sealed class GameModuleContractTests
         new LeaderboardModule(),
         new MetaModule(),
         new Games.Pick.Infrastructure.Modules.PickModule(),
+        new Games.Fun.Telegram.FunTelegramModule(),
         new PixelBattleModule(),
         new PokerModule(),
         new RedeemModule(),

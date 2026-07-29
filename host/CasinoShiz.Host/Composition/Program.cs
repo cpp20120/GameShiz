@@ -25,6 +25,7 @@ using Games.Redeem.Telegram;
 using Games.Leaderboard.Telegram;
 using Games.PixelBattle.Telegram;
 using Games.Pick.Telegram;
+using Games.Fun.Telegram;
 using Games.Blackjack.Telegram;
 using Games.Horse.Telegram;
 using Games.Challenges.Telegram;
@@ -96,6 +97,7 @@ builder.AddBotFramework()
     .AddModule<PixelBattleTelegramModule>()
     .AddModule<PickModule>()
     .AddModule<PickTelegramModule>()
+    .AddModule<FunTelegramModule>()
     .AddModule<MetaModule>()
     .AddModule<MetaTelegramModule>()
     .AddModule<AdminModule>()

@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\framework\BotFramework.Rest\BotFramework.Rest.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Rendering\BotFramework.Rendering.csproj" />
     <ProjectReference Include="..\..\framework\BotFramework.Telegram\BotFramework.Telegram.csproj" />
+    <ProjectReference Include="..\..\host\CasinoShiz.Host\CasinoShiz.Host.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack\Games.Blackjack.csproj" />
     <ProjectReference Include="..\..\games\Games.Horse\Games.Horse.csproj" />
     <ProjectReference Include="..\..\games\Games.Poker\Games.Poker.csproj" />
@@ -103,6 +104,8 @@
     <ProjectReference Include="..\..\games\Games.PixelBattle.Telegram\Games.PixelBattle.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Contracts\Games.Pick.Contracts.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Telegram\Games.Pick.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Fun\Games.Fun.csproj" />
+    <ProjectReference Include="..\..\games\Games.Fun.Telegram\Games.Fun.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Transport.Grpc\Games.Pick.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Contracts\Games.Blackjack.Contracts.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Telegram\Games.Blackjack.Telegram.csproj" />
@@ -118,6 +121,9 @@
     <ProjectReference Include="..\..\services\CasinoShiz.Identity.Transport.Grpc\CasinoShiz.Identity.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Wallet.Transport.Grpc\CasinoShiz.Wallet.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Operations.Transport.Grpc\CasinoShiz.Operations.Transport.Grpc.csproj" />
+    <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Domain\ChatAdministration.Domain.csproj" />
+    <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Application\ChatAdministration.Application.csproj" />
+    <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Telegram\ChatAdministration.Telegram.csproj" />
   </ItemGroup>
 
 </Project>

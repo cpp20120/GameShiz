@@ -1,11 +1,18 @@
 using Dapper;
+using BotFramework.Host.Composition.Builder;
+using Microsoft.Extensions.Options;
 
 namespace BotFramework.Telegram.Pipeline.Middleware;
 
 public sealed partial class UpdateDeduplicationMiddleware(
     INpgsqlConnectionFactory connections,
-    ILogger<UpdateDeduplicationMiddleware> logger) : IUpdateMiddleware
+    ILogger<UpdateDeduplicationMiddleware> logger,
+    IOptions<BotFrameworkOptions> options) : IUpdateMiddleware
 {
+    private readonly string botId = string.IsNullOrWhiteSpace(options.Value.TenantKey)
+        ? "default"
+        : options.Value.TenantKey;
+
     public async Task InvokeAsync(UpdateContext ctx, UpdateDelegate next)
     {
         var updateId = ctx.Update.Id;
@@ -38,22 +45,27 @@ public sealed partial class UpdateDeduplicationMiddleware(
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition(
             """
-            DELETE FROM processed_updates
-            WHERE update_id = @updateId
+            DELETE FROM processed_update_inbox
+            WHERE bot_id = @botId AND update_id = @updateId
               AND status = 'processing'
               AND started_at < now() - interval '10 minutes'
             """,
-            new { updateId },
+            new { botId, updateId },
             cancellationToken: ct));
 
         var inserted = await conn.ExecuteScalarAsync<int?>(new CommandDefinition(
             """
-            INSERT INTO processed_updates (update_id, status)
-            VALUES (@updateId, 'processing')
-            ON CONFLICT (update_id) DO NOTHING
+            INSERT INTO processed_update_inbox (bot_id, update_id, status, correlation_id)
+            VALUES (@botId, @updateId, 'processing', @correlationId)
+            ON CONFLICT (bot_id, update_id) DO NOTHING
             RETURNING 1
             """,
-            new { updateId },
+            new
+            {
+                botId,
+                updateId,
+                correlationId = $"telegram-update:{botId}:{updateId}",
+            },
             cancellationToken: ct));
         return inserted == 1;
     }
@@ -63,11 +75,11 @@ public sealed partial class UpdateDeduplicationMiddleware(
         await using var conn = await connections.OpenAsync(ct);
         await conn.ExecuteAsync(new CommandDefinition(
             """
-            UPDATE processed_updates
+            UPDATE processed_update_inbox
             SET status = 'completed', completed_at = now(), error = NULL
-            WHERE update_id = @updateId
+            WHERE bot_id = @botId AND update_id = @updateId
             """,
-            new { updateId },
+            new { botId, updateId },
             cancellationToken: ct));
     }
 
@@ -78,10 +90,10 @@ public sealed partial class UpdateDeduplicationMiddleware(
             await using var conn = await connections.OpenAsync(CancellationToken.None);
             await conn.ExecuteAsync(new CommandDefinition(
                 """
-                DELETE FROM processed_updates
-                WHERE update_id = @updateId AND status = 'processing'
+                DELETE FROM processed_update_inbox
+                WHERE bot_id = @botId AND update_id = @updateId AND status = 'processing'
                 """,
-                new { updateId },
+                new { botId, updateId },
                 cancellationToken: CancellationToken.None));
         }
         catch (Exception cleanupEx)

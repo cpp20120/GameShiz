@@ -61,6 +61,7 @@
     <ProjectReference Include="..\..\games\Games.Leaderboard.Rest\Games.Leaderboard.Rest.csproj" />
     <ProjectReference Include="..\..\games\Games.PixelBattle.Telegram\Games.PixelBattle.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Pick.Telegram\Games.Pick.Telegram.csproj" />
+    <ProjectReference Include="..\..\games\Games.Fun.Telegram\Games.Fun.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Blackjack.Telegram\Games.Blackjack.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Horse.Telegram\Games.Horse.Telegram.csproj" />
     <ProjectReference Include="..\..\games\Games.Challenges.Telegram\Games.Challenges.Telegram.csproj" />

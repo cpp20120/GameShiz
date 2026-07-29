@@ -1100,6 +1100,21 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 ON mini_game_sessions (user_id, chat_id, updated_at DESC);
             """),
 
+        new Migration("037_bot_scoped_update_inbox", """
+            CREATE TABLE IF NOT EXISTS processed_update_inbox (
+                bot_id         TEXT         NOT NULL,
+                update_id      BIGINT       NOT NULL,
+                status         TEXT         NOT NULL,
+                correlation_id TEXT         NOT NULL,
+                started_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+                completed_at   TIMESTAMPTZ,
+                error          TEXT,
+                PRIMARY KEY (bot_id, update_id)
+            );
+            CREATE INDEX IF NOT EXISTS ix_processed_update_inbox_started
+                ON processed_update_inbox (started_at DESC);
+            """),
+
     ];
 
     /// <summary>

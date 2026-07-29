@@ -17,6 +17,7 @@
 .nav-shell{margin:0 -24px;padding:8px 24px 9px;border-top:1px solid #1b2c47;overflow:hidden}
 .admin-nav{display:flex;align-items:center;gap:4px;min-width:max-content;overflow-x:auto;scrollbar-width:none;padding:1px 0 2px}
 .admin-nav::-webkit-scrollbar{display:none}
+.admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
 .admin-nav a{font-size:13px;padding:7px 10px;border-radius:8px}
 .admin-nav a.active{box-shadow:0 4px 14px #2d6bea35}
 .nav-separator{width:1px;height:20px;background:#2a3e5d;margin:0 5px;flex:0 0 auto}
@@ -47,6 +48,7 @@ button:focus-visible,.button:focus-visible,a:focus-visible,input:focus-visible,s
 .error:not(.flash){background:#4a1d2b;border-color:#933348;color:#ffabb6}
 .ok:not(.flash){background:#103e31;border-color:#237452;color:#9df1c6}
 @media(max-width:900px){
+    .admin-grid{grid-template-columns:1fr}
     .admin-header{padding:0 14px}
     .header-main{min-height:58px}
     .nav-shell{margin:0 -14px;padding-left:14px;padding-right:14px}

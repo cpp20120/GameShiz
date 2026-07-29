@@ -19,6 +19,7 @@ using Games.Leaderboard.Telegram;
 using Games.Leaderboard.Transport.Grpc;
 using Games.PixelBattle.Telegram;
 using Games.Pick.Telegram;
+using Games.Fun.Telegram;
 using Games.Pick.Transport.Grpc;
 using Games.Blackjack.Telegram;
 using Games.Blackjack.Transport.Grpc;
@@ -37,6 +38,7 @@ using Games.Admin.Transport.Grpc;
 using CasinoShiz.Identity.Transport.Grpc;
 using CasinoShiz.Wallet.Transport.Grpc;
 using CasinoShiz.ServiceDefaults;
+using ChatAdministration.Telegram.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -92,13 +94,16 @@ builder.AddTelegramBff()
     .AddModule<LeaderboardTelegramModule>()
     .AddModule<PixelBattleTelegramModule>()
     .AddModule<PickTelegramModule>()
+    .AddModule<FunTelegramModule>()
     .AddModule<BlackjackTelegramModule>()
     .AddModule<HorseTelegramModule>()
     .AddModule<ChallengeTelegramModule>()
     .AddModule<PokerTelegramModule>()
     .AddModule<SecretHitlerTelegramModule>()
     .AddModule<MetaTelegramModule>()
-    .AddModule<AdminTelegramModule>();
+    .AddModule<AdminTelegramModule>()
+    .AddModule<ChatAdministrationTelegramModule>();
+
 
 var app = builder.Build();
 app.UseTelegramBff();

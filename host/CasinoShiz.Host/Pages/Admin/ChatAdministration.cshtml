@@ -1,0 +1,259 @@
+@page "/admin/chat-administration"
+@model CasinoShiz.Host.Pages.Admin.ChatAdministrationModel
+@{ ViewData["Title"] = "ChatAdministration"; }
+
+<h2>ChatAdministration <span class="pill">moderation read model</span></h2>
+<p class="muted">
+    Operational view of chat settings, members, warnings, moderation cases, durable effects and audit events.
+    Actions are still issued through the Telegram moderation workflow.
+</p>
+
+@if (Model.Error is { } error)
+{
+    <div class="card" style="border-color: #b42318; color: #b42318">@error</div>
+}
+
+<div class="card">
+    <form method="get" class="inline">
+        <input type="text" name="Q" value="@Model.Q" placeholder="Search chat id, title, or type…" style="min-width: 280px" />
+        <button type="submit">Search</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Q))
+        {
+            <a href="/admin/chat-administration" class="muted">reset</a>
+        }
+    </form>
+</div>
+
+<div class="card">
+    <h3>Registered chats <span class="pill">@Model.Chats.Count</span></h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Chat</th>
+                <th>Type</th>
+                <th>State</th>
+                <th>Members</th>
+                <th>Warnings</th>
+                <th>Open cases</th>
+                <th>Pending effects</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var chat in Model.Chats)
+        {
+            <tr>
+                <td>
+                    <a href="/admin/chat-administration?chatId=@chat.ChatId">@chat.Title</a><br />
+                    <code>@chat.ChatId</code>
+                </td>
+                <td><span class="pill">@chat.ChatType</span></td>
+                <td>@(chat.IsEnabled ? "enabled" : "disabled")</td>
+                <td>@chat.MemberCount</td>
+                <td>@chat.ActiveWarningCount</td>
+                <td>@chat.OpenCaseCount</td>
+                <td>@chat.PendingEffectCount</td>
+                <td class="muted">@chat.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+            </tr>
+        }
+        @if (Model.Chats.Count == 0)
+        {
+            <tr><td colspan="8" class="muted">No ChatAdministration chats registered yet.</td></tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.SelectedChat is { } selected)
+{
+    <div class="card">
+        <h3>@selected.Title <code>@selected.ChatId</code></h3>
+        <p class="muted">@selected.ChatType · @(selected.IsEnabled ? "enabled" : "disabled") · updated @selected.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC</p>
+        <div class="admin-grid">
+            <div>
+                <h4>Settings</h4>
+                <pre>@ChatAdministrationModel.PrettyJson(selected.SettingsJson)</pre>
+            </div>
+            <div>
+                <h4>Observed bot permissions</h4>
+                <pre>@ChatAdministrationModel.PrettyJson(selected.BotPermissionsJson)</pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Moderation cases <span class="pill">@Model.Cases.Count</span></h3>
+        @if (Model.CaseCounts.Count > 0)
+        {
+            <p class="muted">@string.Join(" · ", Model.CaseCounts.Select(pair => $"{pair.Key}: {pair.Value}"))</p>
+        }
+        <table>
+            <thead><tr><th>Case</th><th>Target</th><th>Actor</th><th>Action</th><th>Reason</th><th>Status</th><th>Created</th><th>Expires</th></tr></thead>
+            <tbody>
+            @foreach (var item in Model.Cases)
+            {
+                <tr>
+                    <td><code>@item.CaseId</code></td>
+                    <td><code>@item.TargetUserId</code></td>
+                    <td>@(item.ActorUserId?.ToString() ?? item.ActorType)</td>
+                    <td><span class="pill">@item.Action</span></td>
+                    <td title="@item.Reason">@ChatAdministrationModel.Truncate(item.Reason)</td>
+                    <td>@item.Status</td>
+                    <td class="muted">@item.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td class="muted">@(item.ExpiresAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? "—")</td>
+                </tr>
+            }
+            @if (Model.Cases.Count == 0)
+            {
+                <tr><td colspan="8" class="muted">No moderation cases.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="admin-grid">
+        <div class="card">
+            <h3>Warnings <span class="pill">@Model.Warnings.Count</span></h3>
+            <table>
+                <thead><tr><th>Target</th><th>Reason</th><th>State</th><th>Created</th><th>Expires</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Warnings)
+                {
+                    <tr>
+                        <td><code>@item.TargetUserId</code></td>
+                        <td>@ChatAdministrationModel.Truncate(item.Reason)</td>
+                        <td>@(item.IsActive ? "active" : item.RevocationReason ?? "revoked")</td>
+                        <td class="muted">@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="muted">@(item.ExpiresAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                    </tr>
+                }
+                @if (Model.Warnings.Count == 0)
+                {
+                    <tr><td colspan="5" class="muted">No warnings.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Durable effects <span class="pill">@Model.Effects.Count</span></h3>
+            <table>
+                <thead><tr><th>Type</th><th>Status</th><th>Attempt</th><th>Created</th><th>Error</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Effects)
+                {
+                    <tr>
+                        <td>@item.EffectType<br /><span class="muted">@item.Importance</span></td>
+                        <td>@item.Status</td>
+                        <td>@item.Attempt</td>
+                        <td class="muted">@item.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td title="@item.LastErrorMessage">@ChatAdministrationModel.Truncate(item.LastErrorCode ?? item.LastErrorMessage)</td>
+                    </tr>
+                }
+                @if (Model.Effects.Count == 0)
+                {
+                    <tr><td colspan="5" class="muted">No case-linked effects.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="admin-grid">
+        <div class="card">
+            <h3>Verification sessions <span class="pill">@Model.Verifications.Count</span></h3>
+            <table>
+                <thead><tr><th>User</th><th>Status</th><th>Challenge</th><th>Attempts</th><th>Expires</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Verifications)
+                {
+                    <tr>
+                        <td><code>@item.UserId</code></td>
+                        <td>@item.Status</td>
+                        <td>@item.ChallengeType</td>
+                        <td>@item.Attempts / @item.MaximumAttempts</td>
+                        <td class="muted">@item.ExpiresAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+                @if (Model.Verifications.Count == 0)
+                {
+                    <tr><td colspan="5" class="muted">No verification sessions.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Appeals <span class="pill">@Model.Appeals.Count</span></h3>
+            <table>
+                <thead><tr><th>Appeal</th><th>Case</th><th>Author</th><th>Status</th><th>Text</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Appeals)
+                {
+                    <tr>
+                        <td><code>@item.AppealId</code></td>
+                        <td><code>@item.CaseId</code></td>
+                        <td><code>@item.AuthorUserId</code></td>
+                        <td>@item.Status</td>
+                        <td title="@item.Text">@ChatAdministrationModel.Truncate(item.Text)</td>
+                    </tr>
+                }
+                @if (Model.Appeals.Count == 0)
+                {
+                    <tr><td colspan="5" class="muted">No appeals.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Members <span class="pill">@Model.Members.Count</span></h3>
+        <table>
+            <thead><tr><th>User</th><th>Status</th><th>Roles</th><th>Trust</th><th>Desired restriction</th><th>Observed restriction</th><th>Last seen</th></tr></thead>
+            <tbody>
+            @foreach (var item in Model.Members)
+            {
+                <tr>
+                    <td>@(item.Username is { Length: > 0 } ? "@" + item.Username : item.DisplayName)<br /><code>@item.UserId</code></td>
+                    <td>@item.Status</td>
+                    <td>@ChatAdministrationModel.Truncate(item.RolesJson, 80)</td>
+                    <td>@item.TrustLevel</td>
+                    <td><code>@ChatAdministrationModel.Truncate(item.DesiredRestrictionJson, 100)</code></td>
+                    <td><code>@ChatAdministrationModel.Truncate(item.ObservedRestrictionJson, 100)</code></td>
+                    <td class="muted">@item.LastSeenAt.ToString("yyyy-MM-dd HH:mm")</td>
+                </tr>
+            }
+            @if (Model.Members.Count == 0)
+            {
+                <tr><td colspan="7" class="muted">No members observed.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h3>Audit events <span class="pill">@Model.AuditEvents.Count</span></h3>
+        <table>
+            <thead><tr><th>Action</th><th>Actor</th><th>Target</th><th>Case</th><th>Correlation</th><th>Metadata</th><th>Created</th></tr></thead>
+            <tbody>
+            @foreach (var item in Model.AuditEvents)
+            {
+                <tr>
+                    <td>@item.Action</td>
+                    <td>@(item.ActorUserId?.ToString() ?? "AutoMod/system")</td>
+                    <td>@(item.TargetUserId?.ToString() ?? "—")</td>
+                    <td><code>@(item.CaseId?.ToString() ?? "—")</code></td>
+                    <td><code>@item.CorrelationId</code></td>
+                    <td><code>@ChatAdministrationModel.Truncate(item.MetadataJson, 160)</code></td>
+                    <td class="muted">@item.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                </tr>
+            }
+            @if (Model.AuditEvents.Count == 0)
+            {
+                <tr><td colspan="7" class="muted">No audit events.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

@@ -22,6 +22,13 @@ This software must not be used for real-money gambling or any commercial gamblin
 The primary purpose of this project is educational, focusing on architecture patterns such as DDD, Event Sourcing, and CQRS.
 Main Product of that bot is framework for stateful games across platforms not bot itself.
 
+## Fun commands
+
+The bot also has non-betting utility commands: `/roll`, `/choose`, and `/ben`.
+The latter uses five configured GIF sources with weights 47% / 47% / 2% / 2% / 2%.
+See the full documentation for the `Games__fun__BenPrimary__*` and
+`Games__fun__BenRare__*` settings.
+
 ## Documentation
 
 -   [Full bot documentation](docs/docs.md) — games, commands, seasonal meta, architecture, configuration, admin UI, database, and deployment.

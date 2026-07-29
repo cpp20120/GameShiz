@@ -4,6 +4,8 @@ using BotFramework.Host.Contracts.Analytics;
 using BotFramework.Host.Pipeline.Routing;
 using BotFramework.Host.Redis.Streams;
 using BotFramework.Host.TelegramOutbox;
+using BotFramework.Host.Composition.Migrations;
+using BotFramework.Host.Runtime.Jobs;
 using BotFramework.Telegram.Outbox;
 using DotNetCore.CAP;
 using Microsoft.AspNetCore.Builder;
@@ -20,6 +22,7 @@ using BotFramework.Contracts.RateLimiting;
 using BotFramework.Host.RateLimiting;
 using BotFramework.Telegram.Hosting;
 using BotFramework.Telegram.Pipeline.Middleware;
+using StackExchange.Redis;
 
 namespace BotFramework.Telegram.Composition;
 
@@ -46,6 +49,8 @@ public static class TelegramBffBuilderExtensions
             new TelegramTenantContextResolver(configuration["Bot:TenantKey"]));
         services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.AddScoped<RateLimitRequestState>();
+        services.AddSingleton<IUpdateMiddleware, ExceptionMiddleware>();
+        services.AddSingleton<IUpdateMiddleware, UpdateDeduplicationMiddleware>();
         services.AddSingleton<IUpdateMiddleware, LoggingMiddleware>();
         services.AddScoped<IUpdateMiddleware, RateLimitMiddleware>();
         services.AddOptions<RateLimitOptions>()
@@ -53,10 +58,26 @@ public static class TelegramBffBuilderExtensions
             .Configure(options => options.RedisConnectionString ??= builder.Configuration["Redis:ConnectionString"])
             .Validate(options => options.LocalMaxKeys > 0, "RateLimit:LocalMaxKeys must be positive.")
             .ValidateOnStart();
+        services.AddOptions<RedisOptions>()
+            .Bind(builder.Configuration.GetSection(RedisOptions.SectionName))
+            .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.ConnectionString),
+                "Redis:ConnectionString is required when Redis:Enabled is true.")
+            .ValidateOnStart();
         services.AddSingleton<IRateLimiter, BotFramework.Host.RateLimiting.RedisRateLimiter>();
         services.TryAddSingleton<IRateLimitPolicyProvider, DefaultRateLimitPolicyProvider>();
         services.AddSingleton<ILocalizer, Localizer>();
         services.TryAddSingleton<IAnalyticsService, NoOpAnalyticsService>();
+        // The lightweight Telegram BFF previously skipped the Host migration
+        // and supervised-job extension points. Modules that need durable state
+        // (moderation, captcha, scheduled effects) must be able to use the
+        // same lifecycle as backend modules.
+        services.AddHostedService<ModuleMigrationRunner>();
+        services.AddSingleton<IBackgroundJobStatusService, BackgroundJobStatusService>();
+        services.AddHostedService<BackgroundJobRunner>();
+        var redisEnabled = configuration.GetValue<bool>($"{RedisOptions.SectionName}:Enabled");
+        var redisConnection = configuration[$"{RedisOptions.SectionName}:ConnectionString"];
+        if (redisEnabled && !string.IsNullOrWhiteSpace(redisConnection))
+            services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
         services.AddHostedService<BotHostedService>();
         var useCapOutboxTransport = string.Equals(
             configuration[$"{TelegramOutboxTransportOptions.SectionName}:Transport"],
