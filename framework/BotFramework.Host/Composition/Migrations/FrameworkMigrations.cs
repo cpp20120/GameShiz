@@ -143,7 +143,17 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             FROM users u
             GROUP BY u.balance_scope_id
             ON CONFLICT (chat_id) DO NOTHING;
-            """),
+            """)
+        {
+            // The local k3s database was initialized by an equivalent
+            // pre-module image whose raw-string formatting produced this hash.
+            // Keep the migration forward-only while allowing that deployment
+            // to start and apply migrations 037+.
+            LegacyContentHashes = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "0D2AC35A42CDA4142BAD9B74195D55F2C726D08F7BA7CD32F0FBC383DB9895A7"
+            }
+        },
 
         new Migration("008_users_last_daily_bonus", """
             ALTER TABLE users
@@ -247,7 +257,16 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             WHERE u.telegram_dice_rolls_on IS NOT NULL
               AND u.telegram_dice_roll_count > 0
             ON CONFLICT (telegram_user_id, balance_scope_id, game_id) DO NOTHING;
-            """),
+            """)
+        {
+            // The local k3s database was initialized by the previous
+            // equivalent dice backfill. Its stored hash differs only because
+            // the historical raw SQL formatting changed.
+            LegacyContentHashes = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "5A52EC8FAEE999274D63914F2299541047048A7227EDE8D60A62004FD3197FB7"
+            }
+        },
 
         new Migration("013_event_dispatch_failures", """
             CREATE TABLE IF NOT EXISTS event_dispatch_failures (
@@ -1138,7 +1157,13 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                     );
                     CREATE INDEX IF NOT EXISTS ix_known_chats_last ON known_chats (last_seen_at DESC);
                     CREATE INDEX IF NOT EXISTS ix_known_chats_type ON known_chats (chat_type);
-                    """),
+                    """)
+                {
+                    LegacyContentHashes = new HashSet<string>(StringComparer.Ordinal)
+                    {
+                        "0D2AC35A42CDA4142BAD9B74195D55F2C726D08F7BA7CD32F0FBC383DB9895A7"
+                    }
+                },
                 "012_telegram_dice_daily_per_game" => new Migration("012_telegram_dice_daily_per_game", """
                     CREATE TABLE IF NOT EXISTS telegram_dice_daily_rolls (
                         telegram_user_id    BIGINT       NOT NULL,

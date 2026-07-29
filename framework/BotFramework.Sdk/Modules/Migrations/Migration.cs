@@ -44,11 +44,28 @@ namespace BotFramework.Sdk.Modules.Migrations;
 public sealed record Migration(string Id, string Sql)
 {
     /// <summary>
+    /// Historical hashes which are known to represent the same already-applied
+    /// migration. This is intentionally opt-in and should only be used when a
+    /// deployment shipped an equivalent migration with formatting differences.
+    /// New migration changes must still be introduced as a new forward migration.
+    /// </summary>
+    public IReadOnlySet<string> LegacyContentHashes { get; init; } =
+        new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Used by the runner to detect tampering: if someone edits an applied
     /// migration's SQL, the hash mismatch surfaces at startup before any
     /// damage is done. Override only if you have a good reason.
     /// </summary>
     public string ContentHash => ComputeHash(Sql);
+
+    /// <summary>
+    /// Returns whether a stored hash is the current hash or an explicitly
+    /// approved historical equivalent.
+    /// </summary>
+    public bool IsContentHashCompatible(string storedHash) =>
+        string.Equals(storedHash, ContentHash, StringComparison.Ordinal)
+        || LegacyContentHashes.Contains(storedHash);
 
     private static string ComputeHash(string sql) =>
         Convert.ToHexString(

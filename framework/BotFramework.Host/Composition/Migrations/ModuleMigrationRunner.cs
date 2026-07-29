@@ -109,7 +109,7 @@ public sealed partial class ModuleMigrationRunner(
         {
             if (applied.TryGetValue(migration.Id, out var appliedHash))
             {
-                if (!string.Equals(appliedHash, migration.ContentHash, StringComparison.Ordinal))
+                if (!migration.IsContentHashCompatible(appliedHash))
                 {
                     throw new InvalidOperationException(
                         $"migration {module.ModuleId}:{migration.Id} was edited after apply " +
