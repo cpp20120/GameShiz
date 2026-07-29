@@ -1,4 +1,6 @@
 using Dapper;
+using BotFramework.Sdk.Economics;
+using BotFramework.Sdk.Execution;
 using Microsoft.Extensions.Options;
 
 namespace BotFramework.Host.Economics.Services;
@@ -58,13 +60,17 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         var count = row.RollsOn == today ? row.RollCount : 0;
 
-        if (count >= max)
+        var decision = QuotaPolicy.Apply(
+            new QuotaSnapshot(count, max),
+            gameId,
+            [QuotaEffect.Consume(gameId)]);
+        if (decision.Rejected)
         {
             await tx.CommitAsync(ct);
             return new TelegramDiceRollGateResult(TelegramDiceRollGateStatus.LimitExceeded, count, max);
         }
 
-        var newCount = count + 1;
+        var newCount = checked((int)decision.NewUsed);
         await conn.ExecuteAsync(
             new CommandDefinition(
                 """
@@ -161,7 +167,11 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 cancellationToken: ct));
 
         var count = row.RollsOn == today ? row.RollCount : 0;
-        var newCount = count - 1;
+        var decision = QuotaPolicy.Apply(
+            new QuotaSnapshot(count, o.GetMaxRollsPerUserPerDay(gameId)),
+            gameId,
+            [QuotaEffect.Grant(gameId)]);
+        var newCount = checked((int)decision.NewUsed);
 
         await conn.ExecuteAsync(
             new CommandDefinition(
@@ -215,7 +225,11 @@ internal sealed class TelegramDiceDailyRollLimiter(
             return;
         }
 
-        var newCount = row.RollCount - 1;
+        var decision = QuotaPolicy.Apply(
+            new QuotaSnapshot(row.RollCount, o.GetMaxRollsPerUserPerDay(gameId)),
+            gameId,
+            [QuotaEffect.Restore(gameId)]);
+        var newCount = checked((int)decision.NewUsed);
         await conn.ExecuteAsync(
             new CommandDefinition(
                 """

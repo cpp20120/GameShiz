@@ -81,7 +81,7 @@ internal sealed class AtomicEffectExecutor(
             throw new ArgumentException("Game, command and aggregate identifiers are required.", nameof(envelope));
         if (envelope.LockKeys is null || envelope.LockKeys.Count == 0)
             throw new ArgumentException("At least one stable lock key is required.", nameof(envelope));
-        if (plan.Effects?.Any(static effect => false) != false)
+        if (plan.Effects is null || plan.Effects.Any(static effect => effect is null))
             throw new ArgumentException("Atomic effect plan cannot contain null effects.", nameof(plan));
     }
 

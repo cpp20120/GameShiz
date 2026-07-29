@@ -95,12 +95,12 @@ internal sealed class GameEffectPlan
             throw new InvalidOperationException("A decision must materialize every effect category.");
         }
 
-        if (effects.Economy.Any(_ => false)
-            || effects.Quotas.Any(_ => false)
-            || effects.Records.Any(_ => false)
-            || effects.Custom.Any(_ => false)
-            || effects.Events.Any(_ => false)
-            || effects.Schedules.Any(_ => false))
+        if (effects.Economy.Any(static effect => effect is null)
+            || effects.Quotas.Any(static effect => effect is null)
+            || effects.Records.Any(static effect => effect is null)
+            || effects.Custom.Any(static effect => effect is null)
+            || effects.Events.Any(static effect => effect is null)
+            || effects.Schedules.Any(static effect => effect is null))
         {
             throw new InvalidOperationException("A decision cannot contain null effects.");
         }

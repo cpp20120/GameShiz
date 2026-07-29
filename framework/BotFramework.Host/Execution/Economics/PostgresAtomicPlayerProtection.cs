@@ -1,4 +1,6 @@
 using BotFramework.Sdk.Execution;
+using BotFramework.Sdk.Economics;
+using BotFramework.Host.Economics;
 using Dapper;
 
 namespace BotFramework.Host.Execution;
@@ -47,13 +49,14 @@ internal sealed class PostgresAtomicPlayerProtection(TimeProvider timeProvider) 
             cancellationToken: ct));
         if (protection is null) return;
 
-        var utcNow = timeProvider.GetUtcNow();
-        if (protection.SelfExcludedUntil is { } excluded && excluded > utcNow)
-            throw new PlayerProtectionException("self_excluded", excluded);
-        if (protection.CooldownUntil is { } cooldown && cooldown > utcNow)
-            throw new PlayerProtectionException("cooldown", cooldown);
-        if (protection.DailyLimit is { } limit && protection.UsedToday + stake > limit)
-            throw new PlayerProtectionException("daily_limit", dailyLimit: limit, usedToday: protection.UsedToday);
+        PlayerProtectionGuard.EnsureAllowed(PlayerProtectionPolicy.Evaluate(
+            new PlayerProtectionState(
+                protection.DailyLimit,
+                protection.CooldownUntil,
+                protection.SelfExcludedUntil,
+                protection.UsedToday),
+            stake,
+            timeProvider.GetUtcNow()));
     }
 
     private sealed record ProtectionRow(

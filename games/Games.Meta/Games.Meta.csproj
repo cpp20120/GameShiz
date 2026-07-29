@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="CasinoShiz.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="Domain\**\*.cs" />
     <Compile Include="Domain\Achievements\AchievementRegistry.cs" />
     <Compile Include="Domain\Quests\QuestRegistry.cs" />

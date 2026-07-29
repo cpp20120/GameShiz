@@ -1,4 +1,5 @@
 using BotFramework.Sdk.Execution;
+using BotFramework.Sdk.Economics;
 using Dapper;
 
 namespace BotFramework.Host.Execution;
@@ -16,7 +17,7 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
 
         await EnsureRowAsync(quota, session, ct);
         var row = await LoadRowAsync(quota, session, ct);
-        var used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
+        long used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
         return new QuotaSnapshot(used, quota.Limit);
     }
 
@@ -40,25 +41,10 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
         await EnsureRowAsync(quota, session, ct);
         var row = await LoadRowAsync(quota, session, ct);
         long used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
-
-        foreach (var effect in effects)
-        {
-            if (!string.Equals(effect.QuotaId, quota.QuotaId, StringComparison.Ordinal))
-                throw new InvalidOperationException($"Quota effect '{effect.QuotaId}' does not target '{quota.QuotaId}'.");
-            if (effect.Amount <= 0)
-                throw new ArgumentOutOfRangeException(nameof(effects), effect.Amount, "Quota effect amount must be positive.");
-
-            used = effect.Kind switch
-            {
-                QuotaEffectKind.Consume => checked(used + effect.Amount),
-                QuotaEffectKind.Restore => Math.Max(0, used - effect.Amount),
-                QuotaEffectKind.Grant => checked(used - effect.Amount),
-                _ => throw new ArgumentOutOfRangeException(nameof(effects), effect.Kind, "Unknown quota effect kind."),
-            };
-        }
-
-        if (used > quota.Limit)
+        var decision = QuotaPolicy.Apply(new QuotaSnapshot(used, quota.Limit), quota.QuotaId, effects);
+        if (decision.Rejected)
             throw new InvalidOperationException($"Quota '{quota.QuotaId}' would exceed its limit.");
+        used = decision.NewUsed;
         if (used > int.MaxValue)
             throw new InvalidOperationException($"Quota '{quota.QuotaId}' exceeds the supported storage range.");
 

@@ -1,6 +1,8 @@
 using BotFramework.Host.Contracts.Economics;
 using BotFramework.Host.Contracts.ResponsibleGaming;
+using BotFramework.Host.Economics;
 using BotFramework.Host.Persistence.Connections;
+using BotFramework.Sdk.Economics;
 using Dapper;
 
 namespace BotFramework.Host.Economics.Services;
@@ -84,37 +86,25 @@ public sealed class WalletAtomicExecutionService(
 
         var stake = effects
             .Where(effect => effect.Kind == WalletBatchEffectKind.Debit
-                && EconomicsService.IsProtectedWager(effect.Reason))
+                && WalletMutationPolicy.IsProtectedWager(effect.Reason))
             .Sum(effect => (long)effect.Amount);
         if (stake > 0)
             await EnforceProtectionAsync(connection, transaction, userId, stake, timeProvider, ct);
 
-        var balance = wallet.Coins;
-        var ledger = new List<LedgerLine>(effects.Count);
-        for (var index = 0; index < effects.Count; index++)
+        var decision = WalletMutationPolicy.ApplyBatch(
+            new WalletMutationState(wallet.Coins, wallet.Version),
+            effects,
+            allowNegative: false);
+        if (decision.Rejected)
         {
-            var effect = effects[index];
-            if (effect.Amount <= 0 || string.IsNullOrWhiteSpace(effect.Reason))
-                throw new ArgumentException("Wallet batch effects require a positive amount and reason.", nameof(effects));
-
-            var delta = effect.Kind switch
-            {
-                WalletBatchEffectKind.Debit => -effect.Amount,
-                WalletBatchEffectKind.Credit => effect.Amount,
-                _ => throw new ArgumentOutOfRangeException(nameof(effects), effect.Kind, "Unknown wallet batch effect kind."),
-            };
-            var nextBalance = checked(balance + delta);
-            if (nextBalance < 0)
-            {
-                await transaction.CommitAsync(ct);
-                return new WalletBatchMutationResult(false, true, wallet.Coins);
-            }
-
-            balance = nextBalance;
-            ledger.Add(new LedgerLine(delta, balance, effect.Reason, $"{operationId}:{index}"));
+            await transaction.CommitAsync(ct);
+            return new WalletBatchMutationResult(false, true, wallet.Coins);
         }
 
-        if (ledger.Count != 0)
+        var ledger = decision.Ledger
+            .Select((line, index) => new LedgerLine(line, $"{operationId}:{index}"))
+            .ToArray();
+        if (ledger.Length != 0)
         {
             await connection.ExecuteAsync(new CommandDefinition(
                 """
@@ -122,7 +112,7 @@ public sealed class WalletAtomicExecutionService(
                 SET coins = @balance, version = version + @versionDelta, updated_at = now()
                 WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
                 """,
-                new { userId, balanceScopeId, balance, versionDelta = ledger.Count },
+                new { userId, balanceScopeId, balance = decision.NewBalance, versionDelta = ledger.Length },
                 transaction,
                 cancellationToken: ct));
 
@@ -142,9 +132,9 @@ public sealed class WalletAtomicExecutionService(
                 {
                     userId,
                     balanceScopeId,
-                    deltas = ledger.Select(line => line.Delta).ToArray(),
-                    balances = ledger.Select(line => line.BalanceAfter).ToArray(),
-                    reasons = ledger.Select(line => line.Reason).ToArray(),
+                    deltas = ledger.Select(line => line.Mutation.Delta).ToArray(),
+                    balances = ledger.Select(line => line.Mutation.BalanceAfter).ToArray(),
+                    reasons = ledger.Select(line => line.Mutation.Reason).ToArray(),
                     operationIds = ledger.Select(line => line.OperationId).ToArray(),
                 },
                 transaction,
@@ -152,7 +142,7 @@ public sealed class WalletAtomicExecutionService(
         }
 
         await transaction.CommitAsync(ct);
-        return new WalletBatchMutationResult(true, false, balance);
+        return new WalletBatchMutationResult(decision.Applied, false, decision.NewBalance);
     }
 
     private static async Task EnforceProtectionAsync(
@@ -187,17 +177,18 @@ public sealed class WalletAtomicExecutionService(
             cancellationToken: ct));
         if (protection is null) return;
 
-        var utcNow = timeProvider.GetUtcNow();
-        if (protection.SelfExcludedUntil is { } excluded && excluded > utcNow)
-            throw new PlayerProtectionException("self_excluded", excluded);
-        if (protection.CooldownUntil is { } cooldown && cooldown > utcNow)
-            throw new PlayerProtectionException("cooldown", cooldown);
-        if (protection.DailyLimit is { } limit && protection.UsedToday + stake > limit)
-            throw new PlayerProtectionException("daily_limit", dailyLimit: limit, usedToday: protection.UsedToday);
+        PlayerProtectionGuard.EnsureAllowed(PlayerProtectionPolicy.Evaluate(
+            new PlayerProtectionState(
+                protection.DailyLimit,
+                protection.CooldownUntil,
+                protection.SelfExcludedUntil,
+                protection.UsedToday),
+            stake,
+            timeProvider.GetUtcNow()));
     }
 
     private sealed record WalletRow(int Coins, long Version);
-    private sealed record LedgerLine(int Delta, int BalanceAfter, string Reason, string OperationId);
+    private sealed record LedgerLine(WalletMutationLine Mutation, string OperationId);
     private sealed record ProtectionRow(
         int? DailyLimit,
         DateTimeOffset? CooldownUntil,

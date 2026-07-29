@@ -16,7 +16,7 @@ internal sealed class MetaQuestCatalogSaveAdminEffectHandler : MetaAdminEffectHa
     protected override async Task ApplyAsync(MetaQuestCatalogSaveAdminEffect effect, IAdminExecutionContext context, CancellationToken ct)
     {
         var path = JsonQuestCatalog.EditablePath();
-        Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
@@ -26,7 +26,7 @@ internal sealed class MetaQuestCatalogSaveAdminEffectHandler : MetaAdminEffectHa
         }
         finally
         {
-            if (File.Exists(tempPath)) File.Delete(tempPath);
+            File.Delete(tempPath);
         }
     }
 }

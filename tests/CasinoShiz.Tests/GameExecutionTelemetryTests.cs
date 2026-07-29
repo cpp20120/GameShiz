@@ -18,7 +18,11 @@ public sealed class GameExecutionTelemetryTests
         {
             ShouldListenTo = source => source.Name == GameExecutionTelemetry.InstrumentationName,
             Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
-            ActivityStopped = activity => completed = activity,
+            ActivityStopped = activity =>
+            {
+                if (Equals(activity.GetTagItem("game.command.id"), "command-1"))
+                    completed = activity;
+            },
         };
         ActivitySource.AddActivityListener(listener);
         var telemetry = CreateTelemetry();

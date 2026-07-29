@@ -8,6 +8,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Globalization;
+using BotFramework.Host.Contracts.ResponsibleGaming;
+using BotFramework.Host.Economics;
+using BotFramework.Sdk.Economics;
 using Dapper;
 using Microsoft.Extensions.Options;
 
@@ -319,15 +322,20 @@ public sealed partial class EconomicsService(
         var toCoins = fromUserId == firstUser ? row2.Coins : row1.Coins;
         var toVersion = fromUserId == firstUser ? row2.Version : row1.Version;
 
-        var senderNew = fromCoins - debitFromSender;
-        if (senderNew < 0)
+        var transfer = WalletTransferPolicy.Apply(
+            fromCoins,
+            toCoins,
+            debitFromSender,
+            creditToRecipient);
+        if (!transfer.Applied)
         {
             await tx.RollbackAsync(ct);
             LogDebitRejected(fromUserId, balanceScopeId, debitFromSender, fromCoins, senderReason);
-            return new PeerTransferResult(Ok: false, PeerTransferFailure.InsufficientFunds, 0, 0);
+            return new PeerTransferResult(false, transfer.Failure, transfer.SenderNewBalance, transfer.RecipientNewBalance);
         }
 
-        var recipientNew = toCoins + creditToRecipient;
+        var senderNew = transfer.SenderNewBalance;
+        var recipientNew = transfer.RecipientNewBalance;
         var newFromVersion = fromVersion + 1;
         var newToVersion = toVersion + 1;
 
@@ -400,9 +408,6 @@ public sealed partial class EconomicsService(
             new CommandDefinition(
                 selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
 
-        if (delta < 0 && IsProtectedWager(reason))
-            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
-
         if (row.Equals(default((int, long))))
         {
             await tx.RollbackAsync(ct);
@@ -410,23 +415,33 @@ public sealed partial class EconomicsService(
                 string.Create(CultureInfo.InvariantCulture, $"User {userId} scope {balanceScopeId} not found. Call EnsureUserAsync before any balance mutation."));
         }
 
-        var newCoins = row.coins + delta;
-        if (!allowNegative && newCoins < 0)
+        var decision = WalletMutationPolicy.ApplyDelta(
+            new WalletMutationState(row.coins, row.version),
+            delta,
+            allowNegative,
+            reason);
+        if (decision.Rejected)
         {
             await tx.RollbackAsync(ct);
             return (false, row.coins);
         }
 
-        var newVersion = row.version + 1;
+        if (delta < 0 && WalletMutationPolicy.IsProtectedWager(reason))
+            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
+
+        var line = decision.Ledger.Single();
         await conn.ExecuteAsync(new CommandDefinition(
-            updateSql, new { userId, balanceScopeId, newCoins, newVersion }, transaction: tx, cancellationToken: ct));
+            updateSql,
+            new { userId, balanceScopeId, newCoins = decision.NewBalance, newVersion = decision.NewVersion },
+            transaction: tx,
+            cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             insertLedger,
-            new { userId, balanceScopeId, delta, newCoins, reason },
+            new { userId, balanceScopeId, delta = line.Delta, newCoins = line.BalanceAfter, reason = line.Reason },
             transaction: tx, cancellationToken: ct));
 
         await tx.CommitAsync(ct);
-        return (true, newCoins);
+        return (decision.Applied, decision.NewBalance);
     }
 
     private async Task<EconomicsMutationResult> ApplyOnceAsync(
@@ -481,9 +496,6 @@ public sealed partial class EconomicsService(
             new CommandDefinition(
                 selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
 
-        if (delta < 0 && IsProtectedWager(reason))
-            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
-
         if (row.Equals(default((int, long))))
         {
             await tx.RollbackAsync(ct);
@@ -491,29 +503,36 @@ public sealed partial class EconomicsService(
                 $"User {userId} scope {balanceScopeId} not found. Call EnsureUserAsync before any balance mutation.");
         }
 
-        var newCoins = row.coins + delta;
-        if (!allowNegative && newCoins < 0)
+        var decision = WalletMutationPolicy.ApplyDelta(
+            new WalletMutationState(row.coins, row.version),
+            delta,
+            allowNegative,
+            reason);
+        if (decision.Rejected)
         {
             await tx.RollbackAsync(ct);
             return new EconomicsMutationResult(Applied: false, Rejected: true, row.coins);
         }
 
-        var newVersion = row.version + 1;
+        if (delta < 0 && WalletMutationPolicy.IsProtectedWager(reason))
+            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
+
+        var line = decision.Ledger.Single();
         await conn.ExecuteAsync(new CommandDefinition(
-            updateSql, new { userId, balanceScopeId, newCoins, newVersion }, transaction: tx, cancellationToken: ct));
+            updateSql,
+            new { userId, balanceScopeId, newCoins = decision.NewBalance, newVersion = decision.NewVersion },
+            transaction: tx,
+            cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             insertLedger,
-            new { userId, balanceScopeId, delta, newCoins, reason, operationId },
+            new { userId, balanceScopeId, delta = line.Delta, newCoins = line.BalanceAfter, reason = line.Reason, operationId },
             transaction: tx, cancellationToken: ct));
 
         await tx.CommitAsync(ct);
-        return new EconomicsMutationResult(Applied: true, Rejected: false, newCoins);
+        return new EconomicsMutationResult(Applied: decision.Applied, Rejected: false, decision.NewBalance);
     }
 
-    internal static bool IsProtectedWager(string reason) =>
-        !reason.StartsWith("admin.", StringComparison.Ordinal) &&
-        !reason.StartsWith("transfer.", StringComparison.Ordinal) &&
-        !reason.EndsWith(".rollback", StringComparison.Ordinal);
+    internal static bool IsProtectedWager(string reason) => WalletMutationPolicy.IsProtectedWager(reason);
 
     private static async Task EnforcePlayerProtectionAsync(
         Npgsql.NpgsqlConnection conn,
@@ -546,13 +565,14 @@ public sealed partial class EconomicsService(
             sql, new { userId }, transaction: tx, cancellationToken: ct));
         if (protection is null) return;
 
-        var now = DateTimeOffset.UtcNow;
-        if (protection.SelfExcludedUntil is { } excluded && excluded > now)
-            throw new PlayerProtectionException("self_excluded", excluded);
-        if (protection.CooldownUntil is { } cooldown && cooldown > now)
-            throw new PlayerProtectionException("cooldown", cooldown);
-        if (protection.DailyLimit is { } limit && protection.UsedToday + stake > limit)
-            throw new PlayerProtectionException("daily_limit", dailyLimit: limit, usedToday: protection.UsedToday);
+        PlayerProtectionGuard.EnsureAllowed(PlayerProtectionPolicy.Evaluate(
+            new PlayerProtectionState(
+                protection.DailyLimit,
+                protection.CooldownUntil,
+                protection.SelfExcludedUntil,
+                protection.UsedToday),
+            stake,
+            DateTimeOffset.UtcNow));
     }
 
     private sealed record ProtectionRead(
