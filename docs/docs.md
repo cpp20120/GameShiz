@@ -35,7 +35,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Analytics | ClickHouse 24.x via `ClickHouse.Client` 7.x (buffered, degrades gracefully) |
 | Dashboards | Grafana 11 with auto-provisioned ClickHouse + Prometheus datasources |
 | Graphics | SkiaSharp 3.x (horse race GIF renderer, offloaded to thread pool) |
-| Tests | xUnit, 1,201 tests covering domain, services, adapters, boundaries and framework |
+| Tests | xUnit, 1,425 tests covering domain, application, infrastructure, adapters, boundaries and framework; PostgreSQL integration tests use Testcontainers |
 | Deploy | Docker Compose (bot + postgres + redis + clickhouse + prometheus + grafana) / Helm chart |
 
 ## Layout
@@ -1747,7 +1747,7 @@ All ordinary game debits pass the protection check inside the same PostgreSQL tr
 
 ## Testing
 
-1,201 xUnit tests under `tests/CasinoShiz.Tests/`. No external database in CI — games use in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.). Boundary tests also enforce that contract/backend assemblies do not acquire Telegram or gRPC dependencies. `DailyBonusMath` unit-tests the bonus coin formula.
+1,425 xUnit tests under `tests/CasinoShiz.Tests/`. The suite combines in-memory fakes (`FakeEconomicsService`, `InMemoryBlackjackHandStore`, etc.) with PostgreSQL integration tests provisioned by `Testcontainers.PostgreSql`; CI therefore requires Docker, but no manually managed external database. Boundary tests also enforce that contract/backend assemblies do not acquire Telegram or gRPC dependencies. `DailyBonusMath` unit-tests the bonus coin formula.
 
 ```bash
 dotnet test
