@@ -8,6 +8,7 @@ COPY CasinoShiz.slnx Directory.Build.props Directory.Packages.props ./
 COPY framework/ framework/
 COPY games/ games/
 COPY host/ host/
+COPY modules/ modules/
 COPY services/ services/
 
 RUN dotnet restore "$PROJECT"
