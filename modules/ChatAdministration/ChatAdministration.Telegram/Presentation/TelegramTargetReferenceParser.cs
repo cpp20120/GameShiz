@@ -30,9 +30,20 @@ public static class TelegramTargetReferenceParser
             .ToArray();
         var token = tokens.FirstOrDefault(value => value.StartsWith('@') || long.TryParse(value, out _));
         if (token?.StartsWith('@') == true && token.Length > 1)
-            return new TargetReference(null, token[1..], null);
+        {
+            var username = token[1..];
+            if (message.From is { } actor
+                && !string.IsNullOrWhiteSpace(actor.Username)
+                && string.Equals(username, actor.Username, StringComparison.OrdinalIgnoreCase))
+                return TargetReference.ForUser(new UserId(actor.Id), actor.Username, DisplayName(actor));
+
+            return new TargetReference(null, username, null);
+        }
         if (token is not null && long.TryParse(token, out var userId))
             return TargetReference.ForUser(new UserId(userId));
+
+        if (message.ReplyToMessage is { } repliedMessage)
+            return TargetReference.ForMessage(repliedMessage.MessageId);
 
         return allowActor && message.From is not null
             ? TargetReference.ForUser(new UserId(message.From.Id), message.From.Username, DisplayName(message.From))

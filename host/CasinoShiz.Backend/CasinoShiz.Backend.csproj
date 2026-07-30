@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Telegram\ChatAdministration.Telegram.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Operations.Transport.Grpc\CasinoShiz.Operations.Transport.Grpc.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Identity\CasinoShiz.Identity.csproj" />
     <ProjectReference Include="..\..\services\CasinoShiz.Identity.Transport.Grpc\CasinoShiz.Identity.Transport.Grpc.csproj" />

@@ -48,6 +48,7 @@ using CasinoShiz.Host.Pages.Admin;
 using CasinoShiz.ServiceDefaults;
 using BotFramework.Rendering;
 using Games.Meta.Application.Tournaments;
+using ChatAdministration.Telegram.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options =>
@@ -56,6 +57,7 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(8081, listen => listen.Protocols = HttpProtocols.Http2);
 });
 builder.AddServiceDefaults();
+builder.Services.AddSingleton<ChatAdministrationStore>();
 builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();
 

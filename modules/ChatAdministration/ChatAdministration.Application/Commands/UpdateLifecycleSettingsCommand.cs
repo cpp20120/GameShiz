@@ -13,6 +13,7 @@ public sealed record UpdateLifecycleSettingsCommand(
     string? RulesText,
     bool? WelcomeEnabled,
     bool? GoodbyeEnabled,
+    int SourceMessageId,
     DateTimeOffset CreatedAt,
     ChatMemberRole ActorObservedRole,
     string ActorDisplayName);

@@ -80,6 +80,7 @@ public sealed class LifecycleSettingsTelegramHandler(
             rulesText,
             welcomeEnabled,
             goodbyeEnabled,
+            message.MessageId,
             DateTimeOffset.UtcNow,
             actorRole,
             DisplayName(message.From.FirstName, message.From.LastName, message.From.Username, message.From.Id));

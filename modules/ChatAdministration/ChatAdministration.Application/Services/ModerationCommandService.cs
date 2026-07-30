@@ -14,9 +14,10 @@ public sealed class ModerationCommandService(
         NormalizedMessage message,
         ChatMemberRole observedRole,
         string displayName,
+        string? username,
         CancellationToken ct)
     {
-        await store.RecordMessageAsync(ToMessageIndexEntry(message), ct);
+        await store.RecordMessageAsync(ToMessageIndexEntry(message, username, displayName), ct);
         var context = await store.LoadContextAsync(
             message.ChatId,
             message.AuthorId,
@@ -66,7 +67,10 @@ public sealed class ModerationCommandService(
         return new ModerationCommandResult(true, result.Duplicate, null, result.CaseId, responseText);
     }
 
-    private static MessageIndexEntry ToMessageIndexEntry(NormalizedMessage message) => new(
+    private static MessageIndexEntry ToMessageIndexEntry(
+        NormalizedMessage message,
+        string? username,
+        string displayName) => new(
         message.ChatId,
         message.MessageId,
         message.AuthorId,
@@ -75,7 +79,9 @@ public sealed class ModerationCommandService(
         message.SentAt,
         string.IsNullOrEmpty(message.Text)
             ? null
-            : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(message.Text))));
+            : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(message.Text))),
+        username,
+        displayName);
 
     public async Task<ModerationCommandResult> ExecuteManualAsync(
         ManualModerationCommand command,

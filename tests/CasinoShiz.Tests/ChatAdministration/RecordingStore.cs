@@ -13,11 +13,20 @@ internal sealed class RecordingStore : IChatAdministrationStore
 
     public int PersistCalls { get; private set; }
     public int CreatedCases { get; private set; }
+    public ChatMemberRole ActorRole { get; set; } = ChatMemberRole.Moderator;
+    public ResolvedTarget? MemberByUsername { get; set; }
+    public ResolvedTarget? MessageAuthor { get; set; }
+    public ChatSettings? UpdatedSettings { get; private set; }
+    public int? LastResponseReplyToMessageId { get; private set; }
+    public string? LastResponseText { get; private set; }
 
     public Task UpsertChatMetadataAsync(ChatMetadataCommand command, CancellationToken ct) => Task.CompletedTask;
 
     public Task<ResolvedTarget?> FindMemberByUsernameAsync(ChatId chatId, string username, CancellationToken ct) =>
-        Task.FromResult<ResolvedTarget?>(null);
+        Task.FromResult(MemberByUsername);
+
+    public Task<ResolvedTarget?> FindMessageAuthorAsync(ChatId chatId, int messageId, CancellationToken ct) =>
+        Task.FromResult(MessageAuthor);
 
     public Task<ModerationContext> LoadContextAsync(
         ChatId chatId,
@@ -30,7 +39,7 @@ internal sealed class RecordingStore : IChatAdministrationStore
         CancellationToken ct) =>
         Task.FromResult(new ModerationContext(
             Chat(chatId.Value),
-            Member(chatId.Value, actorUserId.Value, ChatMemberRole.Moderator),
+            Member(chatId.Value, actorUserId.Value, ActorRole),
             Member(chatId.Value, targetUserId.Value, ChatMemberRole.Member)));
 
     public Task RecordMessageAsync(MessageIndexEntry entry, CancellationToken ct) => Task.CompletedTask;
@@ -94,8 +103,11 @@ internal sealed class RecordingStore : IChatAdministrationStore
     public Task<PersistCommandResult> PersistAppealResolutionAsync(ResolveAppealCommand command, AppealDecision decision, CaseRevocationDecision? revocation, CancellationToken ct) =>
         Task.FromResult(new PersistCommandResult(false, null));
 
-    public Task UpdateChatSettingsAsync(ChatId chatId, ChatSettings settings, UserId actorUserId, string correlationId, CancellationToken ct) =>
-        Task.CompletedTask;
+    public Task UpdateChatSettingsAsync(ChatId chatId, ChatSettings settings, UserId actorUserId, string correlationId, CancellationToken ct)
+    {
+        UpdatedSettings = settings;
+        return Task.CompletedTask;
+    }
 
     public Task<IReadOnlyList<ChatState>> ListEnabledChatsAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<ChatState>>([]);
@@ -145,7 +157,12 @@ internal sealed class RecordingStore : IChatAdministrationStore
     public Task<IReadOnlyList<VerificationSession>> ListExpiredVerificationsAsync(DateTimeOffset now, int limit, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<VerificationSession>>([]);
 
-    public Task EnqueueResponseAsync(ChatId chatId, string text, int? replyToMessageId, CancellationToken ct) => Task.CompletedTask;
+    public Task EnqueueResponseAsync(ChatId chatId, string text, int? replyToMessageId, CancellationToken ct)
+    {
+        LastResponseText = text;
+        LastResponseReplyToMessageId = replyToMessageId;
+        return Task.CompletedTask;
+    }
     public Task<IReadOnlyList<StoredModerationEffect>> ClaimDueEffectsAsync(int limit, TimeSpan lease, CancellationToken ct) => Task.FromResult<IReadOnlyList<StoredModerationEffect>>([]);
     public Task MarkEffectAppliedAsync(StoredModerationEffect effect, CancellationToken ct) => Task.CompletedTask;
     public Task MarkEffectFailedAsync(StoredModerationEffect effect, string code, string message, bool retryable, TimeSpan? retryAfter, CancellationToken ct) => Task.CompletedTask;

@@ -52,12 +52,14 @@ using Games.Meta.Rest;
 using Games.Admin.Rest;
 using Games.Poker.Rest;
 using Games.Leaderboard.Rest;
+using ChatAdministration.Telegram.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddDurableWorkflows(typeof(TournamentWorkflowHandler).Assembly);
 
 builder.Services.AddRazorPages();
+builder.Services.AddSingleton<ChatAdministrationStore>();
 builder.AddRestFramework();
 builder.Services.AddSingleton<HorseGifCache>();
 builder.Services.AddScoped<IMiniGameSessionGhostHeal, MiniGameSessionGhostHeal>();

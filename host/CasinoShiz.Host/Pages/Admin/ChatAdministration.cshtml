@@ -5,8 +5,13 @@
 <h2>ChatAdministration <span class="pill">moderation read model</span></h2>
 <p class="muted">
     Operational view of chat settings, members, warnings, moderation cases, durable effects and audit events.
-    Actions are still issued through the Telegram moderation workflow.
+    Telegram remains the primary moderation workflow; super admins can also apply a moderation preset here.
 </p>
+
+@if (!string.IsNullOrWhiteSpace(Model.Flash))
+{
+    <div class="flash @(Model.FlashError ? "error" : "")">@Model.Flash</div>
+}
 
 @if (Model.Error is { } error)
 {
@@ -75,6 +80,31 @@
     <div class="card">
         <h3>@selected.Title <code>@selected.ChatId</code></h3>
         <p class="muted">@selected.ChatType · @(selected.IsEnabled ? "enabled" : "disabled") · updated @selected.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC</p>
+        <div>
+            <h4>Moderation preset</h4>
+            <p class="muted">
+                Applies only moderation-related settings. Welcome/rules text, localization, custom roles,
+                retention and moderation-log destination are preserved.
+            </p>
+            @if (Model.CanManage)
+            {
+                <form method="post" asp-page-handler="ApplyModerationPreset" class="inline">
+                    <input type="hidden" name="chatId" value="@selected.ChatId" />
+                    <input type="hidden" name="Q" value="@Model.Q" />
+                    <button type="submit" name="preset" value="default">Default</button>
+                    <button type="submit" name="preset" value="relaxed">Relaxed</button>
+                    <button type="submit" name="preset" value="strict">Strict</button>
+                    <button type="submit" name="preset" value="disabled"
+                            onclick="return confirm('Disable both manual and automatic moderation for this chat?');">
+                        Disabled
+                    </button>
+                </form>
+            }
+            else
+            {
+                <p class="muted">Read-only admin session: preset changes are disabled.</p>
+            }
+        </div>
         <div class="admin-grid">
             <div>
                 <h4>Settings</h4>

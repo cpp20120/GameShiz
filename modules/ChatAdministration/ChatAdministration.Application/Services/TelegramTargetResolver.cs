@@ -15,6 +15,9 @@ public sealed class TelegramTargetResolver(IChatAdministrationStore store) : ITa
                 reference.Username,
                 string.IsNullOrWhiteSpace(reference.DisplayName) ? $"User {userId}" : reference.DisplayName);
 
+        if (reference.SourceMessageId is { } sourceMessageId)
+            return await store.FindMessageAuthorAsync(chatId, sourceMessageId, ct);
+
         if (string.IsNullOrWhiteSpace(reference.Username))
             return null;
 

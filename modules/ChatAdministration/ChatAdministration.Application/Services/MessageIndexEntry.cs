@@ -9,4 +9,6 @@ public sealed record MessageIndexEntry(
     MessageContentType ContentType,
     bool HasLinks,
     DateTimeOffset SentAt,
-    string? ContentHash);
+    string? ContentHash,
+    string? AuthorUsername,
+    string AuthorDisplayName);

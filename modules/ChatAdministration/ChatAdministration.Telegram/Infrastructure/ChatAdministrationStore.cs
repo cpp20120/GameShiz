@@ -116,6 +116,27 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             : new ResolvedTarget(new UserId(row.UserId), row.Username, row.DisplayName);
     }
 
+    public async Task<ResolvedTarget?> FindMessageAuthorAsync(ChatId chatId, int messageId, CancellationToken ct)
+    {
+        await EnsureSchemaAsync(ct);
+        await using var conn = await connections.OpenAsync(ct);
+        var row = await conn.QuerySingleOrDefaultAsync<MemberTargetRow>(new CommandDefinition(
+            """
+            SELECT i.author_user_id AS "UserId",
+                   m.username AS "Username",
+                   COALESCE(m.display_name, 'User ' || i.author_user_id::text) AS "DisplayName"
+            FROM chat_admin_message_index i
+            LEFT JOIN chat_admin_members m
+              ON m.chat_id = i.chat_id AND m.user_id = i.author_user_id
+            WHERE i.chat_id = @chatId AND i.message_id = @messageId
+            LIMIT 1
+            """,
+            new { chatId = chatId.Value, messageId }, cancellationToken: ct));
+        return row is null
+            ? null
+            : new ResolvedTarget(new UserId(row.UserId), row.Username, row.DisplayName);
+    }
+
     public async Task<ModerationContext> LoadContextAsync(
         ChatId chatId,
         UserId actorUserId,
@@ -200,6 +221,26 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
     {
         await EnsureSchemaAsync(ct);
         await using var conn = await connections.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+        await conn.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO chat_admin_members
+                (chat_id, user_id, username, display_name, status, first_seen_at, last_seen_at)
+            VALUES (@chatId, @userId, @username, @displayName, 'active', @seenAt, @seenAt)
+            ON CONFLICT (chat_id, user_id) DO UPDATE SET
+                username = COALESCE(EXCLUDED.username, chat_admin_members.username),
+                display_name = EXCLUDED.display_name,
+                status = 'active',
+                last_seen_at = GREATEST(chat_admin_members.last_seen_at, EXCLUDED.last_seen_at)
+            """,
+            new
+            {
+                chatId = entry.ChatId.Value,
+                userId = entry.AuthorUserId.Value,
+                username = string.IsNullOrWhiteSpace(entry.AuthorUsername) ? null : entry.AuthorUsername.TrimStart('@'),
+                displayName = entry.AuthorDisplayName,
+                seenAt = entry.SentAt,
+            }, tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO chat_admin_message_index
@@ -219,7 +260,8 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
                 entry.HasLinks,
                 sentAt = entry.SentAt,
                 entry.ContentHash,
-            }, cancellationToken: ct));
+            }, tx, cancellationToken: ct));
+        await tx.CommitAsync(ct);
     }
 
     public async Task<IReadOnlyList<int>> ListMessageIdsAsync(

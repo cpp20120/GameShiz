@@ -20,7 +20,7 @@ public sealed class LifecycleSettingsService(IChatAdministrationStore store)
         if (!AuthorizationPolicy.HasPermission(context.Chat, context.Actor, Permission.ChatManageSettings))
         {
             const string denied = "🚫 Только администратор может изменять lifecycle-настройки.";
-            await store.EnqueueResponseAsync(command.ChatId, denied, null, ct);
+            await store.EnqueueResponseAsync(command.ChatId, denied, command.SourceMessageId, ct);
             return denied;
         }
 
@@ -35,7 +35,7 @@ public sealed class LifecycleSettingsService(IChatAdministrationStore store)
         };
         await store.UpdateChatSettingsAsync(command.ChatId, updated, command.ActorUserId, command.CorrelationId, ct);
         const string response = "✅ Lifecycle-настройки обновлены.";
-        await store.EnqueueResponseAsync(command.ChatId, response, null, ct);
+        await store.EnqueueResponseAsync(command.ChatId, response, command.SourceMessageId, ct);
         return response;
     }
 }

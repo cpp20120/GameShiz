@@ -9,6 +9,7 @@ public interface IChatAdministrationStore
 {
     Task UpsertChatMetadataAsync(ChatMetadataCommand command, CancellationToken ct);
     Task<ResolvedTarget?> FindMemberByUsernameAsync(ChatId chatId, string username, CancellationToken ct);
+    Task<ResolvedTarget?> FindMessageAuthorAsync(ChatId chatId, int messageId, CancellationToken ct);
     Task<ModerationContext> LoadContextAsync(
         ChatId chatId,
         UserId actorUserId,

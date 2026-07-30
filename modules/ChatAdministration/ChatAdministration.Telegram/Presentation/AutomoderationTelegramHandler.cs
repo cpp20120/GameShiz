@@ -26,7 +26,12 @@ public sealed class AutomoderationTelegramHandler(ModerationCommandService servi
 
         var normalized = Normalize(message);
         var observedRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
-        await service.ExecuteAutomaticAsync(normalized, observedRole, DisplayName(message.From), ctx.Ct);
+        await service.ExecuteAutomaticAsync(
+            normalized,
+            observedRole,
+            DisplayName(message.From),
+            message.From.Username,
+            ctx.Ct);
     }
 
     private static NormalizedMessage Normalize(TelegramMessage message) => new()

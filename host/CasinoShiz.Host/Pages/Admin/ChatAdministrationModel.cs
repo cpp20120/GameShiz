@@ -1,11 +1,18 @@
 using System.Text.Json;
+using ChatAdministration.Domain.Models;
+using ChatAdministration.Telegram.Infrastructure;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using DomainChatId = ChatAdministration.Domain.Models.ChatId;
+using DomainUserId = ChatAdministration.Domain.Models.UserId;
 
 namespace CasinoShiz.Host.Pages.Admin;
 
-public sealed class ChatAdministrationModel(INpgsqlConnectionFactory connections) : PageModel
+public sealed class ChatAdministrationModel(
+    INpgsqlConnectionFactory connections,
+    ChatAdministrationStore moderationStore,
+    IAdminAuditLog adminAudit) : PageModel
 {
     private static readonly JsonSerializerOptions PrettyJsonOptions = new() { WriteIndented = true };
 
@@ -21,6 +28,10 @@ public sealed class ChatAdministrationModel(INpgsqlConnectionFactory connections
     public IReadOnlyDictionary<string, int> CaseCounts { get; private set; } =
         new Dictionary<string, int>(StringComparer.Ordinal);
     public string? Error { get; private set; }
+    public string? Flash { get; private set; }
+    public bool FlashError { get; private set; }
+    public AdminSession? Actor { get; private set; }
+    public bool CanManage => Actor?.Role == AdminRole.SuperAdmin;
 
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
@@ -30,8 +41,12 @@ public sealed class ChatAdministrationModel(INpgsqlConnectionFactory connections
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
     {
-        if (HttpContext.Session.GetAdminSession() is null)
+        Actor = HttpContext.Session.GetAdminSession();
+        if (Actor is null)
             return RedirectToPage("/Admin/Login", new { ReturnUrl = Request.Path + Request.QueryString });
+
+        Flash = TempData["ChatAdministrationFlash"] as string;
+        FlashError = TempData["ChatAdministrationFlashError"] is true;
 
         try
         {
@@ -43,6 +58,66 @@ public sealed class ChatAdministrationModel(INpgsqlConnectionFactory connections
         }
 
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostApplyModerationPresetAsync(
+        long chatId,
+        string preset,
+        CancellationToken ct)
+    {
+        var actor = HttpContext.Session.GetAdminSession();
+        if (actor?.Role != AdminRole.SuperAdmin)
+            return StatusCode(403);
+
+        if (preset is not (ModerationPresetCatalog.Default
+            or ModerationPresetCatalog.Relaxed
+            or ModerationPresetCatalog.Strict
+            or ModerationPresetCatalog.Disabled))
+        {
+            SetFlash("Unknown moderation preset.", isError: true);
+            return RedirectToPage(new { chatId, q = Q });
+        }
+
+        await using (var connection = await connections.OpenAsync(ct))
+        {
+            var exists = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+                "SELECT EXISTS (SELECT 1 FROM chat_admin_chats WHERE chat_id = @chatId)",
+                new { chatId }, cancellationToken: ct));
+            if (!exists)
+            {
+                SetFlash($"Chat {chatId} is not registered.", isError: true);
+                return RedirectToPage(new { chatId, q = Q });
+            }
+        }
+
+        var domainChatId = new DomainChatId(chatId);
+        var actorUserId = new DomainUserId(actor.UserId);
+        var context = await moderationStore.LoadContextAsync(
+            domainChatId,
+            actorUserId,
+            actorUserId,
+            ChatMemberRole.Owner,
+            ChatMemberRole.Owner,
+            actor.Name,
+            actor.Name,
+            ct);
+        if (!ModerationPresetCatalog.TryApply(preset, context.Chat.Settings, out var updated))
+        {
+            SetFlash("Unknown moderation preset.", isError: true);
+            return RedirectToPage(new { chatId, q = Q });
+        }
+
+        var correlationId = $"admin-moderation-preset:{chatId}:{Guid.NewGuid():N}";
+        await moderationStore.UpdateChatSettingsAsync(domainChatId, updated, actorUserId, correlationId, ct);
+        await adminAudit.LogAsync(
+            actor.UserId,
+            actor.Name,
+            "chat_administration.moderation_preset_applied",
+            new { chatId, preset, correlationId },
+            ct);
+
+        SetFlash($"Moderation preset '{preset}' applied to chat {chatId}.", isError: false);
+        return RedirectToPage(new { chatId, q = Q });
     }
 
     // The page intentionally loads one consistent chat snapshot through one
@@ -288,5 +363,11 @@ public sealed class ChatAdministrationModel(INpgsqlConnectionFactory connections
         if (string.IsNullOrWhiteSpace(value))
             return "—";
         return value.Length <= maxLength ? value : value[..maxLength] + "…";
+    }
+
+    private void SetFlash(string message, bool isError)
+    {
+        TempData["ChatAdministrationFlash"] = message;
+        TempData["ChatAdministrationFlashError"] = isError;
     }
 }
