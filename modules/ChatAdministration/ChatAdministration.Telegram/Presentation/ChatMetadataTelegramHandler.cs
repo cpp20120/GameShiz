@@ -9,18 +9,22 @@ namespace ChatAdministration.Telegram.Presentation;
 
 [Message]
 [ChatMember]
+[MyChatMember]
 public sealed class ChatMetadataTelegramHandler(
     ChatMetadataService metadata) : IUpdateHandler
 {
     public Task HandleAsync(UpdateContext ctx)
     {
-        var chat = ctx.Update.Message?.Chat ?? ctx.Update.ChatMember?.Chat;
+        var chat = ctx.Update.Message?.Chat
+            ?? ctx.Update.ChatMember?.Chat
+            ?? ctx.Update.MyChatMember?.Chat;
         if (chat is null)
             return Task.CompletedTask;
 
         var title = chat.Title
             ?? chat.Username
             ?? ctx.Update.Message?.From?.FirstName
+            ?? ctx.Update.MyChatMember?.From?.FirstName
             ?? "Telegram chat";
         return metadata.ObserveAsync(
             new ChatMetadataCommand(

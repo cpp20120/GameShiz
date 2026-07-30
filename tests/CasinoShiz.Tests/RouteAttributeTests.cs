@@ -57,6 +57,27 @@ public class RouteAttributeTests
         },
     };
 
+    private static Update MyChatMemberUpdate() => new()
+    {
+        Id = 1,
+        MyChatMember = new ChatMemberUpdated
+        {
+            Chat = new Chat { Id = -100, Type = ChatType.Supergroup, Title = "Moderated chat" },
+            From = new User { Id = 42, IsBot = false, FirstName = "Admin" },
+            NewChatMember = new ChatMemberAdministrator
+            {
+                User = new User { Id = 99, IsBot = true, FirstName = "Bot" },
+                CanDeleteMessages = true,
+                CanRestrictMembers = true,
+            },
+            OldChatMember = new ChatMemberLeft
+            {
+                User = new User { Id = 99, IsBot = true, FirstName = "Bot" },
+            },
+            Date = DateTime.UtcNow,
+        },
+    };
+
     // ── CommandAttribute ─────────────────────────────────────────────────────
 
     [Fact]
@@ -225,6 +246,38 @@ public class RouteAttributeTests
     {
         var attr = new ChannelPostAttribute();
         Assert.False(attr.Matches(TextUpdate("hello")));
+    }
+
+    [Fact]
+    public void MyChatMember_MatchesBotMembershipUpdate()
+    {
+        var attr = new MyChatMemberAttribute();
+
+        Assert.True(attr.Matches(MyChatMemberUpdate()));
+    }
+
+    [Fact]
+    public void MyChatMember_DoesNotMatchRegularChatMemberUpdate()
+    {
+        var attr = new MyChatMemberAttribute();
+        var update = MyChatMemberUpdate();
+        update.MyChatMember = null;
+        update.ChatMember = new ChatMemberUpdated
+        {
+            Chat = new Chat { Id = -100, Type = ChatType.Supergroup },
+            From = new User { Id = 42, FirstName = "Admin" },
+            NewChatMember = new ChatMemberMember
+            {
+                User = new User { Id = 99, IsBot = false, FirstName = "Member" },
+            },
+            OldChatMember = new ChatMemberLeft
+            {
+                User = new User { Id = 99, IsBot = false, FirstName = "Member" },
+            },
+            Date = DateTime.UtcNow,
+        };
+
+        Assert.False(attr.Matches(update));
     }
 
     [Fact]

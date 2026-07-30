@@ -58,7 +58,13 @@
         }
         @if (Model.Chats.Count == 0)
         {
-            <tr><td colspan="8" class="muted">No ChatAdministration chats registered yet.</td></tr>
+            <tr>
+                <td colspan="8" class="muted">
+                    No chats are registered in the moderation read model yet.
+                    Add the bot to a group or change its permissions, then send a regular message.
+                    The bot membership update will register the chat automatically as well.
+                </td>
+            </tr>
         }
         </tbody>
     </table>
