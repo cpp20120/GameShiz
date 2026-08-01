@@ -5,7 +5,7 @@ namespace ChatAdministration.Domain.Policies;
 public sealed record MemberRoleAssigned(
     ChatId ChatId,
     UserId UserId,
-    ChatMemberRole Role) : DomainEvent
+    ChatMemberRole Role) : IDomainEvent
 {
     public string EventType => "member_role_assigned";
 }

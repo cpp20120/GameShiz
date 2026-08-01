@@ -32,7 +32,7 @@ public sealed class LifecycleSettingsTelegramHandler(
         var tokens = message.Text.Split(' ', 2, StringSplitOptions.TrimEntries);
         var command = tokens[0].Split('@', 2)[0].ToLowerInvariant();
         var value = tokens.Length == 2 ? tokens[1].Trim() : null;
-        var actorRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
+        var actorRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
         if (command is "/welcome" or "/goodbye")
         {
             if (value is not ("on" or "off"))
@@ -84,24 +84,6 @@ public sealed class LifecycleSettingsTelegramHandler(
             DateTimeOffset.UtcNow,
             actorRole,
             DisplayName(message.From.FirstName, message.From.LastName, message.From.Username, message.From.Id));
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(ITelegramBotClient bot, long chatId, long userId, CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(string firstName, string? lastName, string? username, long id) =>

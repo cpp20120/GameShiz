@@ -7,4 +7,4 @@ public sealed record UpdateModerationCaseEffect(
     ModerationCaseStatus Status,
     string Reason,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

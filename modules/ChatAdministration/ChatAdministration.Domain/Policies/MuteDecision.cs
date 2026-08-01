@@ -8,7 +8,7 @@ public sealed record MuteDecision(
     string? ErrorCode,
     ModerationCaseState? Case,
     RestrictionState? DesiredRestriction,
-    IReadOnlyList<DomainEvent> Events,
+    IReadOnlyList<IDomainEvent> Events,
     EffectPlan EffectPlan)
 {
     public static MuteDecision Reject(string errorCode) => new(false, errorCode, null, null, [], new EffectPlan([]));

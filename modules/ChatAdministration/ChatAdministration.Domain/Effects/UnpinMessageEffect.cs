@@ -6,4 +6,4 @@ public sealed record UnpinMessageEffect(
     ChatId ChatId,
     int MessageId,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

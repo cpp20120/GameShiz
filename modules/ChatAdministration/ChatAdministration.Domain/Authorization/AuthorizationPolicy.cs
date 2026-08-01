@@ -25,10 +25,7 @@ public static class AuthorizationPolicy
         if (target.Roles.Contains(ChatMemberRole.Owner))
             return AuthorizationDecision.Deny("owner_protected");
 
-        if (targetRank >= actorRank)
-            return AuthorizationDecision.Deny("target_role_too_high");
-
-        return AuthorizationDecision.Allow();
+        return targetRank >= actorRank ? AuthorizationDecision.Deny("target_role_too_high") : AuthorizationDecision.Allow();
     }
 
     public static ChatMemberRole HighestRole(IReadOnlySet<ChatMemberRole> roles)
@@ -38,8 +35,7 @@ public static class AuthorizationPolicy
         if (roles.Contains(ChatMemberRole.Moderator)) return ChatMemberRole.Moderator;
         if (roles.Contains(ChatMemberRole.Helper)) return ChatMemberRole.Helper;
         if (roles.Contains(ChatMemberRole.Trusted)) return ChatMemberRole.Trusted;
-        if (roles.Contains(ChatMemberRole.Restricted)) return ChatMemberRole.Restricted;
-        return ChatMemberRole.Member;
+        return roles.Contains(ChatMemberRole.Restricted) ? ChatMemberRole.Restricted : ChatMemberRole.Member;
     }
 
     public static bool HasPermission(ChatMemberRole role, Permission permission) => role switch
@@ -59,9 +55,9 @@ public static class AuthorizationPolicy
         if (member.ExplicitPermissions.Contains(permission))
             return true;
 
-        if (chat is not null && chat.Settings.CustomRoles
-            .Where(role => member.CustomRoleIds.Contains(role.Id))
-            .Any(role => role.Permissions.Contains(permission)))
+        if (chat?.Settings.CustomRoles
+            .Any(role => member.CustomRoleIds.Contains(role.Id) && role.Permissions.Contains(permission)) == true
+)
             return true;
 
         return HasPermission(HighestRole(member.Roles), permission);

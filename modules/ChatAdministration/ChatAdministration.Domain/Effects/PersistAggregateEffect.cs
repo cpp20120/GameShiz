@@ -5,4 +5,4 @@ public sealed record PersistAggregateEffect(
     string AggregateId,
     string StateJson,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

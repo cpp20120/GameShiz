@@ -32,7 +32,7 @@ public sealed class ChatSettingsTelegramHandler(
             return;
         }
 
-        var actorRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
+        var actorRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
         var command = new ChatSettingsCommand(
             $"settings:{ctx.Update.Id}:{message.Chat.Id}:{message.MessageId}",
             $"telegram-update:{options.TenantKey}:{ctx.Update.Id}",
@@ -46,28 +46,6 @@ public sealed class ChatSettingsTelegramHandler(
             actorRole,
             DisplayName(message.From.FirstName, message.From.LastName, message.From.Username, message.From.Id));
         await service.ExecuteAsync(command, ctx.Ct);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(
-        ITelegramBotClient bot,
-        long chatId,
-        long userId,
-        CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(string firstName, string? lastName, string? username, long id) =>

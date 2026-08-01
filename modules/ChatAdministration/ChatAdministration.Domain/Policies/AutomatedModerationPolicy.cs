@@ -64,7 +64,7 @@ public static class AutomatedModerationPolicy
         };
 
         var events = violations
-            .Select(violation => (DomainEvent)new ViolationDetected(
+            .Select(violation => (IDomainEvent)new ViolationDetected(
                 context.Message.ChatId,
                 context.Message.AuthorId,
                 context.Message.MessageId,

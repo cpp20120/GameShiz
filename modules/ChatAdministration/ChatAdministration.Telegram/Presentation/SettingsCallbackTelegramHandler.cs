@@ -2,8 +2,10 @@ using ChatAdministration.Application.Commands;
 using ChatAdministration.Application.Services;
 using ChatAdministration.Domain.Effects;
 using ChatAdministration.Domain.Models;
+using BotFramework.Host.Composition.Builder;
 using BotFramework.Sdk.UpdateHandling;
 using BotFramework.Sdk.UpdateHandling.Routes;
+using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types.Enums;
@@ -13,8 +15,11 @@ namespace ChatAdministration.Telegram.Presentation;
 [CallbackPrefix("settings:")]
 public sealed class SettingsCallbackTelegramHandler(
     ChatSettingsService service,
-    IChatAdministrationStore store) : IUpdateHandler
+    IChatAdministrationStore store,
+    IOptions<BotFrameworkOptions> botOptions) : IUpdateHandler
 {
+    private readonly BotFrameworkOptions options = botOptions.Value;
+
     public async Task HandleAsync(UpdateContext ctx)
     {
         var callback = ctx.Update.CallbackQuery;
@@ -38,7 +43,7 @@ public sealed class SettingsCallbackTelegramHandler(
             return;
         }
 
-        var role = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, callback.From.Id, ctx.Ct);
+        var role = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, callback.From.Id, ctx.Ct);
         await service.ExecuteAsync(
             new ChatSettingsCommand(
                 $"settings-callback:{callback.Id}",
@@ -58,24 +63,6 @@ public sealed class SettingsCallbackTelegramHandler(
             $"settings-callback-answer:{callback.Id}",
             EffectImportance.BestEffort,
             ctx.Ct);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(ITelegramBotClient bot, long chatId, long userId, CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(string firstName, string? lastName, string? username, long id) =>

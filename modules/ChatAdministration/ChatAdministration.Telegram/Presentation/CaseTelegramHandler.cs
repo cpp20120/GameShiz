@@ -36,10 +36,10 @@ public sealed class CaseTelegramHandler(
             chatId,
             TelegramTargetReferenceParser.FromMessage(message),
             ctx.Ct);
-        var actorRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
+        var actorRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
         var targetRole = target is null
             ? actorRole
-            : await ObserveRoleAsync(ctx.Bot, message.Chat.Id, target.UserId.Value, ctx.Ct);
+            : await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, target.UserId.Value, ctx.Ct);
         UserId? targetId = target?.UserId;
         var targetName = target?.DisplayName ?? DisplayName(message.From);
 
@@ -81,7 +81,7 @@ public sealed class CaseTelegramHandler(
                     actor,
                     moderationCase.TargetUserId,
                     actorRole,
-                    await ObserveRoleAsync(ctx.Bot, message.Chat.Id, moderationCase.TargetUserId.Value, ctx.Ct),
+                    await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, moderationCase.TargetUserId.Value, ctx.Ct),
                     DisplayName(message.From),
                     $"user {moderationCase.TargetUserId}",
                     100),
@@ -110,7 +110,7 @@ public sealed class CaseTelegramHandler(
                 message.MessageId,
                 DateTimeOffset.UtcNow),
             actorRole,
-            await ObserveRoleAsync(ctx.Bot, message.Chat.Id, moderationCase.TargetUserId.Value, ctx.Ct),
+            await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, moderationCase.TargetUserId.Value, ctx.Ct),
             DisplayName(message.From),
             $"user {moderationCase.TargetUserId}",
             ctx.Ct);
@@ -120,28 +120,6 @@ public sealed class CaseTelegramHandler(
 
     private static string Render(ModerationCaseState item) =>
         $"🗂 Case <code>{item.Id}</code>\nAction: {item.Action}\nTarget: <code>{item.TargetUserId}</code>\nStatus: {item.Status}\nReason: {item.Reason ?? "без причины"}";
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(
-        ITelegramBotClient bot,
-        long chatId,
-        long userId,
-        CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
-    }
 
     private static string DisplayName(User user) =>
         string.Join(' ', new[] { user.FirstName, user.LastName }.Where(value => !string.IsNullOrWhiteSpace(value)))

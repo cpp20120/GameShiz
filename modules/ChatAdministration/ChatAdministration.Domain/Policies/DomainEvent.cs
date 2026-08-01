@@ -1,6 +1,6 @@
 namespace ChatAdministration.Domain.Policies;
 
-public interface DomainEvent
+public interface IDomainEvent
 {
     string EventType { get; }
 }

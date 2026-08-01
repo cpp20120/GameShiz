@@ -6,7 +6,7 @@ public sealed record ChatMetadataUpdated(
     ChatId ChatId,
     ChatType Type,
     string Title,
-    DateTimeOffset OccurredAt) : DomainEvent
+    DateTimeOffset OccurredAt) : IDomainEvent
 {
     public string EventType => nameof(ChatMetadataUpdated);
 }

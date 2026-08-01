@@ -5,4 +5,4 @@ public sealed record WriteStructuredLogEffect(
     string Level,
     IReadOnlyDictionary<string, object?> Properties,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

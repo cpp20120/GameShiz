@@ -6,4 +6,4 @@ public sealed record ScheduleEffect(
     DateTimeOffset ExecuteAt,
     EffectEnvelope Effect,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

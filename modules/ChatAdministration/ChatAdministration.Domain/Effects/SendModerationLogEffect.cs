@@ -6,4 +6,4 @@ public sealed record SendModerationLogEffect(
     ChatId ChatId,
     string Text,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

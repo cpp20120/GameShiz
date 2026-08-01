@@ -57,7 +57,7 @@ public sealed class RestrictionsReconciliationJob(
                         continue;
 
                     var correlationId = $"reconcile-restriction:{restriction.ChatId}:{restriction.UserId}";
-                    ModerationEffect effect = restriction.State.CanSendMessages
+                    IModerationEffect effect = restriction.State.CanSendMessages
                         ? new UnrestrictMemberEffect(
                             restriction.ChatId,
                             restriction.UserId,

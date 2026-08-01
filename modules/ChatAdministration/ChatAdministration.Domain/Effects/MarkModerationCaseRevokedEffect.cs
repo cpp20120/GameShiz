@@ -5,4 +5,4 @@ namespace ChatAdministration.Domain.Effects;
 public sealed record MarkModerationCaseRevokedEffect(
     ModerationCaseId CaseId,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

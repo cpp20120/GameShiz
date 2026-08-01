@@ -13,9 +13,10 @@ namespace ChatAdministration.Telegram.Infrastructure;
 /// process the same chat concurrently. The bounded in-memory store is used
 /// only when Redis is not configured or temporarily unavailable.
 /// </summary>
-public sealed class RedisModerationRateLimitStore(
+public sealed partial class RedisModerationRateLimitStore(
     IConnectionMultiplexer? redis = null,
-    ILogger<RedisModerationRateLimitStore>? logger = null) : IModerationRateLimitStore
+    ILogger<RedisModerationRateLimitStore>? logger = null)
+    : IModerationRateLimitStore
 {
     private const string CounterScript = """
         local ttl = tonumber(ARGV[1])
@@ -38,7 +39,7 @@ public sealed class RedisModerationRateLimitStore(
         return { messages, links, commands, duplicates }
         """;
 
-    private readonly InMemoryModerationRateLimitStore fallback = new();
+    private readonly InMemoryModerationRateLimitStore _fallback = new();
 
     public async ValueTask<ModerationRateObservation> RecordAsync(
         NormalizedMessage message,
@@ -46,17 +47,27 @@ public sealed class RedisModerationRateLimitStore(
         CancellationToken cancellationToken = default)
     {
         if (redis is null || !redis.IsConnected)
-            return await fallback.RecordAsync(message, window, cancellationToken);
+            return await _fallback.RecordAsync(message, window, cancellationToken);
 
         try
         {
             var seconds = Math.Max(1, (int)Math.Ceiling(window.TotalSeconds));
-            var now = message.SentAt == default ? DateTimeOffset.UtcNow : message.SentAt;
+            var now = message.SentAt == default
+                ? DateTimeOffset.UtcNow
+                : message.SentAt;
+
             var bucket = now.ToUnixTimeSeconds() / seconds;
             var hash = Hash(message.Text);
-            var hasLink = message.Entities.Any(entity => entity.Type is MessageEntityType.Url or MessageEntityType.TextLink);
-            var commandCount = message.Entities.Count(entity => entity.Type == MessageEntityType.BotCommand);
-            var prefix = $"moderation:{message.ChatId.Value}:{message.AuthorId.Value}:{bucket}";
+
+            var hasLink = message.Entities.Any(
+                entity => entity.Type is MessageEntityType.Url or MessageEntityType.TextLink);
+
+            var commandCount = message.Entities.Count(
+                entity => entity.Type == MessageEntityType.BotCommand);
+
+            var prefix =
+                $"moderation:{message.ChatId.Value}:{message.AuthorId.Value}:{bucket}";
+
             var keys = new RedisKey[]
             {
                 $"{prefix}:messages",
@@ -64,13 +75,20 @@ public sealed class RedisModerationRateLimitStore(
                 $"{prefix}:commands",
                 $"{prefix}:duplicates:{hash}",
             };
-            var result = (RedisResult[]?)await redis.GetDatabase().ScriptEvaluateAsync(
-                CounterScript,
-                keys,
-                [seconds * 2 + 1, hasLink ? 1 : 0, commandCount],
-                CommandFlags.DemandMaster);
+
+            var result = (RedisResult[]?)await redis
+                .GetDatabase()
+                .ScriptEvaluateAsync(
+                    CounterScript,
+                    keys,
+                    [seconds * 2 + 1, hasLink ? 1 : 0, commandCount],
+                    CommandFlags.DemandMaster);
+
             if (result is not { Length: 4 })
-                throw new RedisException("Moderation counter script returned an invalid result.");
+            {
+                throw new RedisException(
+                    "Moderation counter script returned an invalid result.");
+            }
 
             return new ModerationRateObservation(
                 new RateLimitSnapshot
@@ -84,16 +102,36 @@ public sealed class RedisModerationRateLimitStore(
                     RecentMessageHashes = [hash],
                 });
         }
-        catch (RedisException exception) when (!cancellationToken.IsCancellationRequested)
+        catch (RedisException exception)
+            when (!cancellationToken.IsCancellationRequested)
         {
-            logger?.LogWarning(exception, "chat_admin.redis_rate_limit_fallback");
-            return await fallback.RecordAsync(message, window, cancellationToken);
+            if (logger is not null)
+                LogRedisRateLimitFallback(logger, exception);
+
+            return await _fallback.RecordAsync(
+                message,
+                window,
+                cancellationToken);
         }
     }
 
     private static string Hash(string? text) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
-            string.Join(' ', (text ?? string.Empty)
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-                .Select(word => word.ToLowerInvariant())))));
+        Convert.ToHexString(
+            SHA256.HashData(
+                Encoding.UTF8.GetBytes(
+                    string.Join(
+                        ' ',
+                        (text ?? string.Empty)
+                        .Split(
+                            (char[]?)null,
+                            StringSplitOptions.RemoveEmptyEntries)
+                        .Select(word => word.ToLowerInvariant())))));
+
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Warning,
+        Message = "chat_admin.redis_rate_limit_fallback")]
+    public static partial void LogRedisRateLimitFallback(
+        ILogger logger,
+        Exception exception);
 }

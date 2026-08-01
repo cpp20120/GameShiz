@@ -65,7 +65,7 @@ public static class ManualModerationPolicy
             CorrelationId = request.CorrelationId,
         };
 
-        var events = new List<DomainEvent> { new ModerationCaseCreated(moderationCase) };
+        var events = new List<IDomainEvent> { new ModerationCaseCreated(moderationCase) };
         WarningState? warning = null;
         if (request.Action == ModerationAction.Warn)
         {
@@ -127,7 +127,7 @@ public static class ManualModerationPolicy
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unsupported manual moderation action."),
     };
 
-    private static ModerationEffect? CreateRequiredEffect(ManualModerationRequest request, ModerationCaseId caseId) => request.Action switch
+    private static IModerationEffect? CreateRequiredEffect(ManualModerationRequest request, ModerationCaseId caseId) => request.Action switch
     {
         ModerationAction.Mute => new RestrictMemberEffect(
             request.ChatId,

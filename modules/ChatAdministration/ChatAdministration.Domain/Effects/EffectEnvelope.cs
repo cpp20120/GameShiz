@@ -6,7 +6,7 @@ public sealed record EffectEnvelope
 {
     public required EffectId Id { get; init; }
     public required string EffectType { get; init; }
-    public required ModerationEffect Payload { get; init; }
+    public required IModerationEffect Payload { get; init; }
     public required string CorrelationId { get; init; }
     public required string CausationId { get; init; }
     public required string IdempotencyKey { get; init; }

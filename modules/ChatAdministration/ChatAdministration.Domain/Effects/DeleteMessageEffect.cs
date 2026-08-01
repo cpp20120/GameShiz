@@ -8,4 +8,4 @@ public sealed record DeleteMessageEffect(
     ModerationCaseId? CaseId,
     string CorrelationId,
     string CausationId,
-    UserId? TargetUserId = null) : ModerationEffect;
+    UserId? TargetUserId = null) : IModerationEffect;

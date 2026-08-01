@@ -7,7 +7,7 @@ public sealed record VerificationDecision(
     bool Accepted,
     string? ErrorCode,
     VerificationSession? Session,
-    IReadOnlyCollection<DomainEvent> Events,
+    IReadOnlyCollection<IDomainEvent> Events,
     EffectPlan EffectPlan)
 {
     public static VerificationDecision Reject(string errorCode) =>

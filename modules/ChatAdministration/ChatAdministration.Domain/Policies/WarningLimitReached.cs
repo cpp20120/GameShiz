@@ -6,7 +6,7 @@ public sealed record WarningLimitReached(
     ChatId ChatId,
     UserId UserId,
     int ActiveWarningCount,
-    ModerationAction Action) : DomainEvent
+    ModerationAction Action) : IDomainEvent
 {
     public string EventType => nameof(WarningLimitReached);
 }

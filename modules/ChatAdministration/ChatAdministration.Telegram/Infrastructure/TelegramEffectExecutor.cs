@@ -2,6 +2,8 @@ using System.Net;
 using ChatAdministration.Application.Services;
 using ChatAdministration.Domain.Effects;
 using ChatAdministration.Domain.Models;
+using BotFramework.Host.Composition.Builder;
+using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
@@ -15,8 +17,11 @@ namespace ChatAdministration.Telegram.Infrastructure;
 
 public sealed class TelegramEffectExecutor(
     ITelegramBotClient bot,
+    IOptions<BotFrameworkOptions> botOptions,
     ILogger<TelegramEffectExecutor>? logger = null)
 {
+    private readonly BotFrameworkOptions options = botOptions.Value;
+
     public async Task ExecuteAsync(StoredModerationEffect stored, CancellationToken ct)
     {
         switch (stored.Payload)
@@ -248,15 +253,20 @@ public sealed class TelegramEffectExecutor(
 
     private async Task NotifyAdministratorsAsync(NotifyAdministratorsEffect effect, CancellationToken ct)
     {
-        var administrators = await bot.GetChatAdministrators(effect.ChatId.Value, returnBots: false, cancellationToken: ct);
-        foreach (var administrator in administrators)
+        // Moderation failures are operational alerts. They must not be
+        // broadcast to every Telegram administrator of the affected chat:
+        // apart from leaking internal details, most admins have not opened a
+        // private conversation with the bot and would only create 400/403
+        // noise. Bot:Admins is the explicit notification allow-list.
+        var adminIds = options.Admins
+            .Where(userId => userId > 0)
+            .Distinct()
+            .ToArray();
+        foreach (var adminId in adminIds)
         {
-            if (administrator.User.IsBot)
-                continue;
-
             try
             {
-                await bot.SendMessage(administrator.User.Id, effect.Text, cancellationToken: ct);
+                await bot.SendMessage(adminId, effect.Text, cancellationToken: ct);
             }
             catch (ApiRequestException exception) when (exception.ErrorCode is 400 or 403)
             {
@@ -267,7 +277,7 @@ public sealed class TelegramEffectExecutor(
                     exception,
                     "chat_admin.admin_notification_unavailable chat={ChatId} user={UserId}",
                     effect.ChatId.Value,
-                    administrator.User.Id);
+                    adminId);
             }
         }
     }

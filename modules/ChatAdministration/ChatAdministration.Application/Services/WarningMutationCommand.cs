@@ -12,7 +12,7 @@ public sealed record WarningMutationCommand(
     UserId ActorUserId,
     UserId TargetUserId,
     IReadOnlyCollection<WarningState> Warnings,
-    IReadOnlyCollection<DomainEvent> Events,
+    IReadOnlyCollection<IDomainEvent> Events,
     string ResponseText,
     DateTimeOffset CreatedAt,
     int? SourceMessageId);

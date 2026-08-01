@@ -5,7 +5,7 @@ namespace ChatAdministration.Domain.Policies;
 public sealed record BotPermissionsObserved(
     ChatId ChatId,
     TelegramBotPermissions Permissions,
-    DateTimeOffset OccurredAt) : DomainEvent
+    DateTimeOffset OccurredAt) : IDomainEvent
 {
     public string EventType => nameof(BotPermissionsObserved);
 }

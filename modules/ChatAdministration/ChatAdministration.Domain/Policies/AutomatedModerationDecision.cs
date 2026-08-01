@@ -8,7 +8,7 @@ public sealed record AutomatedModerationDecision(
     string? ErrorCode,
     IReadOnlyList<Violation> Violations,
     ModerationCaseState? Case,
-    IReadOnlyList<DomainEvent> Events,
+    IReadOnlyList<IDomainEvent> Events,
     EffectPlan EffectPlan,
     WarningState? Warning = null)
 {

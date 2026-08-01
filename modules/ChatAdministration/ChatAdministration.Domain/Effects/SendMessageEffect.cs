@@ -7,4 +7,4 @@ public sealed record SendMessageEffect(
     string Text,
     int? ReplyToMessageId = null,
     MessageParseMode ParseMode = MessageParseMode.Plain,
-    InlineKeyboardSpec? InlineKeyboard = null) : ModerationEffect;
+    InlineKeyboardSpec? InlineKeyboard = null) : IModerationEffect;

@@ -65,7 +65,7 @@ public sealed class WarningService(IChatAdministrationStore store)
             return new ModerationCommandResult(false, false, "warning_not_found", null, response);
         }
 
-        var events = new List<DomainEvent>();
+        var events = new List<IDomainEvent>();
         var revoked = new List<WarningState>();
         foreach (var warning in warnings)
         {

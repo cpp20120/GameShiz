@@ -46,15 +46,15 @@ public interface IChatAdministrationStore
     Task UpdateBotPermissionsAsync(ChatId chatId, TelegramBotPermissions permissions, string correlationId, CancellationToken ct);
     Task<string> CreateSettingsCallbackAsync(ChatId chatId, string key, string value, DateTimeOffset expiresAt, CancellationToken ct);
     Task<SettingsCallbackState?> ConsumeSettingsCallbackAsync(string token, ChatId chatId, UserId actorUserId, CancellationToken ct);
-    Task EnqueueEffectAsync(ModerationEffect effect, string idempotencyKey, EffectImportance importance, CancellationToken ct);
-    Task EnqueueScheduledEffectAsync(ModerationEffect effect, DateTimeOffset executeAt, string idempotencyKey, EffectImportance importance, CancellationToken ct);
+    Task EnqueueEffectAsync(IModerationEffect effect, string idempotencyKey, EffectImportance importance, CancellationToken ct);
+    Task EnqueueScheduledEffectAsync(IModerationEffect effect, DateTimeOffset executeAt, string idempotencyKey, EffectImportance importance, CancellationToken ct);
     Task CancelEffectAsync(EffectId effectId, CancellationToken ct);
 
     Task<VerificationSession?> LoadVerificationAsync(VerificationSessionId sessionId, CancellationToken ct);
     Task<VerificationPersistenceResult> PersistVerificationAsync(
         VerificationSession session,
         VerificationStatus expectedStatus,
-        IReadOnlyCollection<DomainEvent> events,
+        IReadOnlyCollection<IDomainEvent> events,
         EffectPlan effectPlan,
         string correlationId,
         string causationId,

@@ -359,7 +359,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
     public async Task<VerificationPersistenceResult> PersistVerificationAsync(
         VerificationSession session,
         VerificationStatus expectedStatus,
-        IReadOnlyCollection<DomainEvent> events,
+        IReadOnlyCollection<IDomainEvent> events,
         EffectPlan effectPlan,
         string correlationId,
         string causationId,
@@ -1431,14 +1431,14 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
     }
 
     public async Task EnqueueEffectAsync(
-        ModerationEffect effect,
+        IModerationEffect effect,
         string idempotencyKey,
         EffectImportance importance,
         CancellationToken ct)
         => await EnqueueEffectCoreAsync(effect, idempotencyKey, importance, null, ct);
 
     public async Task EnqueueScheduledEffectAsync(
-        ModerationEffect effect,
+        IModerationEffect effect,
         DateTimeOffset executeAt,
         string idempotencyKey,
         EffectImportance importance,
@@ -1459,7 +1459,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
     }
 
     private async Task EnqueueEffectCoreAsync(
-        ModerationEffect effect,
+        IModerationEffect effect,
         string idempotencyKey,
         EffectImportance importance,
         DateTimeOffset? notBefore,
@@ -2120,7 +2120,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         Npgsql.NpgsqlConnection conn,
         Npgsql.NpgsqlTransaction tx,
         ChatId chatId,
-        IReadOnlyCollection<DomainEvent> events,
+        IReadOnlyCollection<IDomainEvent> events,
         DateTimeOffset occurredAt,
         CancellationToken ct)
     {
@@ -2174,7 +2174,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         Npgsql.NpgsqlConnection conn,
         Npgsql.NpgsqlTransaction tx,
         ModerationCaseId caseId,
-        IReadOnlyList<DomainEvent> events,
+        IReadOnlyList<IDomainEvent> events,
         DateTimeOffset occurredAt,
         CancellationToken ct)
     {
@@ -2257,7 +2257,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
     private static async Task AppendStandaloneDomainEventAsync(
         Npgsql.NpgsqlConnection conn,
         Npgsql.NpgsqlTransaction tx,
-        DomainEvent domainEvent,
+        IDomainEvent domainEvent,
         DateTimeOffset occurredAt,
         CancellationToken ct) =>
         await conn.ExecuteAsync(new CommandDefinition(
@@ -2414,7 +2414,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 
     private static ChatType ParseChatType(string value) => Enum.TryParse<ChatType>(value, true, out var result) ? result : ChatType.Supergroup;
-    private static string EffectTypeOf(ModerationEffect effect) => effect switch
+    private static string EffectTypeOf(IModerationEffect effect) => effect switch
     {
         RestrictMemberEffect => RestrictEffectType,
         UnrestrictMemberEffect => UnrestrictEffectType,
@@ -2501,7 +2501,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             Dependencies = planned.DependsOn,
         };
     }
-    private static string PayloadCorrelation(ModerationEffect effect) => effect switch
+    private static string PayloadCorrelation(IModerationEffect effect) => effect switch
     {
         RestrictMemberEffect value => value.CorrelationId,
         UnrestrictMemberEffect value => value.CorrelationId,
@@ -2532,7 +2532,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         NotifyAdministratorsEffect value => value.CorrelationId,
         _ => string.Empty,
     };
-    private static string ActionForEffect(ModerationEffect effect) => effect switch
+    private static string ActionForEffect(IModerationEffect effect) => effect switch
     {
         RestrictMemberEffect => "mute",
         UnrestrictMemberEffect => "unmute",
@@ -2544,7 +2544,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         MarkModerationCaseRevokedEffect => "case.revoke",
         _ => "moderation",
     };
-    private static bool TryGetEffectTarget(ModerationEffect effect, out ChatId chatId, out UserId userId, out string correlationId)
+    private static bool TryGetEffectTarget(IModerationEffect effect, out ChatId chatId, out UserId userId, out string correlationId)
     {
         switch (effect)
         {
@@ -2590,7 +2590,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         row.Attempt,
         row.MaximumAttempts);
 
-    private static ModerationEffect ReadEffectPayload(string effectType, string payloadJson) => effectType switch
+    private static IModerationEffect ReadEffectPayload(string effectType, string payloadJson) => effectType switch
     {
         RestrictEffectType => JsonSerializer.Deserialize<RestrictMemberEffect>(payloadJson, JsonOptions)!,
         UnrestrictEffectType => JsonSerializer.Deserialize<UnrestrictMemberEffect>(payloadJson, JsonOptions)!,
@@ -2662,7 +2662,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             root.GetProperty("causationId").GetString() ?? string.Empty);
     }
 
-    private static string SerializeEffectPayload(ModerationEffect effect) => effect switch
+    private static string SerializeEffectPayload(IModerationEffect effect) => effect switch
     {
         ScheduleEffect schedule => JsonSerializer.Serialize(new
         {

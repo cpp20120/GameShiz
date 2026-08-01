@@ -1,3 +1,3 @@
 namespace ChatAdministration.Domain.Effects;
 
-public interface ModerationEffect;
+public interface IModerationEffect;

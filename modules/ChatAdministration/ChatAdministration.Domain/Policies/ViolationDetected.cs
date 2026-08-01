@@ -6,7 +6,7 @@ public sealed record ViolationDetected(
     ChatId ChatId,
     UserId UserId,
     int MessageId,
-    Violation Violation) : DomainEvent
+    Violation Violation) : IDomainEvent
 {
     public string EventType => "violation_detected";
 }

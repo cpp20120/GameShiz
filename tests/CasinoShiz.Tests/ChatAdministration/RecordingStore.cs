@@ -3,6 +3,7 @@ using ChatAdministration.Application.Services;
 using ChatAdministration.Domain.Effects;
 using ChatAdministration.Domain.Models;
 using ChatAdministration.Domain.Policies;
+using IDomainEvent = ChatAdministration.Domain.Policies.IDomainEvent;
 
 namespace CasinoShiz.Tests.ChatAdministration;
 
@@ -133,10 +134,10 @@ internal sealed class RecordingStore : IChatAdministrationStore
     public Task<SettingsCallbackState?> ConsumeSettingsCallbackAsync(string token, ChatId chatId, UserId actorUserId, CancellationToken ct) =>
         Task.FromResult<SettingsCallbackState?>(null);
 
-    public Task EnqueueEffectAsync(ModerationEffect effect, string idempotencyKey, EffectImportance importance, CancellationToken ct) =>
+    public Task EnqueueEffectAsync(IModerationEffect effect, string idempotencyKey, EffectImportance importance, CancellationToken ct) =>
         Task.CompletedTask;
 
-    public Task EnqueueScheduledEffectAsync(ModerationEffect effect, DateTimeOffset executeAt, string idempotencyKey, EffectImportance importance, CancellationToken ct) =>
+    public Task EnqueueScheduledEffectAsync(IModerationEffect effect, DateTimeOffset executeAt, string idempotencyKey, EffectImportance importance, CancellationToken ct) =>
         Task.CompletedTask;
 
     public Task CancelEffectAsync(EffectId effectId, CancellationToken ct) => Task.CompletedTask;
@@ -147,7 +148,7 @@ internal sealed class RecordingStore : IChatAdministrationStore
     public Task<VerificationPersistenceResult> PersistVerificationAsync(
         VerificationSession session,
         VerificationStatus expectedStatus,
-        IReadOnlyCollection<DomainEvent> events,
+        IReadOnlyCollection<IDomainEvent> events,
         EffectPlan effectPlan,
         string correlationId,
         string causationId,

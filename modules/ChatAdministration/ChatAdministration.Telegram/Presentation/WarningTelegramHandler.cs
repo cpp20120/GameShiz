@@ -47,8 +47,8 @@ public sealed class WarningTelegramHandler(
         }
 
         var chatId = new DomainChatId(message.Chat.Id);
-        var actorRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
-        var targetRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, target.UserId.Value, ctx.Ct);
+        var actorRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
+        var targetRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, target.UserId.Value, ctx.Ct);
         var actorName = DisplayName(message.From);
         var targetName = target.DisplayName;
         if (command == "/warnings")
@@ -101,24 +101,6 @@ public sealed class WarningTelegramHandler(
             warningId,
             command == "/clearwarnings" ? WarningRevocationReason.Cleared : WarningRevocationReason.Manual,
             ctx.Ct);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(ITelegramBotClient bot, long chatId, long userId, CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(User user) =>

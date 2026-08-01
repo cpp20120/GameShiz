@@ -7,4 +7,4 @@ public sealed record GetChatMemberEffect(
     UserId UserId,
     string ObservationKey,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

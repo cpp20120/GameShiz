@@ -7,4 +7,4 @@ public sealed record PinMessageEffect(
     int MessageId,
     bool DisableNotification,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

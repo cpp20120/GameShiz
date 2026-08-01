@@ -9,4 +9,4 @@ public sealed record EditMessageEffect(
     MessageParseMode ParseMode,
     InlineKeyboardSpec? InlineKeyboard,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

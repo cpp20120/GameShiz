@@ -6,7 +6,7 @@ public sealed record WarningDecision(
     bool Accepted,
     string? ErrorCode,
     WarningState? Warning,
-    IReadOnlyList<DomainEvent> Events)
+    IReadOnlyList<IDomainEvent> Events)
 {
     public static WarningDecision Reject(string errorCode) => new(false, errorCode, null, []);
 }

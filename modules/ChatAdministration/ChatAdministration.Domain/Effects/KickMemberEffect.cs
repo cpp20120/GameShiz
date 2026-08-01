@@ -7,4 +7,4 @@ public sealed record KickMemberEffect(
     UserId UserId,
     ModerationCaseId? CaseId,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

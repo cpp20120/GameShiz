@@ -8,4 +8,4 @@ public sealed record UnbanMemberEffect(
     ModerationCaseId? CaseId,
     DateTimeOffset? ExpectedUntil,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

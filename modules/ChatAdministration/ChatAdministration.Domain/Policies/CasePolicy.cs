@@ -30,7 +30,7 @@ public static class CasePolicy
 
         var externalEffectId = EffectId.New();
         var markerEffectId = EffectId.New();
-        ModerationEffect? externalEffect = moderationCase.Action switch
+        IModerationEffect? externalEffect = moderationCase.Action switch
         {
             ModerationAction.Mute => new UnrestrictMemberEffect(
                 chat.Id,

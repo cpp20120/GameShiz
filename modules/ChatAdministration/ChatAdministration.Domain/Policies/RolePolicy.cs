@@ -40,7 +40,7 @@ public static class RolePolicy
             roles.Remove(roleId);
         var member = target with { CustomRoleIds = roles };
         var domainEvent = assign
-            ? (DomainEvent)new CustomRoleAssigned(target.ChatId, target.UserId, roleId)
+            ? (IDomainEvent)new CustomRoleAssigned(target.ChatId, target.UserId, roleId)
             : new CustomRoleRemoved(target.ChatId, target.UserId, roleId);
         return new RoleDecision(true, null, member, [domainEvent]);
     }
@@ -79,7 +79,7 @@ public static class RolePolicy
             roles.Remove(role);
         var member = target with { Roles = roles };
         var domainEvent = assign
-            ? (DomainEvent)new MemberRoleAssigned(target.ChatId, target.UserId, role)
+            ? (IDomainEvent)new MemberRoleAssigned(target.ChatId, target.UserId, role)
             : new MemberRoleRemoved(target.ChatId, target.UserId, role);
         return new RoleDecision(true, null, member, [domainEvent]);
     }

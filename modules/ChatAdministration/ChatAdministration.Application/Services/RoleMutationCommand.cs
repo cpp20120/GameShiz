@@ -14,7 +14,7 @@ public sealed record RoleMutationCommand(
     ChatMemberRole Role,
     bool Assign,
     MemberState ResultMember,
-    DomainEvent Event,
+    IDomainEvent Event,
     string ResponseText,
     DateTimeOffset CreatedAt,
     int? SourceMessageId)

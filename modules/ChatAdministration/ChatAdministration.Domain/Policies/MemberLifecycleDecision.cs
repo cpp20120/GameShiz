@@ -5,7 +5,7 @@ namespace ChatAdministration.Domain.Policies;
 public sealed record MemberLifecycleDecision(
     bool Accepted,
     string? ErrorCode,
-    IReadOnlyCollection<DomainEvent> Events,
+    IReadOnlyCollection<IDomainEvent> Events,
     EffectPlan EffectPlan)
 {
     public static MemberLifecycleDecision Reject(string errorCode) =>

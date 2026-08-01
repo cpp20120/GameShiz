@@ -141,7 +141,7 @@ public static class VerificationPolicy
 
         var expired = session with { Status = VerificationStatus.Expired, ChallengeMessageId = challengeMessageId };
         var punishment = chat.Settings.CaptchaPolicy.FailureAction == CaptchaFailureAction.Ban
-            ? (ModerationEffect)new BanMemberEffect(session.ChatId, session.UserId, null, null, $"captcha:{session.Id}", $"captcha:{session.Id}")
+            ? (IModerationEffect)new BanMemberEffect(session.ChatId, session.UserId, null, null, $"captcha:{session.Id}", $"captcha:{session.Id}")
             : new KickMemberEffect(session.ChatId, session.UserId, null, $"captcha:{session.Id}", $"captcha:{session.Id}");
         var effects = new List<PlannedEffect> { new(punishment, EffectImportance.Required, []) };
         if (chat.Settings.CaptchaPolicy.DeleteChallengeAfterCompletion

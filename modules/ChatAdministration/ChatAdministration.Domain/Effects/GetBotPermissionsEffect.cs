@@ -7,4 +7,4 @@ public sealed record GetBotPermissionsEffect(
     UserId BotUserId,
     string ObservationKey,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

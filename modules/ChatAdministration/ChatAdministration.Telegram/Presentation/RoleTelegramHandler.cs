@@ -37,7 +37,7 @@ public sealed class RoleTelegramHandler(
             && (string.Equals(tokens[1], "define", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(tokens[1], "delete", StringComparison.OrdinalIgnoreCase)))
         {
-            await HandleCustomRoleCommandAsync(ctx, message, tokens, customRoles, store);
+            await HandleCustomRoleCommandAsync(ctx, message, tokens, customRoles, store, options);
             return;
         }
         var target = await targetResolver.ResolveAsync(
@@ -47,8 +47,8 @@ public sealed class RoleTelegramHandler(
         if (target is null)
             return;
 
-        var actorRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
-        var targetRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, target.UserId.Value, ctx.Ct);
+        var actorRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
+        var targetRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, target.UserId.Value, ctx.Ct);
         var chatId = new DomainChatId(message.Chat.Id);
         var actorId = new UserId(message.From.Id);
         var targetId = target.UserId;
@@ -98,7 +98,7 @@ public sealed class RoleTelegramHandler(
             : builtInRole.ToString();
         var roleEvent = customRoleId is { } customId
             ? assign
-                ? (DomainEvent)new CustomRoleAssigned(chatId, targetId, customId)
+                ? (IDomainEvent)new CustomRoleAssigned(chatId, targetId, customId)
                 : new CustomRoleRemoved(chatId, targetId, customId)
             : new MemberRoleAssigned(chatId, targetId, builtInRole);
 
@@ -132,7 +132,8 @@ public sealed class RoleTelegramHandler(
         Message message,
         IReadOnlyList<string> tokens,
         CustomRoleService customRoles,
-        IChatAdministrationStore store)
+        IChatAdministrationStore store,
+        BotFrameworkOptions options)
     {
         var remove = string.Equals(tokens[1], "delete", StringComparison.OrdinalIgnoreCase);
         var validShape = remove ? tokens.Count == 3 : tokens.Count == 5;
@@ -175,29 +176,11 @@ public sealed class RoleTelegramHandler(
                 rank,
                 permissions,
                 remove,
-                await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct),
+                await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct),
                 DisplayName(message.From),
                 DateTimeOffset.UtcNow,
                 message.MessageId),
             ctx.Ct);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(ITelegramBotClient bot, long chatId, long userId, CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(User user) =>

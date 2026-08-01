@@ -7,7 +7,7 @@ public sealed record CaseRevocationDecision(
     bool Accepted,
     string? ErrorCode,
     ModerationCaseState? Case,
-    IReadOnlyList<DomainEvent> Events,
+    IReadOnlyList<IDomainEvent> Events,
     EffectPlan EffectPlan)
 {
     public static CaseRevocationDecision Reject(string errorCode) =>

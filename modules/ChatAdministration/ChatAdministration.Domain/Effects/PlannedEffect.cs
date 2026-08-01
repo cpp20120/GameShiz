@@ -3,7 +3,7 @@ using ChatAdministration.Domain.Models;
 namespace ChatAdministration.Domain.Effects;
 
 public sealed record PlannedEffect(
-    ModerationEffect Effect,
+    IModerationEffect Effect,
     EffectImportance Importance,
     IReadOnlyCollection<EffectId> DependsOn,
     EffectId? CompensationEffectId = null,

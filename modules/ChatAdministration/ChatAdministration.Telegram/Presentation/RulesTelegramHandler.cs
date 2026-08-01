@@ -2,8 +2,10 @@ using ChatAdministration.Application.Services;
 using ChatAdministration.Application.Commands;
 using ChatAdministration.Domain.Policies;
 using ChatAdministration.Domain.Models;
+using BotFramework.Host.Composition.Builder;
 using BotFramework.Sdk.UpdateHandling;
 using BotFramework.Sdk.UpdateHandling.Routes;
+using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types.Enums;
@@ -15,15 +17,18 @@ namespace ChatAdministration.Telegram.Presentation;
 public sealed class RulesTelegramHandler(
     MemberLifecycleService lifecycle,
     ModerationRuleService rules,
-    IChatAdministrationStore store) : IUpdateHandler
+    IChatAdministrationStore store,
+    IOptions<BotFrameworkOptions> botOptions) : IUpdateHandler
 {
+    private readonly BotFrameworkOptions options = botOptions.Value;
+
     public async Task HandleAsync(UpdateContext ctx)
     {
         var message = ctx.Update.Message;
-        if (message?.From is null)
+        if (message?.Text is null || message.From is null)
             return;
 
-        var role = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
+        var role = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
         if (message.Text.StartsWith("/rule", StringComparison.OrdinalIgnoreCase)
             && !message.Text.StartsWith("/rules", StringComparison.OrdinalIgnoreCase))
         {
@@ -64,24 +69,6 @@ public sealed class RulesTelegramHandler(
             DisplayName(message.From.FirstName, message.From.LastName, message.From.Username, message.From.Id),
             ctx.Ct);
         await store.EnqueueResponseAsync(new ChatId(message.Chat.Id), text, message.MessageId, ctx.Ct);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(ITelegramBotClient bot, long chatId, long userId, CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(string firstName, string? lastName, string? username, long id) =>

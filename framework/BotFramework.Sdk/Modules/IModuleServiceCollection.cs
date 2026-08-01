@@ -48,10 +48,9 @@ public interface IModuleServiceCollection
     IModuleServiceCollection AddSingleton<TImplementation>() where TImplementation : class;
 
     /// <summary>
-    /// 
-    /// </summary>
     /// Registers a domain aggregate with its persistence strategy. Host picks
-    /// the right IRepository<TAggregate> implementation based on the strategy.
+    /// the right IRepository TAggregate implementation based on the strategy
+    /// </summary>
     IModuleServiceCollection RegisterAggregate<TAggregate>(PersistenceStrategy strategy)
         where TAggregate : IAggregateRoot;
 
@@ -70,10 +69,9 @@ public interface IModuleServiceCollection
     IModuleServiceCollection AddProjection<TProjection>() where TProjection : class, IProjection;
 
     /// <summary>
-    /// 
-    /// </summary>
-    /// Registers an admin page. Host mounts it at <c>/admin/&lt;moduleId&gt;/&lt;page.Route&gt;</c>
+    ///  Registers an admin page. Host mounts it at <c>/admin/&lt;moduleId&gt;/&lt;page.Route&gt;</c>
     /// after AdminWebToken middleware passes.
+    /// </summary>
     IModuleServiceCollection AddAdminPage<TPage>() where TPage : class, IAdminPage;
 
     /// <summary>

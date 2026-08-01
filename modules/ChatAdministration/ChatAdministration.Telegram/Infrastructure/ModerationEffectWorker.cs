@@ -112,7 +112,7 @@ public sealed partial class ModerationEffectWorker(
         }
     }
 
-    private static bool TryGetChatId(ModerationEffect effect, out ChatAdministration.Domain.Models.ChatId chatId)
+    private static bool TryGetChatId(IModerationEffect effect, out ChatAdministration.Domain.Models.ChatId chatId)
     {
         chatId = effect switch
         {
@@ -157,7 +157,7 @@ public sealed partial class ModerationEffectWorker(
     }
 
     private static bool TryGetMemberTarget(
-        ModerationEffect effect,
+        IModerationEffect effect,
         out ChatAdministration.Domain.Models.ChatId chatId,
         out ChatAdministration.Domain.Models.UserId userId)
     {
@@ -173,7 +173,7 @@ public sealed partial class ModerationEffectWorker(
         return chatId != default && userId != default;
     }
 
-    private static bool IsApplied(ModerationEffect effect, ChatMember member) => effect switch
+    private static bool IsApplied(IModerationEffect effect, ChatMember member) => effect switch
     {
         RestrictMemberEffect restriction => member is ChatMemberRestricted restricted
             && !restricted.CanSendMessages
@@ -196,7 +196,7 @@ public sealed partial class ModerationEffectWorker(
         _ => false,
     };
 
-    private static bool CanSafelyRetryUnknown(ModerationEffect effect) => effect switch
+    private static bool CanSafelyRetryUnknown(IModerationEffect effect) => effect switch
     {
         RestrictMemberEffect or UnrestrictMemberEffect or BanMemberEffect or UnbanMemberEffect or KickMemberEffect => true,
         DeleteMessageEffect or DeleteMessagesEffect or EditMessageEffect or PinMessageEffect or UnpinMessageEffect => true,

@@ -68,7 +68,7 @@ public static class AppealPolicy
             ResolutionComment = string.IsNullOrWhiteSpace(resolutionComment) ? null : resolutionComment.Trim(),
             ResolvedAt = now,
         };
-        DomainEvent domainEvent = approve ? new AppealApproved(resolved) : new AppealRejected(resolved);
+        IDomainEvent domainEvent = approve ? new AppealApproved(resolved) : new AppealRejected(resolved);
         return new AppealDecision(true, null, resolved, [domainEvent]);
     }
 }

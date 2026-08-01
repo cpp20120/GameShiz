@@ -8,4 +8,4 @@ public sealed record RestrictMemberEffect(
     DateTimeOffset Until,
     ModerationCaseId? CaseId,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

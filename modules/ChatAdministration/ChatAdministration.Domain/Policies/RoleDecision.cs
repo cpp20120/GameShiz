@@ -6,7 +6,7 @@ public sealed record RoleDecision(
     bool Accepted,
     string? ErrorCode,
     MemberState? Member,
-    IReadOnlyList<DomainEvent> Events)
+    IReadOnlyList<IDomainEvent> Events)
 {
     public static RoleDecision Reject(string errorCode) => new(false, errorCode, null, []);
 }

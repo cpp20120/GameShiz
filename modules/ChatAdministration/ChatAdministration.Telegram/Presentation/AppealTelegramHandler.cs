@@ -87,33 +87,11 @@ public sealed class AppealTelegramHandler(
                 comment,
                 message.MessageId,
                 DateTimeOffset.UtcNow),
-            await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct),
-            await ObserveRoleAsync(ctx.Bot, message.Chat.Id, moderationCase.TargetUserId.Value, ctx.Ct),
+            await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct),
+            await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, moderationCase.TargetUserId.Value, ctx.Ct),
             DisplayName(message.From),
             $"user {moderationCase.TargetUserId}",
             ctx.Ct);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(
-        ITelegramBotClient bot,
-        long chatId,
-        long userId,
-        CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string DisplayName(User user) =>

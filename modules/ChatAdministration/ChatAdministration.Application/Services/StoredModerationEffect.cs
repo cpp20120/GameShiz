@@ -6,7 +6,7 @@ namespace ChatAdministration.Application.Services;
 public sealed record StoredModerationEffect(
     EffectId EffectId,
     string EffectType,
-    ModerationEffect Payload,
+    IModerationEffect Payload,
     ModerationCaseId? CaseId,
     EffectImportance Importance,
     int Attempt,

@@ -8,7 +8,7 @@ public sealed record ManualModerationDecision(
     string? ErrorCode,
     ModerationCaseState? Case,
     WarningState? Warning,
-    IReadOnlyList<DomainEvent> Events,
+    IReadOnlyList<IDomainEvent> Events,
     EffectPlan EffectPlan)
 {
     public static ManualModerationDecision Reject(string errorCode) =>

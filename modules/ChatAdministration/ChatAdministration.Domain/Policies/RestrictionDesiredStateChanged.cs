@@ -6,7 +6,7 @@ public sealed record RestrictionDesiredStateChanged(
     ChatId ChatId,
     UserId UserId,
     RestrictionState State,
-    ModerationCaseId CaseId) : DomainEvent
+    ModerationCaseId CaseId) : IDomainEvent
 {
     public string EventType => "restriction_desired_state_changed";
 }

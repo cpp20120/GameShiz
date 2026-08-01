@@ -37,22 +37,25 @@ public sealed class ModerationTelegramHandler(
             return;
         }
 
+        var targetReference = TelegramTargetReferenceParser.FromMessage(message);
         var target = await targetResolver.ResolveAsync(
             new DomainChatId(message.Chat.Id),
-            TelegramTargetReferenceParser.FromMessage(message),
+            targetReference,
             ctx.Ct);
         if (target is null || target.UserId == new UserId(0))
         {
             await store.EnqueueResponseAsync(
                 new DomainChatId(message.Chat.Id),
-                "Ответьте командой /mute на сообщение пользователя.",
+                targetReference is null
+                    ? "Ответьте командой /mute на сообщение пользователя или укажите @username."
+                    : "Не удалось определить пользователя. Ответьте командой на доступное сообщение или укажите сохранённый @username.",
                 message.MessageId,
                 ctx.Ct);
             return;
         }
 
-        var actorRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, message.From.Id, ctx.Ct);
-        var targetRole = await ObserveRoleAsync(ctx.Bot, message.Chat.Id, target.UserId.Value, ctx.Ct);
+        var actorRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, message.From.Id, ctx.Ct);
+        var targetRole = await TelegramRoleResolver.ResolveAsync(ctx.Bot, options, message.Chat.Id, target.UserId.Value, ctx.Ct);
         var commandId = BuildCommandId(message, ctx.Update.Id);
         var correlationId = $"moderation:{message.Chat.Id}:{commandId}";
         var command = new MuteMemberCommand(
@@ -75,30 +78,6 @@ public sealed class ModerationTelegramHandler(
         var result = await service.ExecuteMuteAsync(command, ctx.Ct);
         if (result.Duplicate)
             logger.LogDebug("Duplicate moderation command ignored: {CommandId}", commandId);
-    }
-
-    private static async Task<ChatMemberRole> ObserveRoleAsync(
-        ITelegramBotClient bot,
-        long chatId,
-        long userId,
-        CancellationToken ct)
-    {
-        try
-        {
-            var member = await bot.GetChatMember(chatId, userId, ct);
-            return member.Status switch
-            {
-                ChatMemberStatus.Creator => ChatMemberRole.Owner,
-                ChatMemberStatus.Administrator => ChatMemberRole.Admin,
-                _ => ChatMemberRole.Member,
-            };
-        }
-        catch (ApiRequestException)
-        {
-            // The application keeps internal roles. A failed observation must
-            // never accidentally elevate an actor, so it is treated as Member.
-            return ChatMemberRole.Member;
-        }
     }
 
     private static string BuildCommandId(Message message, int updateId) =>

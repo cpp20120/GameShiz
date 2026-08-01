@@ -7,4 +7,4 @@ public sealed record DeleteMessagesEffect(
     IReadOnlyList<int> MessageIds,
     ModerationCaseId? CaseId,
     string CorrelationId,
-    string CausationId) : ModerationEffect;
+    string CausationId) : IModerationEffect;

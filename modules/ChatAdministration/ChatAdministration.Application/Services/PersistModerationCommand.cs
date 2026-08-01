@@ -12,7 +12,7 @@ public sealed record PersistModerationCommand(
     ModerationCaseState Case,
     MemberState Actor,
     MemberState Target,
-    IReadOnlyList<DomainEvent> Events,
+    IReadOnlyList<IDomainEvent> Events,
     EffectPlan EffectPlan,
     string ResponseText,
     DateTimeOffset CreatedAt,
