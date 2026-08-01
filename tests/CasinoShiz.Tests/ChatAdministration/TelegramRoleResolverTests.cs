@@ -24,4 +24,20 @@ public sealed class TelegramRoleResolverTests
 
         Assert.Equal(ChatMemberRole.Owner, role);
     }
+
+    [Fact]
+    public async Task ConfiguredAdminIsOwnerInGroupWithoutTelegramLookup()
+    {
+        const long adminId = 925337014;
+        var options = Options.Create(new BotFrameworkOptions { Admins = [adminId] });
+
+        var role = await TelegramRoleResolver.ResolveAsync(
+            bot: null!,
+            options.Value,
+            chatId: -1001234567890,
+            userId: adminId,
+            CancellationToken.None);
+
+        Assert.Equal(ChatMemberRole.Owner, role);
+    }
 }

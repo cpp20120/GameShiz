@@ -22,7 +22,7 @@ public static class TelegramRoleResolver
         long userId,
         CancellationToken ct)
     {
-        if (chatId == userId && options.Admins.Contains(userId))
+        if (options.Admins.Contains(userId))
             return ChatMemberRole.Owner;
 
         try

@@ -53,6 +53,7 @@ using Games.Admin.Rest;
 using Games.Poker.Rest;
 using Games.Leaderboard.Rest;
 using ChatAdministration.Telegram.Infrastructure;
+using ChatAdministration.Telegram.Composition;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -104,6 +105,7 @@ builder.AddBotFramework()
     .AddModule<MetaTelegramModule>()
     .AddModule<AdminModule>()
     .AddModule<AdminTelegramModule>()
+    .AddModule<ChatAdministrationTelegramModule>()
     .AddModule<IdentityModule>();
 
 builder.Services.AddDiceRest();
