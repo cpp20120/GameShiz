@@ -1,4 +1,5 @@
 using System.Net;
+using BotFramework.Host.Admin.Audit;
 using BotFramework.Host.Admin.Auth;
 using BotFramework.Host.Persistence.Connections;
 using ChatAdministration.Telegram.Infrastructure;
@@ -113,6 +114,8 @@ public sealed class ChatAdministrationAdminPageE2EFixture : IAsyncLifetime
             options.Listen(IPAddress.Loopback, 0, listen => listen.Protocols = HttpProtocols.Http1));
         builder.Services.AddSingleton<INpgsqlConnectionFactory>(
             new ChatAdministrationTestConnectionFactory(database.GetConnectionString()));
+        builder.Services.AddSingleton<ChatAdministrationStore>();
+        builder.Services.AddScoped<IAdminAuditLog, AdminAuditLog>();
         builder.Services.AddDistributedMemoryCache();
         builder.Services.AddSession(options =>
         {

@@ -58,11 +58,12 @@ public sealed class ChatAdministrationPostgresTests(AtomicPostgresFixture databa
     public async Task SettingsCallbackTokenIsOpaqueServerSideAndSingleUse()
     {
         var store = new ChatAdministrationStore(new ChatAdministrationTestConnectionFactory(database.ConnectionString));
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
         var token = await store.CreateSettingsCallbackAsync(
             new ChatId(-100),
             "captcha",
             "toggle",
-            Now.AddMinutes(5),
+            expiresAt,
             CancellationToken.None);
 
         Assert.DoesNotContain("captcha", token, StringComparison.OrdinalIgnoreCase);
