@@ -2,6 +2,7 @@ using BotFramework.Contracts.Messaging;
 using BotFramework.Contracts.Tenancy;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CasinoShiz.ServiceDefaults;
 
@@ -20,7 +21,7 @@ public static class TransportChannelApplicationBuilderExtensions
             await next();
         });
 
-    private static IDisposable? TryPushRequestMetadata(HttpContext context, BotChannel channel)
+    private static TransportContextScope? TryPushRequestMetadata(HttpContext context, BotChannel channel)
     {
         var tenantValue = context.Request.Headers["tenant_id"].FirstOrDefault();
         var scopeValue = context.Request.Headers["scope_id"].FirstOrDefault();
@@ -57,7 +58,28 @@ public static class TransportChannelApplicationBuilderExtensions
             Channel = channel,
             TenantContext = tenantContext,
         };
-        return RequestMetadataContext.Push(metadata);
+        var metadataScope = RequestMetadataContext.Push(metadata);
+        var tenantScope = context.RequestServices
+            .GetService<ITenantContextAccessor>()?
+            .Push(tenantContext);
+        return new TransportContextScope(metadataScope, tenantScope);
+    }
+
+    private sealed class TransportContextScope(
+        IDisposable metadataScope,
+        IDisposable? tenantScope) : IDisposable
+    {
+        private bool disposed;
+
+        public void Dispose()
+        {
+            if (disposed)
+                return;
+
+            tenantScope?.Dispose();
+            metadataScope.Dispose();
+            disposed = true;
+        }
     }
 
     private static string HeaderOrFallback(HttpContext context, string name, string? fallback = null)

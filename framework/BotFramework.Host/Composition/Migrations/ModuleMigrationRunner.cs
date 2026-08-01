@@ -74,7 +74,14 @@ public sealed partial class ModuleMigrationRunner(
             foreach (var module in loadedModules.Migrations)
                 await ApplyModuleAsync(PrepareModuleMigrations(module, walletRemote), cancellationToken);
 
-            LogMigrationsComplete(loadedModules.Migrations.Count + 1);
+            // Game deployments are split: the first pod may only have one
+            // module's tables present. Keep this framework pass repeatable
+            // instead of tracking it once globally, so every later module
+            // deployment gets the same tenant boundary when its tables appear.
+            await ApplyPostModuleMigrationsAsync(cancellationToken);
+
+            LogMigrationsComplete(
+                loadedModules.Migrations.Count + 1 + FrameworkMigrations.PostModuleMigrations.Count);
         }
         finally
         {
@@ -132,6 +139,30 @@ public sealed partial class ModuleMigrationRunner(
                     cancellationToken: ct));
                 await tx.CommitAsync(ct);
                 LogApplied(module.ModuleId, migration.Id);
+            }
+            catch
+            {
+                await tx.RollbackAsync(ct);
+                throw;
+            }
+        }
+    }
+
+    private async Task ApplyPostModuleMigrationsAsync(CancellationToken ct)
+    {
+        await using var conn = await connections.OpenAsync(ct);
+        foreach (var migration in FrameworkMigrations.PostModuleMigrations)
+        {
+            LogApplying("_framework", migration.Id);
+            await using var tx = await conn.BeginTransactionAsync(ct);
+            try
+            {
+                await conn.ExecuteAsync(new CommandDefinition(
+                    migration.Sql,
+                    transaction: tx,
+                    cancellationToken: ct));
+                await tx.CommitAsync(ct);
+                LogApplied("_framework", migration.Id);
             }
             catch
             {

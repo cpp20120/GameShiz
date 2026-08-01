@@ -1,6 +1,7 @@
 using BotFramework.Contracts.Messaging;
 using BotFramework.Contracts.Identity;
 using BotFramework.Contracts.Operations;
+using BotFramework.Contracts.Tenancy;
 using BotFramework.Host.Messaging;
 using BotFramework.Host.Contracts.Economics;
 using BotFramework.Host.Contracts.ResponsibleGaming;
@@ -451,6 +452,32 @@ public sealed class MessagingBoundaryTests
     }
 
     [Fact]
+    public async Task LocalRequestClient_ProjectsTenantIntoFrameworkAccessor()
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
+        services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
+        services.AddScoped<IRequestHandler<TenantPingRequest, TenantPingResponse>, TenantPingHandler>();
+        services.AddScoped<MediatR.IRequestHandler<TenantPingRequest, TenantPingResponse>, TenantPingHandler>();
+        services.AddScoped<IRequestClient, LocalRequestClient>();
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var tenant = TenantContext.Create(
+            TenantId.Create("local-tenant"),
+            ScopeId.Create("main"),
+            PlayerId.Create("player"),
+            BotChannel.Rest);
+
+        var response = await scope.ServiceProvider.GetRequiredService<IRequestClient>()
+            .SendAsync<TenantPingRequest, TenantPingResponse>(
+                new TenantPingRequest(),
+                RequestMetadata.FromTenantContext(tenant, "test"),
+                default);
+
+        Assert.Equal("local-tenant", response.TenantId);
+    }
+
+    [Fact]
     public async Task LocalIntegrationEventPublisher_DispatchesThroughContractHandlers()
     {
         var first = new RecordingEventHandler();
@@ -567,6 +594,13 @@ public sealed class MessagingBoundaryTests
 
     private sealed record PingResponse(string Value);
 
+    private sealed record TenantPingRequest : IRequest<TenantPingResponse>
+    {
+        public string MessageType => "test.tenant-ping.v1";
+    }
+
+    private sealed record TenantPingResponse(string? TenantId);
+
     private sealed record TestIntegrationEvent(
         string EventType,
         DateTimeOffset OccurredAt,
@@ -587,6 +621,16 @@ public sealed class MessagingBoundaryTests
     {
         public Task<PingResponse> HandleAsync(PingRequest request, RequestMetadata metadata, CancellationToken ct) =>
             Task.FromResult(new PingResponse($"{request.Value}:{metadata.ClientId}"));
+    }
+
+    private sealed class TenantPingHandler(ITenantContextAccessor accessor)
+        : IRequestHandler<TenantPingRequest, TenantPingResponse>
+    {
+        public Task<TenantPingResponse> HandleAsync(
+            TenantPingRequest request,
+            RequestMetadata metadata,
+            CancellationToken ct) =>
+            Task.FromResult(new TenantPingResponse(accessor.Current?.TenantId.Value));
     }
 
     private sealed class DiceServiceStub : IDiceService

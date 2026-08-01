@@ -65,6 +65,9 @@ public sealed partial class EconomicsService(
         var effectiveScopeId = scopeResolver is null
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, conn, null, ct);
+        if (scopeResolver is not null)
+            await scopeResolver.CopyUserToAliasAsync(
+                userId, balanceScopeId, effectiveScopeId, conn, null, ct);
         return await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT coins FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId",
             new { userId, balanceScopeId = effectiveScopeId }, cancellationToken: ct));

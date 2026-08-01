@@ -37,6 +37,9 @@ public sealed class PlayerProtectionService(
         var effectiveScopeId = scopeResolver is null
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, conn, null, ct);
+        if (scopeResolver is not null)
+            await scopeResolver.CopyUserToAliasAsync(
+                userId, balanceScopeId, effectiveScopeId, conn, null, ct);
         return await conn.QuerySingleAsync<PlayerStats>(new CommandDefinition(
             sql, new { userId, balanceScopeId, effectiveScopeId }, cancellationToken: ct));
     }

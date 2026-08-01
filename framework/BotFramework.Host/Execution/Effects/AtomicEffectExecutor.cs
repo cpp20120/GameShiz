@@ -12,7 +12,8 @@ internal sealed class AtomicEffectExecutor(
     IEnumerable<IAtomicEffectHandler> handlers,
     IWalletAtomicExecutionService wallet,
     IEconomicsService economics,
-    ITenantContextProvisioner? tenantContextProvisioner = null) : IAtomicEffectExecutor
+    ITenantContextProvisioner? tenantContextProvisioner = null,
+    ITenantContextAccessor? tenantContextAccessor = null) : IAtomicEffectExecutor
 {
     private readonly Dictionary<Type, IAtomicEffectHandler> _handlers = handlers
         .GroupBy(static handler => handler.EffectType)
@@ -26,6 +27,9 @@ internal sealed class AtomicEffectExecutor(
         Validate(envelope, plan);
         using var metadataScope = envelope.TenantContext is { } tenantContext
             ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(tenantContext, "sdk"))
+            : null;
+        using var tenantScope = envelope.TenantContext is { } scopedTenant && tenantContextAccessor is not null
+            ? tenantContextAccessor.Push(scopedTenant)
             : null;
         if (envelope.TenantContext is { } tenant && tenantContextProvisioner is not null)
             await tenantContextProvisioner.EnsureAsync(tenant, ct);

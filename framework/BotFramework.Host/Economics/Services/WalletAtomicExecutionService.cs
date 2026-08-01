@@ -50,6 +50,9 @@ public sealed class WalletAtomicExecutionService(
         var effectiveScopeId = scopeResolver is null
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
+        if (scopeResolver is not null)
+            await scopeResolver.CopyUserToAliasAsync(
+                userId, balanceScopeId, effectiveScopeId, connection, null, ct);
         return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT coins FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId",
             new { userId, balanceScopeId = effectiveScopeId },

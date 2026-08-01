@@ -15,6 +15,14 @@ internal sealed class FrameworkMigrations : IModuleMigrations
 {
     public string ModuleId => "_framework";
 
+    /// <summary>
+    /// Framework-owned migrations which must run after module schemas exist.
+    /// They still use the framework migration stream so modules never own the
+    /// tenant boundary they are being migrated onto.
+    /// </summary>
+    public static IReadOnlyList<Migration> PostModuleMigrations =>
+        FrameworkTenantBoundaryMigrations.PostModuleMigrations;
+
     private static readonly HashSet<string> WalletOwnedIds =
     [
         "003_users",

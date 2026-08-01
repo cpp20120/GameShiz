@@ -7,6 +7,7 @@ using BotFramework.Host.RateLimiting;
 using BotFramework.Host.Tenancy;
 using BotFramework.Host.Economics;
 using Dapper;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -16,6 +17,48 @@ namespace CasinoShiz.Tests;
 [Collection(AtomicPostgresCollection.Name)]
 public sealed class FrameworkTenantPostgresTests(AtomicPostgresFixture database)
 {
+    [Fact]
+    public async Task ConnectionFactory_ProjectsAndRefreshesAmbientTenantSession()
+    {
+        await database.ResetAsync();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Postgres"] = database.ConnectionString,
+            })
+            .Build();
+        var factory = new NpgsqlConnectionFactory(configuration);
+        var tenant = TenantContext.Create(
+            TenantId.Create("framework-db-scope"),
+            ScopeId.Create("main"),
+            PlayerId.Create("player"),
+            BotChannel.Telegram);
+
+        using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(tenant, "test")))
+        {
+            await using var connection = await factory.OpenAsync(CancellationToken.None);
+            var values = await connection.QuerySingleAsync<(string TenantId, string ScopeId, string PlayerId, string Channel, string Bound)>(
+                """
+                SELECT current_setting('casinoshiz.tenant_id') AS TenantId,
+                       current_setting('casinoshiz.scope_id') AS ScopeId,
+                       current_setting('casinoshiz.player_id') AS PlayerId,
+                       current_setting('casinoshiz.channel') AS Channel,
+                       current_setting('casinoshiz.tenant_bound') AS Bound
+                """);
+
+            Assert.Equal(("framework-db-scope", "main", "player", "telegram", "true"), values);
+        }
+
+        await using var unbound = await factory.OpenAsync(CancellationToken.None);
+        var unboundValues = await unbound.QuerySingleAsync<(string TenantId, string ScopeId, string Bound)>(
+            """
+            SELECT current_setting('casinoshiz.tenant_id') AS TenantId,
+                   current_setting('casinoshiz.scope_id') AS ScopeId,
+                   current_setting('casinoshiz.tenant_bound') AS Bound
+            """);
+        Assert.Equal((string.Empty, string.Empty, "false"), unboundValues);
+    }
+
     [Fact]
     public async Task Provisioner_CreatesIndependentTenantScopesAndBindings()
     {
@@ -231,6 +274,87 @@ public sealed class FrameworkTenantPostgresTests(AtomicPostgresFixture database)
         Assert.Equal(1, await connection.ExecuteScalarAsync<int>(
             "SELECT count(*) FROM tenant_schedule_outbox s JOIN tenants t ON t.tenant_key = s.tenant_key WHERE t.tenant_id = @tenantId",
             new { tenantId = second.TenantId.Value }));
+    }
+
+    [Fact]
+    public async Task LegacyGameTables_AreStampedAndFilteredByFrameworkTenantContext()
+    {
+        await database.ResetAsync();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Postgres"] = database.ConnectionString,
+            })
+            .Build();
+        var factory = new NpgsqlConnectionFactory(configuration);
+        var provisioner = new PostgresTenantContextProvisioner(
+            new TestConnectionFactory(database.ConnectionString));
+        var first = TenantContext.Create(
+            TenantId.Create("legacy-game-test-a"),
+            ScopeId.Create("main"),
+            PlayerId.Create("same-player"),
+            BotChannel.Telegram);
+        var second = first with { TenantId = TenantId.Create("legacy-game-test-b") };
+        await provisioner.EnsureAsync(first);
+        await provisioner.EnsureAsync(second);
+
+        await using (var admin = new NpgsqlConnection(database.ConnectionString))
+        {
+            await admin.OpenAsync();
+            await admin.ExecuteAsync("""
+                DO $role$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tenant_boundary_test') THEN
+                        CREATE ROLE tenant_boundary_test NOLOGIN;
+                    END IF;
+                END
+                $role$;
+                GRANT SELECT, INSERT, UPDATE, DELETE ON darts_rounds TO tenant_boundary_test;
+                GRANT USAGE, SELECT ON SEQUENCE darts_rounds_id_seq TO tenant_boundary_test;
+                GRANT SELECT ON tenants, tenant_scopes TO tenant_boundary_test;
+                """);
+        }
+
+        using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(first, "test")))
+        {
+            await using var connection = await factory.OpenAsync(CancellationToken.None);
+            await connection.ExecuteAsync("SET ROLE tenant_boundary_test");
+            await connection.ExecuteAsync("""
+                INSERT INTO darts_rounds (user_id, chat_id, amount, status, reply_to_message_id, channel)
+                VALUES (925337014, 925337014, 10, 0, 0, 'telegram')
+                """);
+
+            Assert.Equal(1, await connection.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM darts_rounds WHERE user_id = 925337014"));
+            Assert.Equal("legacy-game-test-a", await connection.ExecuteScalarAsync<string>("""
+                SELECT t.tenant_id
+                FROM darts_rounds d
+                JOIN tenants t ON t.tenant_key = d.tenant_key
+                WHERE d.user_id = 925337014
+                """));
+        }
+
+        using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(second, "test")))
+        {
+            await using var connection = await factory.OpenAsync(CancellationToken.None);
+            await connection.ExecuteAsync("SET ROLE tenant_boundary_test");
+            Assert.Equal(0, await connection.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM darts_rounds WHERE user_id = 925337014"));
+
+            await connection.ExecuteAsync("""
+                INSERT INTO darts_rounds (user_id, chat_id, amount, status, reply_to_message_id, channel)
+                VALUES (925337014, 925337014, 20, 0, 0, 'telegram')
+                """);
+            Assert.Equal(1, await connection.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM darts_rounds WHERE user_id = 925337014"));
+        }
+
+        await using (var unbound = await factory.OpenAsync(CancellationToken.None))
+        {
+            await unbound.ExecuteAsync("SET ROLE tenant_boundary_test");
+            Assert.Equal(2, await unbound.ExecuteScalarAsync<int>(
+                "SELECT count(*) FROM darts_rounds WHERE user_id = 925337014"));
+        }
     }
 
     private sealed class TestConnectionFactory(string connectionString) : INpgsqlConnectionFactory

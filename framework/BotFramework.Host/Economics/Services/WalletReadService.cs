@@ -21,6 +21,9 @@ public sealed class WalletReadService(
         var effectiveScopeId = scopeResolver is null
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
+        if (scopeResolver is not null)
+            await scopeResolver.CopyUserToAliasAsync(
+                userId, balanceScopeId, effectiveScopeId, connection, null, ct);
         return await connection.QuerySingleOrDefaultAsync<WalletAccount>(new CommandDefinition(
             Select + " WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId",
             new { userId, balanceScopeId = effectiveScopeId }, cancellationToken: ct));
@@ -38,6 +41,9 @@ public sealed class WalletReadService(
         var effectiveScopeId = scopeResolver is null
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
+        if (scopeResolver is not null)
+            await scopeResolver.CopyScopeToAliasAsync(
+                balanceScopeId, effectiveScopeId, connection, null, ct);
         return (await connection.QueryAsync<WalletAccount>(new CommandDefinition(
             Select + " WHERE balance_scope_id = @balanceScopeId", new { balanceScopeId = effectiveScopeId }, cancellationToken: ct))).AsList();
     }

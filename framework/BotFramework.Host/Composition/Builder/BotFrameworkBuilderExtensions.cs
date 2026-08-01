@@ -194,6 +194,7 @@ public static class BotFrameworkBuilderExtensions
                 failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
                 tags: ["ready"]);
         services.AddSingleton<IGameExecutionSessionFactory, PostgresGameExecutionSessionFactory>();
+        services.AddSingleton<IGameAggregateStateReader, PostgresGameAggregateStateReader>();
         services.AddSingleton<ICommandInbox, PostgresCommandInbox>();
         services.AddSingleton<ITenantWalletReadService, PostgresTenantWalletReadService>();
         services.AddScoped<IGameEffectHandler, PostgresTenantWalletGameEffectHandler>();

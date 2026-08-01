@@ -25,7 +25,8 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
     ITransactionalScheduleCollector? scheduleCollector = null,
     IEnumerable<IGameEffectHandler>? effectHandlers = null,
     ITenantWalletReadService? tenantWalletReadService = null,
-    ITenantContextProvisioner? tenantContextProvisioner = null)
+    ITenantContextProvisioner? tenantContextProvisioner = null,
+    ITenantContextAccessor? tenantContextAccessor = null)
     : IAtomicGameExecutor<TCommand, TState, TResult>
 {
     private readonly TransactionalGameEffectPipeline<TCommand, TState, TResult> effectPipeline = new(
@@ -49,6 +50,9 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             ?? RequestMetadataContext.TryGetCurrent()?.TenantContext;
         using var metadataScope = tenantContext is { } context
             ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(context, "sdk"))
+            : null;
+        using var tenantScope = tenantContext is { } scopedTenant && tenantContextAccessor is not null
+            ? tenantContextAccessor.Push(scopedTenant)
             : null;
         if (tenantContext is not null && tenantContextProvisioner is not null)
             await tenantContextProvisioner.EnsureAsync(tenantContext, ct);

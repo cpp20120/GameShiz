@@ -75,6 +75,8 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
             await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new ChatAdministrationMigrations().Migrations)
             await connection.ExecuteAsync(migration.Sql);
+        foreach (var migration in FrameworkMigrations.PostModuleMigrations)
+            await connection.ExecuteAsync(migration.Sql);
     }
 
     public async Task DisposeAsync() => await container.DisposeAsync();

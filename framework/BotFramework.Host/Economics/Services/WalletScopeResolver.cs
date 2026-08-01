@@ -35,6 +35,84 @@ public sealed class WalletScopeResolver
             cancellationToken: ct));
     }
 
+    public async Task CopyUserToAliasAsync(
+        long userId,
+        long sourceScopeId,
+        long effectiveScopeId,
+        DbConnection connection,
+        DbTransaction? transaction,
+        CancellationToken ct)
+    {
+        if (sourceScopeId == effectiveScopeId)
+            return;
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO users (
+                telegram_user_id,
+                balance_scope_id,
+                display_name,
+                coins,
+                version,
+                created_at,
+                updated_at,
+                last_daily_bonus_on)
+            SELECT telegram_user_id,
+                   @effectiveScopeId,
+                   display_name,
+                   coins,
+                   version,
+                   created_at,
+                   updated_at,
+                   last_daily_bonus_on
+            FROM users
+            WHERE telegram_user_id = @userId
+              AND balance_scope_id = @sourceScopeId
+            ON CONFLICT (telegram_user_id, balance_scope_id) DO NOTHING
+            """,
+            new { userId, sourceScopeId, effectiveScopeId },
+            transaction,
+            cancellationToken: ct));
+    }
+
+    public async Task CopyScopeToAliasAsync(
+        long sourceScopeId,
+        long effectiveScopeId,
+        DbConnection connection,
+        DbTransaction? transaction,
+        CancellationToken ct)
+    {
+        if (sourceScopeId == effectiveScopeId)
+            return;
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            INSERT INTO users (
+                telegram_user_id,
+                balance_scope_id,
+                display_name,
+                coins,
+                version,
+                created_at,
+                updated_at,
+                last_daily_bonus_on)
+            SELECT telegram_user_id,
+                   @effectiveScopeId,
+                   display_name,
+                   coins,
+                   version,
+                   created_at,
+                   updated_at,
+                   last_daily_bonus_on
+            FROM users
+            WHERE balance_scope_id = @sourceScopeId
+            ON CONFLICT (telegram_user_id, balance_scope_id) DO NOTHING
+            """,
+            new { sourceScopeId, effectiveScopeId },
+            transaction,
+            cancellationToken: ct));
+    }
+
     private static bool RequiresAlias(string? tenantId) =>
         !string.IsNullOrWhiteSpace(tenantId)
         && !tenantId.StartsWith("telegram:dm:", StringComparison.Ordinal)

@@ -24,12 +24,13 @@ public sealed class NpgsqlConnectionFactory(IConfiguration configuration) : INpg
         ?? throw new InvalidOperationException(
             "ConnectionStrings:Postgres is not set. Configure Postgres connection before starting the bot.");
 
-    public NpgsqlConnection Create() => new(_connectionString);
+    public NpgsqlConnection Create() => TenantDatabaseScope.CreateConnection(_connectionString);
 
     public async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)
     {
         var conn = Create();
         await conn.OpenAsync(ct);
+        await TenantDatabaseScope.ApplyAsync(conn, ct);
         return conn;
     }
 }

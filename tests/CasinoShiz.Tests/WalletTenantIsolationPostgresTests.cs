@@ -37,6 +37,7 @@ public sealed class WalletTenantIsolationPostgresTests(AtomicPostgresFixture dat
 
         using (BotTenant("telegram:bot2:dm:42"))
         {
+            Assert.Equal(125, await wallet.GetBalanceAsync(42, 42, CancellationToken.None));
             await wallet.EnsureUserAsync(42, 42, "user", CancellationToken.None);
             Assert.True(await wallet.TryDebitAsync(42, 42, 10, "bet", CancellationToken.None));
             Assert.Equal(115, await wallet.GetBalanceAsync(42, 42, CancellationToken.None));
