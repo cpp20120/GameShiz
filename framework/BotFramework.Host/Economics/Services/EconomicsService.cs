@@ -19,7 +19,8 @@ namespace BotFramework.Host.Economics.Services;
 public sealed partial class EconomicsService(
     INpgsqlConnectionFactory connections,
     IOptions<BotFrameworkOptions> options,
-    ILogger<EconomicsService> logger) : IEconomicsService
+    ILogger<EconomicsService> logger,
+    WalletScopeResolver? scopeResolver = null) : IEconomicsService
 {
     private readonly int _startingCoins = options.Value.StartingCoins;
 
@@ -28,17 +29,31 @@ public sealed partial class EconomicsService(
         if (displayName.Length > 64) displayName = displayName[..64];
 
         const string sql = """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @balanceScopeId, @displayName, @startingCoins)
+            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins, version, created_at, updated_at)
+            SELECT @userId,
+                   @effectiveScopeId,
+                   @displayName,
+                   COALESCE(source.coins, @startingCoins),
+                   COALESCE(source.version, 0),
+                   COALESCE(source.created_at, now()),
+                   COALESCE(source.updated_at, now())
+            FROM (SELECT 1) seed
+            LEFT JOIN users source
+              ON source.telegram_user_id = @userId
+             AND source.balance_scope_id = @sourceScopeId
             ON CONFLICT (telegram_user_id, balance_scope_id)
             DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
             """;
 
         await using var conn = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, null, ct);
         await conn.ExecuteAsync(new CommandDefinition(sql, new
         {
             userId,
-            balanceScopeId,
+            sourceScopeId = balanceScopeId,
+            effectiveScopeId,
             displayName,
             startingCoins = _startingCoins,
         }, cancellationToken: ct));
@@ -47,9 +62,12 @@ public sealed partial class EconomicsService(
     public async Task<int> GetBalanceAsync(long userId, long balanceScopeId, CancellationToken ct)
     {
         await using var conn = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, null, ct);
         return await conn.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT coins FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId",
-            new { userId, balanceScopeId }, cancellationToken: ct));
+            new { userId, balanceScopeId = effectiveScopeId }, cancellationToken: ct));
     }
 
     public async Task<bool> TryDebitAsync(
@@ -269,6 +287,7 @@ public sealed partial class EconomicsService(
             SELECT balance_after
             FROM economics_ledger
             WHERE operation_id = @operationId
+              AND balance_scope_id = @balanceScopeId
             """;
 
         var senderOperationId = operationId is null ? null : $"{operationId}:send";
@@ -276,6 +295,9 @@ public sealed partial class EconomicsService(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         if (senderOperationId is not null && recipientOperationId is not null)
         {
@@ -298,10 +320,10 @@ public sealed partial class EconomicsService(
 
         var row1 = await conn.QuerySingleOrDefaultAsync<LockedWallet>(
             new CommandDefinition(
-                selectSqlTransfer, new { userId = firstUser, balanceScopeId }, transaction: tx, cancellationToken: ct));
+                selectSqlTransfer, new { userId = firstUser, balanceScopeId = effectiveScopeId }, transaction: tx, cancellationToken: ct));
         var row2 = await conn.QuerySingleOrDefaultAsync<LockedWallet>(
             new CommandDefinition(
-                selectSqlTransfer, new { userId = secondUser, balanceScopeId }, transaction: tx, cancellationToken: ct));
+                selectSqlTransfer, new { userId = secondUser, balanceScopeId = effectiveScopeId }, transaction: tx, cancellationToken: ct));
 
         if (row1 is null)
         {
@@ -341,18 +363,18 @@ public sealed partial class EconomicsService(
 
         await conn.ExecuteAsync(new CommandDefinition(
             updateSql,
-            new { userId = fromUserId, balanceScopeId, newCoins = senderNew, newVersion = newFromVersion },
+            new { userId = fromUserId, balanceScopeId = effectiveScopeId, newCoins = senderNew, newVersion = newFromVersion },
             transaction: tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             updateSql,
-            new { userId = toUserId, balanceScopeId, newCoins = recipientNew, newVersion = newToVersion },
+            new { userId = toUserId, balanceScopeId = effectiveScopeId, newCoins = recipientNew, newVersion = newToVersion },
             transaction: tx, cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             insertLedger,
             new
             {
                 userId = fromUserId,
-                balanceScopeId,
+                balanceScopeId = effectiveScopeId,
                 delta = -debitFromSender,
                 newCoins = senderNew,
                 reason = senderReason,
@@ -364,7 +386,7 @@ public sealed partial class EconomicsService(
             new
             {
                 userId = toUserId,
-                balanceScopeId,
+                balanceScopeId = effectiveScopeId,
                 delta = creditToRecipient,
                 newCoins = recipientNew,
                 reason = recipientReason,
@@ -403,10 +425,13 @@ public sealed partial class EconomicsService(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         var row = await conn.QuerySingleOrDefaultAsync<(int coins, long version)>(
             new CommandDefinition(
-                selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
+                selectSql, new { userId, balanceScopeId = effectiveScopeId }, transaction: tx, cancellationToken: ct));
 
         if (row.Equals(default((int, long))))
         {
@@ -427,17 +452,17 @@ public sealed partial class EconomicsService(
         }
 
         if (delta < 0 && WalletMutationPolicy.IsProtectedWager(reason))
-            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
+            await EnforcePlayerProtectionAsync(conn, tx, userId, effectiveScopeId, -delta, ct);
 
         var line = decision.Ledger.Single();
         await conn.ExecuteAsync(new CommandDefinition(
             updateSql,
-            new { userId, balanceScopeId, newCoins = decision.NewBalance, newVersion = decision.NewVersion },
+            new { userId, balanceScopeId = effectiveScopeId, newCoins = decision.NewBalance, newVersion = decision.NewVersion },
             transaction: tx,
             cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             insertLedger,
-            new { userId, balanceScopeId, delta = line.Delta, newCoins = line.BalanceAfter, reason = line.Reason },
+            new { userId, balanceScopeId = effectiveScopeId, delta = line.Delta, newCoins = line.BalanceAfter, reason = line.Reason },
             transaction: tx, cancellationToken: ct));
 
         await tx.CommitAsync(ct);
@@ -462,6 +487,7 @@ public sealed partial class EconomicsService(
             SELECT balance_after
             FROM economics_ledger
             WHERE operation_id = @operationId
+              AND balance_scope_id = @balanceScopeId
             """;
         const string selectSql = """
             SELECT coins AS Coins, version AS Version FROM users
@@ -480,10 +506,13 @@ public sealed partial class EconomicsService(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         var existing = await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
             existingSql,
-            new { operationId },
+            new { operationId, balanceScopeId = effectiveScopeId },
             transaction: tx,
             cancellationToken: ct));
         if (existing.HasValue)
@@ -494,7 +523,7 @@ public sealed partial class EconomicsService(
 
         var row = await conn.QuerySingleOrDefaultAsync<(int coins, long version)>(
             new CommandDefinition(
-                selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
+                selectSql, new { userId, balanceScopeId = effectiveScopeId }, transaction: tx, cancellationToken: ct));
 
         if (row.Equals(default((int, long))))
         {
@@ -515,17 +544,17 @@ public sealed partial class EconomicsService(
         }
 
         if (delta < 0 && WalletMutationPolicy.IsProtectedWager(reason))
-            await EnforcePlayerProtectionAsync(conn, tx, userId, -delta, ct);
+            await EnforcePlayerProtectionAsync(conn, tx, userId, effectiveScopeId, -delta, ct);
 
         var line = decision.Ledger.Single();
         await conn.ExecuteAsync(new CommandDefinition(
             updateSql,
-            new { userId, balanceScopeId, newCoins = decision.NewBalance, newVersion = decision.NewVersion },
+            new { userId, balanceScopeId = effectiveScopeId, newCoins = decision.NewBalance, newVersion = decision.NewVersion },
             transaction: tx,
             cancellationToken: ct));
         await conn.ExecuteAsync(new CommandDefinition(
             insertLedger,
-            new { userId, balanceScopeId, delta = line.Delta, newCoins = line.BalanceAfter, reason = line.Reason, operationId },
+            new { userId, balanceScopeId = effectiveScopeId, delta = line.Delta, newCoins = line.BalanceAfter, reason = line.Reason, operationId },
             transaction: tx, cancellationToken: ct));
 
         await tx.CommitAsync(ct);
@@ -538,6 +567,7 @@ public sealed partial class EconomicsService(
         Npgsql.NpgsqlConnection conn,
         Npgsql.NpgsqlTransaction tx,
         long userId,
+        long balanceScopeId,
         int stake,
         CancellationToken ct)
     {
@@ -552,6 +582,7 @@ public sealed partial class EconomicsService(
                        SELECT sum(-l.delta)
                        FROM economics_ledger l
                        WHERE l.telegram_user_id = @userId
+                         AND l.balance_scope_id = @balanceScopeId
                          AND l.delta < 0
                          AND l.created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
                          AND l.reason NOT LIKE 'admin.%'
@@ -562,7 +593,7 @@ public sealed partial class EconomicsService(
             WHERE p.telegram_user_id = @userId
             """;
         var protection = await conn.QuerySingleOrDefaultAsync<ProtectionRead>(new CommandDefinition(
-            sql, new { userId }, transaction: tx, cancellationToken: ct));
+            sql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
         if (protection is null) return;
 
         PlayerProtectionGuard.EnsureAllowed(PlayerProtectionPolicy.Evaluate(

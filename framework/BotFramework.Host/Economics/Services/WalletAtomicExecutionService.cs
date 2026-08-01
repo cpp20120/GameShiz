@@ -13,29 +13,46 @@ namespace BotFramework.Host.Economics.Services;
 /// </summary>
 public sealed class WalletAtomicExecutionService(
     INpgsqlConnectionFactory connections,
-    TimeProvider timeProvider) : IWalletAtomicExecutionService
+    TimeProvider timeProvider,
+    WalletScopeResolver? scopeResolver = null) : IWalletAtomicExecutionService
 {
     public async Task EnsureUserAsync(long userId, long balanceScopeId, string displayName, CancellationToken ct)
     {
         if (displayName.Length > 64) displayName = displayName[..64];
         await using var connection = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
         await connection.ExecuteAsync(new CommandDefinition(
             """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @balanceScopeId, @displayName, 0)
+            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins, version, created_at, updated_at)
+            SELECT @userId,
+                   @effectiveScopeId,
+                   @displayName,
+                   COALESCE(source.coins, 0),
+                   COALESCE(source.version, 0),
+                   COALESCE(source.created_at, now()),
+                   COALESCE(source.updated_at, now())
+            FROM (SELECT 1) seed
+            LEFT JOIN users source
+              ON source.telegram_user_id = @userId
+             AND source.balance_scope_id = @sourceScopeId
             ON CONFLICT (telegram_user_id, balance_scope_id)
             DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
             """,
-            new { userId, balanceScopeId, displayName },
+            new { userId, sourceScopeId = balanceScopeId, effectiveScopeId, displayName },
             cancellationToken: ct));
     }
 
     public async Task<int> GetBalanceAsync(long userId, long balanceScopeId, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
         return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             "SELECT coins FROM users WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId",
-            new { userId, balanceScopeId },
+            new { userId, balanceScopeId = effectiveScopeId },
             cancellationToken: ct));
     }
 
@@ -52,16 +69,20 @@ public sealed class WalletAtomicExecutionService(
 
         await using var connection = await connections.OpenAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, connection, transaction, ct);
 
         var existing = await connection.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
             """
             SELECT balance_after
             FROM economics_ledger
             WHERE operation_id LIKE @prefix
+              AND balance_scope_id = @balanceScopeId
             ORDER BY id DESC
             LIMIT 1
             """,
-            new { prefix = operationId + ":%" },
+            new { prefix = operationId + ":%", balanceScopeId = effectiveScopeId },
             transaction,
             cancellationToken: ct));
         if (existing is not null)
@@ -78,7 +99,7 @@ public sealed class WalletAtomicExecutionService(
               AND balance_scope_id = @balanceScopeId
             FOR UPDATE
             """,
-            new { userId, balanceScopeId },
+            new { userId, balanceScopeId = effectiveScopeId },
             transaction,
             cancellationToken: ct));
         if (wallet is null)
@@ -89,7 +110,7 @@ public sealed class WalletAtomicExecutionService(
                 && WalletMutationPolicy.IsProtectedWager(effect.Reason))
             .Sum(effect => (long)effect.Amount);
         if (stake > 0)
-            await EnforceProtectionAsync(connection, transaction, userId, stake, timeProvider, ct);
+            await EnforceProtectionAsync(connection, transaction, userId, effectiveScopeId, stake, timeProvider, ct);
 
         var decision = WalletMutationPolicy.ApplyBatch(
             new WalletMutationState(wallet.Coins, wallet.Version),
@@ -112,7 +133,7 @@ public sealed class WalletAtomicExecutionService(
                 SET coins = @balance, version = version + @versionDelta, updated_at = now()
                 WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId
                 """,
-                new { userId, balanceScopeId, balance = decision.NewBalance, versionDelta = ledger.Length },
+                new { userId, balanceScopeId = effectiveScopeId, balance = decision.NewBalance, versionDelta = ledger.Length },
                 transaction,
                 cancellationToken: ct));
 
@@ -131,7 +152,7 @@ public sealed class WalletAtomicExecutionService(
                 new
                 {
                     userId,
-                    balanceScopeId,
+                    balanceScopeId = effectiveScopeId,
                     deltas = ledger.Select(line => line.Mutation.Delta).ToArray(),
                     balances = ledger.Select(line => line.Mutation.BalanceAfter).ToArray(),
                     reasons = ledger.Select(line => line.Mutation.Reason).ToArray(),
@@ -149,6 +170,7 @@ public sealed class WalletAtomicExecutionService(
         Npgsql.NpgsqlConnection connection,
         Npgsql.NpgsqlTransaction transaction,
         long userId,
+        long balanceScopeId,
         long stake,
         TimeProvider timeProvider,
         CancellationToken ct)
@@ -161,6 +183,7 @@ public sealed class WalletAtomicExecutionService(
                        SELECT sum(-l.delta)
                        FROM economics_ledger l
                        WHERE l.telegram_user_id = @userId
+                         AND l.balance_scope_id = @balanceScopeId
                          AND l.delta < 0
                          AND l.created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
                          AND l.reason NOT LIKE 'admin.%'
@@ -172,7 +195,7 @@ public sealed class WalletAtomicExecutionService(
             """;
         var protection = await connection.QuerySingleOrDefaultAsync<ProtectionRow>(new CommandDefinition(
             sql,
-            new { userId },
+            new { userId, balanceScopeId },
             transaction,
             cancellationToken: ct));
         if (protection is null) return;

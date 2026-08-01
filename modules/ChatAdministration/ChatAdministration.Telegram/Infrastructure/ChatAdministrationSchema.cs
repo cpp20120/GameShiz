@@ -106,4 +106,11 @@ internal static class ChatAdministrationSchema
         CREATE INDEX IF NOT EXISTS ix_chat_admin_settings_callbacks_expiry
             ON chat_admin_settings_callbacks (expires_at, consumed_at);
         """;
+
+    public const string TenantIsolationSql = """
+        ALTER TABLE chat_admin_effect_outbox
+            ADD COLUMN IF NOT EXISTS tenant_key TEXT NOT NULL DEFAULT 'default';
+        CREATE INDEX IF NOT EXISTS ix_chat_admin_effect_tenant_due
+            ON chat_admin_effect_outbox (tenant_key, status, not_before, created_at);
+        """;
 }

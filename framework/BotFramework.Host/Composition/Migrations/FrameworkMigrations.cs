@@ -23,6 +23,7 @@ internal sealed class FrameworkMigrations : IModuleMigrations
         "009_users_telegram_dice_daily",
         "014_economics_operation_id",
         "017_responsible_gaming_and_ops_reports",
+        "038_wallet_scope_aliases",
     ];
 
     public IReadOnlyList<Migration> Migrations { get; } =
@@ -1132,6 +1133,23 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             );
             CREATE INDEX IF NOT EXISTS ix_processed_update_inbox_started
                 ON processed_update_inbox (started_at DESC);
+            """),
+
+        new Migration("038_wallet_scope_aliases", """
+            CREATE SEQUENCE IF NOT EXISTS wallet_scope_aliases_effective_scope_seq
+                AS BIGINT
+                MINVALUE -9000000000000000000
+                MAXVALUE -1
+                START WITH -9000000000000000000
+                INCREMENT BY 1;
+
+            CREATE TABLE IF NOT EXISTS wallet_scope_aliases (
+                tenant_id          TEXT   NOT NULL,
+                source_scope_id    BIGINT NOT NULL,
+                effective_scope_id BIGINT NOT NULL DEFAULT nextval('wallet_scope_aliases_effective_scope_seq'),
+                PRIMARY KEY (tenant_id, source_scope_id),
+                UNIQUE (effective_scope_id)
+            );
             """),
 
     ];

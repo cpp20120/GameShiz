@@ -38,6 +38,18 @@ spec:
               value: "true"
             - name: Bot__Token
               valueFrom: { secretKeyRef: { name: {{ include "cazinoshiz.secret" . }}, key: {{ .Values.secrets.telegramTokenKey }} } }
+            {{- if .Values.bff.telegram.tenantKey }}
+            - name: Bot__TenantKey
+              value: {{ .Values.bff.telegram.tenantKey | quote }}
+            {{- end }}
+            {{- range $i, $id := .Values.bff.telegram.admins }}
+            - name: Bot__Admins__{{ $i }}
+              value: {{ $id | quote }}
+            {{- end }}
+            {{- range $i, $id := .Values.bff.telegram.readOnlyAdmins }}
+            - name: Bot__ReadOnlyAdmins__{{ $i }}
+              value: {{ $id | quote }}
+            {{- end }}
             - name: ConnectionStrings__Postgres
               value: Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=$(POSTGRES_PASSWORD)
             - name: Redis__ConnectionString

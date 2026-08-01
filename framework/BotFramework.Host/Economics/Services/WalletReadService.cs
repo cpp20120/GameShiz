@@ -4,7 +4,9 @@ using Dapper;
 
 namespace BotFramework.Host.Economics.Services;
 
-public sealed class WalletReadService(INpgsqlConnectionFactory connections) : IWalletReadService
+public sealed class WalletReadService(
+    INpgsqlConnectionFactory connections,
+    WalletScopeResolver? scopeResolver = null) : IWalletReadService
 {
     private const string Select = """
         SELECT telegram_user_id AS UserId, balance_scope_id AS BalanceScopeId,
@@ -16,9 +18,12 @@ public sealed class WalletReadService(INpgsqlConnectionFactory connections) : IW
     public async Task<WalletAccount?> GetAsync(long userId, long balanceScopeId, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
         return await connection.QuerySingleOrDefaultAsync<WalletAccount>(new CommandDefinition(
             Select + " WHERE telegram_user_id = @userId AND balance_scope_id = @balanceScopeId",
-            new { userId, balanceScopeId }, cancellationToken: ct));
+            new { userId, balanceScopeId = effectiveScopeId }, cancellationToken: ct));
     }
 
     public async Task<IReadOnlyList<WalletAccount>> ListAsync(CancellationToken ct)
@@ -30,8 +35,11 @@ public sealed class WalletReadService(INpgsqlConnectionFactory connections) : IW
     public async Task<IReadOnlyList<WalletAccount>> ListByScopeAsync(long balanceScopeId, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
         return (await connection.QueryAsync<WalletAccount>(new CommandDefinition(
-            Select + " WHERE balance_scope_id = @balanceScopeId", new { balanceScopeId }, cancellationToken: ct))).AsList();
+            Select + " WHERE balance_scope_id = @balanceScopeId", new { balanceScopeId = effectiveScopeId }, cancellationToken: ct))).AsList();
     }
 
     public async Task<bool> ExistsAsync(long userId, CancellationToken ct)

@@ -14,6 +14,7 @@ builder.AddWalletServiceDatabase();
 builder.Services.AddGrpc();
 
 var app = builder.Build();
+app.UseTransportChannelContext();
 app.MapWalletGrpcTransport();
 app.MapServiceDefaults();
 await app.RunAsync();

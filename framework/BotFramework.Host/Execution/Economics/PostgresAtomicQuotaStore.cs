@@ -4,7 +4,7 @@ using Dapper;
 
 namespace BotFramework.Host.Execution;
 
-internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
+internal sealed class PostgresAtomicQuotaStore(WalletScopeResolver? scopeResolver = null) : IAtomicQuotaStore
 {
     public async Task<QuotaSnapshot> LoadAsync(
         QuotaIdentity quota,
@@ -15,8 +15,9 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
         ArgumentNullException.ThrowIfNull(session);
         if (quota.Limit <= 0) return new QuotaSnapshot(0, 0);
 
-        await EnsureRowAsync(quota, session, ct);
-        var row = await LoadRowAsync(quota, session, ct);
+        var effectiveQuota = await ResolveAsync(quota, session, ct);
+        await EnsureRowAsync(effectiveQuota, session, ct);
+        var row = await LoadRowAsync(effectiveQuota, session, ct);
         long used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
         return new QuotaSnapshot(used, quota.Limit);
     }
@@ -38,8 +39,9 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
             return new QuotaSnapshot(0, 0);
         }
 
-        await EnsureRowAsync(quota, session, ct);
-        var row = await LoadRowAsync(quota, session, ct);
+        var effectiveQuota = await ResolveAsync(quota, session, ct);
+        await EnsureRowAsync(effectiveQuota, session, ct);
+        var row = await LoadRowAsync(effectiveQuota, session, ct);
         long used = row.RollsOn == quota.OnDate ? row.RollCount : 0;
         var decision = QuotaPolicy.Apply(new QuotaSnapshot(used, quota.Limit), quota.QuotaId, effects);
         if (decision.Rejected)
@@ -61,10 +63,10 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
             sql,
             new
             {
-                userId = quota.UserId,
-                balanceScopeId = quota.BalanceScopeId,
-                gameId = quota.GameId,
-                onDate = quota.OnDate.ToDateTime(TimeOnly.MinValue),
+                userId = effectiveQuota.UserId,
+                balanceScopeId = effectiveQuota.BalanceScopeId,
+                gameId = effectiveQuota.GameId,
+                onDate = effectiveQuota.OnDate.ToDateTime(TimeOnly.MinValue),
                 used = checked((int)used),
             },
             session.Transaction,
@@ -125,6 +127,22 @@ internal sealed class PostgresAtomicQuotaStore : IAtomicQuotaStore
             },
             session.Transaction,
             cancellationToken: ct));
+    }
+
+    private async Task<QuotaIdentity> ResolveAsync(
+        QuotaIdentity quota,
+        IGameExecutionSession session,
+        CancellationToken ct)
+    {
+        if (scopeResolver is null)
+            return quota;
+
+        var effectiveScopeId = await scopeResolver.ResolveAsync(
+            quota.BalanceScopeId,
+            session.Connection,
+            session.Transaction,
+            ct);
+        return quota with { BalanceScopeId = effectiveScopeId };
     }
 
     private sealed record QuotaRow(DateOnly? RollsOn, int RollCount);

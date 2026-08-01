@@ -58,6 +58,7 @@ public static class ServiceDatabaseBuilderExtensions
         builder.Services.AddHostedService(provider => provider.GetRequiredService<RuntimeTuningAccessor>());
 
         builder.Services.AddSingleton<IEconomicsService, EconomicsService>();
+        builder.Services.AddSingleton<WalletScopeResolver>();
         builder.Services.AddSingleton<IWalletAtomicExecutionService, WalletAtomicExecutionService>();
         builder.Services.AddSingleton<IWalletReadService, WalletReadService>();
         builder.Services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();

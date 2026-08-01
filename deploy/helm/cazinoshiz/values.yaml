@@ -67,6 +67,9 @@ bff:
   telegram:
     enabled: true
     replicas: 2
+    tenantKey: ""
+    admins: []
+    readOnlyAdmins: []
   discord:
     enabled: true
     replicas: 2

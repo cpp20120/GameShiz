@@ -5,12 +5,16 @@ using ChatAdministration.Application.Services;
 using ChatAdministration.Domain.Effects;
 using ChatAdministration.Domain.Models;
 using ChatAdministration.Domain.Policies;
+using BotFramework.Host.Composition.Builder;
 using BotFramework.Host.Persistence.Connections;
 using Dapper;
+using Microsoft.Extensions.Options;
 
 namespace ChatAdministration.Telegram.Infrastructure;
 
-public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections) : IChatAdministrationStore
+public sealed class ChatAdministrationStore(
+    INpgsqlConnectionFactory connections,
+    IOptions<BotFrameworkOptions>? botOptions = null) : IChatAdministrationStore
 {
     private const string RestrictEffectType = EffectTypeCatalog.RestrictMember;
     private const string UnrestrictEffectType = EffectTypeCatalog.UnrestrictMember;
@@ -30,6 +34,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
     };
     private readonly SemaphoreSlim schemaGate = new(1, 1);
     private volatile bool schemaReady;
+    private readonly string tenantKey = NormalizeTenantKey(botOptions?.Value.TenantKey);
 
     public async Task UpsertChatMetadataAsync(ChatMetadataCommand command, CancellationToken ct)
     {
@@ -1510,9 +1515,10 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             UPDATE chat_admin_effect_outbox
             SET status = 'unknown', locked_until = NULL, last_error_code = 'worker_lost_lease',
                 last_error_message = 'Worker stopped after claiming the effect', updated_at = now()
-            WHERE status = 'executing' AND locked_until < now()
+            WHERE tenant_key = @tenantKey AND status = 'executing' AND locked_until < now()
             RETURNING case_id
             """,
+            new { tenantKey },
             cancellationToken: ct));
         foreach (var caseId in lostCaseIds.Where(caseId => caseId is not null).Distinct())
         {
@@ -1530,7 +1536,8 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             WITH due AS (
                 SELECT effect_id
                 FROM chat_admin_effect_outbox o
-                WHERE status IN ('pending', 'failed_retryable')
+                WHERE o.tenant_key = @tenantKey
+                  AND status IN ('pending', 'failed_retryable')
                   AND not_before <= now()
                   AND (locked_until IS NULL OR locked_until <= now())
                   AND NOT EXISTS (
@@ -1553,7 +1560,12 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
                       o.payload::text AS "PayloadJson", o.case_id AS "CaseId", o.importance AS "Importance",
                       o.attempt AS "Attempt", o.maximum_attempts AS "MaximumAttempts"
             """,
-            new { limit = Math.Clamp(limit, 1, 100), leaseMs = Math.Max(lease.TotalMilliseconds, 1) },
+            new
+            {
+                tenantKey,
+                limit = Math.Clamp(limit, 1, 100),
+                leaseMs = Math.Max(lease.TotalMilliseconds, 1),
+            },
             tx, cancellationToken: ct));
         foreach (var row in rows.Where(row => row.CaseId is not null && row.EffectType != SendMessageEffectType))
         {
@@ -1680,11 +1692,11 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             SELECT effect_id AS "EffectId", effect_type AS "EffectType", payload::text AS "PayloadJson",
                    case_id AS "CaseId", importance AS "Importance", attempt AS "Attempt", maximum_attempts AS "MaximumAttempts"
             FROM chat_admin_effect_outbox
-            WHERE status = 'unknown'
+            WHERE tenant_key = @tenantKey AND status = 'unknown'
             ORDER BY updated_at, effect_id
             LIMIT @limit
             """,
-            new { limit = Math.Clamp(limit, 1, 100) }, cancellationToken: ct));
+            new { tenantKey, limit = Math.Clamp(limit, 1, 100) }, cancellationToken: ct));
         return rows.Select(ReadEffect).ToList();
     }
 
@@ -2048,22 +2060,23 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
         await conn.ExecuteAsync(new CommandDefinition(
             """
             INSERT INTO chat_admin_effect_outbox
-                (effect_id, effect_type, payload, importance, case_id, correlation_id, causation_id,
+                (effect_id, tenant_key, effect_type, payload, importance, case_id, correlation_id, causation_id,
                  idempotency_key, status, attempt, maximum_attempts, created_at, not_before, dependencies, updated_at)
-            VALUES (@effectId, @effectType, CAST(@payload AS jsonb), @importance, @caseId, @correlationId, @causationId,
+            VALUES (@effectId, @tenantKey, @effectType, CAST(@payload AS jsonb), @importance, @caseId, @correlationId, @causationId,
                     @idempotencyKey, 'pending', 0, 8, @createdAt, @notBefore, CAST(@dependencies AS jsonb), @createdAt)
             ON CONFLICT (idempotency_key) DO NOTHING
             """,
             new
             {
                 effectId = envelope.Id.Value,
+                tenantKey,
                 effectType = envelope.EffectType,
                 payload = SerializeEffectPayload(envelope.Payload),
                 importance = ToDb(importance),
                 caseId = caseId?.Value,
                 envelope.CorrelationId,
                 envelope.CausationId,
-                envelope.IdempotencyKey,
+                idempotencyKey = $"{tenantKey}:{envelope.IdempotencyKey}",
                 envelope.CreatedAt,
                 notBefore = envelope.NotBefore ?? envelope.CreatedAt,
                 dependencies = JsonSerializer.Serialize(envelope.Dependencies.Select(id => id.Value), JsonOptions),
@@ -2279,6 +2292,7 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
             if (schemaReady) return;
             await using var conn = await connections.OpenAsync(ct);
             await conn.ExecuteAsync(new CommandDefinition(ChatAdministrationSchema.Sql, cancellationToken: ct));
+            await conn.ExecuteAsync(new CommandDefinition(ChatAdministrationSchema.TenantIsolationSql, cancellationToken: ct));
             schemaReady = true;
         }
         finally
@@ -2573,6 +2587,9 @@ public sealed class ChatAdministrationStore(INpgsqlConnectionFactory connections
                 return false;
         }
     }
+    private static string NormalizeTenantKey(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "default" : value.Trim();
+
     private static string ToDb(Enum value) => value.ToString().ToLowerInvariant();
     private static string? ExpectedRestrictionJson(DateTimeOffset? until) => until is null
         ? null

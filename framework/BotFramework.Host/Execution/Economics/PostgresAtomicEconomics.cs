@@ -7,7 +7,8 @@ using Microsoft.Extensions.Options;
 namespace BotFramework.Host.Execution;
 
 internal sealed class PostgresAtomicEconomics(
-    IOptions<BotFrameworkOptions> options) : IAtomicEconomics
+    IOptions<BotFrameworkOptions> options,
+    WalletScopeResolver? scopeResolver = null) : IAtomicEconomics
 {
     private readonly int _startingCoins = options.Value.StartingCoins;
 
@@ -21,9 +22,23 @@ internal sealed class PostgresAtomicEconomics(
         ArgumentNullException.ThrowIfNull(session);
         if (displayName.Length > 64) displayName = displayName[..64];
 
+        var effectiveScopeId = scopeResolver is null
+            ? wallet.BalanceScopeId
+            : await scopeResolver.ResolveAsync(wallet.BalanceScopeId, session.Connection, session.Transaction, ct);
+
         const string sql = """
-            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins)
-            VALUES (@userId, @balanceScopeId, @displayName, @startingCoins)
+            INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins, version, created_at, updated_at)
+            SELECT @userId,
+                   @effectiveScopeId,
+                   @displayName,
+                   COALESCE(source.coins, @startingCoins),
+                   COALESCE(source.version, 0),
+                   COALESCE(source.created_at, now()),
+                   COALESCE(source.updated_at, now())
+            FROM (SELECT 1) seed
+            LEFT JOIN users source
+              ON source.telegram_user_id = @userId
+             AND source.balance_scope_id = @sourceScopeId
             ON CONFLICT (telegram_user_id, balance_scope_id)
             DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
             """;
@@ -32,7 +47,8 @@ internal sealed class PostgresAtomicEconomics(
             new
             {
                 userId = wallet.UserId,
-                balanceScopeId = wallet.BalanceScopeId,
+                sourceScopeId = wallet.BalanceScopeId,
+                effectiveScopeId,
                 displayName,
                 startingCoins = _startingCoins,
             },
@@ -46,7 +62,8 @@ internal sealed class PostgresAtomicEconomics(
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(session);
-        var row = await LoadRowAsync(wallet, session, ct);
+        var effectiveScopeId = await ResolveScopeAsync(wallet, session, ct);
+        var row = await LoadRowAsync(wallet.UserId, effectiveScopeId, session, ct);
         return new WalletSnapshot(row.Coins);
     }
 
@@ -60,7 +77,8 @@ internal sealed class PostgresAtomicEconomics(
         ArgumentNullException.ThrowIfNull(effects);
         ArgumentNullException.ThrowIfNull(session);
 
-        var row = await LoadRowAsync(wallet, session, ct);
+        var effectiveScopeId = await ResolveScopeAsync(wallet, session, ct);
+        var row = await LoadRowAsync(wallet.UserId, effectiveScopeId, session, ct);
         if (effects.Count == 0)
             return new WalletMutationResult(false, false, new WalletSnapshot(row.Coins));
 
@@ -87,7 +105,7 @@ internal sealed class PostgresAtomicEconomics(
                 new
                 {
                     userId = wallet.UserId,
-                    balanceScopeId = wallet.BalanceScopeId,
+                    balanceScopeId = effectiveScopeId,
                     balance = decision.NewBalance,
                     version = decision.NewVersion,
                 },
@@ -117,7 +135,7 @@ internal sealed class PostgresAtomicEconomics(
                 new
                 {
                     userId = wallet.UserId,
-                    balanceScopeId = wallet.BalanceScopeId,
+                    balanceScopeId = effectiveScopeId,
                     deltas = decision.Ledger.Select(mutation => mutation.Delta).ToArray(),
                     balancesAfter = decision.Ledger.Select(mutation => mutation.BalanceAfter).ToArray(),
                     reasons = decision.Ledger.Select(mutation => mutation.Reason).ToArray(),
@@ -145,8 +163,17 @@ internal sealed class PostgresAtomicEconomics(
             effect.Reason);
     }
 
-    private static async Task<WalletRow> LoadRowAsync(
+    private async Task<long> ResolveScopeAsync(
         WalletIdentity wallet,
+        IGameExecutionSession session,
+        CancellationToken ct) =>
+        scopeResolver is null
+            ? wallet.BalanceScopeId
+            : await scopeResolver.ResolveAsync(wallet.BalanceScopeId, session.Connection, session.Transaction, ct);
+
+    private static async Task<WalletRow> LoadRowAsync(
+        long userId,
+        long balanceScopeId,
         IGameExecutionSession session,
         CancellationToken ct)
     {
@@ -160,11 +187,11 @@ internal sealed class PostgresAtomicEconomics(
             """;
         var row = await session.Connection.QuerySingleOrDefaultAsync<WalletRow>(new CommandDefinition(
             sql,
-            new { userId = wallet.UserId, balanceScopeId = wallet.BalanceScopeId },
+            new { userId, balanceScopeId },
             session.Transaction,
             cancellationToken: ct));
         return row ?? throw new InvalidOperationException(
-            $"Wallet {wallet.UserId}:{wallet.BalanceScopeId} does not exist.");
+            $"Wallet {userId}:{balanceScopeId} does not exist.");
     }
 
     private sealed record WalletRow(int Coins, long Version);

@@ -8,7 +8,8 @@ namespace BotFramework.Host.Economics.Services;
 internal sealed class TelegramDiceDailyRollLimiter(
     INpgsqlConnectionFactory connections,
     IRuntimeTuningAccessor tuning,
-    IOptions<BotFrameworkOptions> botOptions) : ITelegramDiceDailyRollLimiter
+    IOptions<BotFrameworkOptions> botOptions,
+    WalletScopeResolver? scopeResolver = null) : ITelegramDiceDailyRollLimiter
 {
     public async Task<TelegramDiceRollGateResult> TryConsumeRollAsync(
         long userId, long balanceScopeId, string gameId, CancellationToken ct)
@@ -25,6 +26,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         await conn.ExecuteAsync(
             new CommandDefinition(
@@ -39,7 +43,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 VALUES (@userId, @balanceScopeId, @gameId, @today, 0)
                 ON CONFLICT (telegram_user_id, balance_scope_id, game_id) DO NOTHING
                 """,
-                new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue) },
+                new { userId, balanceScopeId = effectiveScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue) },
                 transaction: tx,
                 cancellationToken: ct));
 
@@ -54,7 +58,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND game_id = @gameId
                 FOR UPDATE
                 """,
-                new { userId, balanceScopeId, gameId },
+                new { userId, balanceScopeId = effectiveScopeId, gameId },
                 transaction: tx,
                 cancellationToken: ct));
 
@@ -82,7 +86,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND balance_scope_id = @balanceScopeId
                   AND game_id = @gameId
                 """,
-                new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue), newCount },
+                new { userId, balanceScopeId = effectiveScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue), newCount },
                 transaction: tx,
                 cancellationToken: ct));
 
@@ -104,6 +108,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
         var today = TodayInOffset(o.TimezoneOffsetHours);
 
         await using var conn = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, null, ct);
         var row = await conn.QuerySingleOrDefaultAsync<DiceRollRow?>(
             new CommandDefinition(
                 """
@@ -114,7 +121,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND balance_scope_id = @balanceScopeId
                   AND game_id = @gameId
                 """,
-                new { userId, balanceScopeId, gameId },
+                new { userId, balanceScopeId = effectiveScopeId, gameId },
                 cancellationToken: ct));
 
         var count = row?.RollsOn == today ? row.RollCount : 0;
@@ -133,6 +140,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         await conn.ExecuteAsync(
             new CommandDefinition(
@@ -147,7 +157,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                 VALUES (@userId, @balanceScopeId, @gameId, @today, 0)
                 ON CONFLICT (telegram_user_id, balance_scope_id, game_id) DO NOTHING
                 """,
-                new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue) },
+                new { userId, balanceScopeId = effectiveScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue) },
                 transaction: tx,
                 cancellationToken: ct));
 
@@ -162,7 +172,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND game_id = @gameId
                 FOR UPDATE
                 """,
-                new { userId, balanceScopeId, gameId },
+                new { userId, balanceScopeId = effectiveScopeId, gameId },
                 transaction: tx,
                 cancellationToken: ct));
 
@@ -184,7 +194,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND balance_scope_id = @balanceScopeId
                   AND game_id = @gameId
                 """,
-                new { userId, balanceScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue), newCount },
+                new { userId, balanceScopeId = effectiveScopeId, gameId, today = today.ToDateTime(TimeOnly.MinValue), newCount },
                 transaction: tx,
                 cancellationToken: ct));
 
@@ -203,6 +213,9 @@ internal sealed class TelegramDiceDailyRollLimiter(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         var row = await conn.QuerySingleOrDefaultAsync<DiceRollRow?>(
                 new CommandDefinition(
@@ -215,7 +228,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                       AND game_id = @gameId
                     FOR UPDATE
                     """,
-                    new { userId, balanceScopeId, gameId },
+                    new { userId, balanceScopeId = effectiveScopeId, gameId },
                     transaction: tx,
                     cancellationToken: ct));
 
@@ -241,7 +254,7 @@ internal sealed class TelegramDiceDailyRollLimiter(
                   AND balance_scope_id = @balanceScopeId
                   AND game_id = @gameId
                 """,
-                new { userId, balanceScopeId, gameId, newCount },
+                new { userId, balanceScopeId = effectiveScopeId, gameId, newCount },
                 transaction: tx,
                 cancellationToken: ct));
 

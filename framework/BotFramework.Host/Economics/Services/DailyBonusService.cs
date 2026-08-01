@@ -8,7 +8,8 @@ public sealed partial class DailyBonusService(
     IEconomicsService economics,
     IRuntimeTuningAccessor tuning,
     IAnalyticsService analytics,
-    ILogger<DailyBonusService> logger) : IDailyBonusService
+    ILogger<DailyBonusService> logger,
+    WalletScopeResolver? scopeResolver = null) : IDailyBonusService
 {
     public async Task<DailyBonusClaimResult> TryClaimAsync(
         long userId, long balanceScopeId, string displayName, CancellationToken ct)
@@ -107,6 +108,7 @@ public sealed partial class DailyBonusService(
             SELECT balance_after
             FROM economics_ledger
             WHERE operation_id = @operationId
+              AND balance_scope_id = @balanceScopeId
             """;
         const string updateSql = """
             UPDATE users
@@ -123,10 +125,13 @@ public sealed partial class DailyBonusService(
 
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, tx, ct);
 
         var existing = await conn.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
             existingSql,
-            new { operationId },
+            new { operationId, balanceScopeId = effectiveScopeId },
             transaction: tx,
             cancellationToken: ct));
         if (existing.HasValue)
@@ -137,7 +142,7 @@ public sealed partial class DailyBonusService(
 
         var row = await conn.QueryFirstOrDefaultAsync<WalletForDailyRow?>(
             new CommandDefinition(
-                selectSql, new { userId, balanceScopeId }, transaction: tx, cancellationToken: ct));
+                selectSql, new { userId, balanceScopeId = effectiveScopeId }, transaction: tx, cancellationToken: ct));
         if (row is null)
         {
             await tx.RollbackAsync(ct);
@@ -175,7 +180,7 @@ public sealed partial class DailyBonusService(
                 new
                 {
                     userId,
-                    balanceScopeId,
+                    balanceScopeId = effectiveScopeId,
                     newCoins,
                     newVersion,
                     markDb,
@@ -184,7 +189,7 @@ public sealed partial class DailyBonusService(
         await conn.ExecuteAsync(
             new CommandDefinition(
                 insertLedger,
-                new { userId, balanceScopeId, delta = bonus, newCoins, operationId },
+                new { userId, balanceScopeId = effectiveScopeId, delta = bonus, newCoins, operationId },
                 transaction: tx, cancellationToken: ct));
         await tx.CommitAsync(ct);
 

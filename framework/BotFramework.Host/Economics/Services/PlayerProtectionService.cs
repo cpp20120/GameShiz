@@ -2,7 +2,9 @@ using Dapper;
 
 namespace BotFramework.Host.Economics.Services;
 
-public sealed class PlayerProtectionService(INpgsqlConnectionFactory connections) : IPlayerProtectionService
+public sealed class PlayerProtectionService(
+    INpgsqlConnectionFactory connections,
+    WalletScopeResolver? scopeResolver = null) : IPlayerProtectionService
 {
     public async Task<PlayerStats> GetStatsAsync(long userId, long balanceScopeId, CancellationToken ct)
     {
@@ -24,15 +26,19 @@ public sealed class PlayerProtectionService(INpgsqlConnectionFactory connections
             FROM (SELECT 1) seed
             LEFT JOIN economics_ledger l
               ON l.telegram_user_id = @userId
+             AND l.balance_scope_id = @effectiveScopeId
              AND l.reason NOT LIKE 'admin.%'
              AND l.reason NOT LIKE '%.rollback'
              AND l.reason NOT LIKE 'transfer.%'
             LEFT JOIN player_protection p ON p.telegram_user_id = @userId
             GROUP BY p.daily_stake_limit, p.cooldown_until, p.self_excluded_until
-            """;
+        """;
         await using var conn = await connections.OpenAsync(ct);
+        var effectiveScopeId = scopeResolver is null
+            ? balanceScopeId
+            : await scopeResolver.ResolveAsync(balanceScopeId, conn, null, ct);
         return await conn.QuerySingleAsync<PlayerStats>(new CommandDefinition(
-            sql, new { userId, balanceScopeId }, cancellationToken: ct));
+            sql, new { userId, balanceScopeId, effectiveScopeId }, cancellationToken: ct));
     }
 
     public Task SetDailyLimitAsync(long userId, int? limit, CancellationToken ct)

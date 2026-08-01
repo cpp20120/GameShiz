@@ -4,7 +4,9 @@ using ChatAdministration.Domain.Effects;
 using ChatAdministration.Domain.Models;
 using ChatAdministration.Domain.Policies;
 using ChatAdministration.Telegram.Infrastructure;
+using BotFramework.Host.Composition.Builder;
 using Dapper;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CasinoShiz.Tests.ChatAdministration;
@@ -103,6 +105,31 @@ public sealed class ChatAdministrationPostgresTests(AtomicPostgresFixture databa
         Assert.Equal(Now.AddMinutes(5), restored.ExecuteAt);
         Assert.Equal("scheduled", restoredMessage.Text);
         Assert.Equal(EffectTypeCatalog.SendMessage, restored.Effect.EffectType);
+    }
+
+    [Fact]
+    public async Task EffectOutboxIsIsolatedPerTelegramTenant()
+    {
+        var factory = new ChatAdministrationTestConnectionFactory(database.ConnectionString);
+        var firstBot = new ChatAdministrationStore(
+            factory,
+            Options.Create(new BotFrameworkOptions { TenantKey = "bot-a" }));
+        var secondBot = new ChatAdministrationStore(
+            factory,
+            Options.Create(new BotFrameworkOptions { TenantKey = "bot-b" }));
+
+        await firstBot.EnqueueResponseAsync(new ChatId(925337014), "same response", 42, CancellationToken.None);
+        await secondBot.EnqueueResponseAsync(new ChatId(925337014), "same response", 42, CancellationToken.None);
+
+        var firstClaim = await firstBot.ClaimDueEffectsAsync(10, TimeSpan.FromMinutes(1), CancellationToken.None);
+        var secondClaim = await secondBot.ClaimDueEffectsAsync(10, TimeSpan.FromMinutes(1), CancellationToken.None);
+
+        Assert.Single(firstClaim);
+        Assert.Single(secondClaim);
+        Assert.Equal("same response", Assert.IsType<SendMessageEffect>(firstClaim[0].Payload).Text);
+        Assert.Equal("same response", Assert.IsType<SendMessageEffect>(secondClaim[0].Payload).Text);
+        Assert.Equal(2, await database.ScalarAsync<int>("SELECT count(*) FROM chat_admin_effect_outbox"));
+        Assert.Equal(2, await database.ScalarAsync<int>("SELECT count(DISTINCT tenant_key) FROM chat_admin_effect_outbox"));
     }
 
     [Fact]
