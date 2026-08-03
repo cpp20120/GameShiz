@@ -20,6 +20,7 @@ public static class ServiceDefaultsExtensions
                 .AddMeter("BotFramework.GameExecution")
                 .AddMeter("BotFramework.RateLimiting")
                 .AddMeter("BotFramework.Outbox")
+                .AddMeter("BotFramework.Integration")
                 .AddMeter("BotFramework.Provisioning")
                 .AddMeter("BotFramework.Rendering")
                 .AddRuntimeInstrumentation()

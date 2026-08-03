@@ -54,6 +54,22 @@ spec:
                   key: {{ $root.Values.secrets.postgresPasswordKey }}
             - name: ConnectionStrings__Postgres
               value: Host={{ $name }}-postgres;Port=5432;Database={{ $name }};Username={{ $name }};Password=$(POSTGRES_PASSWORD)
+            - name: ServiceOwnership__Enforce
+              value: {{ $root.Values.serviceOwnership.enforce | quote }}
+            - name: ServiceOwnership__Schema
+              value: {{ $root.Values.serviceOwnership.schema | quote }}
+            - name: ServiceOwnership__RequireNonSuperuser
+              value: {{ $root.Values.serviceOwnership.requireNonSuperuser | quote }}
+            - name: ServiceOwnership__RequireSchemaCreate
+              value: {{ $root.Values.serviceOwnership.requireSchemaCreate | quote }}
+            {{- if $root.Values.messaging.transport }}
+            - name: Messaging__Transport
+              value: {{ $root.Values.messaging.transport | quote }}
+            {{- end }}
+            {{- if $root.Values.messaging.kafka.servers }}
+            - name: Kafka__Servers
+              value: {{ $root.Values.messaging.kafka.servers | quote }}
+            {{- end }}
             - name: Redis__Enabled
               value: "false"
             - name: ClickHouse__Enabled

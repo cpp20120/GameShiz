@@ -1160,6 +1160,11 @@ internal sealed class FrameworkMigrations : IModuleMigrations
             );
             """),
 
+        IntegrationInboxMigrationDefinition.Create(),
+        IntegrationOutboxMigrationDefinition.Create(),
+        IntegrationQuarantineMigrationDefinition.Create(),
+        DurableWorkflowTimeoutMigrationDefinition.Create(),
+
     ];
 
     /// <summary>

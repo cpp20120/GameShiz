@@ -82,6 +82,10 @@ public static class BotFrameworkBuilderExtensions
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionString),
                 "ConnectionStrings:Postgres is required.")
             .ValidateOnStart();
+        services.AddOptions<ServiceOwnershipOptions>()
+            .Bind(configuration.GetSection(ServiceOwnershipOptions.SectionName));
+        services.AddSingleton<IServiceOwnershipValidator, PostgresServiceOwnershipValidator>();
+        services.AddHostedService<ServiceOwnershipHostedService>();
         var operationsSection = configuration.GetSection(OperationsSecurityOptions.SectionName);
         services.AddOptions<OperationsSecurityOptions>()
             .Bind(operationsSection)
@@ -106,7 +110,6 @@ public static class BotFrameworkBuilderExtensions
         services.AddMediatR(configuration =>
             configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestClient, LocalRequestClient>();
-        services.TryAddScoped<IIntegrationEventPublisher, LocalIntegrationEventPublisher>();
 
         services.AddOptions<RedisOptions>()
             .Bind(configuration.GetSection(RedisOptions.SectionName))
@@ -150,29 +153,14 @@ public static class BotFrameworkBuilderExtensions
         var configuredBackendServiceName = configuration["Backend:ServiceName"]
             ?? configuration["Service:Name"];
         var backendServiceName = configuredBackendServiceName ?? "backend";
+        builder.AddFrameworkIntegrationMessaging(backendServiceName);
+        var capTransport = FrameworkCapTransport.Resolve(configuration);
         // Keep the existing monolith Quartz partition so an upgrade does not
         // orphan schedules created before the distributed profile existed.
         var schedulerName = configuredBackendServiceName ?? "CasinoShiz";
         services.AddSingleton<DomainEventSubscriptionDispatcher>();
-        if (redisEnabled)
+        if (capTransport != FrameworkCapTransportKind.Local)
         {
-            var consumerGroup = new string(backendServiceName
-                .Select(character => char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-')
-                .ToArray());
-            if (string.IsNullOrWhiteSpace(consumerGroup))
-                consumerGroup = "backend";
-
-            services.AddCap(opts =>
-            {
-                opts.UsePostgreSql(pgConnStr);
-                opts.UseRedis(redisConn!);
-                // All replicas of one logical service share a group and
-                // therefore load-balance events. Different game services get
-                // different groups and each receives the event stream, so an
-                // event subscriber is not accidentally skipped by another
-                // service that does not own that subscription.
-                opts.DefaultGroupName = $"casinoshiz.domain-events.{consumerGroup}";
-            });
             services.AddSingleton<CapEventBus>();
             services.AddSingleton<IDomainEventBus>(sp => sp.GetRequiredService<CapEventBus>());
             services.AddSingleton<CapEventConsumer>();

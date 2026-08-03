@@ -52,6 +52,14 @@ spec:
             {{- end }}
             - name: ConnectionStrings__Postgres
               value: Host=backend-postgres;Port=5432;Database=backend;Username=backend;Password=$(POSTGRES_PASSWORD)
+            {{- if .Values.messaging.transport }}
+            - name: Messaging__Transport
+              value: {{ .Values.messaging.transport | quote }}
+            {{- end }}
+            {{- if .Values.messaging.kafka.servers }}
+            - name: Kafka__Servers
+              value: {{ .Values.messaging.kafka.servers | quote }}
+            {{- end }}
             - name: Redis__ConnectionString
               value: {{ .Values.redis.address }},password=$(REDIS_PASSWORD)
           readinessProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 5 }

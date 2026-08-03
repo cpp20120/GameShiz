@@ -10,6 +10,7 @@
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <PackageVersion Include="FsCheck.Xunit" Version="3.2.0" />
     <PackageVersion Include="DotNetCore.CAP" Version="10.0.1" />
+    <PackageVersion Include="DotNetCore.CAP.Kafka" Version="10.0.1" />
     <PackageVersion Include="DotNetCore.CAP.PostgreSql" Version="10.0.1" />
     <PackageVersion Include="DotNetCore.CAP.RedisStreams" Version="10.0.1" />
     <PackageVersion Include="Discord.Net" Version="3.18.0" />

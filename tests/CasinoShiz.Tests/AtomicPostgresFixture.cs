@@ -88,6 +88,10 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
         await connection.ExecuteAsync("""
             TRUNCATE TABLE
                 processed_update_inbox,
+                integration_inbox_messages,
+                integration_outbox_messages,
+                integration_message_quarantine,
+                durable_workflow_timeouts,
                 chat_admin_settings_callbacks,
                 chat_admin_audit_events,
                 chat_admin_effect_outbox,

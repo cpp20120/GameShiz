@@ -87,15 +87,14 @@ public static class TelegramBffBuilderExtensions
         {
             var postgres = configuration.GetConnectionString("Postgres")
                 ?? throw new InvalidOperationException("TelegramOutbox:Transport=Cap requires ConnectionStrings:Postgres.");
-            var redis = configuration[$"{RedisOptions.SectionName}:ConnectionString"];
-            if (string.IsNullOrWhiteSpace(redis))
-                throw new InvalidOperationException("TelegramOutbox:Transport=Cap requires Redis:ConnectionString.");
 
             services.AddCap(options =>
             {
-                options.UsePostgreSql(postgres);
-                options.UseRedis(redis);
-                options.DefaultGroupName = "casinoshiz.telegram-bff";
+                FrameworkCapTransport.Configure(
+                    options,
+                    configuration,
+                    postgres,
+                    "casinoshiz.telegram-bff");
             });
             services.AddSingleton<TelegramOutboxCapDeliveryConsumer>();
         }

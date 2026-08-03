@@ -1,5 +1,4 @@
 using System.Reflection;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using BotFramework.Host.Workflows;
 using Wolverine;
@@ -18,8 +17,8 @@ public static class DurableWorkflowBuilderExtensions
     /// coordination must use contracts/outbox or a remote transport, not a
     /// shared domain database.
     /// </summary>
-    public static WebApplicationBuilder AddDurableWorkflows(
-        this WebApplicationBuilder builder,
+    public static IHostApplicationBuilder AddDurableWorkflows(
+        this IHostApplicationBuilder builder,
         params Assembly[] handlerAssemblies)
     {
         var connectionString = builder.Configuration.GetConnectionString("Postgres")
@@ -29,11 +28,14 @@ public static class DurableWorkflowBuilderExtensions
         var autoCreateMessageStore = builder.Configuration.GetValue<bool>("DurableWorkflow:AutoCreate");
 
         builder.Services.AddSingleton<IDurableWorkflowStepStore, PostgresDurableWorkflowStepStore>();
+        builder.Services.AddSingleton<IDurableWorkflowTimeoutStore, PostgresDurableWorkflowTimeoutStore>();
+        builder.Services.AddSingleton<IDurableWorkflowRecoveryService, PostgresDurableWorkflowRecoveryService>();
         builder.Services.AddScoped<IDurableWorkflowDispatcher, DurableWorkflowDispatcher>();
         builder.Services.AddScoped<IDurableWorkflowStepExecutor, DurableWorkflowStepExecutor>();
         builder.Services.AddScoped<IDurableWorkflowReplayService, DurableWorkflowReplayService>();
+        builder.Services.AddHostedService<DurableWorkflowTimeoutDispatcher>();
 
-        builder.Host.UseWolverine(opts =>
+        builder.UseWolverine(opts =>
         {
             var persistence = opts.PersistMessagesWithPostgresql(connectionString, schema);
             if (autoCreateMessageStore)

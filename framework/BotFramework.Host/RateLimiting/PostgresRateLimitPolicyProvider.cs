@@ -29,7 +29,7 @@ public sealed partial class PostgresRateLimitPolicyProvider(
     private static readonly TimeSpan LocalCacheTtl = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RedisCacheTtl = TimeSpan.FromMinutes(2);
 
-    private readonly ConcurrentDictionary<string, CacheEntry> localCache = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CacheEntry> _localCache = new(StringComparer.Ordinal);
 
     public async ValueTask<RateLimitPolicySet> ResolveAsync(
         RateLimitRequest request,
@@ -40,7 +40,7 @@ public sealed partial class PostgresRateLimitPolicyProvider(
         ArgumentNullException.ThrowIfNull(deployment);
 
         var tenantKey = CacheKey(request.TenantId);
-        if (localCache.TryGetValue(tenantKey, out var local)
+        if (_localCache.TryGetValue(tenantKey, out var local)
             && local.ExpiresAt > DateTimeOffset.UtcNow)
         {
             BotFrameworkMetrics.RateLimitPolicyCacheHits.Add(1, CacheLabels("memory"));
@@ -63,7 +63,7 @@ public sealed partial class PostgresRateLimitPolicyProvider(
         if (payload is null)
             return deployment;
 
-        localCache[tenantKey] = new(payload, DateTimeOffset.UtcNow + LocalCacheTtl);
+        _localCache[tenantKey] = new(payload, DateTimeOffset.UtcNow + LocalCacheTtl);
         return Apply(payload, request, deployment);
     }
 
@@ -147,7 +147,7 @@ public sealed partial class PostgresRateLimitPolicyProvider(
     public async Task InvalidateAsync(TenantId tenantId, CancellationToken cancellationToken = default)
     {
         var key = CacheKey(tenantId);
-        localCache.TryRemove(key, out _);
+        _localCache.TryRemove(key, out _);
         if (redis is not null)
             await redis.GetDatabase().KeyDeleteAsync(RedisKey(key));
         BotFrameworkMetrics.RateLimitPolicyCacheInvalidations.Add(1, CacheLabels("write"));

@@ -162,6 +162,10 @@ and correlation identifiers belong only in structured logs and traces.
 The standard service defaults expose request/error counters and latency,
 atomic execution, lock wait and transaction duration, outbox lag/depth,
 limiter decisions/fallback, policy-cache hits/misses and tenant provisioning.
+Framework integration messaging additionally exposes durable outbox depth and
+publish/failure counters, inbox duplicate/result-replay/handler-failure
+counters, schema rejection/quarantine counters, durable workflow timeout
+schedule/dispatch/retry counters, and service database ownership violations.
 Compose includes an OTLP Collector, Tempo, Prometheus, Grafana trace links and
 Alertmanager's configurable generic webhook. Helm supports an external OTLP
 endpoint and optional Prometheus Operator `ServiceMonitor`, `PrometheusRule`
@@ -878,6 +882,220 @@ the client may receive `Pending` while that retry continues. The existing Telegr
 and Discord client outboxes remain the delivery mechanism for notifications, and
 the CAP domain-event outbox remains unchanged.
 
+### Integration messaging, inbox and recovery
+
+The framework owns the integration transport boundary. Modules publish typed
+contracts and implement handlers; they do not instantiate CAP, Kafka clients,
+Wolverine or a shared database connection. Register the boundary once in the
+composition root:
+
+```csharp
+builder.AddFrameworkIntegrationMessaging("wallet");
+builder.AddDurableWorkflows(typeof(BetWorkflowHandler).Assembly);
+```
+
+`AddFrameworkIntegrationMessaging` creates the PostgreSQL integration inbox and
+outbox, schema quarantine store, route resolver and the selected CAP transport.
+The service name becomes the consumer group, so replicas of one logical service
+share delivery while different services receive their own copy of events. Use
+`Local` for in-process tests/development, `Redis` for Redis Streams, or `Kafka`
+for Kafka/Redpanda:
+
+```json
+{
+  "Messaging": { "Transport": "Kafka" },
+  "Kafka": {
+    "Servers": "redpanda:9092",
+    "MainConfig": {
+      "security.protocol": "SASL_SSL"
+    }
+  }
+}
+```
+
+`Kafka:BootstrapServers` is accepted as an alias for `Kafka:Servers`. Broker
+credentials and TLS settings belong in deployment secrets or provider
+configuration; they are not part of module code.
+
+#### Publishing an integration contract
+
+Events implement `IIntegrationEvent`; addressed requests implement
+`IIntegrationCommand`. Prefer the typed publishers:
+
+```csharp
+public sealed record FundsReserved(
+    string BetId,
+    long Amount,
+    DateTimeOffset OccurredAt) : IIntegrationEvent
+{
+    public string EventType => "wallet.funds_reserved";
+}
+
+await eventPublisher.PublishAsync(
+    new FundsReserved(betId, amount, clock.UtcNow), ct);
+
+await commandPublisher.SendAsync(
+    new ReserveFundsForBet(betId, amount, clock.UtcNow), ct);
+```
+
+The publisher creates a stable envelope containing message id, contract type,
+schema version, correlation/causation metadata and tenant/scope/player
+metadata. It writes the complete envelope to `integration_outbox_messages`;
+the relay later publishes that retained envelope. Domain code is therefore not
+run again when a relay retries a message.
+
+When a publisher is called while the framework integration inbox is processing
+a message, its outbox row uses the same PostgreSQL connection and transaction.
+The consumed message, local domain mutation and outgoing message then commit or
+roll back together. A lower-level adapter that already has an outbox record can
+make the boundary explicit:
+
+```csharp
+await outbox.EnqueueAsync(
+    message,
+    IntegrationTransactionContext.From(inboxContext),
+    ct);
+```
+
+Use `IIntegrationInboxContextAccessor.Current` when the handler needs the
+ambient context. Do not open a second connection for a mutation that must be
+atomic with inbox completion.
+
+#### Topic and key routing
+
+`IIntegrationMessageRouter` supplies a default route based on message kind,
+tenant, scope and aggregate/player identity. The route is persisted with the
+outbox envelope, and the message key is forwarded to Kafka/Redpanda as
+`cap-kafka-key`. This preserves ordering for one aggregate without using a
+single global partition key.
+
+A contract may override the route for addressable bounded-context delivery:
+
+```csharp
+public sealed record ReserveFundsForBet(
+    string BetId,
+    long Amount,
+    DateTimeOffset OccurredAt) : IIntegrationCommand, IIntegrationMessageRouted
+{
+    public string CommandType => "wallet.reserve_funds";
+    public string? Topic => "wallet.commands.v1";
+    public string? MessageKey => $"bet:{BetId}";
+}
+```
+
+Commands should use an explicit owning-service topic. Events may use a
+bounded-context event topic and multiple consumer groups. A command must not
+be broadcast to unrelated services; the receiving service remains responsible
+for authorization and idempotent handling.
+
+#### Inbox and handler atomicity
+
+Every integration consumer is at-least-once. The framework wraps a resolved
+handler in `IIntegrationInbox.ExecuteOnceAsync`. The inbox key is the logical
+consumer plus tenant/scope/message id. A duplicate does not invoke the handler
+again; a completed result is replayed from the inbox.
+
+Handlers that write service-owned state should use the transaction supplied by
+the framework's repositories or by `IntegrationInboxContext`:
+
+```csharp
+public async Task HandleAsync(
+    ReserveFundsForBet command,
+    CancellationToken ct)
+{
+    var inbox = inboxContextAccessor.RequireCurrent();
+
+    await walletStore.ReserveAsync(
+        command.BetId,
+        command.Amount,
+        inbox.Connection,
+        inbox.Transaction,
+        ct);
+
+    await eventPublisher.PublishAsync(
+        new FundsReserved(command.BetId, command.Amount, clock.UtcNow), ct);
+}
+```
+
+The handler must only mutate its own service database. Cross-service effects
+are integration commands/events and are committed to the local outbox; there
+is no distributed transaction.
+
+#### Schema validation and quarantine
+
+Before handler resolution, the dispatcher validates the schema version, stable
+contract type, JSON payload and the payload's declared message type. The
+current supported envelope schema is version `1`. Invalid or unsupported
+messages are written to the service-owned integration quarantine table with a
+stable error code and acknowledged, preventing an infinite retry loop.
+
+Quarantine is an operational safety boundary, not a successful business
+transition. Operators must inspect the payload and either deploy a compatible
+consumer, replay a corrected message, or move the owning workflow to
+`ManualReview` according to its domain policy. Financial quarantine must never
+silently mark a bet or settlement as completed.
+
+#### Durable workflow timeout recovery
+
+Long-running workflows keep their saga state in the owning module and use the
+generic framework recovery service for timeout delivery:
+
+```csharp
+await recovery.ScheduleTimeoutAsync(
+    new DurableWorkflowTimeoutRequest(
+        TimeoutId: $"bet:{betId}:acceptance-timeout",
+        WorkflowId: $"bet:{betId}",
+        CommandId: $"bet:{betId}:acceptance-timeout:v1",
+        Operation: "bet.acceptance_timeout",
+        DueAt: clock.UtcNow.AddMinutes(2),
+        Command: new AcceptanceTimeout(betId),
+        AggregateId: betId,
+        MaxAttempts: 10),
+    transaction: IntegrationTransactionContext.From(inboxContext),
+    ct: ct);
+
+await recovery.CancelTimeoutAsync(
+    $"bet:{betId}:acceptance-timeout", ct);
+```
+
+`IDurableWorkflowRecoveryService` persists timeout rows in
+`durable_workflow_timeouts`, claims them with leases and `SKIP LOCKED`, sends
+the immutable command through Wolverine, retries failures with bounded
+backoff, and exposes timeout inspection by workflow id. Schedule a timeout in
+the same local transaction as the state transition that enters the waiting
+phase. Cancel it when that phase completes. Timeout handlers must verify the
+current saga phase and remain idempotent because delivery is at-least-once.
+
+#### Service database ownership checks
+
+Enable ownership checks after provisioning a dedicated PostgreSQL role for the
+service:
+
+```json
+{
+  "ServiceOwnership": {
+    "Enforce": true,
+    "Schema": "wallet",
+    "ExpectedDatabase": "wallet",
+    "RequireNonSuperuser": true,
+    "RequireSchemaCreate": true
+  }
+}
+```
+
+At startup the framework verifies the current database, schema existence,
+`USAGE`/`CREATE` privileges and that the runtime role is neither a superuser
+nor `BYPASSRLS`. A violation fails readiness/startup and increments
+`service.ownership.violations`. `Enforce` is `false` by default to preserve
+existing deployments during migration; it should be enabled per service once
+the ownership boundary is ready.
+
+The framework exposes counters for outbox enqueue/publish/failure/depth,
+inbox duplicates/result replays/handler failures, schema rejection/quarantine,
+workflow timeout schedule/dispatch/retry and ownership violations. The
+metrics contain service and route dimensions only; tenant, scope and player
+identifiers remain in logs/traces.
+
 ### State stores and concurrency profiles
 
 `IGameStateStore<TCommand,TState>` loads and saves module state through the
@@ -1417,15 +1635,16 @@ Modules add their own subscribers with:
 services.AddDomainEventSubscription<MySubscriber>("poker.*");
 ```
 
-`IDomainEventBus` is an abstraction. The active implementation can be in-process or backed by CAP/Redis Streams depending on composition and configuration.
+`IDomainEventBus` is an abstraction. The active implementation can be in-process or backed by CAP with
+Redis Streams or Kafka/Redpanda depending on composition and `Messaging:Transport`.
 
-When Redis/CAP is enabled, the event path is:
+When a broker-backed CAP transport is enabled, the event path is:
 
 ```text
 game transaction
   -> game_event_outbox (PostgreSQL)
   -> lease-based outbox dispatcher
-  -> CAP PostgreSQL outbox + Redis Streams
+  -> CAP PostgreSQL outbox + Redis Streams or Kafka/Redpanda
   -> CapEventConsumer
   -> local projections/subscribers
 ```
@@ -1477,7 +1696,7 @@ The framework distinguishes event delivery from external side effects.
 
 Domain/integration events can flow through the configured event bus. External effects such as Telegram messages emitted from subscribers and background jobs should use a durable outbox.
 
-Telegram outbox records are persisted before sending. In the monolith, the local dispatcher claims due rows and sends them to Telegram. In the split deployment, the Backend relay claims rows, publishes a CAP command through Redis to Telegram BFF, and marks a row sent only after the BFF confirms the Telegram message id. Both modes reclaim expired leases and retain retry metadata on failure.
+Telegram outbox records are persisted before sending. In the monolith, the local dispatcher claims due rows and sends them to Telegram. In the split deployment, the Backend relay claims rows, publishes a CAP command through the configured broker to Telegram BFF, and marks a row sent only after the BFF confirms the Telegram message id. Both modes reclaim expired leases and retain retry metadata on failure.
 
 Handlers that respond immediately to live Telegram updates may still send direct Telegram responses. Critical asynchronous notifications should use the outbox.
 

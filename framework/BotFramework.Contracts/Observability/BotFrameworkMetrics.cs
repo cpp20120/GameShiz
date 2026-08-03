@@ -12,15 +12,18 @@ public static class BotFrameworkMetrics
     public const string RateLimitingMeterName = "BotFramework.RateLimiting";
     public const string GameExecutionMeterName = "BotFramework.GameExecution";
     public const string OutboxMeterName = "BotFramework.Outbox";
+    public const string IntegrationMeterName = "BotFramework.Integration";
     public const string ProvisioningMeterName = "BotFramework.Provisioning";
 
     private static readonly Meter RequestsMeter = new(RequestsMeterName);
     private static readonly Meter RateLimitingMeter = new(RateLimitingMeterName);
     private static readonly Meter GameMeter = new(GameExecutionMeterName);
     private static readonly Meter OutboxMeter = new(OutboxMeterName);
+    private static readonly Meter IntegrationMeter = new(IntegrationMeterName);
     private static readonly Meter ProvisioningMeter = new(ProvisioningMeterName);
     private static int rateLimitFallbackActive;
     private static long outboxDepth;
+    private static long integrationOutboxDepth;
 
     public static readonly Counter<long> Requests =
         RequestsMeter.CreateCounter<long>("botframework_requests");
@@ -45,6 +48,47 @@ public static class BotFrameworkMetrics
 
     public static readonly ObservableGauge<long> QueueBacklog =
         OutboxMeter.CreateObservableGauge("botframework_queue_backlog", static () => Volatile.Read(ref outboxDepth));
+
+    public static readonly Counter<long> IntegrationOutboxEnqueued =
+        IntegrationMeter.CreateCounter<long>("integration.outbox.enqueued");
+
+    public static readonly Counter<long> IntegrationOutboxPublished =
+        IntegrationMeter.CreateCounter<long>("integration.outbox.published");
+
+    public static readonly Counter<long> IntegrationOutboxFailures =
+        IntegrationMeter.CreateCounter<long>("integration.outbox.publish_failures");
+
+    public static readonly ObservableGauge<long> IntegrationOutboxDepth =
+        IntegrationMeter.CreateObservableGauge(
+            "integration.outbox.depth",
+            static () => Volatile.Read(ref integrationOutboxDepth));
+
+    public static readonly Counter<long> IntegrationInboxDuplicates =
+        IntegrationMeter.CreateCounter<long>("integration.inbox.duplicates");
+
+    public static readonly Counter<long> IntegrationInboxResultReplays =
+        IntegrationMeter.CreateCounter<long>("integration.inbox.result_replays");
+
+    public static readonly Counter<long> IntegrationInboxHandlerFailures =
+        IntegrationMeter.CreateCounter<long>("integration.inbox.handler_failures");
+
+    public static readonly Counter<long> IntegrationMessagesQuarantined =
+        IntegrationMeter.CreateCounter<long>("integration.messages.quarantined");
+
+    public static readonly Counter<long> IntegrationSchemaRejected =
+        IntegrationMeter.CreateCounter<long>("integration.schema.rejected");
+
+    public static readonly Counter<long> WorkflowTimeoutsScheduled =
+        IntegrationMeter.CreateCounter<long>("workflow.timeouts.scheduled");
+
+    public static readonly Counter<long> WorkflowTimeoutsDispatched =
+        IntegrationMeter.CreateCounter<long>("workflow.timeouts.dispatched");
+
+    public static readonly Counter<long> WorkflowTimeoutRetries =
+        IntegrationMeter.CreateCounter<long>("workflow.timeouts.retries");
+
+    public static readonly Counter<long> ServiceOwnershipViolations =
+        IntegrationMeter.CreateCounter<long>("service.ownership.violations");
 
     public static readonly Counter<long> TenantProvisioningAttempts =
         ProvisioningMeter.CreateCounter<long>("botframework_tenant_provisioning_attempts");
@@ -77,4 +121,7 @@ public static class BotFrameworkMetrics
 
     public static void SetOutboxDepth(long depth) =>
         Volatile.Write(ref outboxDepth, Math.Max(0, depth));
+
+    public static void SetIntegrationOutboxDepth(long depth) =>
+        Volatile.Write(ref integrationOutboxDepth, Math.Max(0, depth));
 }

@@ -20,9 +20,17 @@ kubectl scale deployment game-poker --replicas=3
 ```
 
 The three PostgreSQL StatefulSets are separate physical ownership boundaries.
-Redis is the CAP/event transport; replicas of one logical service share its
+Redis is the default CAP/event transport; Kafka/Redpanda can be selected with
+`Messaging:Transport=Kafka` and broker settings. Replicas of one logical service share its
 consumer group, while different game services receive their own group. The
 PostgreSQL outboxes use leases and advisory-lock-protected migrations, so
 restart and horizontal scaling are safe. For production, replace the local
 PostgreSQL/Redis templates with managed services by overriding the service
-addresses and database secrets.
+addresses and database secrets. Example values:
+
+```yaml
+messaging:
+  transport: Kafka
+  kafka:
+    servers: redpanda.messaging.svc:9092
+```

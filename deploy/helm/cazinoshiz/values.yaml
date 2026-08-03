@@ -21,6 +21,19 @@ secrets:
 redis:
   address: redis:6379
 
+messaging:
+  # Empty keeps the existing Redis:Enabled compatibility behavior.
+  transport: ""
+  kafka:
+    servers: ""
+
+serviceOwnership:
+  # Turn on after per-service PostgreSQL roles and schemas are provisioned.
+  enforce: false
+  schema: public
+  requireNonSuperuser: true
+  requireSchemaCreate: true
+
 databases:
   backend:
     database: backend

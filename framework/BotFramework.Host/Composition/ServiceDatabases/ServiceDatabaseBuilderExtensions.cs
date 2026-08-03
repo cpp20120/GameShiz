@@ -24,11 +24,16 @@ public static class ServiceDatabaseBuilderExtensions
         params IModuleMigrations[] migrations)
     {
         DapperTypeHandlers.Register();
+        builder.Services.AddOptions<ServiceOwnershipOptions>()
+            .Bind(builder.Configuration.GetSection(ServiceOwnershipOptions.SectionName));
+        builder.Services.AddSingleton<IServiceOwnershipValidator, PostgresServiceOwnershipValidator>();
+        builder.Services.AddHostedService<ServiceOwnershipHostedService>();
         builder.Services.AddOptions<PostgresConnectionOptions>()
             .Configure(options => options.ConnectionString = builder.Configuration.GetConnectionString("Postgres") ?? string.Empty)
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionString), "ConnectionStrings:Postgres is required.")
             .ValidateOnStart();
         builder.Services.AddSingleton<INpgsqlConnectionFactory, NpgsqlConnectionFactory>();
+        builder.Services.AddSingleton<IModuleMigrations, IntegrationInboxMigrations>();
         builder.Services.AddHealthChecks()
             .AddCheck<PostgresDatabaseHealthCheck>(
                 "postgres",

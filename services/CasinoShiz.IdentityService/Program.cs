@@ -1,3 +1,4 @@
+using BotFramework.Host.Composition.Builder;
 using BotFramework.Host.Composition.ServiceDatabases;
 using CasinoShiz.Identity;
 using CasinoShiz.Identity.Transport.Grpc;
@@ -12,6 +13,7 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 builder.AddServiceDefaults();
 builder.AddOwnedPostgresDatabase(new IdentityMigrations());
+builder.AddFrameworkIntegrationMessaging("identity");
 builder.Services.AddSingleton<BotFramework.Contracts.Identity.IPlayerDirectory, PlayerDirectory>();
 builder.Services.AddGrpc();
 

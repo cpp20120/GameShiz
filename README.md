@@ -487,6 +487,19 @@ if enabled
 
 Redis connection string, for example `redis:6379`.
 
+`Messaging__Transport`
+
+Optional CAP transport: `Local`, `Redis` (legacy default when `Redis__Enabled=true`), or `Kafka`.
+Kafka requires `Kafka__Servers` or `Kafka__BootstrapServers`; optional `Kafka__MainConfig__*`
+settings are passed to librdkafka.
+
+`ServiceOwnership__Enforce` is opt-in. When enabled, the framework checks at
+startup that the configured PostgreSQL role is connected to the expected
+database/schema, has the required schema privileges, and is not a superuser or
+`BYPASSRLS` role. `ServiceOwnership__Schema`, `ServiceOwnership__RequireNonSuperuser`
+`ServiceOwnership__RequireSchemaCreate` and the optional
+`ServiceOwnership__ExpectedDatabase` control the checks.
+
 `TelegramOutbox__Transport`
 
 no

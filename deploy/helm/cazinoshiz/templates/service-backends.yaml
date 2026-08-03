@@ -60,6 +60,22 @@ spec:
               value: {{ $game.module | quote }}
             - name: Backend__ServiceName
               value: game-{{ $name }}
+            - name: ServiceOwnership__Enforce
+              value: {{ $.Values.serviceOwnership.enforce | quote }}
+            - name: ServiceOwnership__Schema
+              value: {{ $.Values.serviceOwnership.schema | quote }}
+            - name: ServiceOwnership__RequireNonSuperuser
+              value: {{ $.Values.serviceOwnership.requireNonSuperuser | quote }}
+            - name: ServiceOwnership__RequireSchemaCreate
+              value: {{ $.Values.serviceOwnership.requireSchemaCreate | quote }}
+            {{- if $.Values.messaging.transport }}
+            - name: Messaging__Transport
+              value: {{ $.Values.messaging.transport | quote }}
+            {{- end }}
+            {{- if $.Values.messaging.kafka.servers }}
+            - name: Kafka__Servers
+              value: {{ $.Values.messaging.kafka.servers | quote }}
+            {{- end }}
             - name: Redis__Enabled
               value: "true"
             - name: REDIS_PASSWORD

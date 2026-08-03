@@ -501,6 +501,78 @@ public sealed class MessagingBoundaryTests
     }
 
     [Fact]
+    public async Task IntegrationEventDispatcher_RestoresTenantAndRequestMetadata()
+    {
+        var accessor = new TenantContextAccessor();
+        var handler = new TenantRecordingEventHandler(accessor);
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<ITenantContextAccessor>(accessor)
+            .AddSingleton<IIntegrationEventHandler<TestIntegrationEvent>>(handler)
+            .AddSingleton<IntegrationEventDispatcher>();
+        await using var provider = services.BuildServiceProvider();
+
+        var envelope = new IntegrationEventEnvelope(
+            "message-1",
+            "test.completed.v1",
+            IntegrationContractNames.Stable(typeof(TestIntegrationEvent)),
+            1,
+            "{\"EventType\":\"test.completed.v1\",\"OccurredAt\":\"2026-08-01T00:00:00Z\",\"ResultId\":\"result-1\"}",
+            DateTimeOffset.Parse("2026-08-01T00:00:00Z"),
+            "correlation-1",
+            "causation-1",
+            "local-tenant",
+            "main",
+            "player-1",
+            BotChannel.Rest);
+
+        await provider.GetRequiredService<IntegrationEventDispatcher>()
+            .DispatchAsync(envelope, default);
+
+        Assert.Equal("result-1", handler.Event?.ResultId);
+        Assert.Equal("local-tenant", handler.Tenant?.TenantId.Value);
+        Assert.Equal("main", handler.Tenant?.ScopeId.Value);
+        Assert.Equal("message-1", handler.Metadata?.RequestId);
+        Assert.Equal("correlation-1", handler.Metadata?.CorrelationId);
+    }
+
+    [Fact]
+    public async Task IntegrationCommandDispatcher_RestoresTenantAndRequestMetadata()
+    {
+        var accessor = new TenantContextAccessor();
+        var handler = new TenantRecordingCommandHandler(accessor);
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<ITenantContextAccessor>(accessor)
+            .AddSingleton<IIntegrationCommandHandler<TestIntegrationCommand>>(handler)
+            .AddSingleton<IntegrationCommandDispatcher>();
+        await using var provider = services.BuildServiceProvider();
+
+        var envelope = new IntegrationCommandEnvelope(
+            "command-1",
+            "test.reserve.v1",
+            IntegrationContractNames.Stable(typeof(TestIntegrationCommand)),
+            1,
+            "{\"CommandType\":\"test.reserve.v1\",\"OccurredAt\":\"2026-08-01T00:00:00Z\",\"ReservationId\":\"reservation-1\"}",
+            DateTimeOffset.Parse("2026-08-01T00:00:00Z"),
+            "correlation-1",
+            "causation-1",
+            "local-tenant",
+            "main",
+            "player-1",
+            BotChannel.Rest);
+
+        await provider.GetRequiredService<IntegrationCommandDispatcher>()
+            .DispatchAsync(envelope, default);
+
+        Assert.Equal("reservation-1", handler.Command?.ReservationId);
+        Assert.Equal("local-tenant", handler.Tenant?.TenantId.Value);
+        Assert.Equal("main", handler.Tenant?.ScopeId.Value);
+        Assert.Equal("command-1", handler.Metadata?.RequestId);
+        Assert.Equal("correlation-1", handler.Metadata?.CorrelationId);
+    }
+
+    [Fact]
     public async Task DiceRequestHandler_MapsBackendResultWithoutClientTypes()
     {
         var handler = new DicePlayRequestHandler(new DiceServiceStub());
@@ -606,6 +678,11 @@ public sealed class MessagingBoundaryTests
         DateTimeOffset OccurredAt,
         string ResultId) : IIntegrationEvent;
 
+    private sealed record TestIntegrationCommand(
+        string CommandType,
+        DateTimeOffset OccurredAt,
+        string ReservationId) : IIntegrationCommand;
+
     private sealed class RecordingEventHandler : IIntegrationEventHandler<TestIntegrationEvent>
     {
         public List<TestIntegrationEvent> Events { get; } = [];
@@ -613,6 +690,38 @@ public sealed class MessagingBoundaryTests
         public Task HandleAsync(TestIntegrationEvent integrationEvent, CancellationToken ct)
         {
             Events.Add(integrationEvent);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TenantRecordingEventHandler(ITenantContextAccessor accessor)
+        : IIntegrationEventHandler<TestIntegrationEvent>
+    {
+        public TestIntegrationEvent? Event { get; private set; }
+        public TenantContext? Tenant { get; private set; }
+        public RequestMetadata? Metadata { get; private set; }
+
+        public Task HandleAsync(TestIntegrationEvent integrationEvent, CancellationToken ct)
+        {
+            Event = integrationEvent;
+            Tenant = accessor.Current;
+            Metadata = RequestMetadataContext.TryGetCurrent();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TenantRecordingCommandHandler(ITenantContextAccessor accessor)
+        : IIntegrationCommandHandler<TestIntegrationCommand>
+    {
+        public TestIntegrationCommand? Command { get; private set; }
+        public TenantContext? Tenant { get; private set; }
+        public RequestMetadata? Metadata { get; private set; }
+
+        public Task HandleAsync(TestIntegrationCommand command, CancellationToken ct)
+        {
+            Command = command;
+            Tenant = accessor.Current;
+            Metadata = RequestMetadataContext.TryGetCurrent();
             return Task.CompletedTask;
         }
     }

@@ -18,6 +18,16 @@ public sealed class OperatorToolsTests
             && migration.Sql.Contains("IF NOT EXISTS fairness_audit", StringComparison.Ordinal));
         Assert.Contains(migrations, migration => migration.Id == "036_multi_game_mini_game_sessions"
             && migration.Sql.Contains("PRIMARY KEY (user_id, chat_id, game_id)", StringComparison.Ordinal));
+        Assert.Contains(migrations, migration => migration.Id == "039_integration_inbox"
+            && migration.Sql.Contains("integration_inbox_messages", StringComparison.Ordinal)
+            && migration.Sql.Contains("PRIMARY KEY (consumer_name, tenant_id, scope_id, message_id)", StringComparison.Ordinal));
+        Assert.Contains(migrations, migration => migration.Id == "040_integration_outbox"
+            && migration.Sql.Contains("integration_outbox_messages", StringComparison.Ordinal)
+            && migration.Sql.Contains("message_key", StringComparison.Ordinal));
+        Assert.Contains(migrations, migration => migration.Id == "041_integration_quarantine"
+            && migration.Sql.Contains("integration_message_quarantine", StringComparison.Ordinal));
+        Assert.Contains(migrations, migration => migration.Id == "042_durable_workflow_timeouts"
+            && migration.Sql.Contains("durable_workflow_timeouts", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -31,7 +31,7 @@ Diagram-first architecture reference: [arch.md](arch.md).
 | Telegram | `Telegram.Bot` 22.x (polling + webhook) |
 | Persistence | **PostgreSQL 16** via Dapper on the live game/balance paths (`SELECT ... FOR UPDATE` on the wallet hot path). EF Core packages and `EfRepository<T>` exist for optional module-owned repositories. |
 | Migrations | Dapper-based, tracked in `__module_migrations`, applied at startup by `ModuleMigrationRunner` |
-| Event bus | DotNetCore.CAP 10.x — PostgreSQL outbox + Redis transport when `Redis:Enabled=true`; `InProcessEventBus` fallback for single-instance / dev |
+| Event bus | DotNetCore.CAP 10.x — PostgreSQL outbox + selected `Messaging:Transport` (`Redis`, `Kafka`, or `Local`) |
 | Update fan-out | Redis Streams (opt-in via `Redis:Enabled`) — partitioned by `chatId % N`, consumer groups |
 | Analytics | ClickHouse 24.x via `ClickHouse.Client` 7.x (buffered, degrades gracefully) |
 | Dashboards | Grafana 11 with auto-provisioned ClickHouse + Prometheus datasources |
@@ -222,7 +222,7 @@ REST BFF port remains `5090` for local diagnostics. Health probes remain
 ```mermaid
 flowchart TD
     A[Telegram] -->|Polling / Webhook| B(BotHostedService)
-    B --> C{Redis:Enabled?}
+    B --> C{Messaging:Transport?}
     C -- Yes --> D[UpdateStreamPublisher]
     D -->|Redis Stream| E[UpdateStreamWorkerService]
     E --> F[UpdatePipeline]
@@ -255,25 +255,25 @@ flowchart LR
     A[Publisher Service] -->|PublishAsync| B(IDomainEventBus)
     B --> C{Redis:Enabled?}
     
-    C -- No --> D[InProcessEventBus]
+    C -- Local --> D[InProcessEventBus]
     D --> E[Subscribers]
     
-    C -- Yes --> F[CapEventBus]
+    C -- Redis/Kafka --> F[CapEventBus]
     F --> G[(PostgreSQL Outbox)]
-    G -->|CAP Relay| H((Redis Streams Topic))
+    G -->|CAP Relay| H((Configured CAP transport))
     H -->|CAP Consumer| I[CapEventConsumer]
     I --> E
 ```
 
-- **Redis enabled**: DotNetCore.CAP with PostgreSQL outbox + Redis Streams transport. At-least-once delivery across pods. `CapEventBus` resolves a scoped `ICapPublisher` per publish call via `IServiceScopeFactory`. `CapEventConsumer` receives all events on the `"domain.event"` topic and dispatches to pattern-matched subscribers.
-- **Redis disabled**: `InProcessEventBus` — in-memory, sync dispatch, single-process only. Fine for dev / single-pod.
+- **Broker-backed transport**: DotNetCore.CAP with PostgreSQL outbox + the configured Redis Streams or Kafka transport. Delivery across pods is at-least-once. `CapEventBus` resolves a scoped `ICapPublisher` per publish call via `IServiceScopeFactory`. `CapEventConsumer` receives all events on the `"domain.event"` topic and dispatches to pattern-matched subscribers.
+- **Local transport**: `InProcessEventBus` — in-memory, sync dispatch, single-process only. Fine for dev / single-pod.
 
 ### Telegram outbox
 
 `ITelegramOutbox.EnqueueAsync(TelegramOutboxMessage)` persists critical async outbound Telegram text messages in `telegram_outbox`. The `TelegramOutbox:Transport` setting chooses delivery:
 
 - `Local` (default, monolith): `TelegramOutboxDispatcherService` claims due rows with `FOR UPDATE SKIP LOCKED`, sends through `ITelegramBotClient.SendMessage`, records `telegram_message_id` on success, and schedules exponential retry on failure.
-- `Cap` (split deployment): `TelegramOutboxCapRelayService` in Backend claims rows and publishes a CAP command through Redis. Telegram BFF sends it, then publishes a delivery receipt; Backend marks the row sent only after that receipt. `Cap` requires `Redis:Enabled=true`, `Redis:ConnectionString`, and `ConnectionStrings:Postgres` in both processes.
+- `Cap` (split deployment): `TelegramOutboxCapRelayService` in Backend claims rows and publishes a CAP command through the configured broker. Telegram BFF sends it, then publishes a delivery receipt; Backend marks the row sent only after that receipt. `Cap` requires `ConnectionStrings:Postgres` and the same `Messaging:Transport` configuration in both processes.
 
 Both modes reclaim expired `sending` leases. Delivery remains at-least-once because Telegram `sendMessage` has no idempotency key.
 
@@ -1486,7 +1486,9 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 |---|---|---|
 | `ConnectionStrings` | `Postgres` | always |
 | `Redis` | `Enabled`, `ConnectionString` | `Redis:Enabled = true` |
-| `TelegramOutbox` | `Transport` (`Local` or `Cap`) | `Cap` for Backend → Telegram BFF delivery; requires PostgreSQL and Redis in both processes |
+| `Messaging` | `Transport` (`Local`, `Redis`, or `Kafka`) | `Redis` keeps the legacy `Redis:Enabled` behavior; `Kafka` requires `Kafka:Servers` or `Kafka:BootstrapServers` |
+| `Kafka` | `Servers` or `BootstrapServers`, optional `MainConfig:*` | `Messaging:Transport = Kafka` |
+| `TelegramOutbox` | `Transport` (`Local` or `Cap`) | `Cap` for Backend → Telegram BFF delivery; requires PostgreSQL and the selected CAP transport in both processes |
 | `ClickHouse` | `Enabled`, `Host`, `Database`, `Table`, `Project` | `ClickHouse:Enabled = true` (validation throws on startup if `Enabled` but `Host` is empty) |
 
 ## Running
@@ -1519,7 +1521,7 @@ docker compose --profile microservices up --build
 | Telegram BFF | 5084 | `http://localhost:5084/health/live` | Telegram polling/webhook adapter |
 | Admin BFF | 5085 | `http://localhost:5085` | Browser administration client |
 | Postgres | 5432 | `postgres://cazino:cazino@localhost:5432/cazino` | Primary datastore |
-| Redis | 6379 | `redis://localhost:6379` | Streams + CAP transport |
+| Redis | 6379 | `redis://localhost:6379` | Update streams + default CAP transport |
 | ClickHouse HTTP | 8123 | `http://localhost:8123` | Analytics queries |
 | Prometheus | 9090 | `http://localhost:9090` | Exporter, cAdvisor, .NET runtime metrics |
 | Grafana | 3001 | `http://localhost:3001` | Dashboards (admin/admin) |
@@ -1739,7 +1741,7 @@ All ordinary game debits pass the protection check inside the same PostgreSQL tr
 
 ### ES replay and delivery guarantees
 
-- Live persisted events carry `(stream_id, stream_version)` through in-process and CAP/Redis delivery.
+- Live persisted events carry `(stream_id, stream_version)` through in-process and CAP broker delivery.
 - `event_id` is deterministic for persisted events, so retries have the same logical identity.
 - `events_v2_es` uses `ReplacingMergeTree`; canonical queries use `FINAL` to collapse duplicate physical deliveries.
 - `EventAnalyticsBackfillService` reads `module_events.id` in ascending batches of 500.

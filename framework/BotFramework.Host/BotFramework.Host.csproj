@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="DotNetCore.CAP" />
+    <PackageReference Include="DotNetCore.CAP.Kafka" />
     <PackageReference Include="DotNetCore.CAP.PostgreSql" />
     <PackageReference Include="DotNetCore.CAP.RedisStreams" />
     <PackageReference Include="Grpc.AspNetCore" />
