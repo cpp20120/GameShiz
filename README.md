@@ -35,6 +35,7 @@ See the full documentation for the `Games__fun__BenPrimary__*` and
 -   [Architecture diagrams](docs/arch.md) — Mermaid views of runtime flow, modules, events, persistence, tuning, and deployment.
 -   [Operations runbook](docs/operations.md) — scheduled jobs, daily bonus recovery, diagnostics, SQL checks, and incident operations.
 -   [Framework documentation](framework/README.md) — module contracts, routing, event sourcing, projections, and migrations.
+-   [Text processing framework](docs/botframework-text.md) — reusable normalization, analyzers, policies, effects, and Telegram adapters for future modules.
 -   [Framework release notes](docs/releases/0.9.0-preview.2.md) and [publishing guide](docs/framework-release.md) — package set, release checks, NuGet and GitHub Release flow.
 -   [Secret Hitler strategy model](docs/secret_hitler.md) — probabilistic policy/deception analysis and model limitations.
 

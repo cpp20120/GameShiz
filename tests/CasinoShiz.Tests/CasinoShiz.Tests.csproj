@@ -125,6 +125,9 @@
     <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Domain\ChatAdministration.Domain.csproj" />
     <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Application\ChatAdministration.Application.csproj" />
     <ProjectReference Include="..\..\modules\ChatAdministration\ChatAdministration.Telegram\ChatAdministration.Telegram.csproj" />
+    <ProjectReference Include="..\..\modules\TextRules\TextRules.Domain\TextRules.Domain.csproj" />
+    <ProjectReference Include="..\..\modules\TextRules\TextRules.Application\TextRules.Application.csproj" />
+    <ProjectReference Include="..\..\modules\TextRules\TextRules.Infrastructure\TextRules.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

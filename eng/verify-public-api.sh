@@ -7,6 +7,7 @@ packages=(
   BotFramework.Contracts
   BotFramework.Sdk
   BotFramework.Sdk.Testing
+  BotFramework.Text
   BotFramework.Client
   BotFramework.Rest
   BotFramework.Telegram.Abstractions

@@ -63,11 +63,17 @@ The supported package-only surface is:
 | `BotFramework.Contracts` | Opaque ids, tenant context, transport contracts, errors, pagination and limiter contracts | `net8.0;net10.0` |
 | `BotFramework.Sdk` | Pure module, domain, decision/effect, event and scheduling abstractions | `net8.0;net10.0` |
 | `BotFramework.Testing` | Test doubles and in-memory SDK fixtures | `net8.0;net10.0` |
+| `BotFramework.Text` | Platform-neutral text normalization, analyzers, policies and effect contracts | `net8.0;net10.0` |
 | `BotFramework.Scheduling.Abstractions` | Transport-neutral scheduled command contracts | `net8.0;net10.0` |
 | `BotFramework.Rest` | Canonical REST middleware and route-module contract | `net10.0` |
 | `BotFramework.Telegram.Abstractions` | Telegram update and tenant-resolution contracts | `net10.0` |
 | `BotFramework.Discord.Abstractions` | Discord tenant-resolution contracts | `net10.0` |
 | `BotFramework.Client` | Authenticated typed REST transport and generated OpenAPI client | `net8.0;net10.0` |
+
+The text-processing subsystem is documented separately in
+[`docs/botframework-text.md`](../docs/botframework-text.md). It intentionally
+contains no censorship, spam, moderation, persistence, or rule-management
+business logic.
 
 `BotFramework.Host`, `BotFramework.Telegram`, `BotFramework.Discord` and
 other runtime projects are composition/runtime adapters. They may use
@@ -373,6 +379,11 @@ framework/
 ├── BotFramework.Sdk.Testing/            # test doubles for SDK consumers
 │   ├── Fakes/
 │   └── Repositories/
+├── BotFramework.Text/                  # platform-neutral text processing
+│   ├── normalization and tokenization primitives
+│   ├── analyzer, matcher and policy contracts
+│   ├── effect contracts and dispatch
+│   └── immutable compiled-snapshot boundaries
 ├── BotFramework.Rest/                   # REST middleware and route support
 │   └── RateLimiting/                    # REST limiter options and adapter
 ├── BotFramework.Client/                 # typed REST client package
@@ -416,6 +427,7 @@ framework/
 │   ├── Hosting/                          # hosted polling/webhook services
 │   ├── Outbox/                            # Telegram delivery workers
 │   ├── Pipeline/                          # update middleware
+│   ├── Text/                              # text pipeline adapter and opt-in handlers
 │   └── Redis/                             # Telegram adapter state
 ├── BotFramework.Discord/                 # Discord adapter runtime
 │   ├── Commands/                          # slash/message command handling

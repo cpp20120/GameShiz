@@ -116,6 +116,11 @@
     <Project Path="modules\ChatAdministration\ChatAdministration.Application\ChatAdministration.Application.csproj" />
     <Project Path="modules\ChatAdministration\ChatAdministration.Telegram\ChatAdministration.Telegram.csproj" />
   </Folder>
+  <Folder Name="/modules/TextRules/">
+    <Project Path="modules\TextRules\TextRules.Domain\TextRules.Domain.csproj" />
+    <Project Path="modules\TextRules\TextRules.Application\TextRules.Application.csproj" />
+    <Project Path="modules\TextRules\TextRules.Infrastructure\TextRules.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/services/">
     <Project Path="services\CasinoShiz.ServiceDefaults\CasinoShiz.ServiceDefaults.csproj" />
     <Project Path="services/CasinoShiz.Operations.Transport.Grpc/CasinoShiz.Operations.Transport.Grpc.csproj" />

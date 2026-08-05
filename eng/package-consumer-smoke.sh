@@ -11,6 +11,7 @@ for project in \
   framework/BotFramework.Scheduling.Abstractions/BotFramework.Scheduling.Abstractions.csproj \
   framework/BotFramework.Sdk/BotFramework.Sdk.csproj \
   framework/BotFramework.Sdk.Testing/BotFramework.Sdk.Testing.csproj \
+  framework/BotFramework.Text/BotFramework.Text.csproj \
   framework/BotFramework.Rest/BotFramework.Rest.csproj \
   framework/BotFramework.Telegram.Abstractions/BotFramework.Telegram.Abstractions.csproj \
   framework/BotFramework.Discord.Abstractions/BotFramework.Discord.Abstractions.csproj \

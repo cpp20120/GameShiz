@@ -28,6 +28,7 @@ projects=(
   framework/BotFramework.Scheduling.Abstractions/BotFramework.Scheduling.Abstractions.csproj
   framework/BotFramework.Sdk/BotFramework.Sdk.csproj
   framework/BotFramework.Sdk.Testing/BotFramework.Sdk.Testing.csproj
+  framework/BotFramework.Text/BotFramework.Text.csproj
   framework/BotFramework.Rest/BotFramework.Rest.csproj
   framework/BotFramework.Telegram.Abstractions/BotFramework.Telegram.Abstractions.csproj
   framework/BotFramework.Discord.Abstractions/BotFramework.Discord.Abstractions.csproj
@@ -40,6 +41,7 @@ multi_target_projects=(
   framework/BotFramework.Scheduling.Abstractions/BotFramework.Scheduling.Abstractions.csproj
   framework/BotFramework.Sdk/BotFramework.Sdk.csproj
   framework/BotFramework.Sdk.Testing/BotFramework.Sdk.Testing.csproj
+  framework/BotFramework.Text/BotFramework.Text.csproj
   framework/BotFramework.Client/BotFramework.Client.csproj
 )
 
@@ -80,6 +82,7 @@ expected_packages=(
   BotFramework.Scheduling.Abstractions
   BotFramework.Sdk
   BotFramework.Testing
+  BotFramework.Text
   BotFramework.Rest
   BotFramework.Telegram.Abstractions
   BotFramework.Discord.Abstractions
