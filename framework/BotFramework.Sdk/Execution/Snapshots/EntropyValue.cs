@@ -21,7 +21,7 @@ public sealed class EntropyValue
                 throw new ArgumentException($"Duplicate entropy name '{name}'.", nameof(values));
         }
 
-        this._values = new ReadOnlyDictionary<string, double>(copy);
+        _values = new ReadOnlyDictionary<string, double>(copy);
     }
 
     public static EntropyValue Empty { get; } = new([]);

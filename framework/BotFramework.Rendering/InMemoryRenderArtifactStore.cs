@@ -5,13 +5,13 @@ namespace BotFramework.Rendering;
 
 internal sealed class InMemoryRenderArtifactStore(TimeProvider timeProvider) : IRenderArtifactStore
 {
-    private readonly ConcurrentDictionary<string, RenderedArtifact> artifacts = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, RenderHistoryEntry> history = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, RenderedArtifact> _artifacts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, RenderHistoryEntry> _history = new(StringComparer.Ordinal);
 
     public ValueTask<RenderedArtifact?> FindAsync(RenderKey key, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        return ValueTask.FromResult(artifacts.TryGetValue(key.Value, out var artifact)
+        return ValueTask.FromResult(_artifacts.TryGetValue(key.Value, out var artifact)
             ? artifact with { CacheHit = true }
             : null);
     }
@@ -26,14 +26,14 @@ internal sealed class InMemoryRenderArtifactStore(TimeProvider timeProvider) : I
             timeProvider.GetUtcNow(),
             key.ObjectName,
             false);
-        artifacts[key.Value] = artifact;
+        _artifacts[key.Value] = artifact;
         return ValueTask.FromResult(artifact);
     }
 
     public ValueTask RecordHistoryAsync(RenderHistoryEntry entry, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        history[HistoryKey(entry)] = entry;
+        _history[HistoryKey(entry)] = entry;
         return ValueTask.CompletedTask;
     }
 
@@ -44,7 +44,7 @@ internal sealed class InMemoryRenderArtifactStore(TimeProvider timeProvider) : I
         [EnumeratorCancellation] CancellationToken ct)
     {
         var prefix = $"{gameId}/{aggregateId}/";
-        foreach (var entry in history
+        foreach (var entry in _history
                      .Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal))
                      .Select(static pair => pair.Value)
                      .OrderByDescending(static item => item.CreatedAt)

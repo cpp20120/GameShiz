@@ -22,7 +22,7 @@ Telegram is an external client adapter, not an application layer dependency.
 - Backend bounded contexts expose typed commands and queries through
   `BotFramework.Contracts` abstractions.
 - gRPC is the first remote implementation of the command/query request port.
-- CAP with Redis remains the asynchronous integration-event transport. Events are
+- CAP with the configured Redis Streams or Kafka/Redpanda transport remains the asynchronous integration-event transport. Events are
   facts, have no direct response, may fan out, and are consumed idempotently.
 - PostgreSQL outboxes bridge committed state to integration events and outbound
   client notifications.

@@ -1,3 +1,5 @@
+using System;
+
 namespace BotFramework.Rendering;
 
 public sealed record RenderedArtifact(

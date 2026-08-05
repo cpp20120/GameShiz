@@ -28,6 +28,7 @@
     <ProjectReference Include="..\BotFramework.Sdk\BotFramework.Sdk.csproj" />
     <ProjectReference Include="..\BotFramework.Telegram.Abstractions\BotFramework.Telegram.Abstractions.csproj" />
     <ProjectReference Include="..\BotFramework.Host\BotFramework.Host.csproj" />
+    <ProjectReference Include="..\BotFramework.Text\BotFramework.Text.csproj" />
   </ItemGroup>
 
 </Project>
