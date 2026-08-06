@@ -103,7 +103,7 @@ public sealed partial class FootballHandler(
             return;
         }
 
-        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId, ctx.Ct);
+        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId ?? 0, ctx.Ct);
         var text = r.Error switch
         {
             FootballBetError.None => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.accepted"), r.Amount),
@@ -125,7 +125,7 @@ public sealed partial class FootballHandler(
             {
                 try
                 {
-                    await service.AbortPendingBetAfterSendDiceFailedAsync(userId, displayName, chatId, reply.MessageId, ctx.Ct);
+                    await service.AbortPendingBetAfterSendDiceFailedAsync(userId, displayName, chatId, reply.MessageId ?? 0, ctx.Ct);
                 }
                 catch (Exception abortEx)
                 {
@@ -160,7 +160,7 @@ public sealed partial class FootballHandler(
                 await RollGates.ClearAsync(RollGateId, userId, chatId, ctx.Ct);
                 try
                 {
-                    await service.AbortPendingBetAfterSendDiceFailedAsync(userId, displayName, chatId, reply.MessageId, ctx.Ct);
+                    await service.AbortPendingBetAfterSendDiceFailedAsync(userId, displayName, chatId, reply.MessageId ?? 0, ctx.Ct);
                 }
                 catch (Exception abortEx)
                 {

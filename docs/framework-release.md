@@ -5,7 +5,7 @@ The framework has two release surfaces:
 1. package-only consumer artifacts published to NuGet;
 2. repository runtime/composition projects, including `BotFramework.Host`.
 
-The current preview publishes only the package-only surface. `BotFramework.Host`
+The `1.0.0` release publishes only the package-only surface. `BotFramework.Host`
 contains PostgreSQL, Wolverine, CAP and application composition and is not yet
 a supported standalone NuGet package. The durable workflow API is therefore
 available to repository composition roots and source-referenced examples, but
@@ -18,13 +18,13 @@ From the repository root, run:
 ```bash
 bash eng/verify-public-api.sh
 bash eng/package-consumer-smoke.sh
-bash eng/pack-framework.sh 0.9.0-preview.2
+bash eng/pack-framework.sh 1.0.0
 ```
 
 The last command writes packages to:
 
 ```text
-.artifacts/framework-release/0.9.0-preview.2/
+.artifacts/framework-release/1.0.0/
 ```
 
 It packs the exact package list used by the release workflow and enables
@@ -38,7 +38,7 @@ including `BotFramework.GameTemplates` and `BotFramework.Testing`, then push the
 generated packages:
 
 ```bash
-for package in .artifacts/framework-release/0.9.0-preview.2/*.nupkg; do
+for package in .artifacts/framework-release/1.0.0/*.nupkg; do
   dotnet nuget push "$package" \
     --api-key "$NUGET_API_KEY" \
     --source https://api.nuget.org/v3/index.json \
@@ -55,12 +55,12 @@ The checked-in `.github/workflows/publish-framework.yml` is the normal path for
 the public release. After the release commit is on `master`:
 
 ```bash
-git tag -a framework-v0.9.0-preview.2 -m "BotFramework 0.9.0-preview.2"
-git push origin framework-v0.9.0-preview.2
+git tag -a framework-v1.0.0 -m "BotFramework 1.0.0"
+git push origin framework-v1.0.0
 ```
 
 The workflow derives the package version from the tag, runs the build, tests,
-public API check and package consumer smoke test, packs the nine public
+public API check and package consumer smoke test, packs the ten public
 artifacts, pushes them to NuGet and creates a GitHub Release using the matching
 file in `docs/releases/`.
 

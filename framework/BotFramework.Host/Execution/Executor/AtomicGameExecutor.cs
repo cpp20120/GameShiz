@@ -48,6 +48,9 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
         var command = envelope.Command;
         var tenantContext = envelope.TenantContext
             ?? RequestMetadataContext.TryGetCurrent()?.TenantContext;
+        var channel = tenantContext?.Channel
+            ?? RequestMetadataContext.TryGetCurrent()?.Channel
+            ?? BotChannel.System;
         using var metadataScope = tenantContext is { } context
             ? RequestMetadataContext.Push(RequestMetadata.FromTenantContext(context, "sdk"))
             : null;
@@ -130,6 +133,7 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
             {
                 TenantContext = tenantContext,
                 TenantWallet = tenantWallet,
+                Channel = channel,
             };
             var decision = action.Decide(input);
             observation.Decided(decision.Status, decision.RejectionReason);

@@ -27,6 +27,7 @@ publish/
 nvim.log
 coverage
 *.txt
+!public-api/*.txt
 *.log
 
 **/values.secrets.yaml

@@ -17,13 +17,26 @@
 // Telegram message — that stays up-stack where the Telegram client is.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using System.Globalization;
+
 namespace BotFramework.Host.Commands.Middleware;
 
 public sealed class RateLimitMiddleware(IRateLimitPolicy policy) : ICommandMiddleware
 {
     public async Task InvokeAsync(CommandContext ctx, Func<Task> next)
     {
-        var key = new RateLimitKey(ctx.Request.UserId, ctx.Command.GetType().Name);
+        if (!long.TryParse(
+            ctx.Request.Player?.Value ?? ctx.Request.UserId,
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var userId)
+            || userId <= 0)
+        {
+            await next();
+            return;
+        }
+
+        var key = new RateLimitKey(userId, ctx.Command.GetType().Name);
         if (!await policy.TryAcquireAsync(key, ctx.Cancellation))
             throw new RateLimitedException(key);
 

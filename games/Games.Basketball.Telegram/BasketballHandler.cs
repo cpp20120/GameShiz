@@ -106,7 +106,7 @@ public sealed partial class BasketballHandler(
             return;
         }
 
-        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId, ctx.Ct);
+        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId ?? 0, ctx.Ct);
         var text = r.Error switch
         {
             BasketballBetError.None => string.Format(System.Globalization.CultureInfo.InvariantCulture, Loc("bet.accepted"), r.Amount),
@@ -132,7 +132,7 @@ public sealed partial class BasketballHandler(
                         userId,
                         displayName,
                         chatId,
-                        reply.MessageId,
+                        reply.MessageId ?? 0,
                         ctx.Ct);
                 }
                 catch (Exception abortEx)
@@ -172,7 +172,7 @@ public sealed partial class BasketballHandler(
                         userId,
                         displayName,
                         chatId,
-                        reply.MessageId,
+                        reply.MessageId ?? 0,
                         ctx.Ct);
                 }
                 catch (Exception abortEx)

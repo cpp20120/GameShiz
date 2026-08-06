@@ -28,7 +28,8 @@ public static class DiscordCommand
         clientId: "discord",
         userId: context.Message.Author.Id.ToString(CultureInfo.InvariantCulture),
         scopeId: context.Message.Channel.Id.ToString(CultureInfo.InvariantCulture),
-        culture: context.CultureCode);
+        culture: context.CultureCode,
+        channel: BotChannel.Discord);
 
     public static Task ReplyAsync(DiscordMessageContext context, string text, string? title = null, bool isError = false) =>
         context.Message.Channel.SendMessageAsync(

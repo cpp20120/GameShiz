@@ -87,7 +87,7 @@ public sealed class DiceAction : IGameAction<DiceCommand, NoGameState, DicePlayR
                 command.ChatId,
                 MiniGameIds.Dice,
                 rolledAt.ToUnixTimeMilliseconds(),
-                BotChannelContext.Current));
+                input.Channel));
         }
 
         return new GameDecision<NoGameState, DicePlayResult>(

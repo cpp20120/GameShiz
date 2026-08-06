@@ -8,7 +8,7 @@ public sealed record MiniGameRedeemCodeDropRequested(
     long ChatId,
     string GameId,
     long OccurredAt,
-    BotChannel Channel = BotChannel.Telegram) : IDomainEvent
+    BotChannel Channel) : IDomainEvent
 {
     public string EventType => "minigame.redeem_code_drop_requested";
 }

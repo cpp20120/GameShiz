@@ -58,8 +58,8 @@ public sealed class MetricsMiddleware(IMetrics metrics, IAnalyticsService? analy
                 ["outcome"] = outcome,
                 ["error_code"] = errorCode,
                 ["duration_ms"] = sw.Elapsed.TotalMilliseconds,
-                ["user_id"] = ctx.Request.UserId,
-                ["correlation_id"] = ctx.Request.TraceId,
+                ["user_id"] = ctx.Request.Player?.Value ?? ctx.Request.UserId ?? "anonymous",
+                ["correlation_id"] = ctx.Request.CorrelationId,
             });
         }
     }

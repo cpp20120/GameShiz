@@ -39,7 +39,7 @@ public sealed class DartsResolveRoundAction
         {
             events.Add(new MiniGameRedeemCodeDropRequested(
                 command.UserId, command.ChatId, MiniGameIds.Darts, occurredAt,
-                input.State.Round?.Channel ?? BotChannelContext.Current));
+                input.State.Round?.Channel ?? input.Channel));
         }
 
         return new(

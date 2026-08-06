@@ -58,10 +58,10 @@ public sealed class FrameworkSdkContractTests
             BotChannel.Telegram,
             RequestId.Create("request-1"),
             RequestId.Create("correlation-1"));
-        var request = RequestContextFactory.FromTenantContext(context, "ru", "trace-1");
+        var request = RequestMetadata.FromTenantContext(context, "test", "ru");
 
         Assert.Same(context, request.TenantContext);
-        Assert.Equal(context, request.RequireTenantContext());
+        Assert.Equal(context, request.TenantContext);
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

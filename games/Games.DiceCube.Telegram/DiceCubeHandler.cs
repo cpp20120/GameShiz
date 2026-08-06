@@ -112,7 +112,7 @@ public sealed partial class DiceCubeHandler(
             return;
         }
 
-        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId, ctx.Ct);
+        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId ?? 0, ctx.Ct);
         var options = tuning.GetSection<DiceCubeOptions>(DiceCubeOptions.SectionName);
         var text = r.Error switch
         {
@@ -137,7 +137,7 @@ public sealed partial class DiceCubeHandler(
                 try
                 {
                     await service.AbortPendingBetAfterSendDiceFailedAsync(
-                        userId, displayName, chatId, reply.MessageId, ctx.Ct);
+                        userId, displayName, chatId, reply.MessageId ?? 0, ctx.Ct);
                 }
                 catch (Exception abortEx)
                 {
@@ -173,7 +173,7 @@ public sealed partial class DiceCubeHandler(
                 try
                 {
                     await service.AbortPendingBetAfterSendDiceFailedAsync(
-                        userId, displayName, chatId, reply.MessageId, ctx.Ct);
+                        userId, displayName, chatId, reply.MessageId ?? 0, ctx.Ct);
                 }
                 catch (Exception abortEx)
                 {

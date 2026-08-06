@@ -21,10 +21,11 @@ public sealed class GameEffectSystemTests
             events: [domainEvent],
             schedules: [schedule]);
 
-        var materialized = decision.EffectSet.Materialize();
+        var materialized = decision.EffectSet.MaterializeEffects();
 
         Assert.Equal(5, decision.EffectSet.Count);
-        Assert.Equal([economy, quota, record, domainEvent, schedule], materialized);
+        Assert.Equal([economy, quota, record, schedule], materialized);
+        Assert.Single(decision.EffectSet.Events);
         Assert.All(materialized, effect => Assert.IsAssignableFrom<IGameEffect>(effect));
     }
 

@@ -34,7 +34,7 @@ public sealed class DartsPlaceBetAction
 
         var round = new DartsRound(
             command.RoundId, command.UserId, command.ChatId, command.Amount, input.UtcNow,
-            DartsRoundStatus.Queued, null, command.ReplyToMessageId, BotChannelContext.Current);
+            DartsRoundStatus.Queued, null, command.ReplyToMessageId, input.Channel);
         return new(
             DecisionStatus.Accepted,
             new DartsQueuedState(round, input.State.QueuedAhead),

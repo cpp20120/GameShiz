@@ -36,7 +36,8 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
 {
     private static readonly DateTimeOffset Now = new(2026, 7, 11, 10, 0, 0, TimeSpan.Zero);
     private static readonly DicePlayRequest Request = new(42, "parity", 37, 84, "101", false);
-    private static readonly RequestMetadata Metadata = RequestMetadata.Create("parity", "42", "84", "ru");
+    private static readonly RequestMetadata Metadata = RequestMetadata.Create(
+        "parity", "42", "84", "ru", BotChannel.Telegram);
 
     [Fact]
     public async Task MonolithAndSplitGrpc_ReturnSameResponseAndCommittedEffects()
@@ -63,6 +64,7 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
     private ServiceProvider BuildServices()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddSingleton(CreateExecutor());
         services.AddSingleton<IRuntimeTuningAccessor>(new FakeRuntimeTuning
         {
@@ -82,6 +84,7 @@ public sealed class DiceTransportParityTests(AtomicPostgresFixture database)
         builder.WebHost.ConfigureKestrel(options =>
             options.Listen(IPAddress.Loopback, 0, listen => listen.Protocols = HttpProtocols.Http2));
         builder.Services.AddSingleton(CreateExecutor());
+        builder.Services.AddLogging();
         builder.Services.AddSingleton<IRuntimeTuningAccessor>(new FakeRuntimeTuning
         {
             Dice = new DiceOptions { Cost = 5, RedeemDropChance = 0 },

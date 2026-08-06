@@ -6,4 +6,6 @@ public enum BotChannel
     Telegram = 0,
     Discord = 1,
     Rest = 2,
+    /// <summary>Non-transport system or background execution.</summary>
+    System = 3,
 }

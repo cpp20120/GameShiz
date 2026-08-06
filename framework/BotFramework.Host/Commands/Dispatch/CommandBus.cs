@@ -18,6 +18,7 @@
 
 using System.Collections.Concurrent;
 using System.Reflection;
+using BotFramework.Contracts.Messaging;
 
 namespace BotFramework.Host.Commands.Dispatch;
 
@@ -40,7 +41,9 @@ public sealed class CommandBus(
 
     private Task DispatchAsync(ICommand command, bool hasResult, CancellationToken ct, Action<object?>? capture = null)
     {
-        var ctx = new CommandContext(command, RequestContextAccessor.Current, ct);
+        var request = RequestMetadataContext.TryGetCurrent()
+            ?? RequestMetadata.System("command-bus");
+        var ctx = new CommandContext(command, request, ct);
         var pipeline = BuildPipeline(ctx, hasResult, capture);
         return pipeline();
     }

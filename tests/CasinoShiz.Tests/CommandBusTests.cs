@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using BotFramework.Contracts.Messaging;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -34,6 +35,17 @@ public class CommandBusTests
             Order.Add("before");
             await next();
             Order.Add("after");
+        }
+    }
+
+    private sealed class RequestCapturingMiddleware : ICommandMiddleware
+    {
+        public RequestMetadata? Request { get; private set; }
+
+        public async Task InvokeAsync(CommandContext ctx, Func<Task> next)
+        {
+            Request = ctx.Request;
+            await next();
         }
     }
 
@@ -128,31 +140,36 @@ public class CommandBusTests
         Assert.False(handler.Called);
     }
 
-    // ── RequestContextAccessor ───────────────────────────────────────────────
+    // ── RequestMetadata command context ─────────────────────────────────────
 
     [Fact]
-    public void RequestContextAccessor_Default_IsAnonymous()
+    public async Task CommandBus_DefaultsToSystemRequestMetadata()
     {
-        var ctx = RequestContextAccessor.Current;
-        Assert.Equal(0, ctx.UserId);
-        Assert.Equal("ru", ctx.CultureCode);
+        await using var sp = (ServiceProvider)BuildServices();
+        var capture = new RequestCapturingMiddleware();
+        var bus = MakeBus(sp, capture);
+
+        await bus.SendAsync(new PingCommand(), default);
+
+        Assert.Equal(BotChannel.System, capture.Request?.Channel);
     }
 
     [Fact]
-    public void RequestContextAccessor_SetAndGet_RoundTrips()
+    public async Task CommandBus_UsesAmbientRequestMetadata()
     {
-        var original = RequestContextAccessor.Current;
-        var custom = new RequestContext(42, "en", "trace-id", new Dictionary<string, string>(StringComparer.Ordinal));
-        try
-        {
-            RequestContextAccessor.Current = custom;
-            Assert.Equal(42, RequestContextAccessor.Current.UserId);
-            Assert.Equal("en", RequestContextAccessor.Current.CultureCode);
-        }
-        finally
-        {
-            RequestContextAccessor.Current = original;
-        }
+        await using var sp = (ServiceProvider)BuildServices();
+        var capture = new RequestCapturingMiddleware();
+        var bus = MakeBus(sp, capture);
+        var metadata = RequestMetadata.Create(
+            "telegram",
+            userId: "42",
+            culture: "ru",
+            channel: BotChannel.Telegram);
+
+        using var scope = RequestMetadataContext.Push(metadata);
+        await bus.SendAsync(new PingCommand(), default);
+
+        Assert.Same(metadata, capture.Request);
     }
 
     private sealed class OrderedMiddleware(string name, List<string> order) : ICommandMiddleware

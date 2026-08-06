@@ -58,7 +58,7 @@ public sealed class BasketballThrowAction
                 input.Command.ChatId,
                 MiniGameIds.Basketball,
                 occurredAt,
-                BotChannelContext.Current));
+                input.Channel));
         }
 
         return new GameDecision<BasketballBetState, BasketballThrowResult>(

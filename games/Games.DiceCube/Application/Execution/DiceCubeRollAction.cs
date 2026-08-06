@@ -65,7 +65,7 @@ public sealed class DiceCubeRollAction
                 input.Command.ChatId,
                 MiniGameIds.DiceCube,
                 occurredAt,
-                BotChannelContext.Current));
+                input.Channel));
         }
 
         return new GameDecision<DiceCubePlaceBetState, CubeRollResult>(

@@ -27,13 +27,18 @@ public sealed record RequestMetadata(
 
     public RequestId TypedCorrelationId => BotFramework.Contracts.Tenancy.RequestId.Create(CorrelationId);
 
-    public BotChannel Channel { get; init; } = BotChannel.Telegram;
+    /// <summary>
+    /// Logical source/delivery channel. System is used when no user-facing
+    /// transport exists; inbound adapters must set their concrete channel.
+    /// </summary>
+    public BotChannel Channel { get; init; } = BotChannel.System;
 
     public static RequestMetadata Create(
         string clientId,
         string? userId = null,
         string? scopeId = null,
-        string culture = "en")
+        string culture = "en",
+        BotChannel channel = BotChannel.System)
     {
         var requestId = Guid.NewGuid().ToString("N");
         return new RequestMetadata(
@@ -43,8 +48,16 @@ public sealed record RequestMetadata(
             userId,
             scopeId,
             culture,
-            new Dictionary<string, string>(StringComparer.Ordinal));
+            new Dictionary<string, string>(StringComparer.Ordinal))
+        {
+            Channel = channel,
+        };
     }
+
+    public static RequestMetadata System(
+        string clientId = "system",
+        string culture = "en") =>
+        Create(clientId, culture: culture, channel: BotChannel.System);
 
     public static RequestMetadata FromTenantContext(
         TenantContext context,

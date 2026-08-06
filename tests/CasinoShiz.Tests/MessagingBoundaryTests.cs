@@ -437,6 +437,7 @@ public sealed class MessagingBoundaryTests
     public async Task LocalRequestClient_DispatchesThroughTransportNeutralPort()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestHandler<PingRequest, PingResponse>, PingHandler>();
         services.AddScoped<MediatR.IRequestHandler<PingRequest, PingResponse>, PingHandler>();
@@ -455,6 +456,7 @@ public sealed class MessagingBoundaryTests
     public async Task LocalRequestClient_ProjectsTenantIntoFrameworkAccessor()
     {
         var services = new ServiceCollection();
+        services.AddLogging();
         services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
         services.AddMediatR(configuration => configuration.RegisterServicesFromAssemblyContaining<LocalRequestClient>());
         services.AddScoped<IRequestHandler<TenantPingRequest, TenantPingResponse>, TenantPingHandler>();
@@ -580,7 +582,7 @@ public sealed class MessagingBoundaryTests
 
         var response = await handler.HandleAsync(
             request,
-            RequestMetadata.Create("telegram", "42", "-100", "ru"),
+            RequestMetadata.Create("telegram", "42", "-100", "ru", BotChannel.Telegram),
             default);
 
         Assert.Equal(DicePlayStatus.Played, response.Status);
@@ -600,7 +602,7 @@ public sealed class MessagingBoundaryTests
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(
             request,
-            RequestMetadata.Create("telegram"),
+            RequestMetadata.Create("telegram", channel: BotChannel.Telegram),
             default));
     }
 

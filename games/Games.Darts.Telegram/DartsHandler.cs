@@ -118,7 +118,7 @@ public sealed partial class DartsHandler(
             return;
         }
 
-        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId, ctx.Ct);
+        var r = await service.PlaceBetAsync(userId, displayName, chatId, amount, reply.MessageId ?? 0, ctx.Ct);
         var text = r.Error switch
         {
             DartsBetError.None => FormatBetAccepted(r),

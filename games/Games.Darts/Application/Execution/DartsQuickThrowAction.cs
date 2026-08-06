@@ -74,7 +74,7 @@ public sealed class DartsQuickThrowAction
         {
             events.Add(new MiniGameRedeemCodeDropRequested(
                 command.UserId, command.ChatId, MiniGameIds.Darts, occurredAt,
-                BotChannelContext.Current));
+                input.Channel));
         }
 
         return new GameDecision<NoGameState, DartsThrowResult>(

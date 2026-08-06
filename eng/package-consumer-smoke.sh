@@ -17,10 +17,10 @@ for project in \
   framework/BotFramework.Discord.Abstractions/BotFramework.Discord.Abstractions.csproj \
   framework/BotFramework.Client/BotFramework.Client.csproj \
   templates/BotFramework.Templates/BotFramework.Templates.csproj; do
-  # The package consumer is a net10 smoke test; the main CI build restores and
-  # validates both net8.0 and net10.0 target assets separately.
+  # The consumer runs on net10.0; keep the package multi-targeted so the smoke
+  # feed has the same lib/ref layout that will be published.
   dotnet pack "$repo_root/$project" --configuration Release --output "$feed" --no-restore \
-    -p:TargetFrameworks=net10.0 -p:EnablePackageValidation=true
+    -p:EnablePackageValidation=true
 done
 
 dotnet restore "$repo_root/samples/CoinFlip/CoinFlip.Tests/CoinFlip.Tests.csproj" \

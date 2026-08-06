@@ -54,7 +54,7 @@ public sealed class CapIntegrationEventPublisher(
             tenantId,
             scopeId,
             playerId,
-            context?.Channel ?? metadata?.Channel ?? BotChannel.Rest,
+            context?.Channel ?? metadata?.Channel ?? BotChannel.System,
             route.Topic,
             route.MessageKey);
 

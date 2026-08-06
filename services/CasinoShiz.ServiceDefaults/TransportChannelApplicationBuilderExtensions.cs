@@ -16,7 +16,6 @@ public static class TransportChannelApplicationBuilderExtensions
                 && Enum.IsDefined(parsed)
                 ? parsed
                 : BotChannel.Telegram;
-            using var channelScope = BotChannelContext.Push(channel);
             using var metadataScope = TryPushRequestMetadata(httpContext, channel);
             await next();
         });

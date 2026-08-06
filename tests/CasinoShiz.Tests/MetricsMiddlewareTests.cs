@@ -1,3 +1,4 @@
+using BotFramework.Contracts.Messaging;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -21,7 +22,7 @@ public class MetricsMiddlewareTests
     private sealed record FakeCommand(string ModuleId) : ICommand;
 
     private static CommandContext MakeCtx(string moduleId = "poker") =>
-        new(new FakeCommand(moduleId), RequestContextAccessor.Anonymous, default);
+        new(new FakeCommand(moduleId), RequestMetadata.System("tests"), default);
 
     // ── Counter ──────────────────────────────────────────────────────────────
 

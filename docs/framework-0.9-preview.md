@@ -1,5 +1,8 @@
 # BotFramework 0.9-preview hardening
 
+> Historical document for the preview line. The current stable contract is
+> documented in [`docs/api.md`](api.md) and [`docs/releases/1.0.0.md`](releases/1.0.0.md).
+
 The 0.9 preview is intentionally breaking. There is no compatibility route for `/scopes/{scopeId}` and no public numeric `BalanceScopeId` contract. New integrations carry `TenantContext` with a tenant, scope, optional player, channel, request id, and correlation id.
 
 ## Tenant resolution
@@ -20,7 +23,7 @@ Deployment defaults live in configuration. Tenant/route overrides are stored in 
 
 `eng/package-consumer-smoke.sh` packs framework packages into `.artifacts/local-feed` with .NET package validation/ApiCompat enabled, restores `samples/CoinFlip` with only `samples/CoinFlip/NuGet.config`, and runs the sample tests. It then installs `BotFramework.GameTemplates` in an isolated `dotnet new` hive, generates all four channel/persistence surfaces, and restores/builds/tests the generated consumer. The sample has no Host or demo-game project references.
 
-SDK 0.9 modules should use `TenantContext`, `RequestContextFactory.FromTenantContext`, and `TenantWalletEconomyEffect`. The older numeric game contracts remain only for the staged demo-game migration and are not part of the new tenant-aware module design.
+SDK 0.9 modules should use `TenantContext`, `RequestMetadata.FromTenantContext`, and `TenantWalletEconomyEffect`. The older numeric game contracts remain only for the staged demo-game migration and are not part of the new tenant-aware module design.
 
 ## Operations
 

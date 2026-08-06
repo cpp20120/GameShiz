@@ -12,13 +12,15 @@
 // are Host-owned so a new game doesn't accidentally reorder the chain.
 // ─────────────────────────────────────────────────────────────────────────────
 
+using BotFramework.Contracts.Messaging;
+
 namespace BotFramework.Sdk.Commands;
 /// <summary>
 /// Carries the command plus out-of-band data middleware wants to stash.
 /// Items is a loose dictionary — typed accessors live in middleware-specific
 /// extensions so the surface here stays minimal.
 /// </summary>
-public sealed class CommandContext(ICommand command, RequestContext request, CancellationToken ct)
+public sealed class CommandContext(ICommand command, RequestMetadata request, CancellationToken ct)
 {
     public ICommand Command { get; } = command;
     public CancellationToken Cancellation { get; } = ct;
@@ -29,5 +31,5 @@ public sealed class CommandContext(ICommand command, RequestContext request, Can
     /// incoming Update, culture, trace id. Middleware uses it for auth
     /// decisions and logging.
     /// </summary>
-    public RequestContext Request { get; } = request;
+    public RequestMetadata Request { get; } = request;
 }

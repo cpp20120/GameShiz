@@ -11,6 +11,7 @@ public static class MiniGameRedeemDrops
         long chatId,
         string gameId,
         long occurredAt,
+        BotChannel channel,
         CancellationToken ct)
     {
         if (!ShouldDrop(chance))
@@ -18,7 +19,7 @@ public static class MiniGameRedeemDrops
 
         return events.PublishAsync(
             new MiniGameRedeemCodeDropRequested(
-                userId, chatId, gameId, occurredAt, BotChannelContext.Current),
+                userId, chatId, gameId, occurredAt, channel),
             ct);
     }
 

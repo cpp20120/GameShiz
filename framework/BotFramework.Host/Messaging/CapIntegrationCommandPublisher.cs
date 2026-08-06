@@ -50,7 +50,7 @@ public sealed class CapIntegrationCommandPublisher(
             tenantId,
             scopeId,
             playerId,
-            context?.Channel ?? metadata?.Channel ?? BotChannel.Rest,
+            context?.Channel ?? metadata?.Channel ?? BotChannel.System,
             route.Topic,
             route.MessageKey);
 

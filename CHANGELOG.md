@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0
+
+First stable BotFramework package release. The public API is frozen and the
+package-only surface is published under the stable `1.0.0` version line.
+
+Highlights include the tenant-aware transport contracts, typed REST client,
+generic text-processing primitives, deterministic game effect execution,
+explicit separation of domain events from executable effects, and explicit
+`System` channel metadata for background work. The preview-era package
+references and template instructions now use `1.0.0`.
+
+See the [complete 1.0.0 release notes](docs/releases/1.0.0.md) and the
+[framework publishing guide](docs/framework-release.md).
+
 ## 0.9.0-preview.2
 
 Corrected framework preview publication. The template package is published as

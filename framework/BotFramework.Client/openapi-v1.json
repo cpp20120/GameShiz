@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "BotFramework v1 module API",
-    "version": "0.9.0-preview.2"
+    "version": "1.0.0"
   },
   "servers": [
     { "url": "https://localhost" }

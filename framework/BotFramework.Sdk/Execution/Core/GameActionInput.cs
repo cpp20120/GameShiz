@@ -1,6 +1,7 @@
 namespace BotFramework.Sdk.Execution;
 
 using BotFramework.Contracts.Economics;
+using BotFramework.Contracts.Messaging;
 using BotFramework.Contracts.Tenancy;
 
 public sealed record GameActionInput<TState, TCommand>(
@@ -16,4 +17,10 @@ public sealed record GameActionInput<TState, TCommand>(
 
     /// <summary>Scope-local opaque wallet snapshot, when the request has a tenant context.</summary>
     public TenantWalletAccount? TenantWallet { get; init; }
+
+    /// <summary>
+    /// Channel associated with the operation. System is used for direct or
+    /// background invocations without an inbound transport context.
+    /// </summary>
+    public BotChannel Channel { get; init; } = BotChannel.System;
 }

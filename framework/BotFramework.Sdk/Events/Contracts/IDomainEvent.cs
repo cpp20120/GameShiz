@@ -7,10 +7,8 @@
 // service decision.
 // ─────────────────────────────────────────────────────────────────────────────
 
-using BotFramework.Sdk.Execution;
-
 namespace BotFramework.Sdk.Events.Contracts;
-public interface IDomainEvent : IGameEffect
+public interface IDomainEvent
 {
     /// <summary>
     /// Fully-qualified event name, e.g. "sh.chancellor_nominated". Stable across

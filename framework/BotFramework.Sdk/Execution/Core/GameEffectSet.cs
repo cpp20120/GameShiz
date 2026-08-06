@@ -3,8 +3,10 @@ using BotFramework.Sdk.Events.Contracts;
 namespace BotFramework.Sdk.Execution;
 
 /// <summary>
-/// A fully materialized, typed set of effects emitted by one decision.
-/// Categories preserve deterministic execution order without runtime reflection.
+/// A fully materialized set of effects and domain events emitted by one
+/// decision. Domain events are retained as a separate category because they
+/// are persisted/dispatched through the event pipeline, not handled as custom
+/// game effects.
 /// </summary>
 public sealed record GameEffectSet(
     IReadOnlyList<EconomyEffect> Economy,
@@ -16,16 +18,16 @@ public sealed record GameEffectSet(
 {
     public int Count => Economy.Count + Quotas.Count + Records.Count + Custom.Count + Events.Count + Schedules.Count;
 
-    public IReadOnlyList<IGameEffect> Materialize()
+    public IReadOnlyList<IGameEffect> MaterializeEffects()
     {
-        if (Count == 0) return [];
+        var effectCount = Economy.Count + Quotas.Count + Records.Count + Custom.Count + Schedules.Count;
+        if (effectCount == 0) return [];
 
-        var effects = new List<IGameEffect>(Count);
+        var effects = new List<IGameEffect>(effectCount);
         effects.AddRange(Economy);
         effects.AddRange(Quotas);
         effects.AddRange(Records);
         effects.AddRange(Custom);
-        effects.AddRange(Events);
         effects.AddRange(Schedules);
         return effects;
     }

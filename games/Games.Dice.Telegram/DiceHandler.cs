@@ -112,7 +112,8 @@ public sealed partial class DiceHandler(
             clientId: "telegram",
             userId: userId.ToString(CultureInfo.InvariantCulture),
             scopeId: chatId.ToString(CultureInfo.InvariantCulture),
-            culture: msg.From?.LanguageCode ?? "ru");
+            culture: msg.From?.LanguageCode ?? "ru",
+            channel: BotChannel.Telegram);
         var result = await diceClient.PlayAsync(request, metadata, ctx.Ct);
 
         switch (result.Status)

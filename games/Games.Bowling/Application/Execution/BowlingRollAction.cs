@@ -31,7 +31,7 @@ public sealed class BowlingRollAction : IGameAction<BowlingRollCommand, BowlingB
         {
             events.Add(new MiniGameRedeemCodeDropRequested(
                 input.Command.UserId, input.Command.ChatId, MiniGameIds.Bowling, occurredAt,
-                BotChannelContext.Current));
+                input.Channel));
         }
 
         return new GameDecision<BowlingBetState, BowlingRollResult>(

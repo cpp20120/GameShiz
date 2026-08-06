@@ -54,13 +54,13 @@ public sealed class StatefulEffectSystemPropertyTests
         expected.AddRange(quotas);
         expected.AddRange(records);
         expected.AddRange(custom);
-        expected.AddRange(events);
         expected.AddRange(schedules);
 
-        var materialized = set.Materialize();
+        var materialized = set.MaterializeEffects();
         var valid = set.Count == commands.Get.Length
-            && materialized.Count == set.Count
+            && materialized.Count == commands.Get.Length - events.Count
             && materialized.SequenceEqual(expected)
+            && set.Events.SequenceEqual(events)
             && materialized.All(effect => effect is not null);
 
         return valid

@@ -3,7 +3,7 @@
 `framework/` is the reusable runtime layer for CasinoShiz modules.
 
 Release notes and the NuGet/GitHub publishing procedure live in
-[`docs/releases/0.9.0-preview.2.md`](../docs/releases/0.9.0-preview.2.md) and
+[`docs/releases/1.0.0.md`](../docs/releases/1.0.0.md) and
 [`docs/framework-release.md`](../docs/framework-release.md).
 
 The framework is split into transport-neutral contracts, backend/runtime
@@ -12,7 +12,7 @@ presentation/transport adapters; game contracts, decisions, effects and domain
 events do not depend on either channel or on the deployment shape. Game modules
 should depend on the smallest framework surface they need.
 
-## 0.9-preview public product
+## 1.0.0 public product
 
 The current public integration boundary is tenant-aware and intentionally
 breaking. Every inbound operation carries a `TenantContext`:
@@ -80,10 +80,10 @@ other runtime projects are composition/runtime adapters. They may use
 PostgreSQL, Redis, CAP, Discord.Net or Telegram.Bot and target `net10.0`.
 They are not dependencies of a pure domain or contracts project.
 
-All preview packages use the `0.9.0-preview.N` version line and carry this
-framework README, MIT license metadata, repository metadata, SourceLink,
-embedded symbols and deterministic package output. `BotFramework.GameTemplates`
-is a separate `dotnet new` consumer artifact.
+The supported packages are released as `1.0.0` and carry this framework
+README, MIT license metadata, repository metadata, SourceLink, embedded
+symbols and deterministic package output. `BotFramework.GameTemplates` is a
+separate `dotnet new` consumer artifact released at the same version.
 
 ### Canonical REST contract
 
@@ -188,10 +188,10 @@ project references. `eng/package-consumer-smoke.sh` packs public packages into
 the template package in an isolated `dotnet new` hive, generates all channels,
 builds the atomic scaffold and runs its isolated tests.
 
-Install the scaffold from a feed or NuGet preview source:
+Install the scaffold from a local feed or NuGet:
 
 ```bash
-dotnet new install BotFramework.GameTemplates::0.9.0-preview.2
+dotnet new install BotFramework.GameTemplates::1.0.0
 dotnet new botframework-game -n CoinFlip --module-id coin-flip
 ```
 
@@ -204,11 +204,11 @@ Infrastructure, REST, Telegram, Discord and isolated tests. Use
 ### Compatibility and migration boundary
 
 The repository still contains demonstration games using previous numeric
-contracts. They are a staging compatibility layer only; they are not the SDK
-0.9 module shape and are intentionally excluded from the package-only consumer
-contract. New modules use opaque ids, `TenantContext`, tenant wallet effects
-and tenant-aware state/event/schedule persistence. Game migration is a separate
-vertical-slice task and does not change the framework package contract above.
+contracts. They are a repository compatibility layer only; they are not part
+of the supported package-only consumer contract. New modules use opaque ids,
+`TenantContext`, tenant wallet effects and tenant-aware state/event/schedule
+persistence. The package contract is frozen for `1.0.0`; repository game
+migration does not change it.
 
 The assembly map below includes the existing runtime and demonstration-game
 surface for repository maintainers. It is not the supported package-only SDK
@@ -578,8 +578,10 @@ transport request
   -> asynchronous outbox delivery
 ```
 
-Every declarative consequence implements `IGameEffect`. Built-in effect
-categories are deliberately explicit:
+Declarative consequences are split into executable effects and domain events.
+`IDomainEvent` is intentionally not an `IGameEffect`: events are persisted and
+dispatched by the event pipeline, while `IGameEffect` values are handled by
+the effect executor. Built-in categories are deliberately explicit:
 
 - `EconomyEffect` debits or credits the command wallet;
 - `WalletEconomyEffect` targets an explicitly declared wallet in a multi-wallet command;
@@ -784,11 +786,13 @@ consistency, but primary-wallet player-protection checks are not implicitly
 reapplied to arbitrary target wallets. A module introducing protected
 multi-wallet wager debits must model and test that policy explicitly.
 
-`GameEffectSet` materializes these categories before the first mutation.
-`GameEffectPlan` rejects null effects, mutations on rejected decisions, unknown
-quotas, missing or duplicate handlers, and built-in effects placed in the custom
-category. Effects are not represented by `IAsyncEnumerable`: laziness would make
-the transaction boundary and retry semantics depend on enumeration progress.
+`GameEffectSet.MaterializeEffects()` materializes executable categories before
+the first mutation; its `Events` collection remains separate. `GameEffectPlan`
+rejects null effects, mutations on rejected decisions, unknown
+quotas, missing or duplicate handlers, and built-in effects placed in the
+custom category. Effects are not represented by `IAsyncEnumerable`: laziness
+would make the transaction boundary and retry semantics depend on enumeration
+progress.
 
 The Host applies effects in a fixed order inside one PostgreSQL transaction:
 

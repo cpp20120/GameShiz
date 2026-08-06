@@ -18,7 +18,6 @@ public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUp
         var correlationId = $"telegram:{ctx.Update.Id}";
         var sessionId = ResolveSession(ctx.UserId, ctx.ChatId, startedAt);
         var previousAnalyticsContext = AnalyticsContextAccessor.Current;
-        var previousRequestContext = RequestContextAccessor.Current;
         var contextTags = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["correlation_id"] = correlationId,
@@ -30,12 +29,6 @@ public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUp
             ["source"] = "telegram",
         };
         AnalyticsContextAccessor.Current = contextTags;
-        RequestContextAccessor.Current = new RequestContext(
-            ctx.UserId,
-            ctx.Update.Message?.From?.LanguageCode ?? "ru",
-            correlationId,
-            contextTags.Where(x => x.Value is not null)
-                .ToDictionary(x => x.Key, x => x.Value!.ToString()!, StringComparer.Ordinal));
 
         var outcome = "ok";
         string? errorCode = null;
@@ -61,7 +54,6 @@ public sealed class UpdateAnalyticsMiddleware(IAnalyticsService analytics) : IUp
                 ["duration_ms"] = stopwatch.Elapsed.TotalMilliseconds,
             });
             AnalyticsContextAccessor.Current = previousAnalyticsContext;
-            RequestContextAccessor.Current = previousRequestContext;
         }
     }
 

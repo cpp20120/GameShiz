@@ -31,7 +31,7 @@ public sealed class FootballThrowAction : IGameAction<FootballThrowCommand, Foot
         {
             events.Add(new MiniGameRedeemCodeDropRequested(
                 input.Command.UserId, input.Command.ChatId, MiniGameIds.Football, occurredAt,
-                BotChannelContext.Current));
+                input.Channel));
         }
         return new(
             DecisionStatus.Accepted,

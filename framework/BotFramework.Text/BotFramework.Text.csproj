@@ -6,8 +6,10 @@
     <RootNamespace>BotFramework.Text</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>BotFramework.Text</PackageId>
-    <Version>0.9.0-preview.2</Version>
+    <Version>1.0.0</Version>
     <Description>Platform-independent text processing primitives for BotFramework.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/cpp20120/CazinoShiz</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -18,6 +20,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>
 
 </Project>
