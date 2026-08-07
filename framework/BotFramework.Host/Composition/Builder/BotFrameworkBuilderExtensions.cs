@@ -314,7 +314,9 @@ public static class BotFrameworkBuilderExtensions
         if (redisEnabled)
         {
             services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConn!));
-            services.AddSingleton<ICacheStore, RedisCacheStore>();
+            services.AddSingleton<RedisCacheStore>();
+            services.AddSingleton<ICacheStore>(sp => sp.GetRequiredService<RedisCacheStore>());
+            services.AddSingleton<ICacheStoreInvalidator>(sp => sp.GetRequiredService<RedisCacheStore>());
         }
 
         return new BotFrameworkBuilder(services, configuration);

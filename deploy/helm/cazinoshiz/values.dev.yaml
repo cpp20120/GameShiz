@@ -1,0 +1,36 @@
+# Local k3d/k3s profile for load testing. This file intentionally does not
+# contain credentials; inject the existing cluster secrets separately.
+
+images:
+  backend: k3d-casinoshiz-registry.localhost:5000/casinoshiz-backend:local
+  restApi: k3d-casinoshiz-registry.localhost:5000/casinoshiz-rest-api:dev-auth
+
+imagePullPolicy: Always
+
+resources:
+  backend:
+    requests:
+      cpu: 500m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  rest:
+    requests:
+      cpu: 500m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+rest:
+  environment: Development
+  rateLimit:
+    enabled: false
+  developmentAuthentication:
+    enabled: true
+
+# Keep the benchmark focused on request processing. The normal production
+# chart can set an OTLP endpoint independently.
+observability:
+  otlpEndpoint: ""

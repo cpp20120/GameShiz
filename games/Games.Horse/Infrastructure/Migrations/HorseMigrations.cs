@@ -41,5 +41,11 @@ public sealed class HorseMigrations : IModuleMigrations
             ALTER TABLE horse_results DROP CONSTRAINT IF EXISTS horse_results_pkey;
             ALTER TABLE horse_results ADD PRIMARY KEY (race_date, balance_scope_id);
             """),
+
+        new Migration("005_horse_bets_race_scope_index", """
+            CREATE INDEX IF NOT EXISTS ix_horse_bets_race_scope
+                ON horse_bets (race_date, balance_scope_id);
+            DROP INDEX IF EXISTS ix_horse_bets_race_date;
+            """),
     ];
 }

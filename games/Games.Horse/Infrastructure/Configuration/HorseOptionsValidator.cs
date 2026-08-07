@@ -13,6 +13,7 @@ public sealed class HorseOptionsValidator : FluentConfigurationValidator<HorseOp
         RuleFor(x => x.AnnounceDelayMs).GreaterThanOrEqualTo(0);
         RuleFor(x => x.AnnounceDelay1V1Ms).GreaterThanOrEqualTo(0);
         RuleFor(x => x.RenderVariants).InclusiveBetween(1, 20);
+        RuleFor(x => x.InfoCacheSeconds).InclusiveBetween(1, 300);
         RuleFor(x => x.TimezoneOffsetHours).InclusiveBetween(-14, 14);
         RuleFor(x => x.AutoRunEveryDays).InclusiveBetween(1, 31);
         RuleFor(x => x.AutoRunLocalHour).InclusiveBetween(0, 23);

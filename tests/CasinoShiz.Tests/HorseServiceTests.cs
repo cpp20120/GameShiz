@@ -1,5 +1,12 @@
+using System.Runtime.CompilerServices;
+using BotFramework.Contracts.Caching;
+using BotFramework.Host.Execution;
+using BotFramework.Rendering;
 using BotFramework.Sdk.Execution;
 using Games.Horse.Application.Execution;
+using Games.Horse.Application.Services;
+using Games.Horse.Infrastructure.Persistence;
+using Microsoft.Extensions.Caching.Memory;
 using Xunit;
 
 namespace CasinoShiz.Tests;
@@ -63,6 +70,110 @@ public sealed class HorseServiceTests
         Assert.Equal(2, decision.CustomEffects!.Count);
         Assert.Equal(new long[] { 0, 10, 20 }, decision.NewState.ResultScopes.Order());
         Assert.Equal(2, decision.Result.Participants.Count);
+    }
+
+    [Fact]
+    public async Task GetTodayInfo_CacheIsInvalidatedAfterSuccessfulBet()
+    {
+        var tuning = new FakeRuntimeTuning();
+        tuning.Horse = new HorseOptions { HorseCount = 4, InfoCacheSeconds = 30 };
+        var bets = new InMemoryHorseBetStore();
+        var raceDate = HorseTimeHelper.GetRaceDate(tuning.Horse.TimezoneOffsetHours);
+        await bets.InsertAsync(new HorseBetRow(Guid.NewGuid(), raceDate, 1, 10, 0, 10), default);
+        using var localCache = new MemoryCache(new MemoryCacheOptions());
+        var distributedCache = new TestCacheStore();
+        var service = CreateService(
+            tuning,
+            bets,
+            localCache,
+            distributedCache,
+            new SuccessfulExecutor<HorsePlaceBetCommand, HorseBetState, BetResult>(
+                new BetResult(HorseError.None, 1, 10, 90)));
+
+        Assert.Equal(1, (await service.GetTodayInfoAsync(10, default)).BetsCount);
+        await bets.InsertAsync(new HorseBetRow(Guid.NewGuid(), raceDate, 2, 10, 1, 20), default);
+        Assert.Equal(1, (await service.GetTodayInfoAsync(10, default)).BetsCount);
+
+        await service.PlaceBetAsync(2, "player", 10, 2, 20, default);
+
+        Assert.Equal(2, (await service.GetTodayInfoAsync(10, default)).BetsCount);
+        Assert.Contains(distributedCache.RemovedKeys, key => key.Contains("scope:10", StringComparison.Ordinal));
+        Assert.Contains(distributedCache.RemovedKeys, key => key.EndsWith(":global", StringComparison.Ordinal));
+    }
+
+    private static HorseService CreateService(
+        FakeRuntimeTuning tuning,
+        IHorseBetStore bets,
+        IMemoryCache localCache,
+        ICacheStore distributedCache,
+        IAtomicGameExecutor<HorsePlaceBetCommand, HorseBetState, BetResult> betExecutor) =>
+        new(
+            bets,
+            new InMemoryHorseResultStore(),
+            betExecutor,
+            new SuccessfulExecutor<HorseRunCommand, HorseRaceState, RaceOutcome>(
+                new RaceOutcome(HorseError.None, 0, [], [], [], [])),
+            new RenderQueueStub(),
+            new RenderHistoryStub(),
+            TimeProvider.System,
+            tuning,
+            localCache,
+            distributedCache,
+            (ICacheStoreInvalidator)distributedCache);
+
+    private sealed class SuccessfulExecutor<TCommand, TState, TResult>(TResult result)
+        : IAtomicGameExecutor<TCommand, TState, TResult>
+    {
+        public Type StateType => typeof(TState);
+
+        public Task<TResult> ExecuteAsync(GameExecutionEnvelope<TCommand> envelope, CancellationToken ct) =>
+            Task.FromResult(result);
+    }
+
+    private sealed class RenderQueueStub : IRenderQueue
+    {
+        public ValueTask<RenderedArtifact> GetOrRenderAsync<TSpec>(
+            TSpec spec, RenderPriority priority = RenderPriority.Interactive, CancellationToken ct = default) =>
+            ValueTask.FromException<RenderedArtifact>(new NotSupportedException());
+
+        public Task PrewarmAsync<TSpec>(IEnumerable<TSpec> specs, CancellationToken ct = default) =>
+            Task.CompletedTask;
+    }
+
+    private sealed class RenderHistoryStub : IRenderHistory
+    {
+        public ValueTask RecordAsync(RenderHistoryEntry entry, CancellationToken ct = default) =>
+            ValueTask.CompletedTask;
+
+        public async IAsyncEnumerable<RenderHistoryEntry> ListAsync(
+            string gameId, string aggregateId, int take = 50,
+            [EnumeratorCancellation] CancellationToken ct = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+    }
+
+    private sealed class TestCacheStore : ICacheStore, ICacheStoreInvalidator
+    {
+        public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);
+        public List<string> RemovedKeys { get; } = [];
+
+        public Task<string?> GetStringAsync(string key, CancellationToken ct) =>
+            Task.FromResult(Values.GetValueOrDefault(key));
+
+        public Task SetStringAsync(string key, string value, TimeSpan ttl, CancellationToken ct)
+        {
+            Values[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveStringAsync(string key, CancellationToken ct)
+        {
+            RemovedKeys.Add(key);
+            Values.Remove(key);
+            return Task.CompletedTask;
+        }
     }
 
     private static GameActionInput<HorseBetState, HorsePlaceBetCommand> BetInput(

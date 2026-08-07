@@ -6,7 +6,7 @@ namespace BotFramework.Host.Caching;
 /// <summary>Best-effort Redis implementation for cache-only callers.</summary>
 public sealed partial class RedisCacheStore(
     IConnectionMultiplexer redis,
-    ILogger<RedisCacheStore> logger) : ICacheStore
+    ILogger<RedisCacheStore> logger) : ICacheStore, ICacheStoreInvalidator
 {
     public async Task<string?> GetStringAsync(string key, CancellationToken ct)
     {
@@ -36,9 +36,25 @@ public sealed partial class RedisCacheStore(
         }
     }
 
+    public async Task RemoveStringAsync(string key, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        try
+        {
+            await redis.GetDatabase().KeyDeleteAsync(key);
+        }
+        catch (RedisException ex)
+        {
+            LogDeleteFailed(ex);
+        }
+    }
+
     [LoggerMessage(LogLevel.Debug, "cache.redis_read_failed")]
     private partial void LogReadFailed(Exception exception);
 
     [LoggerMessage(LogLevel.Debug, "cache.redis_write_failed")]
     private partial void LogWriteFailed(Exception exception);
+
+    [LoggerMessage(LogLevel.Debug, "cache.redis_delete_failed")]
+    private partial void LogDeleteFailed(Exception exception);
 }

@@ -9,6 +9,15 @@ images:
   adminBff: ghcr.io/example/cazinoshiz-admin-bff:latest
   restApi: ghcr.io/example/cazinoshiz-api:latest
 
+imagePullPolicy: IfNotPresent
+
+# Optional pod resources. Keep the default unset so a production deployment can
+# choose sizing for its node pool; the checked-in dev overlay provides bounded
+# CPU and memory for reproducible local load tests.
+resources:
+  backend: {}
+  rest: {}
+
 secrets:
   name: cazinoshiz-secrets
   postgresPasswordKey: postgres-password
@@ -94,6 +103,16 @@ bff:
     replicas: 2
 
 rest:
+  environment: Production
+  developmentAuthentication:
+    enabled: false
+    tokenSecretKey: rest-development-token
+    tenantId: e2e
+    scopeId: "42"
+    userId: "42"
+    displayName: REST development user
+  rateLimit:
+    enabled: true
   jwt:
     authority: ""
     audience: casinoshiz-api

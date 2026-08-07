@@ -1,4 +1,5 @@
 using BotFramework.Rest;
+using CasinoShiz.Api;
 using CasinoShiz.ServiceDefaults;
 using Games.Admin.Rest;
 using Games.Admin.Transport.Grpc;
@@ -44,6 +45,7 @@ builder.WebHost.ConfigureKestrel(options =>
 
 builder.AddServiceDefaults();
 builder.AddRestFramework();
+ConfigureDevelopmentAuthentication(builder);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -119,3 +121,41 @@ if (app.Configuration.GetValue("Rest:OpenApiEnabled", true))
 app.MapRestFramework();
 
 await app.RunAsync();
+
+static void ConfigureDevelopmentAuthentication(WebApplicationBuilder builder)
+{
+    var enabled = builder.Configuration.GetValue<bool>(
+        "Rest:DevelopmentAuthentication:Enabled");
+    if (!enabled)
+        return;
+
+    if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "Rest:DevelopmentAuthentication:Enabled can only be used in the Development environment.");
+    }
+
+    var configuration = builder.Configuration.GetSection("Rest:DevelopmentAuthentication");
+    builder.Services
+        .AddOptions<DevelopmentAuthenticationOptions>(DevelopmentBearerAuthenticationHandler.SchemeName)
+        .Bind(configuration)
+        .Validate(options => !string.IsNullOrWhiteSpace(options.Token),
+            "Rest:DevelopmentAuthentication:Token is required when development authentication is enabled.")
+        .Validate(options => !string.IsNullOrWhiteSpace(options.TenantId),
+            "Rest:DevelopmentAuthentication:TenantId is required when development authentication is enabled.")
+        .Validate(options => !string.IsNullOrWhiteSpace(options.ScopeId),
+            "Rest:DevelopmentAuthentication:ScopeId is required when development authentication is enabled.")
+        .Validate(options => !string.IsNullOrWhiteSpace(options.UserId),
+            "Rest:DevelopmentAuthentication:UserId is required when development authentication is enabled.")
+        .ValidateOnStart();
+
+    builder.Services
+        .AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = DevelopmentBearerAuthenticationHandler.SchemeName;
+            options.DefaultChallengeScheme = DevelopmentBearerAuthenticationHandler.SchemeName;
+        })
+        .AddScheme<DevelopmentAuthenticationOptions, DevelopmentBearerAuthenticationHandler>(
+            DevelopmentBearerAuthenticationHandler.SchemeName,
+            options => configuration.Bind(options));
+}

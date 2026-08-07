@@ -42,7 +42,11 @@ spec:
       containers:
         - name: backend
           image: {{ $.Values.images.backend }}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          {{- with $.Values.resources.backend }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080
@@ -76,6 +80,9 @@ spec:
             - name: Kafka__Servers
               value: {{ $.Values.messaging.kafka.servers | quote }}
             {{- end }}
+            # The same Redis endpoint is shared by every game backend replica.
+            # Besides CAP/rate limiting it carries the tenant-context cache
+            # used by PostgresTenantContextProvisioner.
             - name: Redis__Enabled
               value: "true"
             - name: REDIS_PASSWORD

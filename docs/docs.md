@@ -203,6 +203,13 @@ requested `tenant_id` and `scope_id` claims. State-changing requests require a
 string `Idempotency-Key`; request and correlation identifiers are carried in
 the standard headers and RFC 7807 errors.
 
+For local REST profiling only, `CasinoShiz.Api` supports an explicit
+development bearer scheme. It is active only when the host environment is
+`Development` and `Rest:DevelopmentAuthentication:Enabled=true`; its token is
+read from configuration and must not be committed. Enabling the flag in any
+other environment fails startup. Production uses the configured JWT authority
+as before.
+
 REST adapters are registered for every current module: `dice`, `dicecube`,
 `darts`, `football`, `basketball`, `bowling`, `blackjack`, `horse`, `poker`,
 `leaderboard`, `transfer`, `challenges`, `pick`, `redeem`, `pixelbattle`,
@@ -1457,7 +1464,7 @@ Intended for operational questions: "which chat uses PvP most?", "which game typ
 | `meta:BigPayoutMinimum` | Single-game payout threshold for the Большой занос achievement; default `1000` |
 | `admin:Admins` | Per-module admin list (unioned with `Bot:Admins`) |
 
-`Games:horse` — `HorseCount`, `MinBetsToRun`, `AnnounceDelayMs`, `AnnounceDelay1v1Ms` (used when `HorseCount` is 2, longer delay so the winner message does not appear before the GIF finishes), `TimezoneOffsetHours`, `Admins` (Telegram user IDs allowed to `/horserun` in addition to `Bot:Admins`), `AutoRunEnabled`, `AutoRunEveryDays`, `AutoRunLocalHour`, `AutoRunLocalMinute`. When `AutoRunEnabled` is true, the Quartz command runs **one global** race every `AutoRunEveryDays` calendar days at the configured local time, if there are enough bets (`MinBetsToRun`).
+`Games:horse` — `HorseCount`, `MinBetsToRun`, `AnnounceDelayMs`, `AnnounceDelay1v1Ms` (used when `HorseCount` is 2, longer delay so the winner message does not appear before the GIF finishes), `TimezoneOffsetHours`, `Admins` (Telegram user IDs allowed to `/horserun` in addition to `Bot:Admins`), `AutoRunEnabled`, `AutoRunEveryDays`, `AutoRunLocalHour`, `AutoRunLocalMinute`, `InfoCacheSeconds` (read-only `/horse info` projection cache, default `30`, valid range `1..300`). When `AutoRunEnabled` is true, the Quartz command runs **one global** race every `AutoRunEveryDays` calendar days at the configured local time, if there are enough bets (`MinBetsToRun`).
 
 `Games:challenges`:
 

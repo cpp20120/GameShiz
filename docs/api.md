@@ -206,6 +206,28 @@ TenantRoute
 TenantPlayerRoute
 ```
 
+### Cache ports
+
+Read models and other bounded projections may use the framework cache ports:
+
+```csharp
+public interface ICacheStore
+{
+    Task<string?> GetStringAsync(string key, CancellationToken ct);
+
+    Task SetStringAsync(string key, string value, TimeSpan ttl, CancellationToken ct);
+}
+
+public interface ICacheStoreInvalidator
+{
+    Task RemoveStringAsync(string key, CancellationToken ct);
+}
+```
+
+`ICacheStoreInvalidator` is an optional invalidation port. Implementations may
+use it to remove distributed entries after a successful state mutation; the
+authoritative state remains in the primary store.
+
 ## 5. Module SDK
 
 ### Module entry point

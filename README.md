@@ -37,6 +37,7 @@ See the full documentation for the `Games__fun__BenPrimary__*` and
 -   [Framework documentation](framework/README.md) — module contracts, routing, event sourcing, projections, and migrations.
 -   [Text processing framework](docs/botframework-text.md) — reusable normalization, analyzers, policies, effects, and Telegram adapters for future modules.
 -   [Framework 1.0.0 release notes](docs/releases/1.0.0.md) and [publishing guide](docs/framework-release.md) — package set, release checks, NuGet and GitHub Release flow.
+-   [REST load test](docs/rest-load-testing.md) — separate Horse game endpoint test with PostgreSQL Testcontainers and `wrk`.
 -   [Secret Hitler strategy model](docs/secret_hitler.md) — probabilistic policy/deception analysis and model limitations.
 
 ## Features

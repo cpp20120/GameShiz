@@ -17,8 +17,15 @@ spec:
       containers:
         - name: rest-api
           image: {{ .Values.images.restApi }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          {{- with .Values.resources.rest }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports: [{ name: http, containerPort: 8080 }]
           env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ default "Production" .Values.rest.environment | quote }}
             - name: Backend__GrpcAddress
               value: http://game-admin:8081
             {{- range $name, $game := .Values.games }}
@@ -31,6 +38,25 @@ spec:
               value: {{ .Values.rest.jwt.audience | quote }}
             - name: Rest__Jwt__RequireHttpsMetadata
               value: {{ .Values.rest.jwt.requireHttpsMetadata | quote }}
+            - name: Rest__DevelopmentAuthentication__Enabled
+              value: {{ .Values.rest.developmentAuthentication.enabled | quote }}
+            - name: Rest__DevelopmentAuthentication__TenantId
+              value: {{ .Values.rest.developmentAuthentication.tenantId | quote }}
+            - name: Rest__DevelopmentAuthentication__ScopeId
+              value: {{ .Values.rest.developmentAuthentication.scopeId | quote }}
+            - name: Rest__DevelopmentAuthentication__UserId
+              value: {{ .Values.rest.developmentAuthentication.userId | quote }}
+            - name: Rest__DevelopmentAuthentication__DisplayName
+              value: {{ .Values.rest.developmentAuthentication.displayName | quote }}
+            - name: RateLimit__Enabled
+              value: {{ .Values.rest.rateLimit.enabled | quote }}
+            {{- if .Values.rest.developmentAuthentication.enabled }}
+            - name: Rest__DevelopmentAuthentication__Token
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cazinoshiz.secret" . }}
+                  key: {{ .Values.rest.developmentAuthentication.tokenSecretKey }}
+            {{- end }}
             {{- if .Values.observability.otlpEndpoint }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.observability.otlpEndpoint | quote }}

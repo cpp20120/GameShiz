@@ -8,6 +8,7 @@ using BotFramework.Host.Tenancy;
 using BotFramework.Host.Economics;
 using Dapper;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
@@ -100,6 +101,30 @@ public sealed class FrameworkTenantPostgresTests(AtomicPostgresFixture database)
         Assert.Equal(2, rows.Length);
         Assert.Equal(("framework-test-a", "main", "1001"), rows[0]);
         Assert.Equal(("framework-test-b", "main", "1002"), rows[1]);
+    }
+
+    [Fact]
+    public async Task Provisioner_UsesLocalCacheAfterSuccessfulProvisioning()
+    {
+        await database.ResetAsync();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var context = TenantContext.Create(
+            TenantId.Create("framework-cache-test"),
+            ScopeId.Create("main"),
+            PlayerId.Create("cache-player"),
+            BotChannel.Rest);
+
+        var first = new PostgresTenantContextProvisioner(
+            new TestConnectionFactory(database.ConnectionString),
+            cache);
+        await first.EnsureAsync(context);
+
+        // A cache hit must not require a second database connection.
+        var cached = new PostgresTenantContextProvisioner(
+            new TestConnectionFactory(
+                "Host=127.0.0.1;Port=1;Database=unreachable;Username=none;Password=none;Timeout=1"),
+            cache);
+        await cached.EnsureAsync(context);
     }
 
     [Fact]

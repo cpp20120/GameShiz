@@ -19,6 +19,9 @@ public sealed class HorseOptions
     /// <summary>Number of deterministic visual GIF variants pre-rendered for each possible winner.</summary>
     public int RenderVariants { get; init; } = 3;
 
+    /// <summary>Short lifetime for the read-only /horse info projection.</summary>
+    public int InfoCacheSeconds { get; init; } = 30;
+
     /// <summary>Hours east of UTC for race calendar day and for interpreting <see cref="AutoRunLocalHour"/> / <see cref="AutoRunLocalMinute"/>.</summary>
     public int TimezoneOffsetHours { get; init; } = 7;
 
