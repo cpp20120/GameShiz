@@ -24,6 +24,19 @@ public sealed class MetaStorePostgresTests(AtomicPostgresFixture database) : IAs
         Assert.Equal(1, await database.ScalarAsync<int>("SELECT count(*) FROM meta_seasons WHERE status = 'active'"));
     }
 
+    [Fact]
+    public async Task ActiveSeasonIndex_IsScopedToTenantAndScope()
+    {
+        var definition = await database.ScalarAsync<string>("""
+            SELECT pg_get_indexdef(indexrelid)
+            FROM pg_index
+            WHERE indexrelid = 'ux_meta_seasons_active'::regclass
+            """);
+
+        Assert.Contains("(tenant_key, scope_key)", definition, StringComparison.Ordinal);
+        Assert.Contains("WHERE (status = 'active'::text)", definition, StringComparison.Ordinal);
+    }
+
     private sealed class TestConnectionFactory(string connectionString) : INpgsqlConnectionFactory
     {
         public NpgsqlConnection Create() => new(connectionString);

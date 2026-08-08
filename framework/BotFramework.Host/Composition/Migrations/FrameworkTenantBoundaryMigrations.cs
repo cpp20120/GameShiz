@@ -333,6 +333,17 @@ internal static class FrameworkTenantBoundaryMigrations
                 END IF;
             END
             $migration$;
+            """),
+
+        new Migration("040_meta_active_season_tenant_scope", """
+            -- meta_seasons became tenant-bound in migration 039. Its original
+            -- partial index still allowed only one active season globally,
+            -- which prevented a second tenant from creating its own season.
+            DROP INDEX IF EXISTS ux_meta_seasons_active;
+
+            CREATE UNIQUE INDEX ux_meta_seasons_active
+                ON meta_seasons (tenant_key, scope_key)
+                WHERE status = 'active';
             """)
     ];
 }
