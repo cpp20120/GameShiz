@@ -12,20 +12,31 @@ public sealed class MetaStore(
         await using var tx = await conn.BeginTransactionAsync(ct);
 
         // A tenant/scope can issue several Meta reads at once (for example,
-        // /menu loads profile, quests and achievements in parallel). Serialize
-        // only that boundary's read-or-create path; independent tenants and
-        // scopes must not contend for the same season-initialization lock.
-        await conn.ExecuteAsync(new CommandDefinition(
+        // /menu loads profile, quests and achievements in parallel). Lock the
+        // already-provisioned tenant_scopes row, rather than an advisory key:
+        // unrelated scopes continue concurrently and the lock is visible to
+        // PostgreSQL's normal lock diagnostics.
+        var scopeLock = await conn.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
             """
-            SELECT pg_advisory_xact_lock(
-                hashtextextended(
-                    COALESCE(casinoshiz_current_tenant_key()::text, 'unbound')
-                    || ':' ||
-                    COALESCE(casinoshiz_current_scope_key()::text, 'unbound'),
-                    0));
+            SELECT scope_key
+            FROM tenant_scopes
+            WHERE tenant_key = casinoshiz_current_tenant_key()
+              AND scope_key = casinoshiz_current_scope_key()
+            FOR UPDATE
             """,
             transaction: tx,
             cancellationToken: ct));
+
+        // Direct store tests and legacy background calls are intentionally
+        // unbound. Preserve their read-or-create serialization without putting
+        // any tenant-bound production request behind this fallback lock.
+        if (scopeLock is null)
+        {
+            await conn.ExecuteAsync(new CommandDefinition(
+                "SELECT pg_advisory_xact_lock(hashtext('casinoshiz.meta.active-season.unbound'))",
+                transaction: tx,
+                cancellationToken: ct));
+        }
 
         await conn.ExecuteAsync(new CommandDefinition(
             """
