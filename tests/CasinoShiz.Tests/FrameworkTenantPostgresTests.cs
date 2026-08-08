@@ -89,10 +89,11 @@ public sealed class FrameworkTenantPostgresTests(AtomicPostgresFixture database)
             firstConnectionString = connection.ConnectionString;
 
         using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(secondTenant, "test")))
-        using var secondConnection = factory.Create();
-
-        Assert.Equal(firstConnectionString, secondConnection.ConnectionString);
-        Assert.DoesNotContain("casinoshiz.", secondConnection.ConnectionString, StringComparison.Ordinal);
+        using (var secondConnection = factory.Create())
+        {
+            Assert.Equal(firstConnectionString, secondConnection.ConnectionString);
+            Assert.DoesNotContain("casinoshiz.", secondConnection.ConnectionString, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
