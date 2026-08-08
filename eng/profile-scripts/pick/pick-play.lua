@@ -14,7 +14,7 @@ end
 
 function init()
   counter = 0
-  thread_id = profile_thread_id or 1
+  thread_id = tonumber(wrk.thread:get("profile_thread_id")) or 1
   local amount = tonumber(os.getenv("PICK_AMOUNT") or "5001")
   load_user_count = tonumber(os.getenv("LOAD_USER_COUNT") or "0")
   load_user_base = tonumber(os.getenv("LOAD_USER_BASE") or "1000000")
