@@ -10,6 +10,7 @@ using Games.Football.Infrastructure.Migrations;
 using Games.Pick.Infrastructure.Migrations;
 using Games.Darts.Infrastructure.Migrations;
 using Games.Horse.Infrastructure.Migrations;
+using Games.Meta.Infrastructure.Migrations;
 using Games.Poker.Infrastructure.Migrations;
 using Games.Challenges.Infrastructure.Migrations;
 using Games.Redeem.Infrastructure.Migrations;
@@ -72,6 +73,8 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
         foreach (var migration in new SecretHitlerMigrations().Migrations)
             await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new PixelBattleMigrations().Migrations)
+            await connection.ExecuteAsync(migration.Sql);
+        foreach (var migration in new MetaMigrations().Migrations)
             await connection.ExecuteAsync(migration.Sql);
         foreach (var migration in new ChatAdministrationMigrations().Migrations)
             await connection.ExecuteAsync(migration.Sql);
@@ -140,7 +143,8 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
                 mini_game_sessions,
                 users,
                 player_protection,
-            game_availability_overrides,
+                game_availability_overrides,
+                meta_seasons,
                 tenant_wallet_ledger,
                 tenant_wallets,
                 blackjack_hands

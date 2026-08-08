@@ -11,6 +11,15 @@ public sealed class MetaStore(
         await using var conn = await connections.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
+        // A fresh tenant can issue several Meta reads at once (for example,
+        // /menu loads profile, quests and achievements in parallel). Serialize
+        // the read-or-create path so the partial unique index on active seasons
+        // is never used as a concurrency primitive.
+        await conn.ExecuteAsync(new CommandDefinition(
+            "SELECT pg_advisory_xact_lock(hashtext('casinoshiz.meta.active-season'))",
+            transaction: tx,
+            cancellationToken: ct));
+
         await conn.ExecuteAsync(new CommandDefinition(
             """
             UPDATE meta_seasons
