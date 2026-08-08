@@ -306,7 +306,12 @@ public static class BotFrameworkBuilderExtensions
         services.AddHostedService<GameEventOutboxDispatcher>();
         services.AddHostedService<GameScheduleOutboxDispatcher>();
         services.AddHostedService(sp => sp.GetRequiredService<RuntimeTuningAccessor>());
-        services.AddHostedService<DailyBonusCatchUpHostedService>();
+        // The catch-up service depends on the locally owned wallet implementation.
+        // Game backends use the wallet over gRPC and therefore do not register
+        // IDailyBonusService; registering the hosted service there would prevent
+        // the whole process from starting.
+        if (!walletRemote)
+            services.AddHostedService<DailyBonusCatchUpHostedService>();
 
         services.AddHostedService<BackgroundJobRunner>();
         services.AddQuartzRecurringCommandBootstrapper();
