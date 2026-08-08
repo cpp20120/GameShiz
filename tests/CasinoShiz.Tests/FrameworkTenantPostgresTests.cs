@@ -7,6 +7,8 @@ using BotFramework.Host.RateLimiting;
 using BotFramework.Host.Tenancy;
 using BotFramework.Host.Economics;
 using Dapper;
+using Games.Challenges.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -58,6 +60,74 @@ public sealed class FrameworkTenantPostgresTests(AtomicPostgresFixture database)
                    current_setting('casinoshiz.tenant_bound') AS Bound
             """);
         Assert.Equal((string.Empty, string.Empty, "false"), unboundValues);
+    }
+
+    [Fact]
+    public void ConnectionFactory_UsesOnePoolKeyForDifferentAmbientTenants()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Postgres"] = database.ConnectionString,
+            })
+            .Build();
+        var factory = new NpgsqlConnectionFactory(configuration);
+        var firstTenant = TenantContext.Create(
+            TenantId.Create("framework-pool-a"),
+            ScopeId.Create("main"),
+            PlayerId.Create("player-a"),
+            BotChannel.Telegram);
+        var secondTenant = firstTenant with
+        {
+            TenantId = TenantId.Create("framework-pool-b"),
+            PlayerId = PlayerId.Create("player-b"),
+        };
+
+        string firstConnectionString;
+        using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(firstTenant, "test")))
+        using (var connection = factory.Create())
+            firstConnectionString = connection.ConnectionString;
+
+        using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(secondTenant, "test")))
+        using var secondConnection = factory.Create();
+
+        Assert.Equal(firstConnectionString, secondConnection.ConnectionString);
+        Assert.DoesNotContain("casinoshiz.", secondConnection.ConnectionString, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EfCoreConnectionInterceptor_ProjectsAmbientTenantSession()
+    {
+        await database.ResetAsync();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Postgres"] = database.ConnectionString,
+            })
+            .Build();
+        var factory = new NpgsqlConnectionFactory(configuration);
+        var tenant = TenantContext.Create(
+            TenantId.Create("framework-ef-scope"),
+            ScopeId.Create("main"),
+            PlayerId.Create("player"),
+            BotChannel.Rest);
+
+        using (RequestMetadataContext.Push(RequestMetadata.FromTenantContext(tenant, "test")))
+        await using (var context = new ChallengeDbContext(factory))
+        {
+            await context.Database.OpenConnectionAsync();
+            var connection = context.Database.GetDbConnection();
+            var values = await connection.QuerySingleAsync<(string TenantId, string ScopeId, string PlayerId, string Channel, string Bound)>(
+                """
+                SELECT current_setting('casinoshiz.tenant_id') AS TenantId,
+                       current_setting('casinoshiz.scope_id') AS ScopeId,
+                       current_setting('casinoshiz.player_id') AS PlayerId,
+                       current_setting('casinoshiz.channel') AS Channel,
+                       current_setting('casinoshiz.tenant_bound') AS Bound
+                """);
+
+            Assert.Equal(("framework-ef-scope", "main", "player", "rest", "true"), values);
+        }
     }
 
     [Fact]

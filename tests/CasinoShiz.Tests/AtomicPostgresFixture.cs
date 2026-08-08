@@ -135,6 +135,7 @@ public sealed class AtomicPostgresFixture : IAsyncLifetime
                 secret_hitler_games,
                 pixelbattle_tiles,
                 economics_ledger,
+                wallet_operations,
                 telegram_dice_daily_rolls,
                 mini_game_sessions,
                 users,

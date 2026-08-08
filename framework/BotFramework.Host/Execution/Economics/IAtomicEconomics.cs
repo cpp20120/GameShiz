@@ -4,6 +4,16 @@ namespace BotFramework.Host.Execution;
 
 internal interface IAtomicEconomics
 {
+    async Task<WalletSnapshot> EnsureAndLoadAsync(
+        WalletIdentity wallet,
+        string displayName,
+        IGameExecutionSession session,
+        CancellationToken ct)
+    {
+        await EnsureAsync(wallet, displayName, session, ct);
+        return await LoadAsync(wallet, session, ct);
+    }
+
     Task EnsureAsync(
         WalletIdentity wallet,
         string displayName,

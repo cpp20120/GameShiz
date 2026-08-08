@@ -9,14 +9,42 @@ namespace BotFramework.Host.Execution;
 /// </summary>
 internal sealed class RemoteAtomicEconomics(
     IEconomicsService economics,
-    IWalletAtomicExecutionService walletService) : IAtomicEconomics
+    IWalletAtomicExecutionService walletService,
+    IWalletSnapshotService? snapshots = null) : IAtomicEconomics
 {
-    public Task EnsureAsync(
+    public async Task EnsureAsync(
         WalletIdentity wallet,
         string displayName,
         IGameExecutionSession session,
-        CancellationToken ct) =>
-        economics.EnsureUserAsync(wallet.UserId, wallet.BalanceScopeId, displayName, ct);
+        CancellationToken ct)
+    {
+        if (snapshots is not null)
+        {
+            _ = await snapshots.EnsureAndGetBalanceAsync(
+                wallet.UserId, wallet.BalanceScopeId, displayName, ct);
+            return;
+        }
+
+        await economics.EnsureUserAsync(wallet.UserId, wallet.BalanceScopeId, displayName, ct);
+    }
+
+    public async Task<WalletSnapshot> EnsureAndLoadAsync(
+        WalletIdentity wallet,
+        string displayName,
+        IGameExecutionSession session,
+        CancellationToken ct)
+    {
+        if (snapshots is not null)
+        {
+            var balance = await snapshots.EnsureAndGetBalanceAsync(
+                wallet.UserId, wallet.BalanceScopeId, displayName, ct);
+            return new WalletSnapshot(balance);
+        }
+
+        await economics.EnsureUserAsync(wallet.UserId, wallet.BalanceScopeId, displayName, ct);
+        return new WalletSnapshot(
+            (long)await economics.GetBalanceAsync(wallet.UserId, wallet.BalanceScopeId, ct));
+    }
 
     public async Task<WalletSnapshot> LoadAsync(
         WalletIdentity wallet,

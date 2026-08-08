@@ -5,7 +5,7 @@ images:
   backend: k3d-casinoshiz-registry.localhost:5000/casinoshiz-backend:local
   restApi: k3d-casinoshiz-registry.localhost:5000/casinoshiz-rest-api:dev-auth
 
-imagePullPolicy: Always
+imagePullPolicy: IfNotPresent
 
 resources:
   backend:

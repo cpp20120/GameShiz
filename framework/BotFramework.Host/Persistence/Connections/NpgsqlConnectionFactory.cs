@@ -4,9 +4,6 @@
 // (event store, module migrations, ad-hoc reads) without each module bundling
 // its own connection-string lookup.
 //
-// Kept intentionally thin: one sync Create() and one async OpenAsync(). Pool
-// tuning is Npgsql's job via the connection string; nothing to configure here.
-//
 // Reads "ConnectionStrings:Postgres" (preferred) falling back to "Default"
 // for backwards compat. Set via ConnectionStrings__Postgres env var.
 // ─────────────────────────────────────────────────────────────────────────────

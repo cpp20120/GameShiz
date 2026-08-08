@@ -46,14 +46,19 @@ internal sealed class PostgresGameExecutionSession : IGameExecutionSession
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal);
 
-        foreach (var lockKey in orderedKeys)
-        {
-            await connection.ExecuteAsync(new CommandDefinition(
-                "SELECT pg_advisory_xact_lock(hashtextextended(@lockKey, 0))",
-                new { lockKey },
-                transaction,
-                cancellationToken: ct));
-        }
+        var lockKeyArray = orderedKeys.ToArray();
+        if (lockKeyArray.Length == 0)
+            return;
+
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            SELECT pg_advisory_xact_lock(hashtextextended(lock_key, 0))
+            FROM unnest(@lockKeys::text[]) WITH ORDINALITY AS keys(lock_key, lock_order)
+            ORDER BY lock_order
+            """,
+            new { lockKeys = lockKeyArray },
+            transaction,
+            cancellationToken: ct));
     }
 
     public async Task CommitAsync(CancellationToken ct)

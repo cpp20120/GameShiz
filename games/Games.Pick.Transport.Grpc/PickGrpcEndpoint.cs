@@ -1,5 +1,6 @@
 using Games.Pick.Application.Services;
 using Games.Pick.Transport.Grpc.Wire;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 
 namespace Games.Pick.Transport.Grpc;
@@ -129,4 +130,16 @@ public sealed class PickGrpcEndpoint(IPickClient client) : PickApi.PickApiBase
         ContractCall request,
         ServerCallContext context) =>
         PickWire.Reply(await client.GetDailyScheduleAsync(context.CancellationToken));
+
+    public override async Task<DailyScheduleReply> DailyScheduleTyped(
+        Empty request,
+        ServerCallContext context)
+    {
+        var schedule = await client.GetDailyScheduleAsync(context.CancellationToken);
+        return new DailyScheduleReply
+        {
+            OffsetHours = schedule.OffsetHours,
+            DrawHourLocal = schedule.DrawHourLocal,
+        };
+    }
 }

@@ -29,4 +29,8 @@
     <ProjectReference Include="..\BotFramework.Contracts\BotFramework.Contracts.csproj" />
     <None Include="..\README.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CasinoShiz.Tests" />
+  </ItemGroup>
 </Project>

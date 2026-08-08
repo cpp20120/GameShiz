@@ -1,8 +1,13 @@
 syntax = "proto3";
+import "google/protobuf/empty.proto";
 option csharp_namespace = "Games.Pick.Transport.Grpc.Wire";
 package casinoshiz.pick.v1;
 message ContractCall { string payload_json = 1; }
 message ContractReply { string payload_json = 1; }
+message DailyScheduleReply {
+  int32 offset_hours = 1;
+  int32 draw_hour_local = 2;
+}
 service PickApi {
   rpc Pick (ContractCall) returns (ContractReply);
   rpc ContinueChain (ContractCall) returns (ContractReply);
@@ -16,4 +21,5 @@ service PickApi {
   rpc DailyInfo (ContractCall) returns (ContractReply);
   rpc DailyHistory (ContractCall) returns (ContractReply);
   rpc DailySchedule (ContractCall) returns (ContractReply);
+  rpc DailyScheduleTyped (google.protobuf.Empty) returns (DailyScheduleReply);
 }

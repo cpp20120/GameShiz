@@ -11,7 +11,7 @@ public sealed class WalletGrpcEndpoint(IServiceProvider services) : WalletApi.Wa
 {
     private static readonly Dictionary<string, Type> Contracts = new[]
     {
-        typeof(IEconomicsService), typeof(IWalletAtomicExecutionService), typeof(IDailyBonusService), typeof(IWalletReadService), typeof(IWalletAnalyticsService), typeof(IPlayerProtectionService),
+        typeof(IEconomicsService), typeof(IWalletAtomicExecutionService), typeof(IWalletSnapshotService), typeof(IDailyBonusService), typeof(IWalletReadService), typeof(IWalletAnalyticsService), typeof(IPlayerProtectionService),
     }.ToDictionary(type => type.FullName!, StringComparer.Ordinal);
 
     public override async Task<WalletReply> Invoke(WalletCall request, ServerCallContext context)

@@ -14,27 +14,7 @@ namespace BotFramework.Host.Persistence.Connections;
 /// </summary>
 internal static class TenantDatabaseScope
 {
-    private const string TenantIdSetting = "casinoshiz.tenant_id";
-    private const string ScopeIdSetting = "casinoshiz.scope_id";
-    private const string PlayerIdSetting = "casinoshiz.player_id";
-    private const string ChannelSetting = "casinoshiz.channel";
-    private const string BoundSetting = "casinoshiz.tenant_bound";
-
-    public static NpgsqlConnection CreateConnection(string connectionString)
-    {
-        var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        var options = new[]
-        {
-            StartupOption(TenantIdSetting, TenantId()),
-            StartupOption(ScopeIdSetting, ScopeId()),
-            StartupOption(PlayerIdSetting, PlayerId()),
-            StartupOption(ChannelSetting, Channel()),
-            StartupOption(BoundSetting, IsBound() ? "true" : "false"),
-        };
-        builder.Options = string.Join(' ', new[] { builder.Options, string.Join(' ', options) }
-            .Where(static value => !string.IsNullOrWhiteSpace(value)));
-        return new NpgsqlConnection(builder.ConnectionString);
-    }
+    public static NpgsqlConnection CreateConnection(string connectionString) => new(connectionString);
 
     public static async Task ApplyAsync(NpgsqlConnection connection, CancellationToken ct)
     {
@@ -64,17 +44,4 @@ internal static class TenantDatabaseScope
         };
     }
 
-    private static string TenantId() => RequestMetadataContext.TryGetCurrent()?.TenantContext?.TenantId.Value ?? string.Empty;
-
-    private static string ScopeId() => RequestMetadataContext.TryGetCurrent()?.TenantContext?.ScopeId.Value ?? string.Empty;
-
-    private static string PlayerId() => RequestMetadataContext.TryGetCurrent()?.TenantContext?.PlayerId?.Value ?? string.Empty;
-
-    private static string Channel() => RequestMetadataContext.TryGetCurrent()?.TenantContext?.Channel.ToString().ToLowerInvariant() ?? string.Empty;
-
-    private static bool IsBound() => RequestMetadataContext.TryGetCurrent()?.TenantContext is not null;
-
-    private static string StartupOption(string name, string value) => $"-c {name}={Quote(value)}";
-
-    private static string Quote(string value) => $"'{value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("'", "\\'", StringComparison.Ordinal)}'";
 }

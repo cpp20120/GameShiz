@@ -18,6 +18,15 @@ internal sealed class PostgresAtomicEconomics(
         IGameExecutionSession session,
         CancellationToken ct)
     {
+        _ = await EnsureAndLoadAsync(wallet, displayName, session, ct);
+    }
+
+    public async Task<WalletSnapshot> EnsureAndLoadAsync(
+        WalletIdentity wallet,
+        string displayName,
+        IGameExecutionSession session,
+        CancellationToken ct)
+    {
         ArgumentNullException.ThrowIfNull(displayName);
         ArgumentNullException.ThrowIfNull(session);
         if (displayName.Length > 64) displayName = displayName[..64];
@@ -41,8 +50,9 @@ internal sealed class PostgresAtomicEconomics(
              AND source.balance_scope_id = @sourceScopeId
             ON CONFLICT (telegram_user_id, balance_scope_id)
             DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
+            RETURNING coins
             """;
-        await session.Connection.ExecuteAsync(new CommandDefinition(
+        var coins = await session.Connection.ExecuteScalarAsync<int>(new CommandDefinition(
             sql,
             new
             {
@@ -54,6 +64,7 @@ internal sealed class PostgresAtomicEconomics(
             },
             session.Transaction,
             cancellationToken: ct));
+        return new WalletSnapshot(coins);
     }
 
     public async Task<WalletSnapshot> LoadAsync(

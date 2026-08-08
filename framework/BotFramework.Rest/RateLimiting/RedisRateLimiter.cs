@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using BotFramework.Contracts.Messaging;
 using BotFramework.Contracts.Observability;
 using BotFramework.Contracts.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -56,6 +57,7 @@ public sealed partial class RedisRateLimiter(
         """;
 
     private readonly RateLimitOptions _options = options.Value;
+    private readonly RateLimitPolicySet _restDeployment = options.Value.Deployment(BotChannel.Rest);
     private readonly IRateLimitPolicyProvider _policyProvider = policyProvider ?? new DefaultRateLimitPolicyProvider();
     private readonly ConcurrentDictionary<string, LocalBucket> _local = new(StringComparer.Ordinal);
     private readonly Lock _localGate = new();
@@ -70,16 +72,18 @@ public sealed partial class RedisRateLimiter(
         ValidateRouteKey(request.RouteKey);
         var policies = await _policyProvider.ResolveAsync(
             request,
-            _options.Deployment(request.Channel),
+            request.Channel == BotChannel.Rest
+                ? _restDeployment
+                : _options.Deployment(request.Channel),
             cancellationToken);
-        var buckets = BuildBuckets(request, policies);
 
         if (!_options.Enabled)
         {
             BotFrameworkMetrics.SetRateLimitFallback(false);
-            return Allowed(buckets[0].Policy, isFallback: false, policies.Version);
+            return Allowed(policies.Tenant, isFallback: false, policies.Version);
         }
 
+        var buckets = BuildBuckets(request, policies);
         var redis = GetRedis();
         if (redis?.IsConnected == true)
         {
@@ -109,19 +113,22 @@ public sealed partial class RedisRateLimiter(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var keys = buckets.Select(bucket => (RedisKey)bucket.Key).ToArray();
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var args = new List<RedisValue>(2 + (buckets.Count * 2))
+        var keys = new RedisKey[buckets.Count];
+        var args = new RedisValue[2 + (buckets.Count * 2)];
+        args[0] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        args[1] = buckets.Count;
+        for (var index = 0; index < buckets.Count; index++)
         {
-            timestamp,
-            buckets.Count,
-        };
-        args.AddRange(buckets.SelectMany(b => new RedisValue[] { b.Policy.Capacity, b.Policy.RefillPerSecond }));
+            var configuredBucket = buckets[index];
+            keys[index] = configuredBucket.Key;
+            args[2 + (index * 2)] = configuredBucket.Policy.Capacity;
+            args[3 + (index * 2)] = configuredBucket.Policy.RefillPerSecond;
+        }
 
         var result = (RedisResult[]?)(await database.ScriptEvaluateAsync(
             TokenBucketScript,
             keys,
-            [.. args]))
+            args))
             ?? throw new InvalidOperationException("Redis rate-limit script returned no result.");
         var allowed = ParseInt(result[0]) == 1;
         var deniedIndex = Math.Max(0, ParseInt(result[2]) - 1);
@@ -175,7 +182,7 @@ public sealed partial class RedisRateLimiter(
         }
     }
 
-    private IReadOnlyList<Bucket> BuildBuckets(RateLimitRequest request, RateLimitPolicySet policies)
+    private Bucket[] BuildBuckets(RateLimitRequest request, RateLimitPolicySet policies)
     {
         var tenant = Key("tenant", request.TenantId.Value);
         var user = request.PlayerId is { } player
@@ -185,24 +192,87 @@ public sealed partial class RedisRateLimiter(
         var userRoute = request.PlayerId is { } routePlayer
             ? Key("tenant-player-route", request.TenantId.Value, routePlayer.Value, request.RouteKey)
             : null;
-        var buckets = new List<Bucket>
-        {
-            new(tenant, RateLimitDimension.Tenant, policies.Tenant),
-            new(route, RateLimitDimension.TenantRoute, policies.Route),
-        };
+        var hasPlayer = request.PlayerId is not null;
+        var hasIp = request.Channel == BotFramework.Contracts.Messaging.BotChannel.Rest
+            && !string.IsNullOrWhiteSpace(request.IpAddress);
+        var buckets = new Bucket[2 + (hasPlayer ? 2 : 0) + (hasIp ? 1 : 0)];
+        var index = 0;
+        buckets[index++] = new(tenant, RateLimitDimension.Tenant, policies.Tenant);
+        buckets[index++] = new(route, RateLimitDimension.TenantRoute, policies.Route);
         if (user is not null)
-            buckets.Add(new(user, RateLimitDimension.TenantPlayer, policies.Player));
+            buckets[index++] = new(user, RateLimitDimension.TenantPlayer, policies.Player);
         if (userRoute is not null)
-            buckets.Add(new(userRoute, RateLimitDimension.TenantPlayerRoute, policies.PlayerRoute));
-        if (request.Channel == BotFramework.Contracts.Messaging.BotChannel.Rest && !string.IsNullOrWhiteSpace(request.IpAddress))
-            buckets.Add(new(Key("tenant-ip", request.TenantId.Value, request.IpAddress), RateLimitDimension.TenantIp, policies.Ip));
-        return [.. buckets];
+            buckets[index++] = new(userRoute, RateLimitDimension.TenantPlayerRoute, policies.PlayerRoute);
+        if (hasIp)
+            buckets[index] = new(
+                Key("tenant-ip", request.TenantId.Value, request.IpAddress!),
+                RateLimitDimension.TenantIp,
+                policies.Ip);
+        return buckets;
     }
 
-    private string Key(string dimension, params string[] values)
+    private string Key(string dimension, string value1) =>
+        HashKey(dimension, ComposeKeyInput(dimension, value1));
+
+    private string Key(string dimension, string value1, string value2) =>
+        HashKey(dimension, ComposeKeyInput(dimension, value1, value2));
+
+    private string Key(string dimension, string value1, string value2, string value3) =>
+        HashKey(dimension, ComposeKeyInput(dimension, value1, value2, value3));
+
+    private string HashKey(string dimension, string input)
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\u001f', values)));
-        return $"{_options.RedisKeyPrefix}:{dimension}:{Convert.ToHexString(bytes).ToLowerInvariant()}";
+        var byteCount = Encoding.UTF8.GetByteCount(input);
+        if (byteCount <= 1024)
+        {
+            Span<byte> utf8 = stackalloc byte[byteCount];
+            return HashKey(dimension, input, utf8);
+        }
+
+        var utf8Bytes = Encoding.UTF8.GetBytes(input);
+        return HashKey(dimension, input, utf8Bytes);
+    }
+
+    private string HashKey(string dimension, string input, Span<byte> utf8)
+    {
+        Encoding.UTF8.GetBytes(input, utf8);
+        Span<byte> hash = stackalloc byte[32];
+        SHA256.HashData(utf8, hash);
+        return $"{_options.RedisKeyPrefix}:{dimension}:{Convert.ToHexString(hash).ToLowerInvariant()}";
+    }
+
+    private static string ComposeKeyInput(
+        string dimension,
+        string value1,
+        string? value2 = null,
+        string? value3 = null)
+    {
+        var length = dimension.Length + 1 + value1.Length;
+        if (value2 is not null)
+            length += 1 + value2.Length;
+        if (value3 is not null)
+            length += 1 + value3.Length;
+
+        return string.Create(length, (dimension, value1, value2, value3), static (destination, state) =>
+        {
+            var offset = 0;
+            state.dimension.AsSpan().CopyTo(destination[offset..]);
+            offset += state.dimension.Length;
+            destination[offset++] = '\u001f';
+            state.value1.AsSpan().CopyTo(destination[offset..]);
+            offset += state.value1.Length;
+            if (state.value2 is not { } second)
+                return;
+
+            destination[offset++] = '\u001f';
+            second.AsSpan().CopyTo(destination[offset..]);
+            offset += second.Length;
+            if (state.value3 is not { } third)
+                return;
+
+            destination[offset++] = '\u001f';
+            third.AsSpan().CopyTo(destination[offset..]);
+        });
     }
 
     private ConnectionMultiplexer? GetRedis()
@@ -218,10 +288,10 @@ public sealed partial class RedisRateLimiter(
                 return current;
 
             _nextRedisAttemptTicks = DateTime.UtcNow.AddSeconds(5).Ticks;
-        if (string.IsNullOrWhiteSpace(_options.RedisConnectionString))
-            return null;
-        try
-        {
+            if (string.IsNullOrWhiteSpace(_options.RedisConnectionString))
+                return null;
+            try
+            {
                 var configuration = ConfigurationOptions.Parse(_options.RedisConnectionString);
                 configuration.AbortOnConnectFail = false;
                 configuration.ConnectRetry = 1;
@@ -229,12 +299,12 @@ public sealed partial class RedisRateLimiter(
                 current = ConnectionMultiplexer.Connect(configuration);
                 _redis = current;
                 return current;
-        }
-        catch (Exception exception) when (exception is RedisException or IOException)
-        {
-            LogRedisFailure(exception);
-            return null;
-        }
+            }
+            catch (Exception exception) when (exception is RedisException or IOException)
+            {
+                LogRedisFailure(exception);
+                return null;
+            }
         }
     }
 
@@ -275,10 +345,29 @@ public sealed partial class RedisRateLimiter(
     private static void RecordDecision(RateLimitRequest request, RateLimitDecision decision) =>
         BotFrameworkMetrics.RateLimitDecisions.Add(
             1,
-            new KeyValuePair<string, object?>("channel", request.Channel.ToString().ToLowerInvariant()),
-            new KeyValuePair<string, object?>("dimension", decision.DeniedDimension?.ToString().ToLowerInvariant() ?? "none"),
+            new KeyValuePair<string, object?>("channel", ChannelLabel(request.Channel)),
+            new KeyValuePair<string, object?>("dimension", DimensionLabel(decision.DeniedDimension)),
             new KeyValuePair<string, object?>("outcome", decision.Allowed ? "allowed" : "denied"),
             new KeyValuePair<string, object?>("fallback", decision.IsFallback ? "local" : "redis"));
+
+    private static string ChannelLabel(BotChannel channel) => channel switch
+    {
+        BotChannel.Telegram => "telegram",
+        BotChannel.Discord => "discord",
+        BotChannel.Rest => "rest",
+        BotChannel.System => "system",
+        _ => "unknown",
+    };
+
+    private static string DimensionLabel(RateLimitDimension? dimension) => dimension switch
+    {
+        RateLimitDimension.Tenant => "tenant",
+        RateLimitDimension.TenantPlayer => "tenant-player",
+        RateLimitDimension.TenantIp => "tenant-ip",
+        RateLimitDimension.TenantRoute => "tenant-route",
+        RateLimitDimension.TenantPlayerRoute => "tenant-player-route",
+        _ => "none",
+    };
 
     private static void ValidateRouteKey(string routeKey)
     {
@@ -295,7 +384,7 @@ public sealed partial class RedisRateLimiter(
     [LoggerMessage(LogLevel.Warning, "BotFramework distributed rate limiter is using bounded local fallback.")]
     private static partial void LogRedisFallback(ILogger logger, Exception exception);
 
-    private sealed record Bucket(string Key, RateLimitDimension Dimension, RateLimitPolicy Policy);
+    private readonly record struct Bucket(string Key, RateLimitDimension Dimension, RateLimitPolicy Policy);
     private sealed record LocalBucketState(LocalBucket State, RateLimitPolicy Policy);
 
     private sealed class LocalBucket(double tokens, DateTimeOffset updatedAt)

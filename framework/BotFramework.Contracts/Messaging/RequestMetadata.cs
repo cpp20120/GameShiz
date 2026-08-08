@@ -1,6 +1,7 @@
 namespace BotFramework.Contracts.Messaging;
 
 using BotFramework.Contracts.Tenancy;
+using System.Collections.ObjectModel;
 
 public sealed record RequestMetadata(
     string RequestId,
@@ -11,6 +12,10 @@ public sealed record RequestMetadata(
     string Culture,
     IReadOnlyDictionary<string, string> Baggage)
 {
+    private static readonly IReadOnlyDictionary<string, string> EmptyBaggage =
+        new ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
     /// <summary>Typed tenant boundary for new SDK consumers.</summary>
     public TenantId? Tenant { get; init; }
 
@@ -71,7 +76,7 @@ public sealed record RequestMetadata(
             context.PlayerId?.ToString(),
             context.ScopeId.ToString(),
             culture,
-            baggage ?? new Dictionary<string, string>(StringComparer.Ordinal))
+            baggage ?? EmptyBaggage)
         {
             Tenant = context.TenantId,
             TypedScope = context.ScopeId,

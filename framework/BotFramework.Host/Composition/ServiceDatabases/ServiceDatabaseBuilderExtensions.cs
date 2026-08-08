@@ -64,7 +64,11 @@ public static class ServiceDatabaseBuilderExtensions
 
         builder.Services.AddSingleton<IEconomicsService, EconomicsService>();
         builder.Services.AddSingleton<WalletScopeResolver>();
-        builder.Services.AddSingleton<IWalletAtomicExecutionService, WalletAtomicExecutionService>();
+        builder.Services.AddSingleton<WalletAtomicExecutionService>();
+        builder.Services.AddSingleton<IWalletAtomicExecutionService>(provider =>
+            provider.GetRequiredService<WalletAtomicExecutionService>());
+        builder.Services.AddSingleton<IWalletSnapshotService>(provider =>
+            provider.GetRequiredService<WalletAtomicExecutionService>());
         builder.Services.AddSingleton<IWalletReadService, WalletReadService>();
         builder.Services.AddSingleton<IWalletAnalyticsService, WalletAnalyticsService>();
         builder.Services.AddSingleton<IDailyBonusService, DailyBonusService>();

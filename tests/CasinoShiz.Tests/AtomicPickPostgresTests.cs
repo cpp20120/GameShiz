@@ -123,6 +123,29 @@ public sealed class AtomicPickPostgresTests(AtomicPostgresFixture database) : IA
         Assert.Equal("settled", await Scalar<string>("SELECT status FROM pick_daily_lottery"));
     }
 
+    [Fact]
+    public async Task InvalidPick_PreflightSkipsWalletAndStateReadsButRemainsIdempotent()
+    {
+        var executor = CreateExecutor(
+            new PickExecutionDescriptor(), new PickAction(), new PickGameStateStore(),
+            [new PickChainOfferEffectHandler()]);
+        var command = new PickCommand(
+            42, "picker", 84, 101, ["a", "b"], [0], 0, true, "pick-preflight",
+            2, 4, 100, 0.05, 0.5, 4, 5, 60);
+
+        var first = await executor.ExecuteAsync(new(command), CancellationToken.None);
+        var duplicate = await executor.ExecuteAsync(new(command), CancellationToken.None);
+
+        Assert.Equal(first with { Variants = [], BackedIndices = [] }, duplicate with { Variants = [], BackedIndices = [] });
+        Assert.Equal(first.Variants, duplicate.Variants);
+        Assert.Equal(first.BackedIndices, duplicate.BackedIndices);
+        Assert.Equal(PickError.InvalidAmount, first.Error);
+        Assert.Equal(0, await Scalar<int>("SELECT count(*) FROM users"));
+        Assert.Equal(0, await Scalar<int>("SELECT count(*) FROM pick_streaks"));
+        Assert.Equal(0, await Scalar<int>("SELECT count(*) FROM game_event_outbox"));
+        Assert.Equal(1, await Scalar<int>("SELECT count(*) FROM game_command_idempotency"));
+    }
+
     private IAtomicGameExecutor<PickCommand, PickGameState, PickResult> CreateExecutor()
         => CreateExecutor(new PickExecutionDescriptor(), new WinningPickAction(), new PickGameStateStore(),
             [new PickChainOfferEffectHandler()]);

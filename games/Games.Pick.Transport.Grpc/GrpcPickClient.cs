@@ -4,6 +4,8 @@ using Games.Pick.Application.Analytics;
 using Games.Pick.Domain.Results;
 using Games.Pick.Infrastructure.Persistence;
 using Games.Pick.Transport.Grpc.Wire;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
 
 namespace Games.Pick.Transport.Grpc;
 
@@ -133,8 +135,20 @@ public sealed class GrpcPickClient(PickApi.PickApiClient client) : IPickClient
             PickWire.Call(new ChatCall(chatId, Limit: limit)),
             cancellationToken: ct)).Read<IReadOnlyList<PickDailyLotteryRow>>();
 
-    public async Task<PickDailySchedule> GetDailyScheduleAsync(CancellationToken ct) =>
-        (await client.DailyScheduleAsync(
-            PickWire.Call(EmptyCall.Create()),
-            cancellationToken: ct)).Read<PickDailySchedule>();
+    public async Task<PickDailySchedule> GetDailyScheduleAsync(CancellationToken ct)
+    {
+        try
+        {
+            var schedule = await client.DailyScheduleTypedAsync(
+                new Empty(),
+                cancellationToken: ct);
+            return new PickDailySchedule(schedule.OffsetHours, schedule.DrawHourLocal);
+        }
+        catch (RpcException exception) when (exception.StatusCode == StatusCode.Unimplemented)
+        {
+            return (await client.DailyScheduleAsync(
+                PickWire.Call(EmptyCall.Create()),
+                cancellationToken: ct)).Read<PickDailySchedule>();
+        }
+    }
 }

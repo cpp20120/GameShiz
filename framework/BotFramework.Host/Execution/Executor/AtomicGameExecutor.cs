@@ -106,10 +106,27 @@ internal sealed class AtomicGameExecutor<TCommand, TState, TResult>(
                 throw new GameUnavailableException(descriptor.GameId, chatId, availabilityState.Reason);
 
             var walletSnapshot = new WalletSnapshot(0);
+            if (action is IGameCommandPreflight<TCommand, TResult> preflight
+                && preflight.TryReject(command, out var preflightResult, out var preflightReason))
+            {
+                var preflightEntropy = CreateEntropy(descriptor.EntropyNames);
+                await inbox.StoreEntropyAsync(commandId, preflightEntropy, session, ct);
+                observation.Decided(DecisionStatus.Rejected, preflightReason);
+                await inbox.CompleteAsync(commandId, preflightResult, session, ct);
+                observation.Committing();
+                await session.CommitAsync(ct);
+                committed = true;
+                observation.Committed();
+                return preflightResult;
+            }
+
             if (descriptor.UsesPrimaryWallet)
             {
-                await economics.EnsureAsync(wallet, descriptor.DisplayName(command), session, ct);
-                walletSnapshot = await economics.LoadAsync(wallet, session, ct);
+                walletSnapshot = await economics.EnsureAndLoadAsync(
+                    wallet,
+                    descriptor.DisplayName(command),
+                    session,
+                    ct);
             }
             var executionContext = new GameExecutionContext(session, economics, commandId, tenantContext);
             var state = await stateStore.LoadAsync(command, executionContext, ct);

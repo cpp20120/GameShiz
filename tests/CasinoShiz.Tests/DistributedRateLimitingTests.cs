@@ -96,6 +96,37 @@ public sealed class DistributedRateLimitingTests
         Assert.Equal(RateLimitDimension.Tenant, second.DeniedDimension);
     }
 
+    [Fact]
+    public async Task DisabledLimiter_AllowsRequest_AndPreservesResolvedPolicyVersion()
+    {
+        using var limiter = new RedisRateLimiter(
+            Options.Create(new RateLimitOptions
+            {
+                Enabled = false,
+                Tenant = new RateLimitPolicy(1, 0),
+            }),
+            NullLogger<RedisRateLimiter>.Instance,
+            new FixedPolicyProvider(new RateLimitPolicySet(
+                new RateLimitPolicy(7, 0),
+                new RateLimitPolicy(8, 0),
+                new RateLimitPolicy(9, 0),
+                new RateLimitPolicy(10, 0),
+                new RateLimitPolicy(11, 0),
+                "resolved-version-8")));
+
+        var decision = await limiter.CheckAsync(new RateLimitRequest(
+            TenantId.Create("tenant-disabled"),
+            PlayerId.Create("player-1"),
+            BotChannel.Telegram,
+            "command:disabled"));
+
+        Assert.True(decision.Allowed);
+        Assert.False(decision.IsFallback);
+        Assert.Equal(7, decision.Limit);
+        Assert.Equal(6, decision.Remaining);
+        Assert.Equal("resolved-version-8", decision.PolicyVersion);
+    }
+
     private sealed class FixedPolicyProvider(RateLimitPolicySet policies) : IRateLimitPolicyProvider
     {
         public ValueTask<RateLimitPolicySet> ResolveAsync(

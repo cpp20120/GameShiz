@@ -1,5 +1,6 @@
-using System.Security.Claims;
+using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Security.Claims;
 using BotFramework.Contracts.Messaging;
 using BotFramework.Contracts.Tenancy;
 using Microsoft.AspNetCore.Http;
@@ -9,6 +10,10 @@ namespace BotFramework.Rest;
 
 internal sealed class RestRequestContextFactory(IOptions<RestFrameworkOptions> options)
 {
+    private static readonly IReadOnlyDictionary<string, string> EmptyBaggage =
+        new ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
     public RestRequestContext Create(HttpContext httpContext)
     {
         var principal = httpContext.User;
@@ -47,11 +52,19 @@ internal sealed class RestRequestContextFactory(IOptions<RestFrameworkOptions> o
                           ?? principal.FindFirstValue("preferred_username")
                           ?? principal.FindFirstValue(ClaimTypes.Name)
                           ?? subject;
-        var baggage = httpContext.Request.Headers
-            .Where(header => header.Key.StartsWith("baggage-", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(header => header.Key, header => header.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+        var baggage = ReadBaggage(httpContext.Request.Headers);
 
-        var context = new RestRequestContext(
+        var requestIdentifier = RequestId.Create(requestId);
+        var correlationIdentifier = RequestId.Create(correlationId);
+        var tenantContext = TenantContext.Create(
+            typedTenant,
+            typedScope,
+            typedPlayer,
+            BotChannel.Rest,
+            requestIdentifier,
+            correlationIdentifier);
+
+        return new RestRequestContext(
             subject,
             long.TryParse(subject, CultureInfo.InvariantCulture, out var numericUserId) ? numericUserId : 0,
             displayName,
@@ -63,57 +76,70 @@ internal sealed class RestRequestContextFactory(IOptions<RestFrameworkOptions> o
             Tenant = typedTenant,
             Scope = typedScope,
             Player = typedPlayer,
-            RequestIdentifier = RequestId.Create(requestId),
-            CorrelationIdentifier = RequestId.Create(correlationId),
-        };
-        return context with
-        {
-            TenantContext = TenantContext.Create(
-                typedTenant,
-                typedScope,
-                typedPlayer,
-                BotChannel.Rest,
-                context.RequestIdentifier,
-                context.CorrelationIdentifier),
+            RequestIdentifier = requestIdentifier,
+            CorrelationIdentifier = correlationIdentifier,
+            TenantContext = tenantContext,
         };
     }
 
     private void ValidateTenant(ClaimsPrincipal principal, string tenantId)
     {
-        var claimedTenants = principal.Claims
-            .Where(claim => claim.Type is "tenant_id" or "tenantId")
-            .Select(claim => claim.Value)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-
-        if (claimedTenants.Length == 0)
-        {
-            if (options.Value.RequireTenantClaim)
-                throw new RestForbiddenException("The token does not grant access to this tenant.", "tenant_access_denied");
+        if (HasMatchingClaim(principal, tenantId, isTenant: true, out var hasClaim))
             return;
-        }
+        if (!hasClaim && !options.Value.RequireTenantClaim)
+            return;
 
-        if (!claimedTenants.Contains(tenantId, StringComparer.Ordinal))
-            throw new RestForbiddenException("The token does not grant access to this tenant.", "tenant_access_denied");
+        throw new RestForbiddenException(
+            "The token does not grant access to this tenant.",
+            "tenant_access_denied");
     }
 
     private void ValidateScope(ClaimsPrincipal principal, string scopeId)
     {
-        var claimedScopes = principal.Claims
-            .Where(claim => claim.Type is "scope_id" or "scopeId" or "chat_id" or "chatId")
-            .Select(claim => claim.Value)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-
-        if (claimedScopes.Length == 0)
-        {
-            if (options.Value.RequireScopeClaim)
-                throw new RestForbiddenException("The token does not grant access to this scope.");
+        if (HasMatchingClaim(principal, scopeId, isTenant: false, out var hasClaim))
             return;
+        if (!hasClaim && !options.Value.RequireScopeClaim)
+            return;
+
+        throw new RestForbiddenException("The token does not grant access to this scope.");
+    }
+
+    private static bool HasMatchingClaim(
+        ClaimsPrincipal principal,
+        string expectedValue,
+        bool isTenant,
+        out bool hasClaim)
+    {
+        hasClaim = false;
+        foreach (var claim in principal.Claims)
+        {
+            var isRelevant = isTenant
+                ? claim.Type is "tenant_id" or "tenantId"
+                : claim.Type is "scope_id" or "scopeId" or "chat_id" or "chatId";
+            if (!isRelevant || string.IsNullOrWhiteSpace(claim.Value))
+                continue;
+
+            hasClaim = true;
+            if (string.Equals(claim.Value, expectedValue, StringComparison.Ordinal))
+                return true;
         }
 
-        if (!claimedScopes.Contains(scopeId, StringComparer.Ordinal))
-            throw new RestForbiddenException("The token does not grant access to this scope.");
+        return false;
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadBaggage(IHeaderDictionary headers)
+    {
+        Dictionary<string, string>? baggage = null;
+        foreach (var header in headers)
+        {
+            if (!header.Key.StartsWith("baggage-", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            baggage ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            baggage[header.Key] = header.Value.ToString();
+        }
+
+        return baggage ?? EmptyBaggage;
     }
 
     private static string GetCorrelationId(HttpContext context)

@@ -14,16 +14,25 @@ namespace BotFramework.Host.Economics.Services;
 public sealed class WalletAtomicExecutionService(
     INpgsqlConnectionFactory connections,
     TimeProvider timeProvider,
-    WalletScopeResolver? scopeResolver = null) : IWalletAtomicExecutionService
+    WalletScopeResolver? scopeResolver = null) : IWalletAtomicExecutionService, IWalletSnapshotService
 {
     public async Task EnsureUserAsync(long userId, long balanceScopeId, string displayName, CancellationToken ct)
+    {
+        _ = await EnsureAndGetBalanceAsync(userId, balanceScopeId, displayName, ct);
+    }
+
+    public async Task<int> EnsureAndGetBalanceAsync(
+        long userId,
+        long balanceScopeId,
+        string displayName,
+        CancellationToken ct)
     {
         if (displayName.Length > 64) displayName = displayName[..64];
         await using var connection = await connections.OpenAsync(ct);
         var effectiveScopeId = scopeResolver is null
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, connection, null, ct);
-        await connection.ExecuteAsync(new CommandDefinition(
+        return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
             """
             INSERT INTO users (telegram_user_id, balance_scope_id, display_name, coins, version, created_at, updated_at)
             SELECT @userId,
@@ -39,6 +48,7 @@ public sealed class WalletAtomicExecutionService(
              AND source.balance_scope_id = @sourceScopeId
             ON CONFLICT (telegram_user_id, balance_scope_id)
             DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = now()
+            RETURNING coins
             """,
             new { userId, sourceScopeId = balanceScopeId, effectiveScopeId, displayName },
             cancellationToken: ct));
@@ -76,22 +86,41 @@ public sealed class WalletAtomicExecutionService(
             ? balanceScopeId
             : await scopeResolver.ResolveAsync(balanceScopeId, connection, transaction, ct);
 
-        var existing = await connection.QuerySingleOrDefaultAsync<int?>(new CommandDefinition(
+        var claimed = await connection.ExecuteScalarAsync<bool?>(new CommandDefinition(
             """
-            SELECT balance_after
-            FROM economics_ledger
-            WHERE operation_id LIKE @prefix
-              AND balance_scope_id = @balanceScopeId
-            ORDER BY id DESC
-            LIMIT 1
+            INSERT INTO wallet_operations (
+                operation_id,
+                telegram_user_id,
+                balance_scope_id,
+                status)
+            VALUES (@operationId, @userId, @balanceScopeId, 'pending')
+            ON CONFLICT (operation_id) DO NOTHING
+            RETURNING true
             """,
-            new { prefix = operationId + ":%", balanceScopeId = effectiveScopeId },
+            new { operationId, userId, balanceScopeId = effectiveScopeId },
             transaction,
             cancellationToken: ct));
-        if (existing is not null)
+        if (claimed is null)
         {
+            var existing = await connection.QuerySingleOrDefaultAsync<WalletOperationRow>(new CommandDefinition(
+                """
+                SELECT status AS Status,
+                       applied AS Applied,
+                       balance_after AS BalanceAfter
+                FROM wallet_operations
+                WHERE operation_id = @operationId
+                """,
+                new { operationId },
+                transaction,
+                cancellationToken: ct));
+            if (existing is null || string.Equals(existing.Status, "pending", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Wallet operation '{operationId}' did not complete.");
+
             await transaction.CommitAsync(ct);
-            return new WalletBatchMutationResult(true, false, existing.Value);
+            return new WalletBatchMutationResult(
+                existing.Applied,
+                string.Equals(existing.Status, "rejected", StringComparison.Ordinal),
+                existing.BalanceAfter);
         }
 
         var wallet = await connection.QuerySingleOrDefaultAsync<WalletRow>(new CommandDefinition(
@@ -121,6 +150,14 @@ public sealed class WalletAtomicExecutionService(
             allowNegative: false);
         if (decision.Rejected)
         {
+            await CompleteOperationAsync(
+                connection,
+                transaction,
+                operationId,
+                status: "rejected",
+                applied: false,
+                balanceAfter: wallet.Coins,
+                ct);
             await transaction.CommitAsync(ct);
             return new WalletBatchMutationResult(false, true, wallet.Coins);
         }
@@ -165,9 +202,38 @@ public sealed class WalletAtomicExecutionService(
                 cancellationToken: ct));
         }
 
+        await CompleteOperationAsync(
+            connection,
+            transaction,
+            operationId,
+            status: "completed",
+            applied: decision.Applied,
+            balanceAfter: decision.NewBalance,
+            ct);
         await transaction.CommitAsync(ct);
         return new WalletBatchMutationResult(decision.Applied, false, decision.NewBalance);
     }
+
+    private static Task<int> CompleteOperationAsync(
+        Npgsql.NpgsqlConnection connection,
+        Npgsql.NpgsqlTransaction transaction,
+        string operationId,
+        string status,
+        bool applied,
+        int balanceAfter,
+        CancellationToken ct) =>
+        connection.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE wallet_operations
+            SET status = @status,
+                applied = @applied,
+                balance_after = @balanceAfter,
+                completed_at = now()
+            WHERE operation_id = @operationId
+            """,
+            new { operationId, status, applied, balanceAfter },
+            transaction,
+            cancellationToken: ct));
 
     private static async Task EnforceProtectionAsync(
         Npgsql.NpgsqlConnection connection,
@@ -214,6 +280,7 @@ public sealed class WalletAtomicExecutionService(
     }
 
     private sealed record WalletRow(int Coins, long Version);
+    private sealed record WalletOperationRow(string Status, bool Applied, int BalanceAfter);
     private sealed record LedgerLine(WalletMutationLine Mutation, string OperationId);
     private sealed record ProtectionRow(
         int? DailyLimit,

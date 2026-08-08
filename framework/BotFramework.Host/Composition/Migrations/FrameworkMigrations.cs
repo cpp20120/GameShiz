@@ -32,6 +32,8 @@ internal sealed class FrameworkMigrations : IModuleMigrations
         "014_economics_operation_id",
         "017_responsible_gaming_and_ops_reports",
         "038_wallet_scope_aliases",
+        "039_wallet_operation_results",
+        "040_wallet_hot_path_maintenance",
     ];
 
     public IReadOnlyList<Migration> Migrations { get; } =
@@ -1157,6 +1159,90 @@ internal sealed class FrameworkMigrations : IModuleMigrations
                 effective_scope_id BIGINT NOT NULL DEFAULT nextval('wallet_scope_aliases_effective_scope_seq'),
                 PRIMARY KEY (tenant_id, source_scope_id),
                 UNIQUE (effective_scope_id)
+            );
+            """),
+
+        new Migration("039_wallet_operation_results", """
+            CREATE TABLE IF NOT EXISTS wallet_operations (
+                operation_id     TEXT        PRIMARY KEY,
+                telegram_user_id BIGINT      NOT NULL,
+                balance_scope_id BIGINT      NOT NULL,
+                status           TEXT        NOT NULL CHECK (status IN ('pending', 'completed', 'rejected')),
+                applied          BOOLEAN,
+                balance_after    INTEGER,
+                created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+                completed_at     TIMESTAMPTZ
+            );
+            CREATE INDEX IF NOT EXISTS ix_wallet_operations_user_scope
+                ON wallet_operations (telegram_user_id, balance_scope_id, created_at DESC);
+
+            -- WalletAtomicExecutionService historically stored a batch as
+            -- operation-id:index entries in economics_ledger. Preserve retry
+            -- safety across this migration by materializing its final result.
+            INSERT INTO wallet_operations (
+                operation_id,
+                telegram_user_id,
+                balance_scope_id,
+                status,
+                applied,
+                balance_after,
+                created_at,
+                completed_at)
+            SELECT DISTINCT ON (base_operation_id)
+                base_operation_id,
+                telegram_user_id,
+                balance_scope_id,
+                'completed',
+                true,
+                balance_after,
+                created_at,
+                created_at
+            FROM (
+                SELECT regexp_replace(operation_id, ':[0-9]+$', '') AS base_operation_id,
+                       telegram_user_id,
+                       balance_scope_id,
+                       balance_after,
+                       created_at,
+                       id
+                FROM economics_ledger
+                WHERE operation_id ~ ':[0-9]+$'
+            ) AS legacy_operations
+            ORDER BY base_operation_id, id DESC
+            ON CONFLICT (operation_id) DO NOTHING;
+            """),
+
+        new Migration("040_wallet_hot_path_maintenance", """
+            -- Player-protection checks aggregate recent debits for one
+            -- wallet. Keep the lookup ordered by time and cover the columns
+            -- needed by the aggregate/filter so normal wallet mutations do
+            -- not scan that user's complete ledger history.
+            CREATE INDEX IF NOT EXISTS ix_economics_ledger_protection_lookup
+                ON economics_ledger (telegram_user_id, balance_scope_id, created_at DESC)
+                INCLUDE (delta, reason)
+                WHERE delta < 0;
+
+            -- These tables have materially different write patterns. Per-table
+            -- settings keep dead tuples and planner statistics bounded without
+            -- changing cluster-wide PostgreSQL policy.
+            ALTER TABLE users SET (
+                autovacuum_vacuum_scale_factor = 0.02,
+                autovacuum_vacuum_threshold = 50,
+                autovacuum_analyze_scale_factor = 0.02,
+                autovacuum_analyze_threshold = 50
+            );
+
+            ALTER TABLE wallet_operations SET (
+                autovacuum_vacuum_scale_factor = 0.02,
+                autovacuum_vacuum_threshold = 100,
+                autovacuum_analyze_scale_factor = 0.02,
+                autovacuum_analyze_threshold = 100
+            );
+
+            ALTER TABLE economics_ledger SET (
+                autovacuum_vacuum_scale_factor = 0.05,
+                autovacuum_vacuum_threshold = 1000,
+                autovacuum_analyze_scale_factor = 0.01,
+                autovacuum_analyze_threshold = 500
             );
             """),
 

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,7 @@ internal sealed class DevelopmentBearerAuthenticationHandler(
     : AuthenticationHandler<DevelopmentAuthenticationOptions>(options, logger, encoder)
 {
     public const string SchemeName = "RestDevelopment";
+    private const string LoadTestUserIdHeader = "X-Load-Test-User-Id";
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -33,10 +35,26 @@ internal sealed class DevelopmentBearerAuthenticationHandler(
         if (!isValid)
             return Task.FromResult(AuthenticateResult.NoResult());
 
+        var userId = Options.UserId;
+        var displayName = Options.DisplayName;
+        if (Options.AllowLoadTestIdentityOverride
+            && Request.Headers.TryGetValue(LoadTestUserIdHeader, out var requestedUserId))
+        {
+            if (!long.TryParse(requestedUserId, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedUserId)
+                || parsedUserId <= 0)
+            {
+                return Task.FromResult(AuthenticateResult.Fail(
+                    $"{LoadTestUserIdHeader} must be a positive 64-bit integer."));
+            }
+
+            userId = parsedUserId.ToString(CultureInfo.InvariantCulture);
+            displayName = $"REST load-test user {userId}";
+        }
+
         var claims = new[]
         {
-            new Claim("sub", Options.UserId),
-            new Claim("name", Options.DisplayName),
+            new Claim("sub", userId),
+            new Claim("name", displayName),
             new Claim("tenant_id", Options.TenantId),
             new Claim("scope_id", Options.ScopeId),
         };

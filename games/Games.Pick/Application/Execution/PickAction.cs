@@ -5,7 +5,8 @@ using Games.Pick.Domain.Events;
 
 namespace Games.Pick.Application.Execution;
 
-public sealed class PickAction : IGameAction<PickCommand, PickGameState, PickResult>
+public sealed class PickAction
+    : IGameAction<PickCommand, PickGameState, PickResult>, IGameCommandPreflight<PickCommand, PickResult>
 {
     public const string OutcomeEntropy = "outcome";
 
@@ -86,6 +87,20 @@ public sealed class PickAction : IGameAction<PickCommand, PickGameState, PickRes
             ],
             [],
             CustomEffects: custom);
+    }
+
+    public bool TryReject(PickCommand command, out PickResult result, out string rejectionReason)
+    {
+        if (Validate(command) is not { } error)
+        {
+            result = default!;
+            rejectionReason = string.Empty;
+            return false;
+        }
+
+        result = Fail(error, command);
+        rejectionReason = error.ToString();
+        return true;
     }
 
     private static PickError? Validate(PickCommand command)

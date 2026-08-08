@@ -15,6 +15,7 @@ public static class WalletGrpcExtensions
         services.AddResilientGrpcClient<WalletApi.WalletApiClient>(address);
         services.AddSingleton(provider => WalletGrpcProxyFactory.Create<IEconomicsService>(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxyFactory.Create<IWalletAtomicExecutionService>(provider.GetRequiredService<WalletApi.WalletApiClient>()));
+        services.AddSingleton(provider => WalletGrpcProxyFactory.Create<IWalletSnapshotService>(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxyFactory.Create<IDailyBonusService>(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxyFactory.Create<IWalletReadService>(provider.GetRequiredService<WalletApi.WalletApiClient>()));
         services.AddSingleton(provider => WalletGrpcProxyFactory.Create<IWalletAnalyticsService>(provider.GetRequiredService<WalletApi.WalletApiClient>()));

@@ -1,3 +1,4 @@
+using BotFramework.Host.Persistence.Connections;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,7 +12,9 @@ public sealed class SecretHitlerDbContext(INpgsqlConnectionFactory connections) 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
-            optionsBuilder.UseNpgsql(connections.Create().ConnectionString);
+            optionsBuilder
+                .UseNpgsql(connections.Create().ConnectionString)
+                .AddInterceptors(TenantDatabaseConnectionInterceptor.Instance);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

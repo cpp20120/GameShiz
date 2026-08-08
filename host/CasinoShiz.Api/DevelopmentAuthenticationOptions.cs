@@ -13,4 +13,11 @@ internal sealed class DevelopmentAuthenticationOptions : AuthenticationSchemeOpt
     public string UserId { get; set; } = "42";
 
     public string DisplayName { get; set; } = "REST development user";
+
+    /// <summary>
+    /// Enables a development-only load-test header that selects an independent
+    /// authenticated user while retaining the configured tenant and scope.
+    /// This remains disabled by default and is rejected outside Development.
+    /// </summary>
+    public bool AllowLoadTestIdentityOverride { get; set; }
 }

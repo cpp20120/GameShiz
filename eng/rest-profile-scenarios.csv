@@ -1,0 +1,92 @@
+id;family;module;method;path;phase;notes
+dice-roll;game;dice;POST;/roll;stateful;requires a valid roll payload
+blackjack-state;game;blackjack;GET;/state;read;current player state
+blackjack-start;game;blackjack;POST;/start;stateful;creates a hand
+blackjack-hit;game;blackjack;POST;/hit;stateful;requires an active hand
+blackjack-stand;game;blackjack;POST;/stand;stateful;requires an active hand
+blackjack-double;game;blackjack;POST;/double;stateful;requires an active hand
+horse-info;game;horse;GET;/info;read;read-only race projection
+horse-result;game;horse;GET;/result;read;read-only race result
+horse-bet;game;horse;POST;/bet;stateful;requires a valid bet payload and balance
+basketball-bet;game;basketball;POST;/bet;stateful;requires a valid bet payload
+basketball-play;game;basketball;POST;/play;stateful;places and resolves a bet
+basketball-roll;game;basketball;POST;/roll;stateful;requires a pending bet
+bowling-bet;game;bowling;POST;/bet;stateful;requires a valid bet payload
+bowling-play;game;bowling;POST;/play;stateful;places and resolves a bet
+bowling-roll;game;bowling;POST;/roll;stateful;requires a pending bet
+darts-play;game;darts;POST;/play;stateful;places and resolves a bet
+darts-bet;game;darts;POST;/bet;stateful;queues a darts round
+darts-throw;game;darts;POST;/rounds/{roundId}/throw;template;requires a round id
+dicecube-bet;game;dicecube;POST;/bet;stateful;requires a valid bet payload
+dicecube-play;game;dicecube;POST;/play;stateful;places and resolves a bet
+dicecube-roll;game;dicecube;POST;/roll;stateful;requires a pending bet
+football-bet;game;football;POST;/bet;stateful;requires a valid bet payload
+football-play;game;football;POST;/play;stateful;places and resolves a bet
+football-roll;game;football;POST;/roll;stateful;requires a pending bet
+pick-play;game;pick;POST;/;stateful;requires pick payload
+pick-lottery-open;game;pick;POST;/lottery;stateful;opens a lottery
+pick-lottery-join;game;pick;POST;/lottery/join;stateful;requires an open lottery
+pick-lottery-info;game;pick;GET;/lottery;read;current lottery projection
+pick-lottery-cancel;game;pick;DELETE;/lottery;stateful;requires an open lottery
+pick-daily-buy;game;pick;POST;/daily;stateful;requires daily ticket payload
+pick-daily-info;game;pick;GET;/daily;read;current daily lottery projection
+pick-daily-history;game;pick;GET;/daily/history;read;daily history
+pick-daily-schedule;game;pick;GET;/daily/schedule;read;daily schedule
+pick-chain-continue;game;pick;POST;/chains/continue;stateful;requires a chain state
+pick-chain-claim;game;pick;POST;/chains/{chainId}/claim;template;requires a chain id
+pixelbattle-grid;game;pixelbattle;GET;/grid;read;current grid projection
+pixelbattle-pixels;game;pixelbattle;POST;/pixels;stateful;requires pixel update payload
+poker-find-my-table;game;poker;GET;/tables/me;read;current player table
+poker-create-table;game;poker;POST;/tables;stateful;creates a table
+poker-join-table;game;poker;POST;/tables/{tableId}/join;template;requires a table id
+poker-start-hand;game;poker;POST;/tables/{tableId}/start;template;requires a table id
+poker-action;game;poker;POST;/tables/{tableId}/actions;template;requires a table id and hand
+poker-leave-table;game;poker;DELETE;/tables/{tableId}/players/me;template;requires a table id
+secrethitler-find-game;game;secrethitler;GET;/game;read;current player game
+secrethitler-create-game;game;secrethitler;POST;/game;stateful;creates a game
+secrethitler-join-game;game;secrethitler;POST;/game/join;stateful;requires a game
+secrethitler-start-game;game;secrethitler;POST;/game/start;stateful;requires players
+secrethitler-nominate;game;secrethitler;POST;/game/nominate;stateful;requires game state
+secrethitler-vote;game;secrethitler;POST;/game/vote;stateful;requires game state
+secrethitler-discard;game;secrethitler;POST;/game/discard;stateful;requires game state
+secrethitler-enact;game;secrethitler;POST;/game/enact;stateful;requires game state
+secrethitler-leave-game;game;secrethitler;DELETE;/game;stateful;requires a game
+challenge-create;game;challenges;POST;/;stateful;creates a challenge
+challenge-accept;game;challenges;POST;/{challengeId}/accept;template;requires a challenge id
+challenge-decline;game;challenges;POST;/{challengeId}/decline;template;requires a challenge id
+leaderboard-top;system;leaderboard;GET;/;read;leaderboard projection
+transfer-coins;system;transfer;POST;/;stateful;requires transfer payload
+redeem-begin;system;redeem;POST;/begin;stateful;requires redeem payload
+redeem-verify;system;redeem;POST;/verify;stateful;requires redeem state
+redeem-complete;system;redeem;POST;/complete;stateful;requires redeem state
+redeem-issue;system;redeem;POST;/issue;stateful;admin/code state
+meta-season;system;meta;GET;/season;read;season projection
+meta-profile;system;meta;GET;/profile;read;player profile projection
+meta-top;system;meta;GET;/top;read;meta leaderboard projection
+meta-achievements;system;meta;GET;/achievements;read;achievement projection
+meta-streaks;system;meta;GET;/streaks;read;streak projection
+meta-quests;system;meta;GET;/quests;read;quest projection
+meta-user-clan;system;meta;GET;/clan;read;player clan projection
+meta-clan-members;system;meta;GET;/clan/members;read;clan members projection
+meta-clan-top;system;meta;GET;/clan/top;read;clan leaderboard projection
+meta-open-tournaments;system;meta;GET;/tournaments/open;read;tournament projection
+meta-risk;system;meta;GET;/risk;read;risk projection
+meta-clan-by-tag;system;meta;GET;/clan/by-tag/{tag};template;requires a tag
+meta-clan-create;system;meta;POST;/clan;stateful;requires clan payload
+meta-clan-join;system;meta;POST;/clan/join;stateful;requires clan state
+meta-quest-claim;system;meta;POST;/quests/{questId}/claim;template;requires a quest id
+meta-tournament;system;meta;GET;/tournaments/{tournamentId};template;requires a tournament id
+meta-tournament-players;system;meta;GET;/tournaments/{tournamentId}/players;template;requires a tournament id
+meta-tournament-matches;system;meta;GET;/tournaments/{tournamentId}/matches;template;requires a tournament id
+meta-tournament-create;system;meta;POST;/tournaments;stateful;requires tournament payload
+meta-tournament-join;system;meta;POST;/tournaments/{tournamentId}/join;template;requires a tournament id
+meta-tournament-start;system;meta;POST;/tournaments/{tournamentId}/start;template;requires a tournament id
+meta-match-report;system;meta;POST;/tournaments/matches/{matchId}/report;template;requires a match id
+meta-tournament-finish;system;meta;POST;/tournaments/{tournamentId}/finish;template;requires a tournament id
+meta-tournament-cancel;system;meta;DELETE;/tournaments/{tournamentId};template;requires a tournament id
+meta-risk-status;system;meta;POST;/risk/{flagId}/status;template;requires a risk flag id
+admin-user;system;admin;GET;/users/{targetUserId};template;requires a target user id
+admin-sync;system;admin;POST;/sync;stateful;admin operation
+admin-pay;system;admin;POST;/pay;stateful;admin operation
+admin-clear-bets;system;admin;POST;/clear-bets;stateful;admin operation
+admin-rename;system;admin;POST;/rename;stateful;admin operation

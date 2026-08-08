@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using BotFramework.Contracts.Observability;
 using BotFramework.Contracts.Messaging;
 using BotFramework.Contracts.Tenancy;
@@ -34,11 +35,13 @@ internal sealed class RestTenantContextMiddleware(RequestDelegate next)
         var route = context.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName
             ?? context.GetEndpoint()?.DisplayName
             ?? "rest.unknown";
-        BotFrameworkMetrics.Requests.Add(
-            1,
-            new KeyValuePair<string, object?>("service", "rest"),
-            new KeyValuePair<string, object?>("channel", "rest"),
-            new KeyValuePair<string, object?>("route", route));
+        var requestTags = new TagList
+        {
+            { "service", "rest" },
+            { "channel", "rest" },
+            { "route", route },
+        };
+        BotFrameworkMetrics.Requests.Add(1, requestTags);
         try
         {
             await next(context);
@@ -46,22 +49,18 @@ internal sealed class RestTenantContextMiddleware(RequestDelegate next)
         catch
         {
             outcome = "error";
-            BotFrameworkMetrics.RequestErrors.Add(
-                1,
-                new KeyValuePair<string, object?>("service", "rest"),
-                new KeyValuePair<string, object?>("channel", "rest"),
-                new KeyValuePair<string, object?>("route", route),
-                new KeyValuePair<string, object?>("outcome", outcome));
+            var errorTags = requestTags;
+            errorTags.Add("outcome", outcome);
+            BotFrameworkMetrics.RequestErrors.Add(1, errorTags);
             throw;
         }
         finally
         {
+            var durationTags = requestTags;
+            durationTags.Add("outcome", outcome);
             BotFrameworkMetrics.RequestDuration.Record(
                 Stopwatch.GetElapsedTime(startedAt).TotalSeconds,
-                new KeyValuePair<string, object?>("service", "rest"),
-                new KeyValuePair<string, object?>("channel", "rest"),
-                new KeyValuePair<string, object?>("route", route),
-                new KeyValuePair<string, object?>("outcome", outcome));
+                durationTags);
         }
     }
 }

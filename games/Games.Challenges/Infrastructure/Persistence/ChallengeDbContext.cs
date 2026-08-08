@@ -1,3 +1,4 @@
+using BotFramework.Host.Persistence.Connections;
 using Microsoft.EntityFrameworkCore;
 
 namespace Games.Challenges.Infrastructure.Persistence;
@@ -9,7 +10,9 @@ public sealed class ChallengeDbContext(INpgsqlConnectionFactory connections) : D
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
-            optionsBuilder.UseNpgsql(connections.Create().ConnectionString);
+            optionsBuilder
+                .UseNpgsql(connections.Create().ConnectionString)
+                .AddInterceptors(TenantDatabaseConnectionInterceptor.Instance);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

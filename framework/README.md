@@ -179,6 +179,53 @@ and `AlertmanagerConfig` resources. The alert rules cover unavailable
 service/DB/Redis, prolonged local fallback, HTTP/game failures, request/game
 p95 latency, outbox lag, queue backlog, CPU and memory pressure.
 
+### Performance baseline
+
+The 1.0.0 repository baseline was measured on 2026-08-07 UTC. It is a
+development reference for comparing changes, not an SLA or a production
+capacity guarantee. The complete route matrix, error classifications and
+artifacts are documented in [`docs/rest-baseline.md`](../docs/rest-baseline.md).
+
+The measurement host was:
+
+| Property | Value |
+|---|---|
+| OS | CachyOS Linux, rolling, `x86_64` |
+| Kernel | `7.1.5-1-cachyos` |
+| CPU | AMD Ryzen 7 6800H, 8 cores / 16 logical CPUs |
+| RAM | 30 GiB host memory; 30 GiB swap |
+| .NET | SDK `10.0.110`, runtime `10.0.10` |
+| Deployment | local k3d/k3s dev cluster, ingress `api.casinoshiz.localhost` |
+| Dev pod profile | 2 CPU / 1 GiB for game backend and REST pods after the final tuning pass |
+| Services | PostgreSQL and Redis; ClickHouse and OTLP exporters disabled for the clean post-fix REST run |
+
+The load generator was `wrk` `f8eb608` with the epoll backend. The profiling
+harnesses were `eng/run-rest-profile-matrix.sh` and
+`eng/profile-rest-endpoint.sh`. Runtime diagnostics were collected with
+`dotnet-trace` and `dotnet-counters`, both version `9.0.661903`; process CPU
+and RSS were sampled from Linux `/proc`/`ps`. PostgreSQL CPU, RSS and
+transactions were sampled where the benchmark used a Docker PostgreSQL
+container. The high-concurrency matrix used 2 `wrk` threads, 128 connections
+and 10 seconds per scenario; the stable post-fix Horse comparison also used
+32 and 64 connections.
+
+Representative successful read baselines:
+
+| Route | Profile | RPS | Average latency |
+|---|---|---:|---:|
+| Horse `GET /horse/info` | 2 threads / 32 connections / 10 s, post-fix | 2704.70 | 12.00 ms |
+| Horse `GET /horse/info` | 2 threads / 64 connections / 10 s, post-fix | 2510.38 | 26.20 ms |
+| Leaderboard `GET /leaderboard/` | 2 threads / 128 connections / 10 s | 2005.54 | 66.98 ms |
+| Pick `GET /pick/daily/schedule` | 2 threads / 128 connections / 10 s | 3855.30 | 33.37 ms |
+| PixelBattle `GET /pixelbattle/grid` | 2 threads / 32 connections / 10 s, stable profile | 131.20 | — |
+
+The measurements used real framework middleware and game routes through the
+dev ingress. Routes returning `404` or `500` were retained for diagnostics but
+are not capacity baselines. Stateful game mutations were excluded from the
+read-only matrix unless a dedicated fixture and cleanup strategy existed.
+Kafka/Redpanda was not part of these RPS measurements; its framework transport
+was verified separately with a functional CAP round-trip smoke test.
+
 ### Package consumer and template workflow
 
 The repository validates the framework as an external consumer, not only via
